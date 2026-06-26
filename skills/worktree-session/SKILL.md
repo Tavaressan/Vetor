@@ -1,7 +1,7 @@
 ---
 name: worktree-session
 description: Gerencia o ciclo completo de uma sessão de desenvolvimento: escolha entre root e worktree isolado, criação de branch descritiva (com integração a frameworks de feature como Reversa Forward), trabalho incremental com commits, abertura de PR, monitoramento de CI, resolução de pendências e sincronização final do root. Use quando o usuário digitar "/worktree-session", "iniciar sessão" ou no início de qualquer sessão nova neste repositório.
-license: MIT
+license: Proprietary
 compatibility: Claude Code
 metadata:
   author: vitortavares

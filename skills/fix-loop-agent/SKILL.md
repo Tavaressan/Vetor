@@ -1,7 +1,7 @@
 ---
 name: fix-loop-agent
 description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (máximo 5 iterações). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do worktree-ship.
-license: MIT
+license: Proprietary
 compatibility: Claude Code
 metadata:
   author: vitortavares

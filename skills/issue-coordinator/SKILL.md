@@ -1,7 +1,7 @@
 ---
 name: issue-coordinator
 description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados. Agrega status, escalona permissões, e coordena merge serializado. Use /coordinator [label] [--dry-run].
-license: MIT
+license: Proprietary
 compatibility: Claude Code
 metadata:
   author: vitortavares

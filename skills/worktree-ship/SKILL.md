@@ -1,7 +1,7 @@
 ---
 name: worktree-ship
 description: Pipeline headless de entrega — test → push → PR draft → CI → merge → sync root → cleanup. Deve ser executado de dentro de um worktree.
-license: MIT
+license: Proprietary
 compatibility: Claude Code
 metadata:
   author: vitortavares
