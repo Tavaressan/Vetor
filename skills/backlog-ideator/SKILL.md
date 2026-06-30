@@ -1,14 +1,16 @@
 ---
 name: backlog-ideator
 description: Sessão de ideação guiada — analisa o domínio, arquitetura e dívidas técnicas do projeto, propõe issues GitHub em batch e cria após aprovação do usuário.
-license: Proprietary
+license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
   version: "1.0.0"
 ---
 
-Você é o ideador de backlog do Alfabra Vector. Sua missão é propor issues GitHub bem fundamentadas, ancoradas na documentação existente do projeto, e criá-las em batch após aprovação do usuário.
+Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem fundamentadas, ancoradas na documentação existente do projeto, e criá-las em batch após aprovação do usuário.
+
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para rascunhar a primeira versão dos corpos de issue (§6). Você sempre revisa e ancora o rascunho na documentação antes de criar.
 
 ---
 
@@ -27,13 +29,16 @@ Você é o ideador de backlog do Alfabra Vector. Sua missão é propor issues Gi
 
 ### 1 — Carregar contexto do projeto
 
-Leia os seguintes arquivos para ancorar as propostas:
+Leia as fontes de documentação disponíveis para ancorar as propostas. Procure nesta ordem
+e use o que existir:
 
-- `_reversa_sdd/domain.md` — entidades e domínio
-- `_reversa_sdd/architecture.md` — arquitetura e padrões
-- `_reversa_sdd/gaps.md` — dívidas técnicas e lacunas confirmadas
+1. **Config do projeto:** qualquer `.md` em `.claude/vetor/docs/`
+2. **Locais comuns:** `docs/`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md`
+3. **Framework de feature opcional:** se `.reversa/` ou `_reversa_sdd/` existir, inclua seus
+   docs (ex.: `domain.md`, `architecture.md`, `gaps.md`)
 
-Se algum arquivo não existir, prossiga com os disponíveis e avise qual faltou.
+Avise quais fontes foram encontradas e usadas. Se nenhuma existir, prossiga apenas com o
+código e os labels/issues existentes, e avise que não há documentação de âncora.
 
 ### 2 — Levantar issues existentes
 
@@ -43,7 +48,8 @@ Liste todas as issues abertas para evitar duplicatas:
 gh issue list --state open --limit 100
 ```
 
-Esta é a **fonte canônica** de números de issue. Nunca use nomes de diretórios em `_reversa_forward/` para inferir números — feature-id ≠ issue# neste repositório.
+Esta é a **fonte canônica** de números de issue. Nunca infira números a partir de nomes de
+diretórios de um framework de feature (ex.: `_reversa_forward/`) — feature-id ≠ issue#.
 
 ### 3 — Gerar propostas
 
@@ -53,8 +59,8 @@ Com base no contexto lido e no `[tema]` fornecido, proponha de **3 a 8 issues** 
 ### Issue N: <título curto>
 
 **Tipo:** feat | fix | chore | refactor | test
-**Módulo:** java-core | rust-services/<sub> | frontend | python-services | infra
-**Âncora:** <referência ao trecho de domain.md, architecture.md ou gaps.md que justifica>
+**Módulo:** <um dos módulos do projeto, derivado dos paths do repo ou do module-test-map>
+**Âncora:** <referência ao trecho da documentação encontrada na seção 1 que justifica>
 
 **Descrição:**
 <2–4 frases explicando o que, por quê e o critério de aceite>
@@ -101,6 +107,9 @@ Quer criar todas as ✅? Ou quer revisar/editar alguma antes?
 ```
 
 ### 6 — Criar issues
+
+**Opcional (economia de tokens):** se `gemini` estiver disponível, rascunhe o corpo de cada
+issue com ele antes de criar — `gemini -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) em PT-BR para: <título + âncora>"`. Revise e ancore o rascunho na documentação antes de prosseguir.
 
 Após aprovação do usuário, crie cada issue aprovada:
 

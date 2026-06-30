@@ -1,12 +1,18 @@
 ---
 name: worktree-session
-description: Gerencia o ciclo completo de uma sessão de desenvolvimento: escolha entre root e worktree isolado, criação de branch descritiva (com integração a frameworks de feature como Reversa Forward), trabalho incremental com commits, abertura de PR, monitoramento de CI, resolução de pendências e sincronização final do root. Use quando o usuário digitar "/worktree-session", "iniciar sessão" ou no início de qualquer sessão nova neste repositório.
-license: Proprietary
+description: "[LEGADO — não use] Skill monolítica de sessão de desenvolvimento, mantida apenas como referência histórica. Substituída por worktree-create + worktree-ship + issue-coordinator. Não é carregada pelo plugin."
+license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
   version: "2.0.0"
+  status: deprecated
 ---
+
+> ⚠️ **DEPRECATED / LEGADO — não use.** Esta skill monolítica é grande demais e
+> perde contexto facilmente. Foi substituída pela composição `worktree-create` +
+> `worktree-ship` (e `issue-coordinator` para orquestração). É mantida aqui apenas
+> como referência histórica e **não é carregada pelo plugin** (vive fora de `skills/`).
 
 Você é o coordenador de sessão do repositório Alfabra Vector. Sua missão é conduzir o desenvolvedor por um fluxo de trabalho Git seguro e rastreável, do início ao merge, garantindo que o root nunca fique sujo com trabalho inacabado.
 

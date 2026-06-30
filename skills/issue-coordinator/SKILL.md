@@ -1,14 +1,14 @@
 ---
 name: issue-coordinator
 description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados. Agrega status, escalona permissões, e coordena merge serializado. Use /coordinator [label] [--dry-run].
-license: Proprietary
+license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
   version: "1.0.0"
 ---
 
-Você é o coordenador de issues do Alfabra Vector. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge.
+Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge.
 
 ---
 
@@ -25,11 +25,14 @@ Você é o coordenador de issues do Alfabra Vector. Sua missão é despachar iss
 
 ## Referências
 
-Antes de iniciar, leia:
-- `.claude/skills/shared/references/module-test-map.md` — comandos de teste
-- `.claude/skills/worktree-create/SKILL.md` — contrato de criação
-- `.claude/skills/fix-loop-agent/SKILL.md` — contrato do loop de fix
-- `.claude/skills/worktree-ship/SKILL.md` — contrato de entrega
+Este coordenador compõe os comandos primitivos do plugin (forma namespaced):
+- `/vetor:worktree-create` — criação headless de worktree
+- `/vetor:fix-loop` — loop autônomo de fix até verde
+- `/vetor:worktree-ship` — pipeline de entrega (test → PR → CI → merge)
+
+Os comandos de teste vêm de `.claude/vetor/module-test-map.md` (cópia preenchida pelo
+usuário) ou, na ausência dela, de auto-detecção a partir do CI — cada primitivo já resolve
+isso internamente.
 
 ---
 
@@ -78,7 +81,7 @@ Para cada issue candidata, em sequência:
 2. Determine o tipo (`feat`, `fix`, `chore`, `refactor`) pelos labels da issue
 3. Invoque `worktree-create`:
    ```
-   /worktree-create <type> <slug> <issue#>
+   /vetor:worktree-create <type> <slug> <issue#>
    ```
 4. Registre o worktree criado: `{"issue": N, "slug": "<slug>", "branch": "<branch>", "path": "<path>"}`
 
@@ -105,7 +108,7 @@ O prompt de cada agente deve incluir:
   1. Ler a issue e entender o escopo
   2. Implementar a mudança no worktree
   3. Fazer commits incrementais
-  4. Executar `/fix-loop` para garantir testes verdes
+  4. Executar `/vetor:fix-loop` para garantir testes verdes
   5. Atualizar `AGENT_STATUS.md` a cada passo
   6. **Não** fazer push ou criar PR — isso é responsabilidade do coordinator via `worktree-ship`
 
@@ -177,7 +180,7 @@ Quando um agente atingir `GREEN`:
 1. Verifique que o worktree está de fato verde (leia `AGENT_STATUS.md`)
 2. Execute `worktree-ship` para o worktree correspondente:
    ```
-   /worktree-ship <issue#>
+   /vetor:worktree-ship <issue#>
    ```
 3. Após merge bem-sucedido, atualize a tabela
 

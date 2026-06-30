@@ -1,14 +1,14 @@
 ---
 name: worktree-ship
 description: Pipeline headless de entrega — test → push → PR draft → CI → merge → sync root → cleanup. Deve ser executado de dentro de um worktree.
-license: Proprietary
+license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
   version: "1.0.0"
 ---
 
-Você é o pipeline de entrega do Alfabra Vector. Sua missão é levar código testado e verde de um worktree até o merge em master, sem intervenção manual exceto quando review é necessário.
+Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e verde de um worktree até o merge na branch default, sem intervenção manual exceto quando review é necessário.
 
 ---
 
@@ -22,9 +22,27 @@ Você é o pipeline de entrega do Alfabra Vector. Sua missão é levar código t
 
 ---
 
-## Referência
+## Referências
 
-Antes de executar testes, leia `.claude/skills/shared/references/module-test-map.md` para obter os comandos de teste do módulo e as regras de execução.
+**Comandos de teste.** Antes de executar testes, obtenha os comandos do módulo nesta ordem:
+1. Leia `.claude/vetor/module-test-map.md` no projeto (cópia preenchida pelo usuário).
+2. Se não existir, auto-detecte os comandos a partir de `.github/workflows/*.yml`.
+3. Se ainda assim não conseguir, avise o usuário para copiar o template:
+   `cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" .claude/vetor/module-test-map.md` e preencher.
+
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se o CLI `gemini` estiver disponível, use-o para resumir logs de CI antes de diagnosticar (§7).
+
+## Branch default
+
+Detecte a branch default no início (não assuma `master`):
+
+```bash
+DEFAULT_BRANCH=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
+```
+
+Use `$DEFAULT_BRANCH` em todos os comandos abaixo.
 
 ---
 
@@ -53,19 +71,19 @@ git branch --show-current
 ### 2 — Detecção de módulos alterados
 
 ```bash
-git diff master --name-only
+git diff "$DEFAULT_BRANCH" --name-only
 ```
 
-Mapeie os arquivos alterados aos módulos usando a tabela de detecção do `module-test-map.md`.
+Mapeie os arquivos alterados aos módulos usando a tabela de detecção do module-test-map.
 
 ### 3 — Testes locais
 
 Para cada módulo alterado, execute o comando headless correspondente do `module-test-map.md`.
 
 **Regra sandbox:**
-- Tente docker uma vez (se aplicável ao módulo, ex.: `java-core-integ`)
+- Tente docker uma vez (se aplicável ao módulo, ex.: testes de integração)
 - Se bloqueado: troque permanentemente para o comando headless e registre no sumário
-- `java-core-integ` sem DB: reporte "skipped (requires DB)" sem falhar
+- Módulo de integração sem a dependência viva (DB etc.): reporte "skipped (requires <dep>)" sem falhar
 
 **Se algum teste falhar:**
 ```
@@ -87,7 +105,7 @@ Se falhar por rede, tente até 4 vezes com backoff exponencial (2s, 4s, 8s, 16s)
 
 Construa o título a partir dos commits:
 ```bash
-git log origin/master..HEAD --oneline
+git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```
 
 Crie o PR:
@@ -108,7 +126,7 @@ Closes #<issue#>
 EOF
 )" \
   --draft \
-  --base master
+  --base "$DEFAULT_BRANCH"
 ```
 
 Se `issue#` não foi fornecida, omita a seção "Issue relacionada".
@@ -129,6 +147,11 @@ Para cada falha de CI:
    ```bash
    gh run view <run-id> --log-failed
    ```
+   **Opcional (economia de tokens):** se `gemini` estiver disponível (ver `delegate-to-gemini.md`), passe o log por ele para condensar a causa raiz antes de você analisar:
+   ```bash
+   gh run view <run-id> --log-failed | gemini -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver."
+   ```
+   A decisão do fix é **sempre sua**, nunca do Gemini.
 2. Identifique a causa raiz
 3. Aplique o fix no worktree
 4. Commit: `fix: corrige <problema> no CI`
@@ -165,7 +188,7 @@ gh pr merge <PR-number> --squash --delete-branch --yes
 ```
 
 Se o merge falhar por conflito:
-1. `git merge master` no worktree
+1. `git merge "$DEFAULT_BRANCH"` no worktree
 2. Resolva conflitos
 3. Commit e push
 4. Volte ao passo 6
@@ -174,13 +197,13 @@ Se o merge falhar por conflito:
 
 ```bash
 ExitWorktree
-git checkout master
-git pull origin master
+git checkout "$DEFAULT_BRANCH"
+git pull origin "$DEFAULT_BRANCH"
 ```
 
 Confirme:
 ```
-Root sincronizado com master. Branch <branch> mergeada e deletada remotamente.
+Root sincronizado com <default-branch>. Branch <branch> mergeada e deletada remotamente.
 ```
 
 ### 11 — Cleanup
