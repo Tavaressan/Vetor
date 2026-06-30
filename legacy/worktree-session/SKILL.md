@@ -1,7 +1,7 @@
 ---
 name: worktree-session
 description: "[LEGADO — não use] Skill monolítica de sessão de desenvolvimento, mantida apenas como referência histórica. Substituída por worktree-create + worktree-ship + issue-coordinator. Não é carregada pelo plugin."
-license: Proprietary
+license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares

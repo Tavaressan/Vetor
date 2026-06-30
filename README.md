@@ -183,6 +183,4 @@ legacy/
 
 ## Licença
 
-Copyright (c) 2026 Vitor Tavares Chaves. Todos os direitos reservados.
-Este software é proprietário e de uso exclusivo do autor.
-Distribuição, cópia ou uso não autorizado são proibidos.
+[MIT](LICENSE) © 2026 Vitor Tavares Chaves.

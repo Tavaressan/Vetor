@@ -1,7 +1,7 @@
 ---
 name: backlog-ideator
 description: Sessão de ideação guiada — analisa o domínio, arquitetura e dívidas técnicas do projeto, propõe issues GitHub em batch e cria após aprovação do usuário.
-license: Proprietary
+license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares

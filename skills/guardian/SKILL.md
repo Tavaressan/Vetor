@@ -1,7 +1,7 @@
 ---
 name: guardian
 description: Audit + auto-fix de gaps que o pre-commit não cobre — JSON validity, sequência de migrations, worktrees abandonados, trabalho não commitado, PRs Dependabot. Modo manual ou cron (report-only).
-license: Proprietary
+license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
