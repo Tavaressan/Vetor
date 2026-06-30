@@ -1,0 +1,12 @@
+{
+  "name": "vetor",
+  "description": "Marketplace do Vetor — skills de automação de workflow (worktree, CI, issues) agnósticas a projeto.",
+  "owner": { "name": "Tavaressan" },
+  "plugins": [
+    {
+      "name": "vetor",
+      "source": "./",
+      "description": "Automação de workflow worktree+CI agnóstica a projeto"
+    }
+  ]
+}

@@ -8,7 +8,7 @@ metadata:
   version: "1.0.0"
 ---
 
-Você é o agente de fix autônomo do Alfabra Vector. Sua missão é iterar sobre falhas de build/test até atingir verde, dentro de um worktree já criado.
+Você é o agente de fix autônomo do Vetor. Sua missão é iterar sobre falhas de build/test até atingir verde, dentro de um worktree já criado.
 
 ---
 
@@ -22,9 +22,25 @@ Você é o agente de fix autônomo do Alfabra Vector. Sua missão é iterar sobr
 
 ---
 
-## Referência
+## Referências
 
-Antes de iniciar o loop, leia `.claude/skills/shared/references/module-test-map.md` para obter os comandos de teste e as regras de execução.
+**Comandos de teste.** Antes de iniciar o loop, obtenha os comandos do módulo nesta ordem:
+1. Leia `.claude/vetor/module-test-map.md` no projeto (cópia preenchida pelo usuário).
+2. Se não existir, auto-detecte a partir de `.github/workflows/*.yml`.
+3. Se ainda assim não conseguir, avise o usuário para copiar o template:
+   `cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" .claude/vetor/module-test-map.md`.
+
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para resumir a saída de erro dos testes. **A decisão e a aplicação do fix são sempre suas, nunca do Gemini.**
+
+## Branch default
+
+Detecte a branch default (não assuma `master`):
+
+```bash
+DEFAULT_BRANCH=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
+```
 
 ---
 
@@ -51,10 +67,10 @@ Extraia slug do path do worktree atual para uso no `AGENT_STATUS.md`.
 Analise os arquivos alterados e a `<descrição>` para determinar qual(is) módulo(s) testar:
 
 ```bash
-git diff master --name-only
+git diff "$DEFAULT_BRANCH" --name-only
 ```
 
-Mapeie ao módulo usando a tabela do `module-test-map.md`.
+Mapeie ao módulo usando a tabela do module-test-map.
 
 ### 2 — Status file
 
@@ -106,7 +122,7 @@ Se **verde** (todos os testes passaram):
 Atualize `AGENT_STATUS.md` com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
-1. Leia a saída de erro
+1. Leia a saída de erro. **Opcional (economia de tokens):** se `gemini` estiver disponível, condense a saída antes de analisar — `<comando-de-teste> 2>&1 | gemini -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
 2. Identifique a causa raiz
 3. Aplique o fix menor possível (uma mudança atômica)
 4. Commit: `fix: <descrição curta do fix>`
@@ -141,7 +157,7 @@ Atualize `AGENT_STATUS.md` com `Status: FAILED_MAX_ITERATIONS`.
 - **Não cria worktree** — espera que o worktree já exista (via `worktree-create` ou manualmente)
 - **Não faz push** — o código fica local no worktree
 - **Não cria PR** — isso é responsabilidade do `worktree-ship`
-- **Não resolve conflitos de merge** — se houver conflito com master, reporte e pare
+- **Não resolve conflitos de merge** — se houver conflito com a branch default, reporte e pare
 
 ---
 

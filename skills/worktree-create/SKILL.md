@@ -8,7 +8,7 @@ metadata:
   version: "1.0.0"
 ---
 
-Você é o primitivo de criação de worktree do Alfabra Vector. Sua única responsabilidade é criar um worktree Git isolado de forma determinística, sem perguntas ao usuário.
+Você é o primitivo de criação de worktree do Vetor. Sua única responsabilidade é criar um worktree Git isolado de forma determinística, sem perguntas ao usuário.
 
 ---
 
@@ -44,6 +44,14 @@ Verifique os argumentos recebidos:
 
 ### 2 — Derivar nomes
 
+Detecte a branch default do repositório (não assuma `master`):
+
+```bash
+DEFAULT_BRANCH=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
+```
+
 - **Branch:** `<type>/<issue#>-<slug>` se issue fornecida; `<type>/<slug>` caso contrário
 - **Path:** `.claude/worktrees/<slug>`
 
@@ -70,14 +78,14 @@ Use outro slug ou remova o worktree existente com:
 Execute em sequência:
 
 ```bash
-git pull origin master
+git pull origin "$DEFAULT_BRANCH"
 
-git worktree add -b <branch> .claude/worktrees/<slug> master
+git worktree add -b <branch> .claude/worktrees/<slug> "$DEFAULT_BRANCH"
 ```
 
-Se `git pull` falhar (ex.: rede indisponível), continue com o master local e avise:
+Se `git pull` falhar (ex.: rede indisponível), continue com a branch default local e avise:
 ```
-AVISO: git pull falhou — criando worktree a partir do master local.
+AVISO: git pull falhou — criando worktree a partir da <default-branch> local.
 ```
 
 Se `git worktree add` falhar, reporte o erro e aborte.

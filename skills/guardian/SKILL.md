@@ -1,6 +1,6 @@
 ---
 name: guardian
-description: Audit + auto-fix de gaps que o pre-commit não cobre — JSON validity, sequência Flyway, worktrees abandonados, trabalho não commitado, PRs Dependabot. Modo manual ou cron (report-only).
+description: Audit + auto-fix de gaps que o pre-commit não cobre — JSON validity, sequência de migrations, worktrees abandonados, trabalho não commitado, PRs Dependabot. Modo manual ou cron (report-only).
 license: Proprietary
 compatibility: Claude Code
 metadata:
@@ -8,7 +8,9 @@ metadata:
   version: "1.0.0"
 ---
 
-Você é o guardião do Alfabra Vector. Sua missão é auditar e corrigir padrões recorrentes de falha que escapam do pre-commit, entregando um relatório estruturado de Found/Fixed/Hardened.
+Você é o guardião do Vetor. Sua missão é auditar e corrigir padrões recorrentes de falha que escapam do pre-commit, entregando um relatório estruturado de Found/Fixed/Hardened.
+
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para rascunhar o relatório final a partir dos findings brutos. Você valida o rascunho antes de apresentá-lo.
 
 ---
 
@@ -25,9 +27,12 @@ Você é o guardião do Alfabra Vector. Sua missão é auditar e corrigir padrõ
 
 ## Divisão de responsabilidades com o pre-commit
 
-O `.pre-commit-config.yaml` já cobre: rust-fmt, rust-clippy, frontend-lint, frontend-types, gitleaks, python-black, gradle-wrapper-check, flyway-migration-check (staged SQL).
+Se o projeto tiver `.pre-commit-config.yaml`, esses hooks já cobrem formatação, lint e
+secret-scanning sobre arquivos staged. O guardian **não reimplementa** nenhum check que o
+pre-commit já faça. Ele atua **somente** no que o pre-commit não cobre (estado completo do
+repositório, worktrees, sequência de migrations, PRs de bots).
 
-O guardian **não reimplementa** nenhum desses checks. Ele atua **somente** no que o pre-commit não cobre.
+Se não houver `.pre-commit-config.yaml`, o guardian roda apenas seus próprios checks abaixo.
 
 ---
 
@@ -35,21 +40,30 @@ O guardian **não reimplementa** nenhum desses checks. Ele atua **somente** no q
 
 ### 1 — JSON validity
 
-Verifica a integridade de JSONs de configuração:
+Verifica a integridade de JSONs de configuração. Escaneie `.claude/` e quaisquer diretórios
+de config presentes (ex.: `.reversa/` se existir):
 
 ```bash
-find .reversa/ .claude/ -name "*.json" -not -path ".claude/worktrees/*" -exec python3 -m json.tool {} \; 2>&1
+find .claude/ $( [ -d .reversa ] && echo .reversa/ ) -name "*.json" -not -path ".claude/worktrees/*" -exec python3 -m json.tool {} \; 2>&1
 ```
 
 **Finding:** JSON inválido em `<path>`
 **Auto-fix (modo manual):** reescreve com `jq` se o erro for trivial (trailing comma, encoding). Confirma antes de sobrescrever.
 
-### 2 — Sequência de migrations Flyway
+### 2 — Sequência de migrations (condicional)
 
-O pre-commit valida migrations em staging; o guardian verifica a sequência **completa** no diretório:
+Só execute este check se o projeto tiver um diretório de migrations versionadas. Detecte-o:
 
 ```bash
-ls java-core/src/main/resources/db/migration/ | grep "^V" | sort -V
+MIGRATIONS_DIR=$(find . -type d -path '*/db/migration' -not -path './.claude/worktrees/*' 2>/dev/null | head -1)
+```
+
+Se nenhum diretório for encontrado, reporte "skipped (no migrations dir)" e siga adiante.
+
+Se encontrado, verifique a sequência **completa** (ex.: convenção Flyway `V<N>__<descrição>.sql`):
+
+```bash
+ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 ```
 
 Verifica:
@@ -114,7 +128,7 @@ Após todos os checks, produza o relatório no formato:
 
 ### Hardened (verificações que passaram)
 - JSON validity: ✅ <N> arquivos verificados
-- Flyway sequence: ✅ V1–V<N> sem buracos
+- Migrations: ✅ sequência sem buracos (ou "skipped — no migrations dir")
 - Worktrees: ✅ todos em .claude/worktrees/
 - Uncommitted work: ✅ nenhum
 - Dependabot: ✅ <N> PRs abertos, nenhum com conflito

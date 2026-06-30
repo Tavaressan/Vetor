@@ -1,80 +1,82 @@
 # Vetor
 
-Biblioteca de skills [Claude Code](https://docs.anthropic.com/en/docs/claude-code) para automação de workflow de desenvolvimento.
+Plugin [Claude Code](https://docs.anthropic.com/en/docs/claude-code) de skills para automação de workflow de desenvolvimento. **Agnóstico a projeto** — instale uma vez e use em qualquer repositório.
 
 Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix autônomo → ship → guarda**.
 
 ---
 
-## Skills
+## Instalação
 
-| Skill | Comando | O que faz |
-|-------|---------|----------|
-| `worktree-session` | `/worktree-session [issue#]` | Sessão interativa completa — escolha root/worktree, criação de branch, trabalho incremental, PR, CI, merge e sync |
-| `worktree-create` | `/worktree-create <type> <slug> [issue#]` | Primitivo headless — cria worktree sem prompts, todos os parâmetros via args |
-| `worktree-ship` | `/worktree-ship [issue#]` | Pipeline headless: test local → push → PR draft → CI watch → merge → sync root → cleanup |
-| `fix-loop-agent` | `/fix-loop <descrição>` | Loop autônomo reproduce → fix → rebuild → test (max 5 iterações) |
-| `backlog-ideator` | `/backlog [tema]` | Ideação guiada ancorada em docs do projeto → batch de issues GitHub com aprovação humana |
-| `guardian` | `/guardian [--cron]` | Audit + auto-fix de gaps que o pre-commit não cobre (JSON, Flyway, worktrees, Dependabot) |
-| `issue-coordinator` | `/coordinator [label] [--dry-run]` | Despacho paralelo de issues para sub-agentes com escalação de permissões e merge serializado |
+```
+/plugin marketplace add Tavaressan/Vetor
+/plugin install vetor@vetor
+```
 
-### Referência compartilhada
-
-- **`shared/references/module-test-map.md`** — Tabela canônica de comandos de teste headless por módulo, regra sandbox de docker e exclusões obrigatórias. Consumida por `worktree-ship`, `fix-loop-agent` e `guardian`.
+Pronto. Os comandos ficam disponíveis com o prefixo `/vetor:`. Não é preciso copiar pastas nem editar o `CLAUDE.md` do projeto.
 
 ---
 
-## Como usar
+## Skills
 
-### 1. Copiar os skills para o seu projeto
+| Comando | O que faz |
+|---------|----------|
+| `/vetor:worktree-create <type> <slug> [issue#]` | Primitivo headless — cria worktree isolado sem prompts, todos os parâmetros via args |
+| `/vetor:worktree-ship [issue#]` | Pipeline headless: test local → push → PR draft → CI watch → merge → sync root → cleanup |
+| `/vetor:fix-loop <descrição>` | Loop autônomo reproduce → fix → rebuild → test (máx. 5 iterações) |
+| `/vetor:backlog [tema]` | Ideação guiada ancorada em docs do projeto → batch de issues GitHub com aprovação humana |
+| `/vetor:guardian [--cron]` | Audit + auto-fix de gaps que o pre-commit não cobre (JSON, migrations, worktrees, Dependabot) |
+| `/vetor:coordinator [label] [--dry-run]` | Despacho paralelo de issues para sub-agentes com escalação de permissões e merge serializado |
 
-Clone este repositório e copie os skills desejados para `.claude/skills/` do seu projeto:
+### Referência compartilhada
+
+- **`skills/shared/references/module-test-map.template.md`** — Template de comandos de teste headless por módulo. Veja "Configuração por projeto" abaixo.
+- **`skills/shared/references/delegate-to-gemini.md`** — Padrão opcional de delegação ao Gemini CLI para economizar tokens. Veja "Delegação ao Gemini".
+
+> ⚠️ A skill `worktree-session` foi **aposentada**. Era monolítica demais e perdia contexto. Use a composição `worktree-create` + `worktree-ship` (e `coordinator` para orquestração). O arquivo legado fica em `legacy/worktree-session/` apenas como referência histórica e **não é carregado** pelo plugin.
+
+---
+
+## Configuração por projeto (opcional)
+
+As skills de teste (`worktree-ship`, `fix-loop`, `guardian`) precisam saber **como rodar os testes do seu projeto**. Elas resolvem isso nesta ordem:
+
+1. Leem `.claude/vetor/module-test-map.md` se existir;
+2. Senão, tentam **auto-detectar** os comandos a partir de `.github/workflows/*.yml`;
+3. Senão, pedem que você crie o arquivo a partir do template.
+
+Para o controle mais previsível, copie o template e preencha:
 
 ```bash
-git clone git@github.com:Tavaressan/Vetor.git
-
-# Copiar todos os skills
-cp -r Vetor/skills/* seu-projeto/.claude/skills/
-
-# Ou copiar apenas os que precisa
-cp -r Vetor/skills/worktree-create seu-projeto/.claude/skills/
-cp -r Vetor/skills/fix-loop-agent seu-projeto/.claude/skills/
+mkdir -p .claude/vetor
+cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" \
+   .claude/vetor/module-test-map.md
+# edite com os comandos de teste headless do SEU projeto
 ```
 
-### 2. Adaptar o module-test-map
+A branch principal é **detectada automaticamente** (`main`, `master`, etc.) — não há nada a configurar.
 
-O arquivo `shared/references/module-test-map.md` contém comandos de teste específicos do projeto Alfabra Vector. **Você deve adaptá-lo** ao seu projeto:
+### Frameworks de feature opcionais
 
-```bash
-cp -r Vetor/skills/shared seu-projeto/.claude/skills/
-# Edite .claude/skills/shared/references/module-test-map.md
-# com os comandos de teste do SEU projeto
-```
+Se o projeto usar um framework de docs/feature (ex.: um diretório `.reversa/` ou `_reversa_sdd/`), o `backlog-ideator` o detecta e usa como âncora. Se não houver, ele recorre a `docs/`, `ARCHITECTURE.md`, `README.md` e `CLAUDE.md`. Nada a configurar.
 
-A tabela deve mapear cada módulo do seu projeto ao comando headless de teste correspondente. Skills como `worktree-ship`, `fix-loop-agent` e `guardian` consultam esta tabela.
+---
 
-### 3. Registrar no CLAUDE.md
+## Delegação ao Gemini (opcional)
 
-Adicione a tabela de skills ao `CLAUDE.md` do seu projeto para que o Claude Code saiba que eles existem:
+Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco ao CLI `gemini` (Google Gemini CLI), seguindo o padrão **Gemini rascunha, Claude valida**:
 
-```markdown
-## Skills de Automação
+- Resumir logs de CI longos antes do diagnóstico (`worktree-ship`, `fix-loop`)
+- Rascunhar corpos de issue (`backlog`)
+- Rascunhar mensagens de commit e relatórios (`guardian`)
 
-| Skill | Ativação | Propósito |
-|-------|----------|----------|
-| `worktree-create` | `/worktree-create <type> <slug> [issue#]` | Cria worktree headless |
-| `worktree-ship` | `/worktree-ship [issue#]` | Ship pipeline completo |
-| `fix-loop-agent` | `/fix-loop <descrição>` | Loop de fix até CI verde |
-| `backlog-ideator` | `/backlog [tema]` | Ideação → issues GitHub |
-| `guardian` | `/guardian` | Audit + auto-fix |
-| `issue-coordinator` | `/coordinator [label] [--dry-run]` | Despacho paralelo |
+É **totalmente opcional**: se `gemini` não estiver no PATH, as skills fazem tudo inline. Correção de código, resolução de conflito e decisão de merge **nunca** são delegadas — ficam sempre com o Claude. Detalhes em `skills/shared/references/delegate-to-gemini.md`.
 
-Referência compartilhada de testes: `.claude/skills/shared/references/module-test-map.md`
-```
+---
 
-### 4. Permissões (opcional)
+## Permissões (opcional)
 
-Se quiser evitar prompts de permissão repetitivos, crie `.claude/settings.json`:
+Para evitar prompts repetitivos, adicione ao `.claude/settings.json` do projeto:
 
 ```json
 {
@@ -100,48 +102,43 @@ Se quiser evitar prompts de permissão repetitivos, crie `.claude/settings.json`
 
 ## Arquitetura dos skills
 
-Os skills são organizados em camadas — primitivos que podem ser compostos por skills de nível superior:
+Primitivos compostos por skills de nível superior:
 
 ```
-                    issue-coordinator
-                   /        |        \
-          worktree-create  fix-loop  worktree-ship
-                   \        |        /
-              shared/references/module-test-map.md
+                    coordinator
+                   /     |      \
+       worktree-create  fix-loop  worktree-ship
+                   \     |      /
+              .claude/vetor/module-test-map.md  (config por projeto)
 
-          backlog-ideator  (independente)
-          guardian          (independente)
-          worktree-session  (interativo, standalone)
+          backlog   (independente)
+          guardian  (independente)
 ```
 
 ### Fluxo completo automatizado
 
-1. **`/backlog resiliência`** — gera e cria issues no GitHub com label `ai-generated`
-2. **`/coordinator ai-generated`** — despacha cada issue para um sub-agente em worktree isolado
-3. Cada sub-agente: implementa → `/fix-loop` → testes verdes
-4. Coordinator: `/worktree-ship` sequencial → PR → CI → merge
-5. **`/guardian`** — audita o estado pós-merge
+1. **`/vetor:backlog resiliência`** — gera e cria issues no GitHub com label `ai-generated`
+2. **`/vetor:coordinator ai-generated`** — despacha cada issue para um sub-agente em worktree isolado
+3. Cada sub-agente: implementa → `/vetor:fix-loop` → testes verdes
+4. Coordinator: `/vetor:worktree-ship` sequencial → PR → CI → merge
+5. **`/vetor:guardian`** — audita o estado pós-merge
 
 ### Fluxo manual (skill por skill)
 
-1. **`/worktree-create fix auth-bug 42`** — cria worktree isolado
+1. **`/vetor:worktree-create fix auth-bug 42`** — cria worktree isolado
 2. *(desenvolve normalmente)*
-3. **`/fix-loop cargo test failing`** — itera até verde
-4. **`/worktree-ship 42`** — PR + CI + merge
+3. **`/vetor:fix-loop testes falhando`** — itera até verde
+4. **`/vetor:worktree-ship 42`** — PR + CI + merge
 
 ---
 
 ## Observabilidade
 
-Quando o `issue-coordinator` despacha sub-agentes:
+Quando o `coordinator` despacha sub-agentes:
 
 - **`AGENT_STATUS.md`** por worktree — cada agente atualiza seu status a cada iteração
 - **Tabela de status** no chat — coordinator consolida via `gh pr list`
-- **Escalação** — bloqueios de permissão e decisões técnicas são repassados ao usuário com opções:
-  1. Permitir esta vez
-  2. Permitir para este agente (blanket permission)
-  3. Negar e continuar
-  4. Parar agente
+- **Escalação** — bloqueios de permissão e decisões técnicas são repassados ao usuário com opções (permitir / permitir para o agente / negar / parar)
 
 ### Hard caps
 
@@ -158,30 +155,28 @@ Quando o `issue-coordinator` despacha sub-agentes:
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - `gh` CLI autenticado (para issues, PRs, CI)
 - Git com suporte a worktrees (`git worktree`)
+- *(opcional)* `gemini` CLI no PATH para delegação de tarefas
 
 ---
 
 ## Estrutura do repositório
 
 ```
+.claude-plugin/
+├── plugin.json              # manifesto do plugin
+└── marketplace.json         # listagem do marketplace
 skills/
-├── shared/
-│   └── references/
-│       └── module-test-map.md
-├── backlog-ideator/
-│   └── SKILL.md
-├── fix-loop-agent/
-│   └── SKILL.md
-├── guardian/
-│   └── SKILL.md
-├── issue-coordinator/
-│   └── SKILL.md
-├── worktree-create/
-│   └── SKILL.md
-├── worktree-session/
-│   └── SKILL.md
-└── worktree-ship/
-    └── SKILL.md
+├── shared/references/
+│   ├── module-test-map.template.md
+│   └── delegate-to-gemini.md
+├── backlog-ideator/SKILL.md
+├── fix-loop-agent/SKILL.md
+├── guardian/SKILL.md
+├── issue-coordinator/SKILL.md
+├── worktree-create/SKILL.md
+└── worktree-ship/SKILL.md
+legacy/
+└── worktree-session/SKILL.md   # aposentada — não carregada
 ```
 
 ---
