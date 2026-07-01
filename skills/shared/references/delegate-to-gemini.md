@@ -1,7 +1,7 @@
 # Delegação assistida ao Gemini (opcional)
 
 Referência compartilhada para economizar tokens delegando **tarefas mecânicas e de baixo
-risco** ao CLI `gemini` (Google Gemini CLI). Padrão: **Gemini rascunha, Claude valida.**
+risco** ao CLI `agy` (Google Antigravity/Gemini CLI). Padrão: **Gemini rascunha, Claude valida.**
 
 Consumida por `worktree-ship`, `fix-loop-agent`, `backlog-ideator` e `guardian`.
 
@@ -12,12 +12,12 @@ Consumida por `worktree-ship`, `fix-loop-agent`, `backlog-ideator` e `guardian`.
 No início da skill, detecte se o CLI está disponível:
 
 ```bash
-command -v gemini >/dev/null 2>&1 && GEMINI_AVAILABLE=1 || GEMINI_AVAILABLE=0
+command -v agy >/dev/null 2>&1 && GEMINI_AVAILABLE=1 || GEMINI_AVAILABLE=0
 ```
 
 - Se `GEMINI_AVAILABLE=0`: faça a tarefa **inline** normalmente. Nunca falhe nem peça
   instalação — a delegação é puramente opcional.
-- Se `GEMINI_AVAILABLE=1`: você **pode** delegar as tarefas listadas abaixo. **Sempre imprima um log explícito no console antes de rodar o comando gemini**, no formato:
+- Se `GEMINI_AVAILABLE=1`: você **pode** delegar as tarefas listadas abaixo. **Sempre imprima um log explícito no console antes de rodar o comando agy**, no formato:
   `echo "[Vetor:Gemini] Delegando tarefa: <breve descrição>"`
 
 ---
@@ -30,7 +30,7 @@ linhas no contexto:
 
 ```bash
 gh run view <run-id> --log-failed \
-  | gemini -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver. Não invente; se não houver causa clara, diga isso."
+  | agy -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver. Não invente; se não houver causa clara, diga isso."
 ```
 
 O Claude lê o resumo e **decide o fix**. Usado por `worktree-ship` (monitorar CI) e
@@ -40,7 +40,7 @@ O Claude lê o resumo e **decide o fix**. Usado por `worktree-ship` (monitorar C
 Em `backlog-ideator`, gere a primeira versão do corpo da issue:
 
 ```bash
-gemini -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) para: <tema>. Conciso, em PT-BR."
+agy -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) para: <tema>. Conciso, em PT-BR."
 ```
 
 O Claude **revisa e ancora** o rascunho na documentação do projeto antes de criar via
@@ -50,7 +50,7 @@ O Claude **revisa e ancora** o rascunho na documentação do projeto antes de cr
 Mensagens de commit (`fix-loop-agent`, `worktree-ship`) e o relatório do `guardian`:
 
 ```bash
-git diff --staged | gemini -p "Escreva uma mensagem de commit conventional commits (uma linha de subject + corpo opcional) para este diff."
+git diff --staged | agy -p "Escreva uma mensagem de commit conventional commits (uma linha de subject + corpo opcional) para este diff."
 ```
 
 O Claude valida o rascunho antes de usar.
@@ -59,7 +59,7 @@ O Claude valida o rascunho antes de usar.
 Em `worktree-ship`, gere a primeira versão da descrição do Pull Request com base no diff acumulado da branch em relação à branch default do projeto:
 
 ```bash
-git diff "$DEFAULT_BRANCH"...HEAD | gemini -p "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
+git diff "$DEFAULT_BRANCH"...HEAD | agy -p "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
 ```
 
 O Claude **revisa e formata** a descrição antes de passá-la ao comando `gh pr create --body`.
@@ -69,7 +69,7 @@ Em `issue-coordinator`, delegue a varredura e o agrupamento preliminar de issues
 
 ```bash
 gh issue list --label <label> --state open --json number,title,labels,body \
-  | gemini -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue, as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo ideal de execução deve ser haiku (ajustes simples/chore) ou sonnet (features complexas/refactor)."
+  | agy -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue, as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo ideal de execução deve ser haiku (ajustes simples/chore) ou sonnet (features complexas/refactor)."
 ```
 
 O Claude **valida a afinidade**, resolve eventuais erros do rascunho e constrói a tabela final de dispatch.
@@ -78,7 +78,7 @@ O Claude **valida a afinidade**, resolve eventuais erros do rascunho e constrói
 No `issue-coordinator`, delegue a criação do changelog consolidado a partir do histórico de commits da sessão:
 
 ```bash
-git log origin/main...HEAD --oneline | gemini -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
+git log origin/main...HEAD --oneline | agy -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
 ```
 
 O Claude **valida o texto**, refina o formato e salva no arquivo `.claude/vetor/CHANGELOG.md`.
@@ -87,7 +87,7 @@ O Claude **valida o texto**, refina o formato e salva no arquivo `.claude/vetor/
 No `guardian`, envie o dump de arquivos de migrations para verificar a integridade da sequência temporal:
 
 ```bash
-ls "$MIGRATIONS_DIR" | gemini -p "Examine esta listagem de arquivos de migrations e detecte se existem timestamps/versões fora de ordem, buracos na sequência cronológica de numeração ou desvios do padrão de nomenclatura V<N>__<descrição>.sql."
+ls "$MIGRATIONS_DIR" | agy -p "Examine esta listagem de arquivos de migrations e detecte se existem timestamps/versões fora de ordem, buracos na sequência cronológica de numeração ou desvios do padrão de nomenclatura V<N>__<descrição>.sql."
 ```
 
 O Claude **avalia os findings apontados** pelo Gemini e os compila no relatório da auditoria.
@@ -96,7 +96,7 @@ O Claude **avalia os findings apontados** pelo Gemini e os compila no relatório
 No `backlog-ideator`, envie arquivos longos de documentação para obter uma síntese executiva de apoio à ideação:
 
 ```bash
-cat ARCHITECTURE.md docs/*.md | gemini -p "Gere um resumo arquitetural consolidado deste projeto contendo os principais padrões de design e módulos, para que um agente possa compreender a estrutura do sistema rapidamente."
+cat ARCHITECTURE.md docs/*.md | agy -p "Gere um resumo arquitetural consolidado deste projeto contendo os principais padrões de design e módulos, para que um agente possa compreender a estrutura do sistema rapidamente."
 ```
 
 O Claude **usa este sumário como âncora conceitual** sem precisar ler dezenas de arquivos markdown na íntegra.

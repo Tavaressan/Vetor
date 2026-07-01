@@ -10,7 +10,7 @@ metadata:
 
 Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem fundamentadas, ancoradas na documentação existente do projeto, e criá-las em batch após aprovação do usuário.
 
-**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para rascunhar a primeira versão dos corpos de issue (§6). Você sempre revisa e ancora o rascunho na documentação antes de criar.
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `agy` estiver disponível, use-o para rascunhar a primeira versão dos corpos de issue (§6). Você sempre revisa e ancora o rascunho na documentação antes de criar.
 
 ---
 
@@ -40,15 +40,15 @@ e use o que existir:
 Avise quais fontes foram encontradas e usadas.
 
 **Delegação ao Gemini (Opcional - Economia de Tokens):**
-Se os arquivos de documentação encontrados somarem mais de 100 linhas e o CLI `gemini` estiver disponível (verifique via `command -v gemini`):
+Se os arquivos de documentação encontrados somarem mais de 100 linhas e o CLI `agy` estiver disponível (verifique via `command -v agy`):
 1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Resumindo documentação conceitual de arquitetura"`
 2. Execute o comando para gerar o sumário arquitetural a partir dos arquivos identificados:
    ```bash
-   cat <caminhos-dos-arquivos-encontrados> | gemini -p "Gere um resumo arquitetural consolidado deste projeto contendo os principais padrões de design, módulos e restrições técnicas, para que um agente possa compreender a estrutura do sistema rapidamente."
+   cat <caminhos-dos-arquivos-encontrados> | agy -p "Gere um resumo arquitetural consolidado deste projeto contendo os principais padrões de design, módulos e restrições técnicas, para que um agente possa compreender a estrutura do sistema rapidamente."
    ```
 3. O Claude utilizará este sumário consolidado de alta densidade como sua âncora conceitual primária, poupando tokens de contexto ao evitar a leitura bruta de múltiplos arquivos extensos.
 
-Se o Gemini não estiver disponível ou a documentação for pequena, prossiga com a leitura nativa dos arquivos identificados. Se nenhuma fonte de documentação existir, prossiga apenas com o código e os labels/issues existentes, avisando que não há documentação de âncora.
+Se o agy não estiver disponível ou a documentação for pequena, prossiga com a leitura nativa dos arquivos identificados. Se nenhuma fonte de documentação existir, prossiga apenas com o código e os labels/issues existentes, avisando que não há documentação de âncora.
 
 ### 2 — Levantar issues existentes
 
@@ -139,11 +139,11 @@ Não crie as issues imediatamente. Aguarde até que o usuário revise o plano e 
 ### 6 — Criar issues
 
 Após o usuário aprovar o plano de implementação:
-**Opcional (economia de tokens):** se `gemini` estiver disponível, rascunhe o corpo de cada
+**Opcional (economia de tokens):** se `agy` estiver disponível, rascunhe o corpo de cada
 issue com ele antes de criar. Lembre-se de primeiro imprimir o log:
 `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando corpo da issue <título>"`
 e então rodar:
-`gemini -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) em PT-BR para: <título + âncora>"`. Revise e ancore o rascunho na documentação antes de prosseguir.
+`agy -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) em PT-BR para: <título + âncora>"`. Revise e ancore o rascunho na documentação antes de prosseguir.
 
 Após aprovação, crie cada issue aprovada:
 

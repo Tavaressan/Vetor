@@ -69,13 +69,13 @@ Se o projeto usar um framework de docs/feature (ex.: um diretório `.reversa/` o
 
 ## Delegação ao Gemini (opcional)
 
-Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco ao CLI `gemini` (Google Gemini CLI), seguindo o padrão **Gemini rascunha, Claude valida**:
+Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco ao CLI `agy` (Google Antigravity/Gemini CLI), seguindo o padrão **Gemini rascunha, Claude valida**:
 
 - Resumir logs de CI longos antes do diagnóstico (`worktree-ship`, `fix-loop`)
 - Rascunhar corpos de issue (`backlog`)
 - Rascunhar mensagens de commit e relatórios (`guardian`)
 
-É **totalmente opcional**: se `gemini` não estiver no PATH, as skills fazem tudo inline. Correção de código, resolução de conflito e decisão de merge **nunca** são delegadas — ficam sempre com o Claude. Detalhes em `skills/shared/references/delegate-to-gemini.md`.
+É **totalmente opcional**: se `agy` não estiver no PATH, as skills fazem tudo inline. Correção de código, resolução de conflito e decisão de merge **nunca** são delegadas — ficam sempre com o Claude. Detalhes em `skills/shared/references/delegate-to-gemini.md`.
 
 ---
 
@@ -122,7 +122,7 @@ Este modo auto-aprova a leitura do GitHub e o gerenciamento de worktrees locais,
       "Bash(git worktree add:*)",
       "Bash(git worktree remove:*)",
       "Bash(git worktree list:*)",
-      "Bash(gemini:*)"
+      "Bash(agy:*)"
     ]
   }
 }
@@ -241,7 +241,7 @@ Alavancas usadas para manter o custo de token baixo no dispatch paralelo:
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - `gh` CLI autenticado (para issues, PRs, CI)
 - Git com suporte a worktrees (`git worktree`)
-- *(opcional)* `gemini` CLI no PATH para delegação de tarefas
+- *(opcional)* `agy` CLI no PATH para delegação de tarefas
 
 ---
 

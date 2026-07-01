@@ -24,7 +24,7 @@ Você é o agente de fix autônomo do Vetor. Sua missão é iterar sobre falhas 
 
 ## Referências
 
-**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para resumir a saída de erro dos testes. **A decisão e a aplicação do fix são sempre suas, nunca do Gemini.**
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `agy` estiver disponível, use-o para resumir a saída de erro dos testes. **A decisão e a aplicação do fix são sempre suas, nunca do Gemini.**
 
 **Branch default e comandos de teste.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH` e o `module-test-map` conforme descrito lá antes de prosseguir.
 
@@ -115,7 +115,7 @@ Se **verde** (todos os testes passaram):
 Atualize `AGENT_STATUS.md` com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
-1. Leia a saída de erro. **Opcional (economia de tokens):** se `gemini` estiver disponível, condense a saída antes de analisar. Primeiro imprima o log `echo "[Vetor:Gemini] Delegando tarefa: Condensando log de erro de testes"` e depois execute: `<comando-de-teste> 2>&1 | gemini -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
+1. Leia a saída de erro. **Opcional (economia de tokens):** se `agy` estiver disponível, condense a saída antes de analisar. Primeiro imprima o log `echo "[Vetor:Gemini] Delegando tarefa: Condensando log de erro de testes"` e depois execute: `<comando-de-teste> 2>&1 | agy -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
 2. **Poda de Contexto (Context Pruning):** Se a iteração atual `i` for maior ou igual a 3, faça uma consolidação de memória. Remova do histórico de mensagens os logs extensos e repetitivos das primeiras iterações. Crie um resumo mental condensado (ex.: "Tentativa 1 alterou arquivo X; erro persistiu. Tentativa 2 alterou Y; mudou erro para Z na linha W"). Mantenha no contexto ativo apenas este resumo, os commits realizados e a última saída de erro de compilação/teste.
 3. Identifique a causa raiz
 4. Aplique o fix menor possível (uma mudança atômica)

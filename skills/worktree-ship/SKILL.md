@@ -24,7 +24,7 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 ## Referências
 
-**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se o CLI `gemini` estiver disponível, use-o para resumir logs de CI antes de diagnosticar (§7).
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se o CLI `agy` estiver disponível, use-o para resumir logs de CI antes de diagnosticar (§7).
 
 **Branch default e comandos de teste.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH` e o `module-test-map` conforme descrito lá. Use `$DEFAULT_BRANCH` em todos os comandos abaixo.
 
@@ -93,15 +93,15 @@ git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```
 
 #### Rascunho da Descrição do PR (Delegação ao Gemini):
-Se o CLI `gemini` estiver disponível (verifique via `command -v gemini`):
+Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
 1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando corpo do Pull Request"`
 2. Execute o comando para gerar a descrição preliminar:
    ```bash
-   git diff "origin/$DEFAULT_BRANCH"...HEAD | gemini -p "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
+   git diff "origin/$DEFAULT_BRANCH"...HEAD | agy -p "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
    ```
 3. O Claude valida a descrição gerada pelo Gemini, anexa `"Closes #<issue#>"` ao final (se `issue#` foi fornecida) junto com a nota `"🤖 Desenvolvido com [Claude Code](https://claude.ai/code)"` e usa o texto final no `--body`.
 
-Se o Gemini não estiver disponível, monte o `--body` com o template inline padrão:
+Se o agy não estiver disponível, monte o `--body` com o template inline padrão:
 ```markdown
 ## Resumo
 - <bullet points das mudanças principais, derivados dos commits>
@@ -141,10 +141,10 @@ Para cada falha detectada no monitoramento do CI:
    ```bash
    gh run view <run-id> --log-failed
    ```
-   **Opcional (economia de tokens):** use o Gemini CLI para condensar os logs, se disponível:
+   **Opcional (economia de tokens):** use o agy CLI para condensar os logs, se disponível:
    ```bash
    echo "[Vetor:Gemini] Delegando tarefa: Condensando logs de CI do PR"
-   gh run view <run-id> --log-failed | gemini -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver."
+   gh run view <run-id> --log-failed | agy -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver."
    ```
    Avalie a natureza do erro:
    - **Erro Transiente (Rede/Timeout de Infraestrutura):** Se o erro for de conexão, falha de API externa temporária ou timeout do próprio runner do CI, **não altere o código**. Aguarde 30 segundos e dispare uma nova verificação ou re-run de testes via CLI (`gh run rerun <run-id>`). Use backoff exponencial de até 3 tentativas.

@@ -10,7 +10,7 @@ metadata:
 
 Você é o guardião do Vetor. Sua missão é auditar e corrigir padrões recorrentes de falha que escapam do pre-commit, entregando um relatório estruturado de Found/Fixed/Hardened.
 
-**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para rascunhar o relatório final a partir dos findings brutos. Lembre-se de primeiro imprimir o log `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando relatório final do Guardian"` antes de chamar o `gemini`. Você valida o rascunho antes de apresentá-lo.
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `agy` estiver disponível, use-o para rascunhar o relatório final a partir dos findings brutos. Lembre-se de primeiro imprimir o log `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando relatório final do Guardian"` antes de chamar o `agy`. Você valida o rascunho antes de apresentá-lo.
 
 ---
 
@@ -63,15 +63,15 @@ Se nenhum diretório for encontrado, reporte "skipped (no migrations dir)" e sig
 Se encontrado, verifique a sequência **completa** (ex.: convenção Flyway `V<N>__<descrição>.sql`).
 
 **Delegação ao Gemini (Opcional):**
-Se o CLI `gemini` estiver disponível (verifique via `command -v gemini`):
+Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
 1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Validando sequência de migrations"`
 2. Execute o comando para auditar os arquivos:
    ```bash
-   ls "$MIGRATIONS_DIR" | gemini -p "Examine esta listagem de arquivos de migrations e detecte se existem timestamps/versões fora de ordem, buracos na sequência cronológica de numeração ou desvios do padrão de nomenclatura V<N>__<descrição>.sql."
+   ls "$MIGRATIONS_DIR" | agy -p "Examine esta listagem de arquivos de migrations e detecte se existem timestamps/versões fora de ordem, buracos na sequência cronológica de numeração ou desvios do padrão de nomenclatura V<N>__<descrição>.sql."
    ```
 3. O Claude analisa a saída do Gemini e extrai os findings.
 
-Se o Gemini não estiver disponível, faça inline executando:
+Se o agy não estiver disponível, faça inline executando:
 ```bash
 ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 ```

@@ -47,15 +47,15 @@ gh pr list --search "closes:#<N>" --state open --json number,title
 Se já houver PR: pule a issue e registre na tabela como "PR já aberto (#<PR>)".
 
 #### Análise de Afinidade e Agrupamento Sequencial (Delegação ao Gemini):
-Com as candidatas válidas em mãos, se o CLI `gemini` estiver disponível (verifique via `command -v gemini`) e houver mais de 3 issues a processar, você pode delegar a proposta de agrupamento de afinidade:
+Com as candidatas válidas em mãos, se o CLI `agy` estiver disponível (verifique via `command -v agy`) e houver mais de 3 issues a processar, você pode delegar a proposta de agrupamento de afinidade:
 1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Propondo agrupamento de afinidade de issues"`
 2. Execute o comando passando o JSON das candidatas:
    ```bash
-   gh issue list --label <label> --state open --json number,title,labels,body | gemini -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo ideal de execução deve ser haiku (ajustes simples/chore) ou sonnet (features complexas/refactor)."
+   gh issue list --label <label> --state open --json number,title,labels,body | agy -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo ideal de execução deve ser haiku (ajustes simples/chore) ou sonnet (features complexas/refactor)."
    ```
 3. O Claude analisa a proposta sugerida, corrige quaisquer desvios de escopo e define a distribuição final.
 
-Se o Gemini não estiver disponível ou houver 3 ou menos issues, faça a análise inline de forma nativa:
+Se o agy não estiver disponível ou houver 3 ou menos issues, faça a análise inline de forma nativa:
 - Analise o título, labels e descrição para agrupar issues **complementares ou correlatas** (ex: correções no mesmo módulo, ou uma issue de `fix` que complementa diretamente uma `feat`).
 - Defina uma issue como **Lead Issue** (geralmente a principal ou mais antiga) que dará nome ao worktree/branch.
 - Associe as issues secundárias a ela como **Sequential Issues**. Elas serão resolvidas sequencialmente pelo mesmo agente no mesmo worktree.
@@ -215,15 +215,15 @@ Resumo: <N> merged, <M> falharam, <K> aguardando review.
 
 **Geração de Changelog Consolidado (Delegação ao Gemini):**
 Antes de finalizar, o coordenador gera o changelog a partir do histórico de commits da sessão.
-Se o CLI `gemini` estiver disponível (verifique via `command -v gemini`):
+Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
 1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando Changelog Consolidado"`
 2. Execute o comando para gerar o rascunho de changelog a partir do diff/commits mesclados da sessão:
    ```bash
-   git log origin/main...HEAD --oneline | gemini -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
+   git log origin/main...HEAD --oneline | agy -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
    ```
 3. O Claude valida o rascunho do Gemini, formata-o adequadamente e salva no arquivo `.claude/vetor/CHANGELOG.md`.
 
-Se o Gemini não estiver disponível, faça inline lendo o título e os commits dos PRs mergeados com sucesso e gerando no formato:
+Se o agy não estiver disponível, faça inline lendo o título e os commits dos PRs mergeados com sucesso e gerando no formato:
 ```markdown
 # Changelog da Sessão Vetor — <data>
 
