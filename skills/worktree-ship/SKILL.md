@@ -92,11 +92,17 @@ Construa o título a partir dos commits:
 git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```
 
-Crie o PR:
-```bash
-gh pr create \
-  --title "<type>(<slug>): <resumo dos commits>" \
-  --body "$(cat <<'EOF'
+#### Rascunho da Descrição do PR (Delegação ao Gemini):
+Se o CLI `gemini` estiver disponível (verifique via `command -v gemini`):
+1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando corpo do Pull Request"`
+2. Execute o comando para gerar a descrição preliminar:
+   ```bash
+   git diff "origin/$DEFAULT_BRANCH"...HEAD | gemini -p "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
+   ```
+3. O Claude valida a descrição gerada pelo Gemini, anexa `"Closes #<issue#>"` ao final (se `issue#` foi fornecida) junto com a nota `"🤖 Desenvolvido com [Claude Code](https://claude.ai/code)"` e usa o texto final no `--body`.
+
+Se o Gemini não estiver disponível, monte o `--body` com o template inline padrão:
+```markdown
 ## Resumo
 - <bullet points das mudanças principais, derivados dos commits>
 
@@ -107,13 +113,16 @@ gh pr create \
 Closes #<issue#>
 
 🤖 Desenvolvido com [Claude Code](https://claude.ai/code)
-EOF
-)" \
+```
+
+Crie o PR draft:
+```bash
+gh pr create \
+  --title "<type>(<slug>): <resumo dos commits>" \
+  --body "<descrição gerada e validada>" \
   --draft \
   --base "$DEFAULT_BRANCH"
 ```
-
-Se `issue#` não foi fornecida, omita a seção "Issue relacionada".
 
 ### 6 — Monitorar CI
 

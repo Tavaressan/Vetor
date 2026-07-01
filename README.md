@@ -81,7 +81,31 @@ Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risc
 
 ## Permissões (opcional)
 
-Para evitar prompts repetitivos, adicione ao `.claude/settings.json` do projeto:
+Para evitar prompts repetitivos, configure o arquivo `.claude/settings.json` na raiz do seu projeto. Dependendo do seu modelo de ameaça e uso de dependências de terceiros, escolha um dos caminhos abaixo:
+
+### Opção A: Modo Seguro (Privilégio Mínimo - Recomendado)
+*Indicado se o projeto consome dependências externas (npm, pip, cargo, etc.) que executam scripts dinâmicos de build/teste.* 
+
+Este modo auto-aprova a leitura do GitHub e o gerenciamento de worktrees locais, mas **mantém a confirmação visual** no seu terminal para qualquer execução de teste (`npm test`, `cargo test`), builds ou pushes e merges remotos.
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(git worktree list:*)",
+      "Bash(git worktree add:*)",
+      "Bash(git worktree remove:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh run view:*)"
+    ]
+  }
+}
+```
+
+### Opção B: Modo Alta Eficiência (Autônomo)
+*Indicado apenas para projetos 100% privados de sua autoria exclusiva, onde as dependências são rigidamente controladas e você deseja rodar tudo em background sem interrupções.*
 
 ```json
 {
@@ -97,7 +121,8 @@ Para evitar prompts repetitivos, adicione ao `.claude/settings.json` do projeto:
       "Bash(gh run view:*)",
       "Bash(git worktree add:*)",
       "Bash(git worktree remove:*)",
-      "Bash(git worktree list:*)"
+      "Bash(git worktree list:*)",
+      "Bash(gemini:*)"
     ]
   }
 }

@@ -46,8 +46,17 @@ gh pr list --search "closes:#<N>" --state open --json number,title
 ```
 Se já houver PR: pule a issue e registre na tabela como "PR já aberto (#<PR>)".
 
-#### Análise de Afinidade e Agrupamento Sequencial:
-Com as candidatas válidas em mãos, analise o título, labels e descrição para agrupar issues **complementares ou correlatas** (ex: correções no mesmo módulo, ou uma issue de `fix` que complementa diretamente uma `feat`).
+#### Análise de Afinidade e Agrupamento Sequencial (Delegação ao Gemini):
+Com as candidatas válidas em mãos, se o CLI `gemini` estiver disponível (verifique via `command -v gemini`) e houver mais de 3 issues a processar, você pode delegar a proposta de agrupamento de afinidade:
+1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Propondo agrupamento de afinidade de issues"`
+2. Execute o comando passando o JSON das candidatas:
+   ```bash
+   gh issue list --label <label> --state open --json number,title,labels,body | gemini -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo ideal de execução deve ser haiku (ajustes simples/chore) ou sonnet (features complexas/refactor)."
+   ```
+3. O Claude analisa a proposta sugerida, corrige quaisquer desvios de escopo e define a distribuição final.
+
+Se o Gemini não estiver disponível ou houver 3 ou menos issues, faça a análise inline de forma nativa:
+- Analise o título, labels e descrição para agrupar issues **complementares ou correlatas** (ex: correções no mesmo módulo, ou uma issue de `fix` que complementa diretamente uma `feat`).
 - Defina uma issue como **Lead Issue** (geralmente a principal ou mais antiga) que dará nome ao worktree/branch.
 - Associe as issues secundárias a ela como **Sequential Issues**. Elas serão resolvidas sequencialmente pelo mesmo agente no mesmo worktree.
 
@@ -165,8 +174,8 @@ Após resposta do usuário, comunique a decisão ao sub-agente via `SendMessage`
 Se "permitir para este agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras do mesmo tipo daquele agente.
 
 **5.c — Controle de Orçamento (Budget Control)**
-- A cada ciclo de monitoramento, estime o custo acumulado em tokens de todos os subagentes.
-- Se o valor acumulado ultrapassar o limite estabelecido (default: 2.0 USD ou configurado em `.claude/settings.json`), altere o status de todos os subagentes ativos para `BLOCKED_WAITING` com a mensagem `Orçamento de tokens atingido` e pause o fluxo até nova aprovação.
+- A cada ciclo de monitoramento, leia o campo `Estimated Cost` contido em `.claude/worktrees/<slug>/AGENT_STATUS.md` para cada subagente ativo e calcule o custo acumulado em dólares (somando os valores individuais).
+- Se o valor total acumulado ultrapassar o limite estabelecido (default: 2.0 USD ou configurado em `.claude/settings.json`), mude o status de todos os subagentes ativos para `BLOCKED_WAITING` escrevendo `Blocked on: Orçamento de tokens atingido` e pause o fluxo de trabalho dos workers até receber uma nova aprovação explícita do usuário.
 
 **5.d — Circuit Breaker (Disjuntor de Falhas)**
 - Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.
@@ -204,14 +213,24 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 Resumo: <N> merged, <M> falharam, <K> aguardando review.
 ```
 
-**Geração de Changelog Consolidado:**
-Antes de finalizar, o coordenador lê o título e os commits dos PRs mergeados com sucesso e gera automaticamente o arquivo `.claude/vetor/CHANGELOG.md` no formato:
+**Geração de Changelog Consolidado (Delegação ao Gemini):**
+Antes de finalizar, o coordenador gera o changelog a partir do histórico de commits da sessão.
+Se o CLI `gemini` estiver disponível (verifique via `command -v gemini`):
+1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando Changelog Consolidado"`
+2. Execute o comando para gerar o rascunho de changelog a partir do diff/commits mesclados da sessão:
+   ```bash
+   git log origin/main...HEAD --oneline | gemini -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
+   ```
+3. O Claude valida o rascunho do Gemini, formata-o adequadamente e salva no arquivo `.claude/vetor/CHANGELOG.md`.
+
+Se o Gemini não estiver disponível, faça inline lendo o título e os commits dos PRs mergeados com sucesso e gerando no formato:
 ```markdown
 # Changelog da Sessão Vetor — <data>
 
 ## Melhorias Implementadas
 - **[Módulo] <título-da-issue> (#<N>)**: <descrição curta dos commits ou das mudanças realizadas>
 ```
+
 Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar o changelog.
 
 ---

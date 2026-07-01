@@ -60,13 +60,22 @@ MIGRATIONS_DIR=$(find . -type d -path '*/db/migration' -not -path './.claude/wor
 
 Se nenhum diretório for encontrado, reporte "skipped (no migrations dir)" e siga adiante.
 
-Se encontrado, verifique a sequência **completa** (ex.: convenção Flyway `V<N>__<descrição>.sql`):
+Se encontrado, verifique a sequência **completa** (ex.: convenção Flyway `V<N>__<descrição>.sql`).
 
+**Delegação ao Gemini (Opcional):**
+Se o CLI `gemini` estiver disponível (verifique via `command -v gemini`):
+1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Validando sequência de migrations"`
+2. Execute o comando para auditar os arquivos:
+   ```bash
+   ls "$MIGRATIONS_DIR" | gemini -p "Examine esta listagem de arquivos de migrations e detecte se existem timestamps/versões fora de ordem, buracos na sequência cronológica de numeração ou desvios do padrão de nomenclatura V<N>__<descrição>.sql."
+   ```
+3. O Claude analisa a saída do Gemini e extrai os findings.
+
+Se o Gemini não estiver disponível, faça inline executando:
 ```bash
 ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 ```
-
-Verifica:
+E analise manualmente:
 - Buracos de versão (ex.: V3 → V5 sem V4)
 - Versões duplicadas
 - Naming convention: `V<N>__<descrição>.sql`

@@ -72,9 +72,16 @@ Formato:
 Updated: <ISO 8601 timestamp>
 Status: RUNNING
 Iteration: <N>/5
+Estimated Cost: <X.XX> USD
 Last action: <descrição da última ação>
 Next: <próximo passo planejado>
 ```
+
+#### Cálculo do Custo Estimado (`Estimated Cost`):
+A cada iteração `i` (ou mudança de status), calcule e atualize o custo acumulado em dólares com base no modelo sendo executado:
+- Se rodando sob **Haiku** (default do `issue-worker`): adicione **0.01 USD** por iteração.
+- Se rodando sob **Sonnet**: adicione **0.08 USD** por iteração.
+*Nota: Mantenha o custo acumulado e atualizado mesmo ao transicionar para status como `BLOCKED_WAITING`, `GREEN` ou `FAILED_MAX_ITERATIONS`.*
 
 Se bloqueado por permissão ou decisão técnica, mude Status para `BLOCKED_WAITING` e descreva o que é necessário:
 ```markdown

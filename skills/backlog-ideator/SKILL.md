@@ -37,8 +37,18 @@ e use o que existir:
 3. **Framework de feature opcional:** se `.reversa/` ou `_reversa_sdd/` existir, inclua seus
    docs (ex.: `domain.md`, `architecture.md`, `gaps.md`)
 
-Avise quais fontes foram encontradas e usadas. Se nenhuma existir, prossiga apenas com o
-código e os labels/issues existentes, e avise que não há documentação de âncora.
+Avise quais fontes foram encontradas e usadas.
+
+**Delegação ao Gemini (Opcional - Economia de Tokens):**
+Se os arquivos de documentação encontrados somarem mais de 100 linhas e o CLI `gemini` estiver disponível (verifique via `command -v gemini`):
+1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Resumindo documentação conceitual de arquitetura"`
+2. Execute o comando para gerar o sumário arquitetural a partir dos arquivos identificados:
+   ```bash
+   cat <caminhos-dos-arquivos-encontrados> | gemini -p "Gere um resumo arquitetural consolidado deste projeto contendo os principais padrões de design, módulos e restrições técnicas, para que um agente possa compreender a estrutura do sistema rapidamente."
+   ```
+3. O Claude utilizará este sumário consolidado de alta densidade como sua âncora conceitual primária, poupando tokens de contexto ao evitar a leitura bruta de múltiplos arquivos extensos.
+
+Se o Gemini não estiver disponível ou a documentação for pequena, prossiga com a leitura nativa dos arquivos identificados. Se nenhuma fonte de documentação existir, prossiga apenas com o código e os labels/issues existentes, avisando que não há documentação de âncora.
 
 ### 2 — Levantar issues existentes
 

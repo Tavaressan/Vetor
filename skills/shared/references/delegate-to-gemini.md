@@ -55,6 +55,52 @@ git diff --staged | gemini -p "Escreva uma mensagem de commit conventional commi
 
 O Claude valida o rascunho antes de usar.
 
+### 4. Rascunhar corpo/descrição de Pull Request
+Em `worktree-ship`, gere a primeira versão da descrição do Pull Request com base no diff acumulado da branch em relação à branch default do projeto:
+
+```bash
+git diff "$DEFAULT_BRANCH"...HEAD | gemini -p "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
+```
+
+O Claude **revisa e formata** a descrição antes de passá-la ao comando `gh pr create --body`.
+
+### 5. Análise de afinidade e agrupamento de issues
+Em `issue-coordinator`, delegue a varredura e o agrupamento preliminar de issues em lote:
+
+```bash
+gh issue list --label <label> --state open --json number,title,labels,body \
+  | gemini -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue, as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo ideal de execução deve ser haiku (ajustes simples/chore) ou sonnet (features complexas/refactor)."
+```
+
+O Claude **valida a afinidade**, resolve eventuais erros do rascunho e constrói a tabela final de dispatch.
+
+### 6. Geração de Changelog de Sessão
+No `issue-coordinator`, delegue a criação do changelog consolidado a partir do histórico de commits da sessão:
+
+```bash
+git log origin/main...HEAD --oneline | gemini -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
+```
+
+O Claude **valida o texto**, refina o formato e salva no arquivo `.claude/vetor/CHANGELOG.md`.
+
+### 7. Validação de Migrations
+No `guardian`, envie o dump de arquivos de migrations para verificar a integridade da sequência temporal:
+
+```bash
+ls "$MIGRATIONS_DIR" | gemini -p "Examine esta listagem de arquivos de migrations e detecte se existem timestamps/versões fora de ordem, buracos na sequência cronológica de numeração ou desvios do padrão de nomenclatura V<N>__<descrição>.sql."
+```
+
+O Claude **avalia os findings apontados** pelo Gemini e os compila no relatório da auditoria.
+
+### 8. Resumo Conceitual da Arquitetura
+No `backlog-ideator`, envie arquivos longos de documentação para obter uma síntese executiva de apoio à ideação:
+
+```bash
+cat ARCHITECTURE.md docs/*.md | gemini -p "Gere um resumo arquitetural consolidado deste projeto contendo os principais padrões de design e módulos, para que um agente possa compreender a estrutura do sistema rapidamente."
+```
+
+O Claude **usa este sumário como âncora conceitual** sem precisar ler dezenas de arquivos markdown na íntegra.
+
 ---
 
 ## Guardrail (invariante — não negociável)
