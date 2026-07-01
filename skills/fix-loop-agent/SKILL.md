@@ -144,26 +144,38 @@ documentação oficial de Agent Teams não confirma que um subagente possa abrir
 ("no nested teams" está entre as limitações conhecidas). **Não tente spawnar teammates no caminho
 orquestrado.**
 
-### 4 — Após N=5 falhas
+### 4 — Após N=5 falhas (Handover de Falha)
 
 Se o loop esgotar sem atingir verde:
 
+1. Atualize `AGENT_STATUS.md` com `Status: FAILED_MAX_ITERATIONS`.
+2. **Criar Handover de Falha (`FAIL_ANALYSIS.md`)**: Crie um arquivo markdown chamado `FAIL_ANALYSIS.md` no root do worktree atual contendo o diagnóstico da falha para o desenvolvedor humano:
+
+```markdown
+# Handover de Falha — Vetor
+
+O agente de correção automática falhou após 5 iterações.
+
+## Detalhes
+* **Módulo**: <módulo>
+* **Comando de Teste**: `<comando-de-teste>`
+
+## Último Erro de Teste
 ```
-FALHA APÓS 5 ITERAÇÕES
-Módulo: <módulo>
-Último erro:
-  <últimas 20 linhas do log de erro>
-Fixes tentados:
-  1. <commit message do fix 1>
-  2. <commit message do fix 2>
-  ...
-Comando manual:
-  <comando do module-test-map para o módulo>
+<erro bruto ou resumo do erro obtido na última iteração>
 ```
 
-Atualize `AGENT_STATUS.md` com `Status: FAILED_MAX_ITERATIONS`.
+## Fixes Tentados (Commits locais)
+1. <fix commit 1>
+2. <fix commit 2>
+...
+
+## Próximo Passo Sugerido (Humano)
+<análise concisa da causa provável e recomendação de correção manual (ex: ajustar variáveis do ambiente, atualizar pacotes específicos, etc.)>
+```
 
 **Pare.** Não crie PR, não faça push — o worktree fica intacto para inspeção.
+
 
 ---
 

@@ -77,6 +77,14 @@ Saída: <últimas 30 linhas do log>
 ```
 **Pare.** Não faça push de código vermelho.
 
+### 3.b — Scan de Debugging (KISS Linting)
+
+Antes de fazer o push, faça uma varredura estática rápida no diff em relação ao default branch buscando padrões temporários de depuração ou flags exclusivas de testes:
+```bash
+git diff "$DEFAULT_BRANCH" --name-only | xargs egrep -n "console\.log|var_dump|fit\(|fdescribe\(|it\.only" 2>/dev/null
+```
+Se encontrar qualquer padrão de debugging ou testes exclusivos (`it.only`, etc.), **remova-os automaticamente** ou corrija-os antes de realizar o push, mantendo o código limpo (KISS).
+
 ### 4 — Push
 
 ```bash
@@ -191,8 +199,12 @@ gh pr merge <PR-number> --squash --delete-branch --yes
    ```bash
    git diff --name-only --diff-filter=U
    ```
-3. Para cada arquivo listado, localize as seções com marcadores de conflito (`<<<<<<<`, `=======`, `>>>>>>>`).
-4. Analise as alterações conflitantes. Mescle de forma lógica o código de ambas as partes preservando as regras de negócio de cada uma e remova os marcadores de conflito.
+3. **Resolução de Conflitos em Lockfiles (KISS/YAGNI - §3.2)**: 
+   Se houver arquivos de lock na lista de conflitos (ex: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`, `poetry.lock`):
+   - Roda `git checkout --theirs <lockfile-path>` para aceitar a versão da branch padrão e limpar os marcadores de conflito textuais.
+   - Execute o instalador correspondente do projeto (ex: `npm install`, `pnpm install`, `cargo build`, `poetry lock --no-update`) para que o próprio gerenciador de pacotes regenere o lockfile de forma correta e reconciliada.
+   - Adicione a resolução com `git add <lockfile-path>`.
+4. Para os demais arquivos de código conflitantes, localize as seções com marcadores de conflito (`<<<<<<<`, `=======`, `>>>>>>>`), mescle logicamente as regras de negócio e remova os marcadores.
 5. Execute os testes do módulo correspondente via `module-test-map`.
 6. **Se os testes passarem:** Commite a resolução (`merge branch '$DEFAULT_BRANCH' and resolve conflicts`), faça `git push origin <branch>` e volte ao passo 6 (monitoramento do CI).
 7. **Se os testes falharem:** Chame o `fix-loop-agent` localmente para corrigir o código. Se as iterações estourarem sem obter testes verdes, aborte o merge, preserve o worktree e alerte o usuário.

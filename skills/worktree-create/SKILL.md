@@ -84,6 +84,17 @@ AVISO: git pull falhou — criando worktree a partir da <default-branch> local.
 
 Se `git worktree add` falhar, reporte o erro e aborte.
 
+### 4.b — Preparar Dependências (Instalação Concorrente-Safe)
+
+Como a criação de worktrees é executada de forma serializada/sequencial, aproveite este momento seguro para preparar as dependências do novo diretório:
+1. Detecte o ecossistema do projeto-alvo a partir dos arquivos presentes no root.
+2. Execute o comando leve de instalação correspondente a partir do diretório do worktree `.claude/worktrees/<slug>`:
+   - **Node (pnpm)**: `pnpm install` (concorrente-safe e instantâneo via hard-links).
+   - **Node (npm)**: `npm ci --prefer-offline --no-audit` (rápido e limpo).
+   - **Node (yarn)**: `yarn install --prefer-offline`.
+   - **Python (poetry)**: `poetry install --no-root`.
+3. Se a instalação de dependências falhar, imprima `AVISO: Falha ao preparar dependências no worktree. A compilação/teste local poderá falhar.`, mas continue (KISS/tolerância a falhas).
+
 ### 5 — Entrar no worktree
 
 Use a ferramenta `EnterWorktree` com o path `.claude/worktrees/<slug>` para mudar o contexto de trabalho.
