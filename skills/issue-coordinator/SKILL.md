@@ -40,14 +40,18 @@ Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` 
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
-```bash
-gh issue list --label <label> --state open --json number,title,labels,body
-```
+Verifique se o servidor MCP do GitHub está disponível.
+- **Com MCP:** Use as ferramentas (como `search_issues`) para buscar as issues pelo label, e ferramentas de pull request (como `search_pull_requests`) para verificar se já há um PR mencionando `closes:#<N>`.
+- **Sem MCP (Fallback):** Use a CLI `gh`:
+  ```bash
+  gh issue list --label <label> --state open --json number,title,labels,body
+  ```
 
-Para cada issue, verifique se já há PR aberto:
-```bash
-gh pr list --search "closes:#<N>" --state open --json number,title
-```
+  Para cada issue, verifique se já há PR aberto:
+  ```bash
+  gh pr list --search "closes:#<N>" --state open --json number,title
+  ```
+
 Se já houver PR: pule a issue e registre na tabela como "PR já aberto (#<PR>)".
 
 #### Análise de Afinidade e Agrupamento Sequencial (Delegação ao Gemini):
@@ -106,7 +110,7 @@ Para cada grupo de issues (ou issue individual), o ecossistema do Antigravity/Cl
 
 ### 4 — Fase de desenvolvimento (paralela)
 
-Despache um sub-agente por grupo de issues utilizando a chamada do subagente nativo `issue-worker` com isolamento de worktree nativo (`Workspace: 'share'`):
+Despache um sub-agente por grupo de issues utilizando a chamada do subagente nativo `issue-worker` com isolamento de worktree nativo (`Workspace: 'share'`). Se ferramentas MCP (como GitHub ou Banco de Dados) estiverem ativas, passe a flag `enable_mcp_tools: true` para que o subagente herde o acesso:
 
 ```javascript
 Agent({
@@ -115,6 +119,7 @@ Agent({
   subagent_type: "vetor:issue-worker",
   model: "<haiku|sonnet>",
   workspace: "share",
+  enable_mcp_tools: true,
   run_in_background: true
 })
 ```

@@ -107,17 +107,30 @@ git -C <worktree-path> status --porcelain
 
 ### 5 — PRs Dependabot com rebase pendente
 
-```bash
-gh pr list --author "app/dependabot" --state open
-```
-
-Para cada PR encontrado:
-```bash
-gh pr view <N> --json mergeable,mergeStateStatus
-```
+Verifique se um servidor MCP do GitHub está disponível (ex: ferramentas como `search_pull_requests`, `get_pull_request`).
+- **Com MCP:** Use as ferramentas para buscar PRs abertos pelo autor `app/dependabot` e verifique o status de conflito/mergeability.
+- **Sem MCP (Fallback):** Use a CLI `gh`:
+  ```bash
+  gh pr list --author "app/dependabot" --state open
+  ```
+  Para cada PR encontrado:
+  ```bash
+  gh pr view <N> --json mergeable,mergeStateStatus
+  ```
 
 **Finding:** PR Dependabot #<N> com merge conflict / needs rebase
-**Auto-fix (modo manual):** Registra a proposta no plano de execução: `gh pr comment <N> --body "@dependabot rebase"`.
+**Auto-fix (modo manual):** Registra a proposta no plano de execução (via ferramenta MCP `create_issue_comment` ou `gh pr comment <N> --body "@dependabot rebase"`).
+
+### 6 — Auditoria de Banco de Dados (via MCP)
+
+Verifique se há um servidor MCP de banco de dados disponível (ex: ferramentas para rodar queries em PostgreSQL, MySQL, etc.). Se não houver, ignore este check.
+Se estiver disponível, use as ferramentas de query para auditar a saúde estrutural do banco. Sugestões de diagnóstico (adapte ao dialeto do banco, ex: PostgreSQL):
+- Identificar índices não utilizados.
+- Identificar tabelas sem chaves primárias ou índices.
+- Identificar constraints violadas ou chaves estrangeiras não indexadas.
+
+**Finding:** <detalhes da anomalia encontrada no banco>
+**Auto-fix:** nenhum — apenas reporta para o desenvolvedor analisar.
 
 ---
 

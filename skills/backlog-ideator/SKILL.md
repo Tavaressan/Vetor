@@ -58,14 +58,21 @@ Se a documentação for pequena (menos de 80 linhas), prossiga com a leitura nat
 
 ### 2 — Levantar issues existentes
 
-Liste todas as issues abertas para evitar duplicatas:
-
-```bash
-gh issue list --state open --limit 100
-```
+Verifique se o servidor MCP do GitHub está disponível.
+- **Com MCP:** Use a ferramenta `search_issues` para buscar as issues abertas no repositório.
+- **Sem MCP (Fallback):** Use a CLI `gh`:
+  ```bash
+  gh issue list --state open --limit 100
+  ```
 
 Esta é a **fonte canônica** de números de issue. Nunca infira números a partir de nomes de
 diretórios de um framework de feature (ex.: `_reversa_forward/`) — feature-id ≠ issue#.
+
+### 2.a — Ideação baseada em Produção (Sentry MCP - Opcional)
+
+Verifique se um servidor MCP de observabilidade (ex: Sentry ou Datadog) está disponível.
+Se estiver, use suas ferramentas para obter os erros não resolvidos mais frequentes em produção.
+Use esses erros reais como âncoras para propor issues do tipo `fix`, incluindo stacktraces ou detalhes na descrição. Se não estiver disponível, prossiga normalmente.
 
 ### 2.b — Questionamento Direcionado (KISS & YAGNI)
 
@@ -115,10 +122,11 @@ verificação de duplicatas (§4) continuam sendo feitas por você, não pelos t
 ### 4 — Verificar duplicatas
 
 Para **cada** issue proposta, verifique se já existe algo similar:
-
-```bash
-gh issue list --search "<título ou palavras-chave>" --state all
-```
+- **Com MCP:** Use `search_issues` pesquisando pelo título ou palavras-chave.
+- **Sem MCP (Fallback):** Use a CLI `gh`:
+  ```bash
+  gh issue list --search "<título ou palavras-chave>" --state all
+  ```
 
 Se encontrar duplicata potencial:
 ```
@@ -160,27 +168,29 @@ e então rodar:
 `agy -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) em PT-BR para: <título + âncora>"`. Revise e ancore o rascunho na documentação antes de prosseguir.
 
 Após aprovação, crie cada issue aprovada:
+- **Com MCP:** Use a ferramenta `create_issue` informando título, corpo da issue (seguindo o template abaixo) e labels.
+- **Sem MCP (Fallback):** Use a CLI `gh`:
 
-```bash
-gh issue create \
-  --title "<título>" \
-  --body "$(cat <<'EOF'
-## Descrição
-<descrição da issue>
+  ```bash
+  gh issue create \
+    --title "<título>" \
+    --body "$(cat <<'EOF'
+  ## Descrição
+  <descrição da issue>
 
-## Critério de aceite
-- [ ] <critério verificável>
+  ## Critério de aceite
+  - [ ] <critério verificável>
 
-## Contexto
-Âncora: <referência à documentação>
-Módulo: <módulo>
+  ## Contexto
+  Âncora: <referência à documentação>
+  Módulo: <módulo>
 
----
-🤖 Gerado por `/backlog` — [Claude Code](https://claude.ai/code)
-EOF
-)" \
-  --label "backlog,ai-generated"
-```
+  ---
+  🤖 Gerado por `/backlog` — [Claude Code](https://claude.ai/code)
+  EOF
+  )" \
+    --label "backlog,ai-generated"
+  ```
 
 O label `ai-generated` é **mandatório** — o `issue-coordinator` usa esse label para filtrar issues.
 
