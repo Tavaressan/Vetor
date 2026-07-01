@@ -1,25 +1,24 @@
 ---
 name: issue-coordinator
-description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados. Agrega status, escalona permissões, e coordena merge serializado. Use /coordinator [label] [--dry-run].
+description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status, estimativa de orçamento, e coordena merge serializado. Use /coordinator [label].
 license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
-Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge.
+Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge, utilizando o fluxo nativo de planejamento.
 
 ---
 
 ## Sintaxe
 
 ```
-/coordinator [label] [--dry-run]
+/coordinator [label]
 ```
 
 - `[label]`: label das issues a despachar (default: `backlog`)
-- `--dry-run`: apenas lista as issues e o plano de dispatch, sem criar agentes
 
 ---
 
@@ -32,7 +31,12 @@ Este coordenador compõe os primitivos do plugin:
 - `/vetor:worktree-ship` — pipeline de entrega (test → PR → CI → merge), Fase 6
 
 Os comandos de teste vêm de `.claude/vetor/module-test-map.md` (cópia preenchida pelo
-usuário) ou, na ausência dela, de auto-detecção a partir do CI — cada primitivo já## Comportamento
+usuário) ou, na ausência dela, de auto-detecção a partir do CI — cada primitivo já consome essa referência.
+Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` para as regras de economia de tokens e modelos.
+
+---
+
+## Comportamento
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
@@ -60,25 +64,36 @@ Se o agy não estiver disponível ou houver 3 ou menos issues, faça a análise 
 - Defina uma issue como **Lead Issue** (geralmente a principal ou mais antiga) que dará nome ao worktree/branch.
 - Associe as issues secundárias a ela como **Sequential Issues**. Elas serão resolvidas sequencialmente pelo mesmo agente no mesmo worktree.
 
-### 2 — Modo dry-run
+### 2 — Apresentar plano de dispatch (Planning Mode)
 
-Se `--dry-run` foi passado, apresente a tabela de dispatch mostrando o agrupamento sem agir:
+Gere ou atualize o artefato `implementation_plan.md` com `request_feedback: true` e `user_facing: true` nos metadados, contendo o plano de dispatch estruturado:
 
+```markdown
+# Plano de Execução Vetor — Coordinator
+
+Coordenando issues com a label: <label>
+
+## Ações Propostas
+
+| Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo Sugerido | Custo Estimado | Ação |
+|-------------------------|------------------------|-----------------|----------------|------|
+| <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | $0.15          | Despachar |
+| <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | $0.10          | Despachar |
+
+*Você pode editar a coluna 'Modelo Sugerido' diretamente neste arquivo para forçar o uso de 'haiku' ou 'sonnet' antes de clicar em Proceed.*
+
+### Estimativa de Orçamento
+* **Custo Total Estimado**: $X.XX USD
+* **Token Budget Limit**: $2.00 USD (ou o valor definido em `.claude/settings.json`)
+
+## Instruções de Aprovação
+Clique no botão **Proceed** no seu editor para autorizar o coordenador a spawnar os subagentes acima de forma paralela.
 ```
-## Plano de Dispatch — label: <label>
 
-| Issue | Título | Grupo / Modo | Status |
-|-------|--------|--------------|--------|
-| #<N1> | <título 1> | Grupo A (Lead) | ✅ Será despachada |
-| #<N2> | <título 2> | Grupo A (Sequencial) | ✅ Executada sequencialmente por #<N1> |
-| #<N3> | <título 3> | Individual | ✅ Será despachada |
-| #<N4> | <título 4> | - | ⏭️ PR já aberto (#<PR>) |
+**Pare.** Aguarde a aprovação do plano (sinalizado por `request_feedback: false` na plataforma de planejamento do agente ou resposta afirmativa no chat). 
 
-<N> issues serão resolvidas em <G> sub-agentes/worktrees.
-Confirme com /coordinator <label> (sem --dry-run) para executar.
-```
+Após a aprovação, leia novamente o arquivo `implementation_plan.md`. Se o usuário tiver modificado a coluna "Modelo Sugerido" de qualquer grupo (mudado de `sonnet` para `haiku` ou vice-versa), você **deve respeitar a alteração manual do usuário** e utilizar o modelo modificado no dispatch da Fase 4.
 
-**Pare.** Dry-run nunca cria agentes ou worktrees.
 
 ### 3 — Fase de criação (nativa e serializada)
 

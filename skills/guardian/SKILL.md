@@ -1,14 +1,14 @@
 ---
 name: guardian
-description: Audit + auto-fix de gaps que o pre-commit não cobre — JSON validity, sequência de migrations, worktrees abandonados, trabalho não commitado, PRs Dependabot. Modo manual ou cron (report-only).
+description: Audit + auto-fix de gaps que o pre-commit não cobre guiado por Planejamento. JSON validity, migrations, worktrees, uncommitted work, Dependabot.
 license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
-Você é o guardião do Vetor. Sua missão é auditar e corrigir padrões recorrentes de falha que escapam do pre-commit, entregando um relatório estruturado de Found/Fixed/Hardened.
+Você é o guardião do Vetor. Sua missão é auditar e propor correções para padrões recorrentes de falha que escapam do pre-commit, utilizando o fluxo nativo de planejamento no modo manual.
 
 **Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `agy` estiver disponível, use-o para rascunhar o relatório final a partir dos findings brutos. Lembre-se de primeiro imprimir o log `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando relatório final do Guardian"` antes de chamar o `agy`. Você valida o rascunho antes de apresentá-lo.
 
@@ -20,7 +20,7 @@ Você é o guardião do Vetor. Sua missão é auditar e corrigir padrões recorr
 /guardian [--cron]
 ```
 
-- Sem flags: modo manual — audita, auto-corrige o que puder, confirma antes de qualquer git/gh mutation
+- Sem flags: modo manual — audita, propõe auto-fixes no plano de execução (`implementation_plan.md`) e os aplica após o "Proceed" do usuário.
 - `--cron`: modo report-only — zero writes, zero `pre-commit run`; findings reportados via `SendMessage`
 
 ---
@@ -117,13 +117,37 @@ gh pr view <N> --json mergeable,mergeStateStatus
 ```
 
 **Finding:** PR Dependabot #<N> com merge conflict / needs rebase
-**Auto-fix (modo manual):** oferece executar `gh pr comment <N> --body "@dependabot rebase"` — confirma antes.
+**Auto-fix (modo manual):** Registra a proposta no plano de execução: `gh pr comment <N> --body "@dependabot rebase"`.
 
 ---
 
-## Relatório
+## Relatório e Fluxo de Planejamento (Modo Manual)
 
-Após todos os checks, produza o relatório no formato:
+Se houver findings com propostas de auto-fix no modo manual, o Guardian deve entrar em Modo de Planejamento, gerando ou atualizando o artefato `implementation_plan.md` com `request_feedback: true` e `user_facing: true` nos metadados:
+
+```markdown
+# Plano de Execução Vetor — Guardian
+
+Audit concluído. Mutações recomendadas abaixo.
+
+## Ações Propostas
+
+### Auto-fixes Recomendados
+- [ ] Corrigir JSON inválido no arquivo: `<path>`
+- [ ] Solicitar rebase do Dependabot no PR #<N> (`gh pr comment <N> --body "@dependabot rebase"`)
+
+### Alertas (Apenas Leitura / Ação Manual do Usuário)
+- [Aviso] Sequência de migrations com buracos ou timestamps incorretos
+- [Aviso] Trabalho não commitado no worktree: `<worktree-path>`
+- [Aviso] Worktree localizado fora do padrão: `<path>`
+
+## Instruções de Aprovação
+Clique no botão **Proceed** no seu editor para autorizar o Guardian a aplicar os auto-fixes recomendados.
+```
+
+**Pare.** Aguarde a aprovação do plano (sinalizado por `request_feedback: false`). Se aprovado, aplique os auto-fixes selecionados.
+
+Após a execução (ou se nenhum finding necessitar de correção), produza o relatório final consolidado no chat:
 
 ```
 ## Guardian Report — <data>
@@ -155,7 +179,7 @@ Quando invocado com `--cron` (via `CronCreate`):
 - **Zero writes** — nenhum arquivo é modificado, nenhum comando de escrita é executado
 - **Zero `pre-commit run`** — não delega para pre-commit
 - **Zero git/gh mutations** — sem commits, pushes ou PR comments
-- Findings são enviados via `SendMessage` para a sessão principal
+- Findings são enviados via `SendMessage` para a sessão principal (nunca cria `implementation_plan.md`)
 - Se nenhum finding, silêncio — não envia mensagem vazia
 
 ---
@@ -172,5 +196,5 @@ Todo `find` ou `grep` deve excluir:
 
 - Nunca reimplementa checks que o pre-commit já cobre
 - Para formatação, delega para `pre-commit run --all-files` (modo manual apenas)
-- Sempre confirma antes de qualquer `git commit`, `git push` ou `gh pr` mutation
+- Em modo manual, toda mutação/auto-fix deve passar pelo `implementation_plan.md` antes da execução
 - Em modo `--cron`, absolutamente nenhum write
