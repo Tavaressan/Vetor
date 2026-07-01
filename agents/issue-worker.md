@@ -3,8 +3,10 @@ name: issue-worker
 description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge — isso é responsabilidade do worktree-ship. Despachado pelo issue-coordinator, um por issue, em paralelo.
 tools: Bash, Read, Write, Edit, Grep, Glob
 disallowedTools: Bash(git push:*), Bash(gh pr create:*), Bash(gh pr merge:*), Bash(gh pr ready:*)
-model: haiku
+model: 
+ku
 skills: fix-loop-agent
+isolation: worktree
 license: MIT
 compatibility: Claude Code
 metadata:

@@ -17,7 +17,8 @@ command -v gemini >/dev/null 2>&1 && GEMINI_AVAILABLE=1 || GEMINI_AVAILABLE=0
 
 - Se `GEMINI_AVAILABLE=0`: faça a tarefa **inline** normalmente. Nunca falhe nem peça
   instalação — a delegação é puramente opcional.
-- Se `GEMINI_AVAILABLE=1`: você **pode** delegar as tarefas listadas abaixo.
+- Se `GEMINI_AVAILABLE=1`: você **pode** delegar as tarefas listadas abaixo. **Sempre imprima um log explícito no console antes de rodar o comando gemini**, no formato:
+  `echo "[Vetor:Gemini] Delegando tarefa: <breve descrição>"`
 
 ---
 

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "vetor",
+  "version": "1.0.2",
+  "description": "Skills de automação de workflow: ideação → backlog → worktree isolado → fix autônomo → ship → guarda. Agnóstico a projeto.",
+  "author": { "name": "Vitor Tavares Chaves" },
+  "homepage": "https://github.com/Tavaressan/Vetor",
+  "keywords": ["worktree", "ci", "github-issues", "automation", "workflow"]
+}

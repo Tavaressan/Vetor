@@ -32,98 +32,78 @@ Este coordenador compõe os primitivos do plugin:
 - `/vetor:worktree-ship` — pipeline de entrega (test → PR → CI → merge), Fase 6
 
 Os comandos de teste vêm de `.claude/vetor/module-test-map.md` (cópia preenchida pelo
-usuário) ou, na ausência dela, de auto-detecção a partir do CI — cada primitivo já resolve
-isso internamente.
+usuário) ou, na ausência dela, de auto-detecção a partir do CI — cada primitivo já## Comportamento
 
----
-
-## Comportamento
-
-### 1 — Listar issues candidatas
+### 1 — Listar issues candidatas e analisar afinidades
 
 ```bash
-gh issue list --label <label> --state open --json number,title,labels
+gh issue list --label <label> --state open --json number,title,labels,body
 ```
 
 Para cada issue, verifique se já há PR aberto:
-
 ```bash
 gh pr list --search "closes:#<N>" --state open --json number,title
 ```
-
 Se já houver PR: pule a issue e registre na tabela como "PR já aberto (#<PR>)".
+
+#### Análise de Afinidade e Agrupamento Sequencial:
+Com as candidatas válidas em mãos, analise o título, labels e descrição para agrupar issues **complementares ou correlatas** (ex: correções no mesmo módulo, ou uma issue de `fix` que complementa diretamente uma `feat`).
+- Defina uma issue como **Lead Issue** (geralmente a principal ou mais antiga) que dará nome ao worktree/branch.
+- Associe as issues secundárias a ela como **Sequential Issues**. Elas serão resolvidas sequencialmente pelo mesmo agente no mesmo worktree.
 
 ### 2 — Modo dry-run
 
-Se `--dry-run` foi passado, apresente a tabela de dispatch sem agir:
+Se `--dry-run` foi passado, apresente a tabela de dispatch mostrando o agrupamento sem agir:
 
 ```
 ## Plano de Dispatch — label: <label>
 
-| Issue | Título | Status |
-|-------|--------|--------|
-| #<N1> | <título> | ✅ Será despachada |
-| #<N2> | <título> | ⏭️ PR já aberto (#<PR>) |
-| #<N3> | <título> | ✅ Será despachada |
+| Issue | Título | Grupo / Modo | Status |
+|-------|--------|--------------|--------|
+| #<N1> | <título 1> | Grupo A (Lead) | ✅ Será despachada |
+| #<N2> | <título 2> | Grupo A (Sequencial) | ✅ Executada sequencialmente por #<N1> |
+| #<N3> | <título 3> | Individual | ✅ Será despachada |
+| #<N4> | <título 4> | - | ⏭️ PR já aberto (#<PR>) |
 
-<N> issues serão despachadas para sub-agentes.
+<N> issues serão resolvidas em <G> sub-agentes/worktrees.
 Confirme com /coordinator <label> (sem --dry-run) para executar.
 ```
 
 **Pare.** Dry-run nunca cria agentes ou worktrees.
 
-### 3 — Fase de criação (serializada)
+### 3 — Fase de criação (nativa e serializada)
 
-⚠️ **Esta fase é serializada** — um worktree de cada vez para evitar `git index lock`.
+⚠️ **Esta fase é serializada** para evitar `git index lock` ao inicializar os worktrees nativos.
 
-Para cada issue candidata, em sequência:
-
-1. Derive um slug do título da issue (kebab-case, max 30 chars)
-2. Determine o tipo (`feat`, `fix`, `chore`, `refactor`) pelos labels da issue
-3. Invoque `worktree-create`:
-   ```
-   /vetor:worktree-create <type> <slug> <issue#>
-   ```
-4. Registre o worktree criado: `{"issue": N, "slug": "<slug>", "branch": "<branch>", "path": "<path>"}`
-
-Se `worktree-create` falhar (ex.: slug já existe), tente com sufixo numérico (`<slug>-2`) uma vez. Se falhar novamente, marque a issue como "failed to create worktree" e continue.
+Para cada grupo de issues (ou issue individual), o ecossistema do Antigravity/Claude Code gerencia a criação de forma nativa quando o subagente é invocado. O coordenador deve derivar os parâmetros:
+1. **Slug:** kebab-case derivado da Lead Issue (máx 30 chars).
+2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue.
+3. **Status File Path:** Caminho absoluto do status file: `.claude/worktrees/<slug>/AGENT_STATUS.md`.
 
 ### 4 — Fase de desenvolvimento (paralela)
 
-Despache um sub-agente por issue usando o subagente nativo `issue-worker` do plugin (tools
-restritas — nunca faz push/PR/merge por design, não só por instrução):
+Despache um sub-agente por grupo de issues utilizando a chamada do subagente nativo `issue-worker` com isolamento de worktree nativo (`Workspace: 'share'`):
 
-```
+```javascript
 Agent({
-  description: "Issue #<N>: <título>",
+  description: "Grupo Lead #<N>: <título>",
   prompt: "...",
   subagent_type: "vetor:issue-worker",
   model: "<haiku|sonnet>",
+  workspace: "share",
   run_in_background: true
 })
 ```
 
-**Critério de escolha do `model`** (otimização de custo de tokens): use `haiku` para issues com
-labels `chore` ou `fix` de escopo pequeno (poucos arquivos, sem mudança de arquitetura); use `sonnet`
-(ou omita o campo — vira o default da sessão) para `feat`/`refactor` ou qualquer issue cujo body
-sugira complexidade maior. Se um worker em `haiku` esgotar as 5 iterações do fix-loop sem atingir
-verde (`FAILED_MAX_ITERATIONS`), redespache a mesma issue uma vez com `model: "sonnet"` antes de
-marcar como falha definitiva — o custo mais baixo do `haiku` pode custar iterações extras em issues
-subestimadas, então essa é a rede de segurança.
+**Critério de escolha do `model`:** use `haiku` se todas as issues do grupo forem `chore` ou `fix` simples; use `sonnet` se houver alguma `feat`, `refactor` ou se o grupo contiver mais de 2 issues complementares. Se esgotar iterações, redespache uma vez com `sonnet`.
 
-> **Nota de implementação (a verificar):** o Agent tool também aceita `isolation: "worktree"` para
-> criar o worktree automaticamente no próprio dispatch. Isso só deve substituir a Fase 3
-> (`worktree-create` serializado) se o naming/path gerado for compatível com o que `worktree-ship`
-> espera (`<type>/<issue#>-<slug>` em `.claude/worktrees/<slug>`). Enquanto isso não for confirmado,
-> mantenha a Fase 3 como está.
+**Prompt de execução sequencial para o worker:**
+Envie ao `issue-worker` a lista de tarefas a realizar:
+1. **Lead Issue:** #<N> (título, descrição, critérios de aceite).
+2. **Issues Sequenciais:** #<M1>, #<M2> (título, descrição, critérios de aceite).
+3. **Status File Path:** Instrua o worker a atualizar o arquivo de status absoluto `.claude/worktrees/<slug>/AGENT_STATUS.md` a cada iteração de cada issue do grupo. O formato do `AGENT_STATUS.md` deve refletir a issue atual em execução (ex.: `Iteration: 2/5 (Issue #<M1>)`).
 
-O prompt de cada agente deve incluir apenas os dados da tarefa — o comportamento (implementar,
-iterar até verde via `fix-loop-agent` pré-carregada, atualizar `AGENT_STATUS.md`, nunca fazer
-push/PR) já vem do próprio subagente `issue-worker`:
-- Número e título da issue
-- Body da issue (obtido via `gh issue view <N> --json body`)
-- Path do worktree: `.claude/worktrees/<slug>`
-- Branch: `<branch>`
+Quando o worker concluir todas as issues do grupo com sucesso, ele deve marcar o status final como `GREEN`. Caso falhe em alguma, para e marca como `FAILED_MAX_ITERATIONS` especificando qual issue do grupo falhou.
 
 ### 5 — Monitoramento
 
@@ -184,6 +164,15 @@ Recomendação do agente: <opção e justificativa>
 Após resposta do usuário, comunique a decisão ao sub-agente via `SendMessage`.
 Se "permitir para este agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras do mesmo tipo daquele agente.
 
+**5.c — Controle de Orçamento (Budget Control)**
+- A cada ciclo de monitoramento, estime o custo acumulado em tokens de todos os subagentes.
+- Se o valor acumulado ultrapassar o limite estabelecido (default: 2.0 USD ou configurado em `.claude/settings.json`), altere o status de todos os subagentes ativos para `BLOCKED_WAITING` com a mensagem `Orçamento de tokens atingido` e pause o fluxo até nova aprovação.
+
+**5.d — Circuit Breaker (Disjuntor de Falhas)**
+- Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.
+- Envie um comando de pausa para todos os subagentes ativos e pergunte ao usuário:
+  `⚠️ Circuit Breaker acionado devido a falhas recorrentes com erro similar. Deseja pausar para investigar ou prosseguir mesmo assim?`
+
 ### 6 — Fase de merge (serializada)
 
 ⚠️ **Esta fase é serializada** — um merge de cada vez para evitar conflitos.
@@ -199,7 +188,7 @@ Quando um agente atingir `GREEN`:
 
 Se `worktree-ship` falhar (CI vermelho, review required), marque na tabela e continue com outros agentes.
 
-### 7 — Relatório final
+### 7 — Relatório final e Geração de Changelog
 
 Após todos os agentes terminarem (ou timeout de 90 minutos):
 
@@ -214,6 +203,16 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 
 Resumo: <N> merged, <M> falharam, <K> aguardando review.
 ```
+
+**Geração de Changelog Consolidado:**
+Antes de finalizar, o coordenador lê o título e os commits dos PRs mergeados com sucesso e gera automaticamente o arquivo `.claude/vetor/CHANGELOG.md` no formato:
+```markdown
+# Changelog da Sessão Vetor — <data>
+
+## Melhorias Implementadas
+- **[Módulo] <título-da-issue> (#<N>)**: <descrição curta dos commits ou das mudanças realizadas>
+```
+Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar o changelog.
 
 ---
 

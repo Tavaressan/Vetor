@@ -25,10 +25,14 @@ Use `$DEFAULT_BRANCH` em todos os comandos subsequentes (`git diff`, `git pull`,
 
 Resolva nesta ordem:
 
-1. Leia `.claude/vetor/module-test-map.md` no projeto-alvo (cópia preenchida pelo usuário a partir do
-   template).
-2. Se não existir, auto-detecte os comandos a partir de `.github/workflows/*.yml`.
-3. Se ainda assim não conseguir, avise o usuário para copiar o template:
+1. Verifique se `.claude/vetor/module-test-map.md` existe no projeto-alvo.
+2. Se não existir, execute de forma transparente o script de auto-detecção:
+   ```bash
+   $CLAUDE_PLUGIN_ROOT/scripts/auto-detect.sh
+   ```
+   Isso criará automaticamente `.claude/vetor/module-test-map.md` com a estrutura padrão detectada. Imprima o log no console para o desenvolvedor:
+   `echo "[Vetor:AutoSetup] Gerado mapeamento de testes padrão em .claude/vetor/module-test-map.md"`
+3. Se a auto-detecção falhar, avise o usuário para criar manualmente a partir do template:
    ```bash
    mkdir -p .claude/vetor
    cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" \

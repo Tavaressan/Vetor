@@ -123,32 +123,37 @@ gh pr checks <PR-number> --watch
 
 Timeout: 20 minutos. Se expirar, notifique e pare.
 
-### 7 — CI falhou — loop de fix (máximo 3 iterações)
+### 7 — Monitoramento de CI, Classificação de Erros e Loop de Fix (máximo 3 iterações)
 
-Para cada falha de CI:
+Para cada falha detectada no monitoramento do CI:
 
-1. Leia os logs:
+1. **Classificação de Erro:**
+   Leia o log de erro do CI:
    ```bash
    gh run view <run-id> --log-failed
    ```
-   **Opcional (economia de tokens):** se `gemini` estiver disponível (ver `delegate-to-gemini.md`), passe o log por ele para condensar a causa raiz antes de você analisar:
+   **Opcional (economia de tokens):** use o Gemini CLI para condensar os logs, se disponível:
    ```bash
+   echo "[Vetor:Gemini] Delegando tarefa: Condensando logs de CI do PR"
    gh run view <run-id> --log-failed | gemini -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver."
    ```
-   A decisão do fix é **sempre sua**, nunca do Gemini.
-2. Identifique a causa raiz
-3. Aplique o fix no worktree
-4. Commit: `fix: corrige <problema> no CI`
-5. Push: `git push origin <branch>`
-6. Volte ao passo 6
+   Avalie a natureza do erro:
+   - **Erro Transiente (Rede/Timeout de Infraestrutura):** Se o erro for de conexão, falha de API externa temporária ou timeout do próprio runner do CI, **não altere o código**. Aguarde 30 segundos e dispare uma nova verificação ou re-run de testes via CLI (`gh run rerun <run-id>`). Use backoff exponencial de até 3 tentativas.
+   - **Erro de Código (Lint/Compilação/Teste Falho):** Siga para o passo de correção abaixo.
 
-Após 3 iterações sem CI verde:
+2. **Loop de Fix:**
+   - Identifique a causa raiz e aplique a alteração corretiva no worktree.
+   - Faça o commit local: `fix: corrige <problema> no CI`
+   - Execute o push: `git push origin <branch>`
+   - Volte ao passo 6 (Monitorar CI).
+
+Após 3 iterações completas de fix de código sem CI atingir verde:
 ```
-FALHA: CI não passou após 3 tentativas de fix.
+FALHA: CI não passou após 3 tentativas de fix de código.
 Último erro: <trecho do log>
 Worktree preservado para inspeção manual.
 ```
-**Pare.** Não tente merge.
+**Pare.** Não tente mergear.
 
 ### 8 — Verificar review
 
@@ -164,18 +169,24 @@ Aguardando aprovação antes de prosseguir com merge.
 ```
 **Pare.** Não entre em loop tentando merge.
 
-### 9 — Merge
+### 9 — Merge e Auto-Resolução de Conflitos
 
 ```bash
 gh pr ready <PR-number>
 gh pr merge <PR-number> --squash --delete-branch --yes
 ```
 
-Se o merge falhar por conflito:
-1. `git merge "$DEFAULT_BRANCH"` no worktree
-2. Resolva conflitos
-3. Commit e push
-4. Volte ao passo 6
+#### Se o merge falhar por conflito de branch com a branch default:
+1. Execute `git merge "$DEFAULT_BRANCH"` localmente no worktree.
+2. Identifique os arquivos conflitantes usando:
+   ```bash
+   git diff --name-only --diff-filter=U
+   ```
+3. Para cada arquivo listado, localize as seções com marcadores de conflito (`<<<<<<<`, `=======`, `>>>>>>>`).
+4. Analise as alterações conflitantes. Mescle de forma lógica o código de ambas as partes preservando as regras de negócio de cada uma e remova os marcadores de conflito.
+5. Execute os testes do módulo correspondente via `module-test-map`.
+6. **Se os testes passarem:** Commite a resolução (`merge branch '$DEFAULT_BRANCH' and resolve conflicts`), faça `git push origin <branch>` e volte ao passo 6 (monitoramento do CI).
+7. **Se os testes falharem:** Chame o `fix-loop-agent` localmente para corrigir o código. Se as iterações estourarem sem obter testes verdes, aborte o merge, preserve o worktree e alerte o usuário.
 
 ### 10 — Sincronizar root
 

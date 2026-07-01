@@ -104,29 +104,38 @@ Ação: descartar | mesclar com existente | manter (diferente o suficiente)
 
 Inclua as duplicatas encontradas no resumo para revisão do usuário.
 
-### 5 — Apresentar batch para revisão
+### 5 — Apresentar batch para revisão (Planning Mode)
 
-Apresente todas as propostas de uma vez, com duplicatas marcadas:
+Para fornecer uma revisão interativa de alta qualidade, gere ou atualize o artefato `implementation_plan.md` (com `request_feedback: true` e `user_facing: true` nos metadados do artefato) contendo a lista estruturada das propostas:
 
+```markdown
+# Plano de Criação de Backlog — <tema>
+
+## Issues Propostas
+
+### 1. ✅ <título> — <tipo> — <módulo>
+- **Descrição:** <descrição>
+- **Critério de Aceite:** <critério>
+- **Âncora:** <âncora>
+
+### 2. ⚠️ <título> — possível duplicata de #<N>
+- **Ação sugerida:** <descartar | manter | mesclar>
+- **Descrição:** <descrição>
+- ...
 ```
-## Batch de Issues Propostas
 
-<tema>: <N> issues propostas, <M> duplicatas potenciais encontradas
-
-1. ✅ <título> — <tipo> — <módulo>
-2. ⚠️ <título> — possível duplicata de #<N>
-3. ✅ <título> — <tipo> — <módulo>
-...
-
-Quer criar todas as ✅? Ou quer revisar/editar alguma antes?
-```
+Não crie as issues imediatamente. Aguarde até que o usuário revise o plano e dê sua aprovação explícita (como ao clicar no botão "Proceed" do ecossistema de planejamento).
 
 ### 6 — Criar issues
 
+Após o usuário aprovar o plano de implementação:
 **Opcional (economia de tokens):** se `gemini` estiver disponível, rascunhe o corpo de cada
-issue com ele antes de criar — `gemini -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) em PT-BR para: <título + âncora>"`. Revise e ancore o rascunho na documentação antes de prosseguir.
+issue com ele antes de criar. Lembre-se de primeiro imprimir o log:
+`echo "[Vetor:Gemini] Delegando tarefa: Rascunhando corpo da issue <título>"`
+e então rodar:
+`gemini -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) em PT-BR para: <título + âncora>"`. Revise e ancore o rascunho na documentação antes de prosseguir.
 
-Após aprovação do usuário, crie cada issue aprovada:
+Após aprovação, crie cada issue aprovada:
 
 ```bash
 gh issue create \

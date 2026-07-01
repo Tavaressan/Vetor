@@ -108,12 +108,13 @@ Se **verde** (todos os testes passaram):
 Atualize `AGENT_STATUS.md` com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
-1. Leia a saída de erro. **Opcional (economia de tokens):** se `gemini` estiver disponível, condense a saída antes de analisar — `<comando-de-teste> 2>&1 | gemini -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
-2. Identifique a causa raiz
-3. Aplique o fix menor possível (uma mudança atômica)
-4. Commit: `fix: <descrição curta do fix>`
-5. Atualize `AGENT_STATUS.md`
-6. Continue para a próxima iteração
+1. Leia a saída de erro. **Opcional (economia de tokens):** se `gemini` estiver disponível, condense a saída antes de analisar. Primeiro imprima o log `echo "[Vetor:Gemini] Delegando tarefa: Condensando log de erro de testes"` e depois execute: `<comando-de-teste> 2>&1 | gemini -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
+2. **Poda de Contexto (Context Pruning):** Se a iteração atual `i` for maior ou igual a 3, faça uma consolidação de memória. Remova do histórico de mensagens os logs extensos e repetitivos das primeiras iterações. Crie um resumo mental condensado (ex.: "Tentativa 1 alterou arquivo X; erro persistiu. Tentativa 2 alterou Y; mudou erro para Z na linha W"). Mantenha no contexto ativo apenas este resumo, os commits realizados e a última saída de erro de compilação/teste.
+3. Identifique a causa raiz
+4. Aplique o fix menor possível (uma mudança atômica)
+5. Commit: `fix: <descrição curta do fix>`
+6. Atualize `AGENT_STATUS.md`
+7. Continue para a próxima iteração
 
 **Opcional — investigação com hipóteses concorrentes (só uso manual, NÃO orquestrado).** Se a causa
 raiz não for óbvia após 1-2 iterações (ex.: falha intermitente, múltiplos subsistemas envolvidos) e

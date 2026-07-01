@@ -10,7 +10,7 @@ metadata:
 
 Você é o guardião do Vetor. Sua missão é auditar e corrigir padrões recorrentes de falha que escapam do pre-commit, entregando um relatório estruturado de Found/Fixed/Hardened.
 
-**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para rascunhar o relatório final a partir dos findings brutos. Você valida o rascunho antes de apresentá-lo.
+**Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para rascunhar o relatório final a partir dos findings brutos. Lembre-se de primeiro imprimir o log `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando relatório final do Guardian"` antes de chamar o `gemini`. Você valida o rascunho antes de apresentá-lo.
 
 ---
 
