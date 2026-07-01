@@ -58,9 +58,9 @@ git diff "$DEFAULT_BRANCH" --name-only
 
 Mapeie ao módulo usando a tabela do module-test-map.
 
-### 2 — Status file
+### 2 — Status file (KISS Status Tracker)
 
-Antes de cada iteração, atualize o arquivo de status:
+Antes de cada iteração, atualize o arquivo de status. Siga as diretrizes de design de `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` (§3) mantendo a estrutura simples e focada (KISS/YAGNI/DRY):
 
 ```bash
 # Escreva em .claude/worktrees/<slug>/AGENT_STATUS.md
@@ -75,7 +75,13 @@ Iteration: <N>/5
 Estimated Cost: <X.XX> USD
 Last action: <descrição da última ação>
 Next: <próximo passo planejado>
+
+## Progresso (KISS & TDD):
+- [ ] Teste de Reprodução Escrito (TDD)
+- [ ] Código de Correção Simples (KISS/YAGNI)
+- [ ] Validação de Regressões (DRY)
 ```
+
 
 #### Cálculo do Custo Estimado (`Estimated Cost`):
 A cada iteração `i` (ou mudança de status), calcule e atualize o custo acumulado em dólares com base no modelo sendo executado:
@@ -116,9 +122,9 @@ Atualize `AGENT_STATUS.md` com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
 1. Leia a saída de erro. **Opcional (economia de tokens):** se `agy` estiver disponível, condense a saída antes de analisar. Primeiro imprima o log `echo "[Vetor:Gemini] Delegando tarefa: Condensando log de erro de testes"` e depois execute: `<comando-de-teste> 2>&1 | agy -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
-2. **Poda de Contexto (Context Pruning):** Se a iteração atual `i` for maior ou igual a 3, faça uma consolidação de memória. Remova do histórico de mensagens os logs extensos e repetitivos das primeiras iterações. Crie um resumo mental condensado (ex.: "Tentativa 1 alterou arquivo X; erro persistiu. Tentativa 2 alterou Y; mudou erro para Z na linha W"). Mantenha no contexto ativo apenas este resumo, os commits realizados e a última saída de erro de compilação/teste.
-3. Identifique a causa raiz
-4. Aplique o fix menor possível (uma mudança atômica)
+2. **Abordagem Test-Driven (TDD Rígido - §3.2)**: Se for a primeira iteração (`i=1`) e os testes ainda não estiverem falhando para o bug relatado, escreva um teste de reprodução simples que quebre. Só prossiga para alterar o código do produto após garantir que o teste está falhando (vermelho). Marque `[x] Teste de Reprodução Escrito` no status.
+3. **Poda de Contexto (Context Pruning):** Se a iteração atual `i` for maior ou igual a 3, faça uma consolidação de memória. Remova do histórico de mensagens os logs extensos e repetitivos das primeiras iterações. Crie um resumo mental condensado (ex.: "Tentativa 1 alterou arquivo X; erro persistiu. Tentativa 2 alterou Y; mudou erro para Z na linha W"). Mantenha no contexto ativo apenas este resumo, os commits realizados e a última saída de erro de compilação/teste.
+4. **Resolução Simples (KISS/YAGNI - §3.2)**: Identifique a causa raiz e aplique a menor alteração de código atômica necessária para fazer o teste passar. Não faça refatorações especulativas ou limpezas fora de escopo.
 5. Commit: `fix: <descrição curta do fix>`
 6. Atualize `AGENT_STATUS.md`
 7. Continue para a próxima iteração

@@ -23,13 +23,13 @@ correspondente.
 ## O que fazer
 
 1. Leia a issue e entenda o escopo.
-2. Implemente a mudança no worktree indicado, com commits incrementais e mensagens
-   `conventional commits`.
-3. Siga as instruções da skill `fix-loop-agent` (pré-carregada acima) para o loop de reproduce → fix
-   → rebuild → test até verde — incluindo hard cap de 5 iterações, resolução de branch default e
-   `module-test-map` via `project-conventions.md`, e o formato de `AGENT_STATUS.md`.
-4. Atualize `AGENT_STATUS.md` a cada iteração, exatamente como a skill descreve — é a única forma do
-   `issue-coordinator` acompanhar seu progresso.
+2. Siga estritamente as regras de desenvolvimento do arquivo de referência `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` (§3):
+   - **TDD (§3.2)**: Escreva um teste de reprodução simples que falhe (vermelho) antes de alterar o código do produto.
+   - **KISS/YAGNI (§3.2)**: Implemente apenas o código estritamente necessário para fazer o teste passar. Evite refatorações fora do escopo da issue.
+3. Implemente a mudança no worktree indicado, com commits incrementais e mensagens `conventional commits`.
+4. Siga as instruções da skill `fix-loop-agent` (pré-carregada acima) para o loop de reproduce → fix → rebuild → test até verde — incluindo o formato de progresso de status simplificado e o custo acumulado em `AGENT_STATUS.md`.
+5. Atualize `AGENT_STATUS.md` a cada iteração — é a única forma do `issue-coordinator` acompanhar seu progresso.
+
 
 ## Restrições (fortes — algumas são enforced por ferramenta, não só por instrução)
 

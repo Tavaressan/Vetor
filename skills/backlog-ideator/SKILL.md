@@ -67,9 +67,13 @@ gh issue list --state open --limit 100
 Esta é a **fonte canônica** de números de issue. Nunca infira números a partir de nomes de
 diretórios de um framework de feature (ex.: `_reversa_forward/`) — feature-id ≠ issue#.
 
+### 2.b — Questionamento Direcionado (KISS & YAGNI)
+
+Siga as diretrizes de `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` (§3.1). Se houver ambiguidades críticas sobre os objetivos do backlog ou limites arquiteturais que não estejam claros na documentação lida na Seção 1, formule **exatamente um bloco com até 3 perguntas direcionadas** no chat. Aguarde a resposta do usuário antes de prosseguir para a Fase 3, evitando premissas erradas e retrabalho.
+
 ### 3 — Gerar propostas
 
-Com base no contexto lido e no `[tema]` fornecido, proponha de **3 a 8 issues** seguindo este formato:
+Com base no contexto lido, nas respostas às perguntas direcionadas e no `[tema]` fornecido, proponha de **3 a 8 issues** seguindo este formato:
 
 ```
 ### Issue N: <título curto>
@@ -79,7 +83,11 @@ Com base no contexto lido e no `[tema]` fornecido, proponha de **3 a 8 issues** 
 **Âncora:** <referência ao trecho da documentação encontrada na seção 1 que justifica>
 
 **Descrição:**
-<2–4 frases explicando o que, por quê e o critério de aceite>
+<2–4 frases explicando o escopo simplificado (KISS)>
+
+**Critério de Aceite & Validação (TDD target):**
+- [ ] <critério de aceite primário>
+- [ ] **Teste**: <como testar esta alteração de forma simples (KISS)>
 
 **Labels sugeridos:** backlog, ai-generated, <tipo>, <módulo>
 ```
