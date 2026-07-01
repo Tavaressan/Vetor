@@ -44,13 +44,7 @@ Verifique os argumentos recebidos:
 
 ### 2 — Derivar nomes
 
-Detecte a branch default do repositório (não assuma `master`):
-
-```bash
-DEFAULT_BRANCH=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
-```
+Detecte a branch default do repositório: leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` e resolva `$DEFAULT_BRANCH` conforme descrito lá (não assuma `master`).
 
 - **Branch:** `<type>/<issue#>-<slug>` se issue fornecida; `<type>/<slug>` caso contrário
 - **Path:** `.claude/worktrees/<slug>`

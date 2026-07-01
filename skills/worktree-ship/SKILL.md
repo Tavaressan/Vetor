@@ -24,25 +24,9 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 ## Referências
 
-**Comandos de teste.** Antes de executar testes, obtenha os comandos do módulo nesta ordem:
-1. Leia `.claude/vetor/module-test-map.md` no projeto (cópia preenchida pelo usuário).
-2. Se não existir, auto-detecte os comandos a partir de `.github/workflows/*.yml`.
-3. Se ainda assim não conseguir, avise o usuário para copiar o template:
-   `cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" .claude/vetor/module-test-map.md` e preencher.
-
 **Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se o CLI `gemini` estiver disponível, use-o para resumir logs de CI antes de diagnosticar (§7).
 
-## Branch default
-
-Detecte a branch default no início (não assuma `master`):
-
-```bash
-DEFAULT_BRANCH=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
-```
-
-Use `$DEFAULT_BRANCH` em todos os comandos abaixo.
+**Branch default e comandos de teste.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH` e o `module-test-map` conforme descrito lá. Use `$DEFAULT_BRANCH` em todos os comandos abaixo.
 
 ---
 

@@ -25,10 +25,11 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 
 ## Referências
 
-Este coordenador compõe os comandos primitivos do plugin (forma namespaced):
-- `/vetor:worktree-create` — criação headless de worktree
-- `/vetor:fix-loop` — loop autônomo de fix até verde
-- `/vetor:worktree-ship` — pipeline de entrega (test → PR → CI → merge)
+Este coordenador compõe os primitivos do plugin:
+- `/vetor:worktree-create` — criação headless de worktree (skill, Fase 3)
+- `vetor:issue-worker` — subagente nativo (`agents/issue-worker.md`) despachado por issue na Fase 4;
+  já traz a skill `fix-loop-agent` pré-carregada e tools restritas (nunca push/PR/merge)
+- `/vetor:worktree-ship` — pipeline de entrega (test → PR → CI → merge), Fase 6
 
 Os comandos de teste vêm de `.claude/vetor/module-test-map.md` (cópia preenchida pelo
 usuário) ou, na ausência dela, de auto-detecção a partir do CI — cada primitivo já resolve
@@ -89,28 +90,40 @@ Se `worktree-create` falhar (ex.: slug já existe), tente com sufixo numérico (
 
 ### 4 — Fase de desenvolvimento (paralela)
 
-Despache um sub-agente por issue usando a ferramenta `Agent`:
+Despache um sub-agente por issue usando o subagente nativo `issue-worker` do plugin (tools
+restritas — nunca faz push/PR/merge por design, não só por instrução):
 
 ```
 Agent({
   description: "Issue #<N>: <título>",
   prompt: "...",
+  subagent_type: "vetor:issue-worker",
+  model: "<haiku|sonnet>",
   run_in_background: true
 })
 ```
 
-O prompt de cada agente deve incluir:
+**Critério de escolha do `model`** (otimização de custo de tokens): use `haiku` para issues com
+labels `chore` ou `fix` de escopo pequeno (poucos arquivos, sem mudança de arquitetura); use `sonnet`
+(ou omita o campo — vira o default da sessão) para `feat`/`refactor` ou qualquer issue cujo body
+sugira complexidade maior. Se um worker em `haiku` esgotar as 5 iterações do fix-loop sem atingir
+verde (`FAILED_MAX_ITERATIONS`), redespache a mesma issue uma vez com `model: "sonnet"` antes de
+marcar como falha definitiva — o custo mais baixo do `haiku` pode custar iterações extras em issues
+subestimadas, então essa é a rede de segurança.
+
+> **Nota de implementação (a verificar):** o Agent tool também aceita `isolation: "worktree"` para
+> criar o worktree automaticamente no próprio dispatch. Isso só deve substituir a Fase 3
+> (`worktree-create` serializado) se o naming/path gerado for compatível com o que `worktree-ship`
+> espera (`<type>/<issue#>-<slug>` em `.claude/worktrees/<slug>`). Enquanto isso não for confirmado,
+> mantenha a Fase 3 como está.
+
+O prompt de cada agente deve incluir apenas os dados da tarefa — o comportamento (implementar,
+iterar até verde via `fix-loop-agent` pré-carregada, atualizar `AGENT_STATUS.md`, nunca fazer
+push/PR) já vem do próprio subagente `issue-worker`:
 - Número e título da issue
 - Body da issue (obtido via `gh issue view <N> --json body`)
 - Path do worktree: `.claude/worktrees/<slug>`
 - Branch: `<branch>`
-- Instruções para:
-  1. Ler a issue e entender o escopo
-  2. Implementar a mudança no worktree
-  3. Fazer commits incrementais
-  4. Executar `/vetor:fix-loop` para garantir testes verdes
-  5. Atualizar `AGENT_STATUS.md` a cada passo
-  6. **Não** fazer push ou criar PR — isso é responsabilidade do coordinator via `worktree-ship`
 
 ### 5 — Monitoramento
 

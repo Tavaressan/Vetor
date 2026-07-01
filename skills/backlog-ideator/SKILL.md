@@ -73,6 +73,21 @@ Cada proposta deve:
 - Ter um critério de aceite verificável
 - Ser atômica o suficiente para caber em um PR
 
+**Opcional — ideação em Agent Team (múltiplas perspectivas).** Se a variável de ambiente
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` estiver habilitada (feature experimental do Claude Code) e o
+`[tema]` for amplo o suficiente para se beneficiar de ângulos divergentes, você pode spawnar um Agent
+Team em vez de gerar as propostas sozinho. Instrua, em linguagem natural, algo como:
+
+> "Spawne 3 teammates para propor issues sobre `<tema>`: um focado em UX, um em arquitetura técnica,
+> um como devil's advocate questionando as premissas dos outros dois. Cada um deve ancorar suas
+> propostas na documentação lida na seção 1. Consolide as propostas de todos antes de seguir para a
+> verificação de duplicatas."
+
+Como você (a sessão do usuário) é o lead nesse fluxo, a limitação conhecida de Agent Teams — teammates
+in-process não sobrevivem a `/resume` — não compromete nada crítico aqui: se a sessão cair, basta
+reiniciar a ideação. Essa opção é só para o momento de brainstorm; a criação das issues (§6) e a
+verificação de duplicatas (§4) continuam sendo feitas por você, não pelos teammates.
+
 ### 4 — Verificar duplicatas
 
 Para **cada** issue proposta, verifique se já existe algo similar:

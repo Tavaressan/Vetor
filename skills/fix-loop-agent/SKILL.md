@@ -24,23 +24,9 @@ Você é o agente de fix autônomo do Vetor. Sua missão é iterar sobre falhas 
 
 ## Referências
 
-**Comandos de teste.** Antes de iniciar o loop, obtenha os comandos do módulo nesta ordem:
-1. Leia `.claude/vetor/module-test-map.md` no projeto (cópia preenchida pelo usuário).
-2. Se não existir, auto-detecte a partir de `.github/workflows/*.yml`.
-3. Se ainda assim não conseguir, avise o usuário para copiar o template:
-   `cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" .claude/vetor/module-test-map.md`.
-
 **Delegação opcional ao Gemini.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — se `gemini` estiver disponível, use-o para resumir a saída de erro dos testes. **A decisão e a aplicação do fix são sempre suas, nunca do Gemini.**
 
-## Branch default
-
-Detecte a branch default (não assuma `master`):
-
-```bash
-DEFAULT_BRANCH=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
-```
+**Branch default e comandos de teste.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH` e o `module-test-map` conforme descrito lá antes de prosseguir.
 
 ---
 
@@ -128,6 +114,21 @@ Se **vermelho**:
 4. Commit: `fix: <descrição curta do fix>`
 5. Atualize `AGENT_STATUS.md`
 6. Continue para a próxima iteração
+
+**Opcional — investigação com hipóteses concorrentes (só uso manual, NÃO orquestrado).** Se a causa
+raiz não for óbvia após 1-2 iterações (ex.: falha intermitente, múltiplos subsistemas envolvidos) e
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` estiver habilitada, você pode instruir, em linguagem natural:
+
+> "Spawne N teammates com hipóteses diferentes sobre a causa raiz desta falha. Façam debate entre si
+> tentando refutar a hipótese um do outro; atualize este arquivo de status com o consenso que
+> emergir."
+
+**Restrição explícita:** isso só se aplica quando `/vetor:fix-loop` é invocado diretamente pelo
+usuário como lead da sessão. Quando `fix-loop-agent` roda pré-carregada dentro do subagente
+`issue-worker` (despachado pelo `issue-coordinator`), você já é um worker, não o lead — a
+documentação oficial de Agent Teams não confirma que um subagente possa abrir seu próprio time
+("no nested teams" está entre as limitações conhecidas). **Não tente spawnar teammates no caminho
+orquestrado.**
 
 ### 4 — Após N=5 falhas
 
