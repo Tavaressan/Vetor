@@ -32,6 +32,8 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 ## Comportamento
 
+⚠️ **MCP-primeiro em todas as interações com GitHub abaixo** (criação de PR, checks de CI, review, merge): verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas). **SEMPRE prefira as tool calls MCP quando disponíveis — não caia para a CLI `gh` por conveniência.** Os comandos `gh` abaixo são o fallback documentado para quando o MCP não está disponível.
+
 ### 1 — Guarda de contexto
 
 Verifique se está dentro de um worktree:
