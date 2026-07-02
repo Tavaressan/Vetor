@@ -111,8 +111,9 @@ Para cada grupo de issues (ou issue individual), o ecossistema do Antigravity/Cl
 
 **Teto de workers simultâneos (economia de tokens):** cada subagente paralelo é uma instância Claude
 completa, sem contexto compartilhado — é o maior driver de custo agregado do coordinator. Antes de
-despachar, leia `.claude/settings.json` em busca de `vetor.maxConcurrentWorkers`; na ausência,
-**default 3**.
+despachar, leia `.claude/vetor/config.json` em busca de `maxConcurrentWorkers` (o schema de
+`.claude/settings.json` do Claude Code rejeita chaves de topo customizadas como `vetor`, então não use
+esse arquivo); na ausência de `.claude/vetor/config.json` ou da chave, **default 3**.
 
 - Ordene os grupos (Fase 1) por prioridade (ex.: ordem das issues no label).
 - Despache apenas os primeiros N grupos (N = teto). Os demais ficam com status `QUEUED` na tabela de
@@ -296,9 +297,9 @@ Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar 
 - **fix-loop-agent:** máximo 5 iterações por agente
 - **worktree-ship:** máximo 3 tentativas de fix de CI
 - **Coordinator:** timeout global de 90 minutos — após isso, reporta status final e para
-- **Coordinator:** máximo `vetor.maxConcurrentWorkers` workers despachados simultaneamente por rodada
-  (default 3, configurável em `.claude/settings.json`) — grupos além do teto ficam `QUEUED` até uma
-  vaga abrir (Fase 4)
+- **Coordinator:** máximo `maxConcurrentWorkers` workers despachados simultaneamente por rodada
+  (default 3, configurável em `.claude/vetor/config.json`) — grupos além do teto ficam `QUEUED` até
+  uma vaga abrir (Fase 4)
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
 
 ---
