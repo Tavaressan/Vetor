@@ -18,6 +18,11 @@ command -v agy >/dev/null 2>&1 && GEMINI_AVAILABLE=1 || GEMINI_AVAILABLE=0
 - Se `GEMINI_AVAILABLE=0`: faça a tarefa **inline** normalmente. Nunca falhe nem peça
   instalação — a delegação é puramente opcional.
 - Se `GEMINI_AVAILABLE=1`: você **pode** delegar as tarefas listadas abaixo. **Sempre imprima um log explícito no console antes de rodar o comando agy**, no formato:
+
+**Nota — cache próprio do `agy` fora do projeto:** o `agy` pode persistir uma cópia do rascunho em
+`~/.gemini/antigravity-cli/brain/<uuid>/...` (fora do repositório e do controle de versão). Isso é
+comportamento do CLI externo, não do Vetor — o Vetor consome apenas a saída via stdout (pipe) e não
+depende nem gerencia esse cache. Não é necessário limpar esses arquivos manualmente.
   `echo "[Vetor:Gemini] Delegando tarefa: <breve descrição>"`
 
 ---
@@ -75,10 +80,10 @@ gh issue list --label <label> --state open --json number,title,labels,body \
 O Claude **valida a afinidade**, resolve eventuais erros do rascunho e constrói a tabela final de dispatch.
 
 ### 6. Geração de Changelog de Sessão
-No `issue-coordinator`, delegue a criação do changelog consolidado a partir do histórico de commits da sessão:
+No `issue-coordinator`, delegue a criação do changelog consolidado a partir do histórico de commits da sessão. **Sempre limite o range** (a regra de 100 linhas de `planning-conventions.md` §1.1 vale para histórico de git também) — `origin/main...HEAD` sozinho não é suficiente como limite: uma branch de longa duração e nunca rebaseada pode produzir um range enorme. Use um cap numérico fixo além do range:
 
 ```bash
-git log origin/main...HEAD --oneline | agy -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
+git log origin/main...HEAD --oneline -200 | agy -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
 ```
 
 O Claude **valida o texto**, refina o formato e salva no arquivo `.claude/vetor/CHANGELOG.md`.

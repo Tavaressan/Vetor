@@ -107,7 +107,7 @@ git -C <worktree-path> status --porcelain
 
 ### 5 — PRs Dependabot com rebase pendente
 
-Verifique se um servidor MCP do GitHub está disponível (ex: ferramentas como `search_pull_requests`, `get_pull_request`).
+Verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas).
 - **Com MCP:** Use as ferramentas para buscar PRs abertos pelo autor `app/dependabot` e verifique o status de conflito/mergeability.
 - **Sem MCP (Fallback):** Use a CLI `gh`:
   ```bash
@@ -123,7 +123,7 @@ Verifique se um servidor MCP do GitHub está disponível (ex: ferramentas como `
 
 ### 6 — Auditoria de Banco de Dados (via MCP)
 
-Verifique se há um servidor MCP de banco de dados disponível (ex: ferramentas para rodar queries em PostgreSQL, MySQL, etc.). Se não houver, ignore este check.
+Verifique disponibilidade de um MCP de banco de dados conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure qualquer `mcp__<db>__*` na sua lista de ferramentas — o nome do servidor varia conforme a configuração). Se não houver, ignore este check.
 Se estiver disponível, use as ferramentas de query para auditar a saúde estrutural do banco. Sugestões de diagnóstico (adapte ao dialeto do banco, ex: PostgreSQL):
 - Identificar índices não utilizados.
 - Identificar tabelas sem chaves primárias ou índices.

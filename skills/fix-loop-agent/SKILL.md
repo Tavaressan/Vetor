@@ -72,7 +72,6 @@ Formato:
 Updated: <ISO 8601 timestamp>
 Status: RUNNING
 Iteration: <N>/5
-Estimated Cost: <X.XX> USD
 Last action: <descrição da última ação>
 Next: <próximo passo planejado>
 
@@ -81,13 +80,6 @@ Next: <próximo passo planejado>
 - [ ] Código de Correção Simples (KISS/YAGNI)
 - [ ] Validação de Regressões (DRY)
 ```
-
-
-#### Cálculo do Custo Estimado (`Estimated Cost`):
-A cada iteração `i` (ou mudança de status), calcule e atualize o custo acumulado em dólares com base no modelo sendo executado:
-- Se rodando sob **Haiku** (default do `issue-worker`): adicione **0.01 USD** por iteração.
-- Se rodando sob **Sonnet**: adicione **0.08 USD** por iteração.
-*Nota: Mantenha o custo acumulado e atualizado mesmo ao transicionar para status como `BLOCKED_WAITING`, `GREEN` ou `FAILED_MAX_ITERATIONS`.*
 
 Se bloqueado por permissão ou decisão técnica, mude Status para `BLOCKED_WAITING` e descreva o que é necessário:
 ```markdown
@@ -112,6 +104,17 @@ Execute o comando headless do módulo detectado.
 - Se bloqueado: troque para headless **permanentemente** nesta execução
 - Nunca retente o path docker após bloqueio
 
+**Regra de comando bloqueado por permissão (worker despachado em background):** se você é o
+`issue-worker` despachado pelo `issue-coordinator` (não uma sessão manual/lead) e um comando —
+instalação de dependência, teste, build ou qualquer coisa fora do já preparado pelo
+`worktree-create` — fica pendente de confirmação de permissão, **não espere nem retente**: como
+worker em background, ninguém está olhando o terminal para aprovar em tempo hábil. Trate isso como
+bloqueio imediato — mude `Status` para `BLOCKED_WAITING` descrevendo o comando exato que precisa de
+aprovação, para o `issue-coordinator` escalar via `AskUserQuestion` (§5.b). Instalação de dependências
+já deveria ter sido resolvida na criação do worktree (`worktree-create` §4.b); se um comando de
+instalação aparecer aqui mesmo assim, é sinal de dependência faltante não coberta por aquele passo —
+reporte isso no `BLOCKED_WAITING`, não tente resolver com `rm`/reinstalação ampla por conta própria.
+
 **3.b — Avaliar resultado**
 
 Se **verde** (todos os testes passaram):
@@ -123,11 +126,10 @@ Atualize `AGENT_STATUS.md` com `Status: GREEN` e **pare**.
 Se **vermelho**:
 1. Leia a saída de erro. **Opcional (economia de tokens):** se `agy` estiver disponível, condense a saída antes de analisar. Primeiro imprima o log `echo "[Vetor:Gemini] Delegando tarefa: Condensando log de erro de testes"` e depois execute: `<comando-de-teste> 2>&1 | agy -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
 2. **Abordagem Test-Driven (TDD Rígido - §3.2)**: Se for a primeira iteração (`i=1`) e os testes ainda não estiverem falhando para o bug relatado, escreva um teste de reprodução simples que quebre. Só prossiga para alterar o código do produto após garantir que o teste está falhando (vermelho). Marque `[x] Teste de Reprodução Escrito` no status.
-3. **Poda de Contexto (Context Pruning):** Se a iteração atual `i` for maior ou igual a 3, faça uma consolidação de memória. Remova do histórico de mensagens os logs extensos e repetitivos das primeiras iterações. Crie um resumo mental condensado (ex.: "Tentativa 1 alterou arquivo X; erro persistiu. Tentativa 2 alterou Y; mudou erro para Z na linha W"). Mantenha no contexto ativo apenas este resumo, os commits realizados e a última saída de erro de compilação/teste.
-4. **Resolução Simples (KISS/YAGNI - §3.2)**: Identifique a causa raiz e aplique a menor alteração de código atômica necessária para fazer o teste passar. Não faça refatorações especulativas ou limpezas fora de escopo.
-5. Commit: `fix: <descrição curta do fix>`
-6. Atualize `AGENT_STATUS.md`
-7. Continue para a próxima iteração
+3. **Resolução Simples (KISS/YAGNI - §3.2)**: Identifique a causa raiz e aplique a menor alteração de código atômica necessária para fazer o teste passar. Não faça refatorações especulativas ou limpezas fora de escopo.
+4. Commit: `fix: <descrição curta do fix>`
+5. Atualize `AGENT_STATUS.md`
+6. Continue para a próxima iteração
 
 **Opcional — investigação com hipóteses concorrentes (só uso manual, NÃO orquestrado).** Se a causa
 raiz não for óbvia após 1-2 iterações (ex.: falha intermitente, múltiplos subsistemas envolvidos) e

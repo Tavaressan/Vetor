@@ -1,12 +1,12 @@
 # Vetor
 
-Plugin [Claude Code](https://docs.anthropic.com/en/docs/claude-code) de skills para automação de workflow de desenvolvimento. **Agnóstico a projeto** — instale uma vez e use em qualquer repositório.
+Plugin de skills para automação de workflow de desenvolvimento. **Agnóstico a projeto** — instale uma vez e use em qualquer repositório.
 
 Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix autônomo → ship → guarda**.
 
 ---
 
-## Instalação
+## Instalação (no Claude Code)
 
 ```
 /plugin marketplace add Tavaressan/Vetor
@@ -27,6 +27,7 @@ Pronto. Os comandos ficam disponíveis com o prefixo `/vetor:`. Não é preciso 
 | `/vetor:backlog [tema]` | Ideação guiada ancorada em docs do projeto → batch de issues GitHub com aprovação humana |
 | `/vetor:guardian [--cron]` | Audit + auto-fix de gaps que o pre-commit não cobre (JSON, migrations, worktrees, Dependabot) |
 | `/vetor:coordinator [label] [--dry-run]` | Despacho paralelo de issues para sub-agentes com escalação de permissões e merge serializado |
+| `/vetor:retro` | Avalia o uso do Vetor na sessão e propõe issues de melhoria no repositório do próprio plugin (não do projeto) |
 
 ### Referência compartilhada
 
@@ -36,7 +37,7 @@ Pronto. Os comandos ficam disponíveis com o prefixo `/vetor:`. Não é preciso 
 
 ### Subagente nativo
 
-- **`agents/issue-worker.md`** — Subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools`/`disallowedTools` restritos (nunca `git push`, `gh pr create/merge/ready` — bloqueado pela própria ferramenta, não só por instrução) e pré-carrega a skill `fix-loop-agent` via campo `skills:`. Ver "Arquitetura dos skills" e "Custo de tokens" abaixo.
+- **`agents/issue-worker.md`** — Subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução (o push para branches protegidas também é bloqueado por hook `PreToolUse`) e pré-carrega a skill `fix-loop-agent` via campo `skills:`. Ver "Arquitetura dos skills" e "Custo de tokens" abaixo.
 
 > ⚠️ A skill `worktree-session` foi **aposentada**. Era monolítica demais e perdia contexto. Use a composição `worktree-create` + `worktree-ship` (e `coordinator` para orquestração). O arquivo legado fica em `legacy/worktree-session/` apenas como referência histórica e **não é carregado** pelo plugin.
 
@@ -84,9 +85,16 @@ Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risc
 Para evitar prompts repetitivos, configure o arquivo `.claude/settings.json` na raiz do seu projeto. Dependendo do seu modelo de ameaça e uso de dependências de terceiros, escolha um dos caminhos abaixo:
 
 ### Opção A: Modo Seguro (Privilégio Mínimo - Recomendado)
-*Indicado se o projeto consome dependências externas (npm, pip, cargo, etc.) que executam scripts dinâmicos de build/teste.* 
+*Indicado se o projeto consome dependências externas (npm, pip, cargo, etc.) que executam scripts dinâmicos de build/teste.*
 
 Este modo auto-aprova a leitura do GitHub e o gerenciamento de worktrees locais, mas **mantém a confirmação visual** no seu terminal para qualquer execução de teste (`npm test`, `cargo test`), builds ou pushes e merges remotos.
+
+⚠️ **Incompatível com dispatch em background do `issue-coordinator`.** Workers despachados via
+`run_in_background: true` não têm ninguém observando o terminal para confirmar prompts — um teste ou
+build pendente de aprovação nesse modo trava o worker indefinidamente (o comando fica pendente antes
+mesmo do agente poder reagir e marcar `BLOCKED_WAITING`). Use este modo apenas para invocação manual
+e interativa (`/vetor:fix-loop`, `/vetor:guardian` sem `--cron`), onde você acompanha a sessão. Para
+`/vetor:coordinator`, use a Opção B.
 
 ```json
 {
@@ -105,7 +113,12 @@ Este modo auto-aprova a leitura do GitHub e o gerenciamento de worktrees locais,
 ```
 
 ### Opção B: Modo Alta Eficiência (Autônomo)
-*Indicado apenas para projetos 100% privados de sua autoria exclusiva, onde as dependências são rigidamente controladas e você deseja rodar tudo em background sem interrupções.*
+*Indicado apenas para projetos 100% privados de sua autoria exclusiva, onde as dependências são rigidamente controladas e você deseja rodar tudo em background sem interrupções — é o modo exigido pelo `issue-coordinator` (dispatch em background), ver aviso na Opção A.*
+
+**Adapte a lista de teste/build/install aos comandos reais do seu `module-test-map`** — o Vetor é
+agnóstico a projeto e não pode adivinhar seu stack. Os exemplos abaixo cobrem os ecossistemas mais
+comuns; adicione ou remova conforme o que `worktree-create` (§4.b) e seu `module-test-map` realmente
+rodam a cada iteração do `fix-loop-agent`, senão o worker trava do mesmo jeito que no Modo Seguro:
 
 ```json
 {
@@ -122,7 +135,19 @@ Este modo auto-aprova a leitura do GitHub e o gerenciamento de worktrees locais,
       "Bash(git worktree add:*)",
       "Bash(git worktree remove:*)",
       "Bash(git worktree list:*)",
-      "Bash(agy:*)"
+      "Bash(agy:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run *:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm run *:*)",
+      "Bash(yarn install:*)",
+      "Bash(yarn test:*)",
+      "Bash(poetry install:*)",
+      "Bash(poetry run *:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo build:*)"
     ]
   }
 }
@@ -214,6 +239,7 @@ Quando o `coordinator` despacha sub-agentes:
 | Iterações do fix-loop | 5 |
 | Retentativas de CI no ship | 3 |
 | Timeout global do coordinator | 90 min |
+| Workers simultâneos por rodada do coordinator | 3 (`vetor.maxConcurrentWorkers` em `.claude/settings.json`) |
 
 ---
 
@@ -221,8 +247,16 @@ Quando o `coordinator` despacha sub-agentes:
 
 Alavancas usadas para manter o custo de token baixo no dispatch paralelo:
 
-- **`tools`/`disallowedTools` restritos no `issue-worker`** — menos ferramentas carregadas por
-  invocação, além do enforcement de "nunca push/PR/merge" ser real (não só prosa).
+- **Teto de workers simultâneos no `issue-coordinator`** (default 3, `vetor.maxConcurrentWorkers`) —
+  cada subagente paralelo é uma instância Claude completa sem contexto compartilhado, então é a
+  alavanca mais direta contra o custo agregado. Grupos além do teto ficam `QUEUED` e só são
+  despachados quando um worker ativo libera vaga. É contabilidade do próprio coordinator, não um
+  bloqueio de plataforma — o Claude Code não tem um mecanismo real de limite de tokens por subagente
+  (nem em frontmatter, nem em hooks, nem no `Agent()`; verificado na doc oficial em 2026-07-02).
+- **`tools` restritos no `issue-worker`** — menos ferramentas carregadas por invocação. A restrição
+  de "nunca push/PR/merge" é de instrução/prompt (o Claude Code não bloqueia padrões de comando Bash
+  via frontmatter de subagente); só o push para branches protegidas (`main`/`master`/`production`) é
+  bloqueado de fato, via hook `PreToolUse`.
 - **`model: haiku` por padrão no `issue-worker`**, com escalação para `sonnet` decidida pelo
   `issue-coordinator` conforme o tipo/labels da issue (`chore`/`fix` pequenos → `haiku`;
   `feat`/`refactor` → `sonnet`). Se uma issue em `haiku` esgotar as iterações do fix-loop, o

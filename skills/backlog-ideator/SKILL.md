@@ -27,6 +27,27 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
 
 ## Comportamento
 
+### 0 — Detectar modo: lote vs. avulsa
+
+Antes de iniciar, classifique o pedido:
+
+- **Avulsa:** o pedido já nomeia uma issue específica e usa fraseado imperativo/direto (ex.: "crie
+  uma issue sobre X", "abra uma issue para Y"). A formulação já é a aprovação explícita exigida em
+  "Restrições" — não é uma sessão de ideação aberta.
+- **Lote (default):** invocação via `/backlog [tema]` sem pedido específico, ou pedido explicitamente
+  de ideação/exploração (ex.: "vamos pensar no backlog de resiliência").
+
+No modo **avulsa**:
+1. Gere **exatamente 1 proposta** no formato de §3 (o mínimo de 3-8 propostas de §3 não se aplica).
+2. Rode a checagem de duplicatas de §4 normalmente — nunca pule essa etapa.
+3. **Pule o artefato de planning mode (§5)** — a aprovação já foi dada no pedido original. Vá direto
+   para §6 e crie a issue.
+4. Se §4 encontrar duplicata ou candidato a vínculo, **não crie automaticamente**: a ambiguidade
+   reintroduz a necessidade de decisão do usuário — apresente as opções de §4 e aguarde resposta antes
+   de criar.
+
+No modo **lote**, siga o fluxo completo a partir da seção 1.
+
 ### 1 — Carregar contexto do projeto
 
 Leia as fontes de documentação disponíveis para ancorar as propostas. Procure nesta ordem
@@ -58,7 +79,7 @@ Se a documentação for pequena (menos de 80 linhas), prossiga com a leitura nat
 
 ### 2 — Levantar issues existentes
 
-Verifique se o servidor MCP do GitHub está disponível.
+Verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas).
 - **Com MCP:** Use a ferramenta `search_issues` para buscar as issues abertas no repositório.
 - **Sem MCP (Fallback):** Use a CLI `gh`:
   ```bash
@@ -68,11 +89,19 @@ Verifique se o servidor MCP do GitHub está disponível.
 Esta é a **fonte canônica** de números de issue. Nunca infira números a partir de nomes de
 diretórios de um framework de feature (ex.: `_reversa_forward/`) — feature-id ≠ issue#.
 
-### 2.a — Ideação baseada em Produção (Sentry MCP - Opcional)
+### 2.a — Ideação baseada em evidência ao vivo do sistema (âncora empírica)
 
-Verifique se um servidor MCP de observabilidade (ex: Sentry ou Datadog) está disponível.
-Se estiver, use suas ferramentas para obter os erros não resolvidos mais frequentes em produção.
-Use esses erros reais como âncoras para propor issues do tipo `fix`, incluindo stacktraces ou detalhes na descrição. Se não estiver disponível, prossiga normalmente.
+Além de MCP de observabilidade, qualquer evidência ao vivo do sistema é uma âncora empírica válida —
+não se limita a Sentry/Datadog. Exemplos: saída de `gh run view`/`gh api` (CI, branch protection),
+logs de produção, resultado de um comando que reproduz um comportamento real. Se você observar uma
+dessas evidências durante a sessão (não precisa buscar ativamente), use-a como âncora para propor uma
+issue do tipo `fix` ou `chore`, citando o comando/fonte exato.
+
+Caso específico com MCP de observabilidade: verifique disponibilidade conforme
+`$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__sentry__*` ou
+`mcp__datadog__*`). Se estiver, use suas ferramentas para obter os erros não resolvidos mais
+frequentes em produção e ancore issues `fix` neles, incluindo stacktraces ou detalhes na descrição.
+Se não estiver disponível, prossiga normalmente — evidência empírica não depende de MCP.
 
 ### 2.b — Questionamento Direcionado (KISS & YAGNI)
 
@@ -87,7 +116,7 @@ Com base no contexto lido, nas respostas às perguntas direcionadas e no `[tema]
 
 **Tipo:** feat | fix | chore | refactor | test
 **Módulo:** <um dos módulos do projeto, derivado dos paths do repo ou do module-test-map>
-**Âncora:** <referência ao trecho da documentação encontrada na seção 1 que justifica>
+**Âncora (documental | empírica):** <referência ao trecho de documentação (seção 1) OU à evidência ao vivo do sistema (seção 2.a) que justifica — cite o comando/fonte exato se for empírica>
 
 **Descrição:**
 <2–4 frases explicando o escopo simplificado (KISS)>
@@ -100,7 +129,8 @@ Com base no contexto lido, nas respostas às perguntas direcionadas e no `[tema]
 ```
 
 Cada proposta deve:
-- Estar ancorada em uma entidade, dívida técnica ou gap confirmado na documentação
+- Estar ancorada em uma entidade, dívida técnica ou gap confirmado — seja em documentação
+  (âncora documental) seja em evidência ao vivo do sistema (âncora empírica, §2.a)
 - Ter um critério de aceite verificável
 - Ser atômica o suficiente para caber em um PR
 
@@ -121,7 +151,7 @@ verificação de duplicatas (§4) continuam sendo feitas por você, não pelos t
 
 ### 4 — Verificar duplicatas
 
-Para **cada** issue proposta, verifique se já existe algo similar:
+Para **cada** issue proposta, verifique se já existe algo similar (disponibilidade de MCP conforme §2 acima):
 - **Com MCP:** Use `search_issues` pesquisando pelo título ou palavras-chave.
 - **Sem MCP (Fallback):** Use a CLI `gh`:
   ```bash
@@ -131,10 +161,19 @@ Para **cada** issue proposta, verifique se já existe algo similar:
 Se encontrar duplicata potencial:
 ```
 ⚠️ Possível duplicata: Issue #<N> — "<título existente>"
-Ação: descartar | mesclar com existente | manter (diferente o suficiente)
+Ação: descartar | mesclar com existente | manter (diferente o suficiente) | vincular (confirmação empírica)
 ```
 
-Inclua as duplicatas encontradas no resumo para revisão do usuário.
+**Vincular (confirmação empírica):** use quando a issue nova não é a mesma coisa nem deve ser
+descartada, mas confirma empiricamente uma hipótese já registrada em `#<N>` e evolui seu escopo —
+mantenha as duas issues, e ao criar a nova (§6) comente na existente linkando-a:
+- **Com MCP:** `create_issue_comment` em `#<N>` com o texto de vínculo.
+- **Sem MCP (Fallback):**
+  ```bash
+  gh issue comment <N> --body "Confirmado empiricamente por #<nova>: <resumo do vínculo>"
+  ```
+
+Inclua as duplicatas (e vínculos) encontrados no resumo para revisão do usuário.
 
 ### 5 — Apresentar batch para revisão (Planning Mode)
 
@@ -151,7 +190,7 @@ Para fornecer uma revisão interativa de alta qualidade, gere ou atualize o arte
 - **Âncora:** <âncora>
 
 ### 2. ⚠️ <título> — possível duplicata de #<N>
-- **Ação sugerida:** <descartar | manter | mesclar>
+- **Ação sugerida:** <descartar | manter | mesclar | vincular (confirmação empírica)>
 - **Descrição:** <descrição>
 - ...
 ```

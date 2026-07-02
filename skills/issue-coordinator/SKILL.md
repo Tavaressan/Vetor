@@ -1,6 +1,6 @@
 ---
 name: issue-coordinator
-description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status, estimativa de orçamento, e coordena merge serializado. Use /coordinator [label].
+description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /coordinator [label].
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -40,7 +40,7 @@ Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` 
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
-Verifique se o servidor MCP do GitHub está disponível.
+Verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas).
 - **Com MCP:** Use as ferramentas (como `search_issues`) para buscar as issues pelo label, e ferramentas de pull request (como `search_pull_requests`) para verificar se já há um PR mencionando `closes:#<N>`.
 - **Sem MCP (Fallback):** Use a CLI `gh`:
   ```bash
@@ -68,9 +68,9 @@ Se o agy não estiver disponível ou houver 3 ou menos issues, faça a análise 
 - Defina uma issue como **Lead Issue** (geralmente a principal ou mais antiga) que dará nome ao worktree/branch.
 - Associe as issues secundárias a ela como **Sequential Issues**. Elas serão resolvidas sequencialmente pelo mesmo agente no mesmo worktree.
 
-### 2 — Apresentar plano de dispatch (Planning Mode)
+### 2 — Apresentar plano de dispatch e obter aprovação
 
-Gere ou atualize o artefato `implementation_plan.md` com `request_feedback: true` e `user_facing: true` nos metadados, contendo o plano de dispatch estruturado:
+Monte o plano de dispatch estruturado (ver `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` §2.1 para o conteúdo mínimo):
 
 ```markdown
 # Plano de Execução Vetor — Coordinator
@@ -79,24 +79,20 @@ Coordenando issues com a label: <label>
 
 ## Ações Propostas
 
-| Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo Sugerido | Custo Estimado | Ação |
-|-------------------------|------------------------|-----------------|----------------|------|
-| <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | $0.15          | Despachar |
-| <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | $0.10          | Despachar |
-
-*Você pode editar a coluna 'Modelo Sugerido' diretamente neste arquivo para forçar o uso de 'haiku' ou 'sonnet' antes de clicar em Proceed.*
-
-### Estimativa de Orçamento
-* **Custo Total Estimado**: $X.XX USD
-* **Token Budget Limit**: $2.00 USD (ou o valor definido em `.claude/settings.json`)
-
-## Instruções de Aprovação
-Clique no botão **Proceed** no seu editor para autorizar o coordenador a spawnar os subagentes acima de forma paralela.
+| Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo Sugerido | Ação |
+|-------------------------|------------------------|-----------------|------|
+| <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | Despachar |
+| <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar |
 ```
 
-**Pare.** Aguarde a aprovação do plano (sinalizado por `request_feedback: false` na plataforma de planejamento do agente ou resposta afirmativa no chat). 
+Obtenha aprovação seguindo o mecanismo do ecossistema atual (planning-conventions.md §2.2):
+- **No Claude Code:** apresente o plano acima e conclua com `ExitPlanMode` para pedir aprovação.
+- **No Antigravity/Gemini:** gere/atualize `implementation_plan.md` com `request_feedback: true` e
+  `user_facing: true`, e aguarde `request_feedback: false` ou clique em "Proceed".
+- Sem nenhum dos dois: exiba o plano no chat e aguarde resposta afirmativa explícita.
 
-Após a aprovação, leia novamente o arquivo `implementation_plan.md`. Se o usuário tiver modificado a coluna "Modelo Sugerido" de qualquer grupo (mudado de `sonnet` para `haiku` ou vice-versa), você **deve respeitar a alteração manual do usuário** e utilizar o modelo modificado no dispatch da Fase 4.
+**Pare** até a aprovação. Se o usuário pedir para trocar o modelo de algum grupo, respeite a escolha
+manual e utilize o modelo modificado no dispatch da Fase 4.
 
 
 ### 3 — Fase de criação (nativa e serializada)
@@ -108,9 +104,23 @@ Para cada grupo de issues (ou issue individual), o ecossistema do Antigravity/Cl
 2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue.
 3. **Status File Path:** Caminho absoluto do status file: `.claude/worktrees/<slug>/AGENT_STATUS.md`.
 
-### 4 — Fase de desenvolvimento (paralela)
+### 4 — Fase de desenvolvimento (paralela, com teto de concorrência)
 
-Despache um sub-agente por grupo de issues utilizando a chamada do subagente nativo `issue-worker` com isolamento de worktree nativo (`Workspace: 'share'`). Se ferramentas MCP (como GitHub ou Banco de Dados) estiverem ativas, passe a flag `enable_mcp_tools: true` para que o subagente herde o acesso:
+**Teto de workers simultâneos (economia de tokens):** cada subagente paralelo é uma instância Claude
+completa, sem contexto compartilhado — é o maior driver de custo agregado do coordinator. Antes de
+despachar, leia `.claude/settings.json` em busca de `vetor.maxConcurrentWorkers`; na ausência,
+**default 3**.
+
+- Ordene os grupos (Fase 1) por prioridade (ex.: ordem das issues no label).
+- Despache apenas os primeiros N grupos (N = teto). Os demais ficam com status `QUEUED` na tabela de
+  monitoramento (Fase 5.a) — não consomem subagente nem tokens até serem despachados.
+- Sempre que um worker ativo atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou for cancelado, despache o
+  próximo grupo `QUEUED` da fila, mantendo o número de workers ativos no teto.
+- Isto é **contabilidade real do coordinator, não um bloqueio de plataforma** — dependeria do
+  coordinator de fato respeitar o teto a cada ciclo de monitoramento (Fase 5).
+
+Despache um sub-agente por grupo de issues (respeitando o teto acima) utilizando a chamada do
+subagente nativo `issue-worker` com isolamento de worktree nativo (`isolation: "worktree"`):
 
 ```javascript
 Agent({
@@ -118,13 +128,18 @@ Agent({
   prompt: "...",
   subagent_type: "vetor:issue-worker",
   model: "<haiku|sonnet>",
-  workspace: "share",
-  enable_mcp_tools: true,
+  isolation: "worktree",
   run_in_background: true
 })
 ```
 
 **Critério de escolha do `model`:** use `haiku` se todas as issues do grupo forem `chore` ou `fix` simples; use `sonnet` se houver alguma `feat`, `refactor` ou se o grupo contiver mais de 2 issues complementares. Se esgotar iterações, redespache uma vez com `sonnet`.
+
+**Nota (Antigravity) — suporte a subagente customizado:** O subagente `issue-worker` é registrado para o Google Antigravity através do arquivo [agent.json](file:///Users/vitortavares/Desktop/Projetos/Vetor/agents/issue-worker/agent.json), que define a especificação do agente (`customAgentSpec`), ferramentas compatíveis (ex. `run_command`, `view_file`, `replace_file_content`) e escopo de contexto, tornando-o invocável nativamente via `invoke_subagent` com o nome `vetor:issue-worker` (ou apenas `issue-worker` dependendo da resolução de escopo).
+
+Esta estrutura complementa o arquivo `agents/issue-worker.md` utilizado pelo Claude Code para auto-descoberta.
+
+**Sobre ferramentas MCP (GitHub/Banco de Dados):** o `issue-worker` define `tools:` explicitamente em seu arquivo de definição, então ele **não** herda MCP automaticamente do contexto pai. Se um worker precisar de acesso a um MCP server específico, adicione-o diretamente à lista de ferramentas permitidas.
 
 **Prompt de execução sequencial para o worker:**
 Envie ao `issue-worker` a lista de tarefas a realizar:
@@ -147,7 +162,8 @@ Construa via fontes externas, não por estado interno de task:
 cat .claude/worktrees/<slug>/AGENT_STATUS.md 2>/dev/null
 ```
 
-Atualize a tabela no chat:
+Atualize a tabela no chat, incluindo os grupos ainda `QUEUED` (aguardando vaga no teto de
+concorrência da Fase 4):
 
 ```
 ## Status — <timestamp>
@@ -157,7 +173,11 @@ Atualize a tabela no chat:
 | #42 | slug-a | RUNNING | 2/5 | cargo test → 1 failure |
 | #43 | slug-b | GREEN | done | all tests passing |
 | #44 | slug-c | BLOCKED_WAITING | 3/5 | needs docker permission |
+| #45 | slug-d | QUEUED | — | aguardando vaga (teto: 3 workers simultâneos) |
 ```
+
+Ao mover um grupo de `QUEUED` para despachado, siga o critério de fila (ordem de prioridade) da
+Fase 4.
 
 **5.b — Escalação de bloqueios**
 
@@ -193,11 +213,7 @@ Recomendação do agente: <opção e justificativa>
 Após resposta do usuário, comunique a decisão ao sub-agente via `SendMessage`.
 Se "permitir para este agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras do mesmo tipo daquele agente.
 
-**5.c — Controle de Orçamento (Budget Control)**
-- A cada ciclo de monitoramento, leia o campo `Estimated Cost` contido em `.claude/worktrees/<slug>/AGENT_STATUS.md` para cada subagente ativo e calcule o custo acumulado em dólares (somando os valores individuais).
-- Se o valor total acumulado ultrapassar o limite estabelecido (default: 2.0 USD ou configurado em `.claude/settings.json`), mude o status de todos os subagentes ativos para `BLOCKED_WAITING` escrevendo `Blocked on: Orçamento de tokens atingido` e pause o fluxo de trabalho dos workers até receber uma nova aprovação explícita do usuário.
-
-**5.d — Circuit Breaker (Disjuntor de Falhas)**
+**5.c — Circuit Breaker (Disjuntor de Falhas)**
 - Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.
 - Envie um comando de pausa para todos os subagentes ativos e pergunte ao usuário:
   `⚠️ Circuit Breaker acionado devido a falhas recorrentes com erro similar. Deseja pausar para investigar ou prosseguir mesmo assim?`
@@ -239,7 +255,7 @@ Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
 1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando Changelog Consolidado"`
 2. Execute o comando para gerar o rascunho de changelog a partir do diff/commits mesclados da sessão:
    ```bash
-   git log origin/main...HEAD --oneline | agy -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
+   git log origin/main...HEAD --oneline -200 | agy -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
    ```
 3. O Claude valida o rascunho do Gemini, formata-o adequadamente e salva no arquivo `.claude/vetor/CHANGELOG.md`.
 
@@ -260,6 +276,9 @@ Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar 
 - **fix-loop-agent:** máximo 5 iterações por agente
 - **worktree-ship:** máximo 3 tentativas de fix de CI
 - **Coordinator:** timeout global de 90 minutos — após isso, reporta status final e para
+- **Coordinator:** máximo `vetor.maxConcurrentWorkers` workers despachados simultaneamente por rodada
+  (default 3, configurável em `.claude/settings.json`) — grupos além do teto ficam `QUEUED` até uma
+  vaga abrir (Fase 4)
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
 
 ---

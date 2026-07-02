@@ -1,7 +1,7 @@
 ---
 name: worktree-create
 description: Criação headless de worktree — sem prompts interativos, todos os parâmetros via args. Primitivo usado pelo issue-coordinator e disponível como slash command standalone.
-license: MIT/
+license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
