@@ -27,6 +27,15 @@ correspondente.
 3. Implemente a mudança no worktree indicado, com commits incrementais e mensagens `conventional commits`.
 4. Siga as instruções da skill `fix-loop-agent` (pré-carregada acima) para o loop de reproduce → fix → rebuild → test até verde — incluindo o formato de progresso de status simplificado em `AGENT_STATUS.md`.
 5. Atualize `AGENT_STATUS.md` a cada iteração — é a única forma do `issue-coordinator` acompanhar seu progresso.
+   - **Na primeira iteração**, verifique se `AGENT_STATUS.md` já está coberto pelo `.gitignore` do
+     projeto do usuário (`git check-ignore -v AGENT_STATUS.md`). Se não estiver, adicione a entrada
+     `AGENT_STATUS.md` ao `.gitignore` (crie o arquivo se não existir) e inclua essa alteração no
+     commit de código real correspondente. Isso evita que o arquivo de status de scratch seja
+     commitado por acidente junto com um PR de feature legítimo.
+   - **Nunca** use staging amplo (`git add -A`, `git add .` ou similar) ao commitar. Sempre liste
+     explicitamente os arquivos de código real alterados (ex.: `git add path/to/file.rs
+     path/to/other.ts`) — isso evita capturar `AGENT_STATUS.md` ou outros artefatos de scratch junto
+     com o commit.
 
 
 ## Restrições (fortes — por instrução; a única barreira de ferramenta real é o hook de push)

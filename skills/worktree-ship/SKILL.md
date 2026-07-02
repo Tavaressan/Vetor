@@ -32,6 +32,8 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 ## Comportamento
 
+⚠️ **MCP-primeiro em todas as interações com GitHub abaixo** (criação de PR, checks de CI, review, merge): verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas). **SEMPRE prefira as tool calls MCP quando disponíveis — não caia para a CLI `gh` por conveniência.** Os comandos `gh` abaixo são o fallback documentado para quando o MCP não está disponível.
+
 ### 1 — Guarda de contexto
 
 Verifique se está dentro de um worktree:
@@ -52,7 +54,23 @@ Extraia a branch e o slug do worktree atual:
 git branch --show-current
 ```
 
-### 2 — Detecção de módulos alterados
+### 2 — Sincronizar com a branch default
+
+Antes de rodar testes locais e fazer push, sincronize o worktree com o estado atual da branch
+default — evita descobrir conflitos ou divergências só no merge final (passo 10), mais tarde e mais
+caro de corrigir, especialmente com múltiplos worktrees sendo enviados em sequência na mesma sessão
+(cenário típico do `issue-coordinator`):
+
+```bash
+git fetch origin "$DEFAULT_BRANCH"
+git merge "origin/$DEFAULT_BRANCH"
+```
+
+Se houver conflito de merge aqui, resolva-o já (mesmo procedimento de resolução de conflitos do
+passo 10, incluindo a regra de lockfiles) antes de prosseguir para os testes locais. Não prossiga
+com testes contra uma base desatualizada.
+
+### 3 — Detecção de módulos alterados
 
 ```bash
 git diff "$DEFAULT_BRANCH" --name-only
@@ -60,7 +78,7 @@ git diff "$DEFAULT_BRANCH" --name-only
 
 Mapeie os arquivos alterados aos módulos usando a tabela de detecção do module-test-map.
 
-### 3 — Testes locais
+### 4 — Testes locais
 
 Para cada módulo alterado, execute o comando headless correspondente do `module-test-map.md`.
 
@@ -77,7 +95,7 @@ Saída: <últimas 30 linhas do log>
 ```
 **Pare.** Não faça push de código vermelho.
 
-### 3.b — Scan de Debugging (KISS Linting)
+### 4.b — Scan de Debugging (KISS Linting)
 
 Antes de fazer o push, faça uma varredura estática rápida no diff em relação ao default branch buscando padrões temporários de depuração ou flags exclusivas de testes:
 ```bash
@@ -85,7 +103,7 @@ git diff "$DEFAULT_BRANCH" --name-only | xargs egrep -n "console\.log|var_dump|f
 ```
 Se encontrar qualquer padrão de debugging ou testes exclusivos (`it.only`, etc.), **remova-os automaticamente** ou corrija-os antes de realizar o push, mantendo o código limpo (KISS).
 
-### 4 — Push
+### 5 — Push
 
 ```bash
 git push -u origin <branch>
@@ -93,7 +111,7 @@ git push -u origin <branch>
 
 Se falhar por rede, tente até 4 vezes com backoff exponencial (2s, 4s, 8s, 16s).
 
-### 5 — Criar PR draft
+### 6 — Criar PR draft
 
 Construa o título a partir dos commits:
 ```bash
@@ -132,7 +150,7 @@ gh pr create \
   --base "$DEFAULT_BRANCH"
 ```
 
-### 6 — Monitorar CI
+### 7 — Monitorar CI
 
 ```bash
 gh pr checks <PR-number> --watch
@@ -140,7 +158,7 @@ gh pr checks <PR-number> --watch
 
 Timeout: 20 minutos. Se expirar, notifique e pare.
 
-### 7 — Monitoramento de CI, Classificação de Erros e Loop de Fix (máximo 3 iterações)
+### 8 — Monitoramento de CI, Classificação de Erros e Loop de Fix (máximo 3 iterações)
 
 Para cada falha detectada no monitoramento do CI:
 
@@ -162,7 +180,7 @@ Para cada falha detectada no monitoramento do CI:
    - Identifique a causa raiz e aplique a alteração corretiva no worktree.
    - Faça o commit local: `fix: corrige <problema> no CI`
    - Execute o push: `git push origin <branch>`
-   - Volte ao passo 6 (Monitorar CI).
+   - Volte ao passo 7 (Monitorar CI).
 
 Após 3 iterações completas de fix de código sem CI atingir verde:
 ```
@@ -172,7 +190,7 @@ Worktree preservado para inspeção manual.
 ```
 **Pare.** Não tente mergear.
 
-### 8 — Verificar review
+### 9 — Verificar review
 
 ```bash
 gh pr view <PR-number> --json reviewDecision
@@ -186,12 +204,17 @@ Aguardando aprovação antes de prosseguir com merge.
 ```
 **Pare.** Não entre em loop tentando merge.
 
-### 9 — Merge e Auto-Resolução de Conflitos
+### 10 — Merge e Auto-Resolução de Conflitos
 
 ```bash
 gh pr ready <PR-number>
-gh pr merge <PR-number> --squash --delete-branch --yes
+gh pr merge <PR-number> --squash --delete-branch
 ```
+
+`gh pr merge` já é não-interativo quando invocado assim (sem prompt de confirmação) — a CLI atual
+não possui uma flag `--yes`/`-y` de auto-confirmação (verificado com `gh pr merge --help`; passá-la
+resulta em erro de flag desconhecida). Se uma versão futura da CLI introduzir prompts interativos
+nesse comando, confirme as flags disponíveis com `gh pr merge --help` antes de ajustar.
 
 #### Se o merge falhar por conflito de branch com a branch default:
 1. Execute `git merge "$DEFAULT_BRANCH"` localmente no worktree.
@@ -206,10 +229,10 @@ gh pr merge <PR-number> --squash --delete-branch --yes
    - Adicione a resolução com `git add <lockfile-path>`.
 4. Para os demais arquivos de código conflitantes, localize as seções com marcadores de conflito (`<<<<<<<`, `=======`, `>>>>>>>`), mescle logicamente as regras de negócio e remova os marcadores.
 5. Execute os testes do módulo correspondente via `module-test-map`.
-6. **Se os testes passarem:** Commite a resolução (`merge branch '$DEFAULT_BRANCH' and resolve conflicts`), faça `git push origin <branch>` e volte ao passo 6 (monitoramento do CI).
+6. **Se os testes passarem:** Commite a resolução (`merge branch '$DEFAULT_BRANCH' and resolve conflicts`), faça `git push origin <branch>` e volte ao passo 7 (monitoramento do CI).
 7. **Se os testes falharem:** Chame o `fix-loop-agent` localmente para corrigir o código. Se as iterações estourarem sem obter testes verdes, aborte o merge, preserve o worktree e alerte o usuário.
 
-### 10 — Sincronizar root
+### 11 — Sincronizar root
 
 ```bash
 ExitWorktree
@@ -222,7 +245,7 @@ Confirme:
 Root sincronizado com <default-branch>. Branch <branch> mergeada e deletada remotamente.
 ```
 
-### 11 — Cleanup
+### 12 — Cleanup
 
 Se invocado pelo `issue-coordinator` (modo headless): execute cleanup automaticamente:
 ```bash

@@ -41,6 +41,9 @@ Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` 
 ### 1 — Listar issues candidatas e analisar afinidades
 
 Verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas).
+
+⚠️ **SEMPRE prefira as tool calls MCP quando disponíveis — não caia para a CLI `gh` por conveniência ou hábito.** Se `mcp__github__*` estiver na sua lista de ferramentas, use-o para toda interação subsequente com GitHub nesta sessão (issues, PRs, checks). Só use a CLI `gh` quando o MCP genuinamente não estiver disponível.
+
 - **Com MCP:** Use as ferramentas (como `search_issues`) para buscar as issues pelo label, e ferramentas de pull request (como `search_pull_requests`) para verificar se já há um PR mencionando `closes:#<N>`.
 - **Sem MCP (Fallback):** Use a CLI `gh`:
   ```bash
@@ -135,6 +138,14 @@ Agent({
 
 **Critério de escolha do `model`:** use `haiku` se todas as issues do grupo forem `chore` ou `fix` simples; use `sonnet` se houver alguma `feat`, `refactor` ou se o grupo contiver mais de 2 issues complementares. Se esgotar iterações, redespache uma vez com `sonnet`.
 
+⚠️ **`isolation: "worktree"` é só para dispatch inicial (worktree ainda não existe).** Se o worktree já
+existe — retomada de uma sessão anterior, redespacho após resposta a um `BLOCKED_WAITING` (Fase 5.b)
+ou redespacho após `FAILED_MAX_ITERATIONS` — **NÃO** passe `isolation: "worktree"`: isso cria um
+worktree novo e desconectado do path pretendido, e a ferramenta `Write` recusa gravar no caminho
+correto quando o agente descobre a inconsistência. Nesse caso, despache **sem** o parâmetro
+`isolation` e instrua um `cd` explícito para o path do worktree existente (`.claude/worktrees/<slug>`)
+no prompt do worker.
+
 **Nota (Antigravity) — suporte a subagente customizado:** O subagente `issue-worker` é registrado para o Google Antigravity através do arquivo [agent.json](file:///Users/vitortavares/Desktop/Projetos/Vetor/agents/issue-worker/agent.json), que define a especificação do agente (`customAgentSpec`), ferramentas compatíveis (ex. `run_command`, `view_file`, `replace_file_content`) e escopo de contexto, tornando-o invocável nativamente via `invoke_subagent` com o nome `vetor:issue-worker` (ou apenas `issue-worker` dependendo da resolução de escopo).
 
 Esta estrutura complementa o arquivo `agents/issue-worker.md` utilizado pelo Claude Code para auto-descoberta.
@@ -145,7 +156,7 @@ Esta estrutura complementa o arquivo `agents/issue-worker.md` utilizado pelo Cla
 Envie ao `issue-worker` a lista de tarefas a realizar:
 1. **Lead Issue:** #<N> (título, descrição, critérios de aceite).
 2. **Issues Sequenciais:** #<M1>, #<M2> (título, descrição, critérios de aceite).
-3. **Status File Path:** Instrua o worker a atualizar o arquivo de status absoluto `.claude/worktrees/<slug>/AGENT_STATUS.md` a cada iteração de cada issue do grupo. O formato do `AGENT_STATUS.md` deve refletir a issue atual em execução (ex.: `Iteration: 2/5 (Issue #<M1>)`).
+3. **Status File Path:** Instrua o worker a atualizar o arquivo de status absoluto `.claude/worktrees/<slug>/AGENT_STATUS.md` a cada iteração de cada issue do grupo. O formato do `AGENT_STATUS.md` deve refletir a issue atual em execução (ex.: `Iteration: 2/5 (Issue #<M1>)`). O `AGENT_STATUS.md` é um artefato de scratch — não faz parte do código do projeto: instrua o worker a garantir que ele esteja no `.gitignore` do projeto do usuário (ver `agents/issue-worker.md` §"O que fazer" item 5) e a nunca usar staging amplo (`git add -A`/`git add .`) ao commitar, para não capturá-lo por acidente.
 
 Quando o worker concluir todas as issues do grupo com sucesso, ele deve marcar o status final como `GREEN`. Caso falhe em alguma, para e marca como `FAILED_MAX_ITERATIONS` especificando qual issue do grupo falhou.
 
@@ -213,6 +224,11 @@ Recomendação do agente: <opção e justificativa>
 Após resposta do usuário, comunique a decisão ao sub-agente via `SendMessage`.
 Se "permitir para este agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras do mesmo tipo daquele agente.
 
+Se a resposta exigir **redespachar** um novo `Agent()` (em vez de só `SendMessage` no agente já
+ativo) — ex.: "Parar agente" seguido de nova tentativa, ou qualquer redespacho para um worktree que
+já existe — **NÃO** passe `isolation: "worktree"` (ver nota na Fase 4): despache sem isolamento e
+instrua `cd` explícito para o path existente no prompt do worker.
+
 **5.c — Circuit Breaker (Disjuntor de Falhas)**
 - Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.
 - Envie um comando de pausa para todos os subagentes ativos e pergunte ao usuário:
@@ -229,7 +245,8 @@ Quando um agente atingir `GREEN`:
    ```
    /vetor:worktree-ship <issue#>
    ```
-3. Após merge bem-sucedido, atualize a tabela
+   Lembre-se: **SEMPRE prefira MCP sobre `gh` CLI** também aqui, conforme a mesma regra da Fase 1.
+3. Após merge bem-sucedido, atualize a tabela, registrando também qual via (MCP ou CLI `gh`) foi de fato usada para o ciclo issue → PR → merge dessa entrada.
 
 Se `worktree-ship` falhar (CI vermelho, review required), marque na tabela e continue com outros agentes.
 
@@ -240,14 +257,17 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 ```
 ## Coordinator Report
 
-| Issue | Resultado | PR | Detalhes |
-|-------|----------|-----|---------|
-| #42 | ✅ Merged | #87 | squash merged |
-| #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preserved |
-| #44 | ⏸️ Review required | #89 | awaiting human review |
+| Issue | Resultado | PR | Via (MCP/CLI) | Detalhes |
+|-------|----------|-----|----------------|---------|
+| #42 | ✅ Merged | #87 | MCP | squash merged |
+| #43 | ❌ CI failed | #88 | CLI gh | 3 fix attempts, worktree preserved |
+| #44 | ⏸️ Review required | #89 | MCP | awaiting human review |
 
 Resumo: <N> merged, <M> falharam, <K> aguardando review.
 ```
+
+A coluna "Via" torna visível, a cada execução, se houve desvio da preferência MCP-primeiro (uso de
+CLI `gh` mesmo com MCP disponível) — não apenas quando perguntado diretamente pelo usuário.
 
 **Geração de Changelog Consolidado (Delegação ao Gemini):**
 Antes de finalizar, o coordenador gera o changelog a partir do histórico de commits da sessão.
