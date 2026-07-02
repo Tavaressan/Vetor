@@ -6,7 +6,20 @@ COMMAND="$@"
 
 # 1. Block git push to protected branches
 if [[ "$COMMAND" =~ "git push" ]]; then
-  if [[ "$COMMAND" =~ "main" || "$COMMAND" =~ "master" || "$COMMAND" =~ "production" ]]; then
+  # Extract the git push command (before any && or ||)
+  push_cmd=$(echo "$COMMAND" | sed 's/^\(.*git push[^&|]*\).*/\1/')
+
+  # Extract the destination branch from the git push command
+  # Pattern: git push [options] [remote] <branch>
+  # Use grep + sed to capture the branch name (last non-flag argument)
+  # This handles cases like:
+  #   git push origin branch-name
+  #   git push origin branch-name:remote-name
+  #   git push --force origin branch-name
+  dest_branch=$(echo "$push_cmd" | grep -oE '[^ ]+(:[^ ]+)?$' | sed 's/:.*$//')
+
+  # Check if the destination branch is a protected branch
+  if [[ "$dest_branch" == "main" ]] || [[ "$dest_branch" == "master" ]] || [[ "$dest_branch" == "production" ]]; then
     echo "ERROR: Push to protected branches (main, master, production) is prohibited by Vetor Safety Hook." >&2
     exit 1
   fi
