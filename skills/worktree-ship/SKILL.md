@@ -192,8 +192,13 @@ Aguardando aprovação antes de prosseguir com merge.
 
 ```bash
 gh pr ready <PR-number>
-gh pr merge <PR-number> --squash --delete-branch --yes
+gh pr merge <PR-number> --squash --delete-branch
 ```
+
+`gh pr merge` já é não-interativo quando invocado assim (sem prompt de confirmação) — a CLI atual
+não possui uma flag `--yes`/`-y` de auto-confirmação (verificado com `gh pr merge --help`; passá-la
+resulta em erro de flag desconhecida). Se uma versão futura da CLI introduzir prompts interativos
+nesse comando, confirme as flags disponíveis com `gh pr merge --help` antes de ajustar.
 
 #### Se o merge falhar por conflito de branch com a branch default:
 1. Execute `git merge "$DEFAULT_BRANCH"` localmente no worktree.
