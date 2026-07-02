@@ -7,7 +7,7 @@ COMMAND="$@"
 # 1. Block git push to protected branches
 if [[ "$COMMAND" =~ "git push" ]]; then
   # Extract the git push command (before any && or ||)
-  push_cmd=$(echo "$COMMAND" | sed 's/^\(.*git push[^&|]*\).*/\1/')
+  push_cmd=$(echo "$COMMAND" | sed 's/^\(.*git push[^&|]*\).*/\1/' | xargs)
 
   # Extract the destination branch from the git push command
   # Pattern: git push [options] [remote] <branch>
