@@ -138,6 +138,14 @@ Agent({
 
 **Critério de escolha do `model`:** use `haiku` se todas as issues do grupo forem `chore` ou `fix` simples; use `sonnet` se houver alguma `feat`, `refactor` ou se o grupo contiver mais de 2 issues complementares. Se esgotar iterações, redespache uma vez com `sonnet`.
 
+⚠️ **`isolation: "worktree"` é só para dispatch inicial (worktree ainda não existe).** Se o worktree já
+existe — retomada de uma sessão anterior, redespacho após resposta a um `BLOCKED_WAITING` (Fase 5.b)
+ou redespacho após `FAILED_MAX_ITERATIONS` — **NÃO** passe `isolation: "worktree"`: isso cria um
+worktree novo e desconectado do path pretendido, e a ferramenta `Write` recusa gravar no caminho
+correto quando o agente descobre a inconsistência. Nesse caso, despache **sem** o parâmetro
+`isolation` e instrua um `cd` explícito para o path do worktree existente (`.claude/worktrees/<slug>`)
+no prompt do worker.
+
 **Nota (Antigravity) — suporte a subagente customizado:** O subagente `issue-worker` é registrado para o Google Antigravity através do arquivo [agent.json](file:///Users/vitortavares/Desktop/Projetos/Vetor/agents/issue-worker/agent.json), que define a especificação do agente (`customAgentSpec`), ferramentas compatíveis (ex. `run_command`, `view_file`, `replace_file_content`) e escopo de contexto, tornando-o invocável nativamente via `invoke_subagent` com o nome `vetor:issue-worker` (ou apenas `issue-worker` dependendo da resolução de escopo).
 
 Esta estrutura complementa o arquivo `agents/issue-worker.md` utilizado pelo Claude Code para auto-descoberta.
@@ -215,6 +223,11 @@ Recomendação do agente: <opção e justificativa>
 
 Após resposta do usuário, comunique a decisão ao sub-agente via `SendMessage`.
 Se "permitir para este agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras do mesmo tipo daquele agente.
+
+Se a resposta exigir **redespachar** um novo `Agent()` (em vez de só `SendMessage` no agente já
+ativo) — ex.: "Parar agente" seguido de nova tentativa, ou qualquer redespacho para um worktree que
+já existe — **NÃO** passe `isolation: "worktree"` (ver nota na Fase 4): despache sem isolamento e
+instrua `cd` explícito para o path existente no prompt do worker.
 
 **5.c — Circuit Breaker (Disjuntor de Falhas)**
 - Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.
