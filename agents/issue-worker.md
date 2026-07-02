@@ -1,7 +1,7 @@
 ---
 name: issue-worker
 description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge — isso é responsabilidade do worktree-ship. Despachado pelo issue-coordinator, um por issue, em paralelo.
-tools: Bash, Read, Write, Edit, Grep, Glob
+tools: Bash, Read, Write, Edit, Grep, Glob, mcp__github__get_issue, mcp__github__create_issue_comment, mcp__github__search_issues, mcp__github__get_pull_request
 model: haiku
 skills: fix-loop-agent
 isolation: worktree

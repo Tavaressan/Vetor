@@ -84,16 +84,26 @@ AVISO: git pull falhou — criando worktree a partir da <default-branch> local.
 
 Se `git worktree add` falhar, reporte o erro e aborte.
 
-### 4.b — Preparar Dependências (Instalação Concorrente-Safe)
+### 4.b — Preparar Dependências (Instalação Concorrente-Safe e Reuso de Cache)
 
 Como a criação de worktrees é executada de forma serializada/sequencial, aproveite este momento seguro para preparar as dependências do novo diretório:
-1. Detecte o ecossistema do projeto-alvo a partir dos arquivos presentes no root.
-2. Execute o comando leve de instalação correspondente a partir do diretório do worktree `.claude/worktrees/<slug>`:
-   - **Node (pnpm)**: `pnpm install` (concorrente-safe e instantâneo via hard-links).
-   - **Node (npm)**: `npm ci --prefer-offline --no-audit` (rápido e limpo).
-   - **Node (yarn)**: `yarn install --prefer-offline`.
-   - **Python (poetry)**: `poetry install --no-root`.
-3. Se a instalação de dependências falhar, imprima `AVISO: Falha ao preparar dependências no worktree. A compilação/teste local poderá falhar.`, mas continue (KISS/tolerância a falhas).
+1. Verifique se `node_modules` já está presente no diretório do worktree `.claude/worktrees/<slug>` (isso ocorre se a configuração nativa do Claude Code `worktree.symlinkDirectories: ["node_modules"]` estiver ativa). Se já existir, pule a preparação de dependências do Node e prossiga.
+2. Detecte o ecossistema do projeto-alvo a partir dos arquivos presentes no root.
+3. Para projetos **Node** (onde exista `node_modules` no root do projeto principal e não esteja no worktree):
+   - Crie as dependências no worktree `.claude/worktrees/<slug>` preferencialmente copiando ou linkando do root principal para evitar re-instalação lenta e prevenir conflitos com hooks de pre-commit (Husky/lint-staged):
+     - **Link Simbólico (Rápido/Recomendado)**: Crie um link simbólico apontando para o `node_modules` do root:
+       ```bash
+       ln -s ../../../node_modules node_modules
+       ```
+     - **Cópia Otimizada (Clone CoW se link falhar ou para isolamento físico)**:
+       - No macOS (APFS): `cp -Rc ../../../node_modules node_modules`
+       - No Linux: `cp -a --reflink=auto ../../../node_modules node_modules`
+   - Se o `node_modules` do root não existir, ou se a criação do link/cópia falhar, realize o fallback de instalação a partir do diretório do worktree:
+     - **Node (pnpm)**: `pnpm install` (concorrente-safe e instantâneo via hard-links).
+     - **Node (npm)**: `npm ci --prefer-offline --no-audit` (rápido e limpo).
+     - **Node (yarn)**: `yarn install --prefer-offline`.
+4. Para projetos **Python (poetry)**: Execute `poetry install --no-root` a partir do diretório do worktree.
+5. Se a preparação de dependências falhar, imprima `AVISO: Falha ao preparar dependências no worktree. A compilação/teste local poderá falhar.`, mas continue (KISS/tolerância a falhas).
 
 ### 5 — Entrar no worktree
 
