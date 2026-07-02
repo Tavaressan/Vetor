@@ -148,7 +148,7 @@ Esta estrutura complementa o arquivo `agents/issue-worker.md` utilizado pelo Cla
 Envie ao `issue-worker` a lista de tarefas a realizar:
 1. **Lead Issue:** #<N> (título, descrição, critérios de aceite).
 2. **Issues Sequenciais:** #<M1>, #<M2> (título, descrição, critérios de aceite).
-3. **Status File Path:** Instrua o worker a atualizar o arquivo de status absoluto `.claude/worktrees/<slug>/AGENT_STATUS.md` a cada iteração de cada issue do grupo. O formato do `AGENT_STATUS.md` deve refletir a issue atual em execução (ex.: `Iteration: 2/5 (Issue #<M1>)`).
+3. **Status File Path:** Instrua o worker a atualizar o arquivo de status absoluto `.claude/worktrees/<slug>/AGENT_STATUS.md` a cada iteração de cada issue do grupo. O formato do `AGENT_STATUS.md` deve refletir a issue atual em execução (ex.: `Iteration: 2/5 (Issue #<M1>)`). O `AGENT_STATUS.md` é um artefato de scratch — não faz parte do código do projeto: instrua o worker a garantir que ele esteja no `.gitignore` do projeto do usuário (ver `agents/issue-worker.md` §"O que fazer" item 5) e a nunca usar staging amplo (`git add -A`/`git add .`) ao commitar, para não capturá-lo por acidente.
 
 Quando o worker concluir todas as issues do grupo com sucesso, ele deve marcar o status final como `GREEN`. Caso falhe em alguma, para e marca como `FAILED_MAX_ITERATIONS` especificando qual issue do grupo falhou.
 
