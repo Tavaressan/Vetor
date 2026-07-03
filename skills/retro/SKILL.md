@@ -73,10 +73,7 @@ Antes de propor criação, cheque se já existe issue equivalente no repo do Vet
 atual). Resolva o repo alvo lendo `homepage` (ou `repository`, se presente) de
 `$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json` — hoje `Tavaressan/Vetor`.
 
-Verifique disponibilidade de MCP do GitHub conforme
-`$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md`.
-- **Com MCP:** `search_issues` com `repo:Tavaressan/Vetor` no filtro.
-- **Sem MCP (Fallback):**
+Use a CLI `gh`:
   ```bash
   gh issue list --repo Tavaressan/Vetor --search "<palavras-chave>" --state all
   ```
@@ -98,9 +95,7 @@ mecanismo do ecossistema atual (`$CLAUDE_PLUGIN_ROOT/skills/shared/references/pl
 do `plugin.json`), que quase sempre é diferente do repositório do projeto onde esta sessão está
 rodando. Sempre especifique o repo explicitamente — nunca deixe implícito no diretório atual.
 
-- **Com MCP:** `create_issue` com `owner: Tavaressan`, `repo: Vetor`, título, corpo (formato de §2) e,
-  se o label existir no repo alvo, `retro`.
-- **Sem MCP (Fallback):**
+Use a CLI `gh`:
   ```bash
   gh issue create --repo Tavaressan/Vetor \
     --title "<título>" \

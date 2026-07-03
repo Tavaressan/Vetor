@@ -40,20 +40,15 @@ Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` 
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
-Verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas).
+Use a CLI `gh` para buscar as issues pelo label:
+```bash
+gh issue list --label <label> --state open --json number,title,labels,body
+```
 
-⚠️ **SEMPRE prefira as tool calls MCP quando disponíveis — não caia para a CLI `gh` por conveniência ou hábito.** Se `mcp__github__*` estiver na sua lista de ferramentas, use-o para toda interação subsequente com GitHub nesta sessão (issues, PRs, checks). Só use a CLI `gh` quando o MCP genuinamente não estiver disponível.
-
-- **Com MCP:** Use as ferramentas (como `search_issues`) para buscar as issues pelo label, e ferramentas de pull request (como `search_pull_requests`) para verificar se já há um PR mencionando `closes:#<N>`.
-- **Sem MCP (Fallback):** Use a CLI `gh`:
-  ```bash
-  gh issue list --label <label> --state open --json number,title,labels,body
-  ```
-
-  Para cada issue, verifique se já há PR aberto:
-  ```bash
-  gh pr list --search "closes:#<N>" --state open --json number,title
-  ```
+Para cada issue, verifique se já há PR aberto:
+```bash
+gh pr list --search "closes:#<N>" --state open --json number,title
+```
 
 Se já houver PR: pule a issue e registre na tabela como "PR já aberto (#<PR>)".
 
@@ -113,7 +108,7 @@ Para cada grupo de issues (ou issue individual), o ecossistema do Antigravity/Cl
 completa, sem contexto compartilhado — é o maior driver de custo agregado do coordinator. Antes de
 despachar, leia `.claude/vetor/config.json` em busca de `maxConcurrentWorkers` (o schema de
 `.claude/settings.json` do Claude Code rejeita chaves de topo customizadas como `vetor`, então não use
-esse arquivo); na ausência de `.claude/vetor/config.json` ou da chave, **default 3**.
+esse arquivo); na ausência de `.claude/vetor/config.json` ou da chave, **default 5**.
 
 - Ordene os grupos (Fase 1) por prioridade (ex.: ordem das issues no label).
 - Despache apenas os primeiros N grupos (N = teto). Os demais ficam com status `QUEUED` na tabela de
@@ -151,7 +146,7 @@ no prompt do worker.
 
 Esta estrutura complementa o arquivo `agents/issue-worker.md` utilizado pelo Claude Code para auto-descoberta.
 
-**Sobre ferramentas MCP (GitHub/Banco de Dados):** o `issue-worker` define `tools:` explicitamente em seu arquivo de definição, então ele **não** herda MCP automaticamente do contexto pai. Se um worker precisar de acesso a um MCP server específico, adicione-o diretamente à lista de ferramentas permitidas.
+**Sobre ferramentas MCP (Banco de Dados):** o `issue-worker` define `tools:` explicitamente em seu arquivo de definição, então ele **não** herda MCP automaticamente do contexto pai. Se um worker precisar de acesso a um MCP de banco de dados, adicione-o diretamente à lista de ferramentas permitidas.
 
 **Prompt de execução sequencial para o worker:**
 Envie ao `issue-worker` a lista de tarefas a realizar:
@@ -246,8 +241,7 @@ Quando um agente atingir `GREEN`:
    ```
    /vetor:worktree-ship <issue#>
    ```
-   Lembre-se: **SEMPRE prefira MCP sobre `gh` CLI** também aqui, conforme a mesma regra da Fase 1.
-3. Após merge bem-sucedido, atualize a tabela, registrando também qual via (MCP ou CLI `gh`) foi de fato usada para o ciclo issue → PR → merge dessa entrada.
+3. Após merge bem-sucedido, atualize a tabela.
 
 Se `worktree-ship` falhar (CI vermelho, review required), marque na tabela e continue com outros agentes.
 
@@ -258,17 +252,14 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 ```
 ## Coordinator Report
 
-| Issue | Resultado | PR | Via (MCP/CLI) | Detalhes |
-|-------|----------|-----|----------------|---------|
-| #42 | ✅ Merged | #87 | MCP | squash merged |
-| #43 | ❌ CI failed | #88 | CLI gh | 3 fix attempts, worktree preserved |
-| #44 | ⏸️ Review required | #89 | MCP | awaiting human review |
+| Issue | Resultado | PR | Detalhes |
+|-------|----------|-----|----------|
+| #42 | ✅ Merged | #87 | squash merged |
+| #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preserved |
+| #44 | ⏸️ Review required | #89 | awaiting human review |
 
 Resumo: <N> merged, <M> falharam, <K> aguardando review.
 ```
-
-A coluna "Via" torna visível, a cada execução, se houve desvio da preferência MCP-primeiro (uso de
-CLI `gh` mesmo com MCP disponível) — não apenas quando perguntado diretamente pelo usuário.
 
 **Geração de Changelog Consolidado (Delegação ao Gemini):**
 Antes de finalizar, o coordenador gera o changelog a partir do histórico de commits da sessão.

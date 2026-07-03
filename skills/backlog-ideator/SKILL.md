@@ -79,12 +79,10 @@ Se a documentação for pequena (menos de 80 linhas), prossiga com a leitura nat
 
 ### 2 — Levantar issues existentes
 
-Verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas).
-- **Com MCP:** Use a ferramenta `search_issues` para buscar as issues abertas no repositório.
-- **Sem MCP (Fallback):** Use a CLI `gh`:
-  ```bash
-  gh issue list --state open --limit 100
-  ```
+Use a CLI `gh` para buscar as issues abertas no repositório:
+```bash
+gh issue list --state open --limit 100
+```
 
 Esta é a **fonte canônica** de números de issue. Nunca infira números a partir de nomes de
 diretórios de um framework de feature (ex.: `_reversa_forward/`) — feature-id ≠ issue#.
@@ -151,12 +149,10 @@ verificação de duplicatas (§4) continuam sendo feitas por você, não pelos t
 
 ### 4 — Verificar duplicatas
 
-Para **cada** issue proposta, verifique se já existe algo similar (disponibilidade de MCP conforme §2 acima):
-- **Com MCP:** Use `search_issues` pesquisando pelo título ou palavras-chave.
-- **Sem MCP (Fallback):** Use a CLI `gh`:
-  ```bash
-  gh issue list --search "<título ou palavras-chave>" --state all
-  ```
+Para **cada** issue proposta, verifique se já existe algo similar usando a CLI `gh`:
+```bash
+gh issue list --search "<título ou palavras-chave>" --state all
+```
 
 Se encontrar duplicata potencial:
 ```
@@ -167,11 +163,9 @@ Ação: descartar | mesclar com existente | manter (diferente o suficiente) | vi
 **Vincular (confirmação empírica):** use quando a issue nova não é a mesma coisa nem deve ser
 descartada, mas confirma empiricamente uma hipótese já registrada em `#<N>` e evolui seu escopo —
 mantenha as duas issues, e ao criar a nova (§6) comente na existente linkando-a:
-- **Com MCP:** `create_issue_comment` em `#<N>` com o texto de vínculo.
-- **Sem MCP (Fallback):**
-  ```bash
-  gh issue comment <N> --body "Confirmado empiricamente por #<nova>: <resumo do vínculo>"
-  ```
+```bash
+gh issue comment <N> --body "Confirmado empiricamente por #<nova>: <resumo do vínculo>"
+```
 
 Inclua as duplicatas (e vínculos) encontrados no resumo para revisão do usuário.
 
@@ -206,9 +200,7 @@ issue com ele antes de criar. Lembre-se de primeiro imprimir o log:
 e então rodar:
 `agy -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) em PT-BR para: <título + âncora>"`. Revise e ancore o rascunho na documentação antes de prosseguir.
 
-Após aprovação, crie cada issue aprovada:
-- **Com MCP:** Use a ferramenta `create_issue` informando título, corpo da issue (seguindo o template abaixo) e labels.
-- **Sem MCP (Fallback):** Use a CLI `gh`:
+Após aprovação, crie cada issue aprovada usando a CLI `gh`:
 
   ```bash
   gh issue create \

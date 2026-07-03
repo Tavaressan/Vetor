@@ -107,19 +107,17 @@ git -C <worktree-path> status --porcelain
 
 ### 5 — PRs Dependabot com rebase pendente
 
-Verifique disponibilidade do MCP do GitHub conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure `mcp__github__*` na sua lista de ferramentas).
-- **Com MCP:** Use as ferramentas para buscar PRs abertos pelo autor `app/dependabot` e verifique o status de conflito/mergeability.
-- **Sem MCP (Fallback):** Use a CLI `gh`:
-  ```bash
-  gh pr list --author "app/dependabot" --state open
-  ```
-  Para cada PR encontrado:
-  ```bash
-  gh pr view <N> --json mergeable,mergeStateStatus
-  ```
+Use a CLI `gh`:
+```bash
+gh pr list --author "app/dependabot" --state open
+```
+Para cada PR encontrado:
+```bash
+gh pr view <N> --json mergeable,mergeStateStatus
+```
 
 **Finding:** PR Dependabot #<N> com merge conflict / needs rebase
-**Auto-fix (modo manual):** Registra a proposta no plano de execução (via ferramenta MCP `create_issue_comment` ou `gh pr comment <N> --body "@dependabot rebase"`).
+**Auto-fix (modo manual):** Registra a proposta no plano de execução (via `gh pr comment <N> --body "@dependabot rebase"`).
 
 ### 6 — Auditoria de Banco de Dados (via MCP)
 

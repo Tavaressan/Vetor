@@ -26,19 +26,13 @@ Use `$DEFAULT_BRANCH` em todos os comandos subsequentes (`git diff`, `git pull`,
 Resolva nesta ordem:
 
 1. Verifique se `.claude/vetor/module-test-map.md` existe no projeto-alvo.
-2. Se não existir, execute de forma transparente o script de auto-detecção:
+2. Se não existir, alerte o desenvolvedor que o ambiente não está inicializado e recomende rodar a skill `/vetor` para configurá-lo corretamente. Como fallback de execução automática, execute o script de auto-detecção:
    ```bash
    $CLAUDE_PLUGIN_ROOT/scripts/auto-detect.sh
    ```
-   Isso criará automaticamente `.claude/vetor/module-test-map.md` com a estrutura padrão detectada. Imprima o log no console para o desenvolvedor:
-   `echo "[Vetor:AutoSetup] Gerado mapeamento de testes padrão em .claude/vetor/module-test-map.md"`
-3. Se a auto-detecção falhar, avise o usuário para criar manualmente a partir do template:
-   ```bash
-   mkdir -p .claude/vetor
-   cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" \
-      .claude/vetor/module-test-map.md
-   ```
-   e preencher com os comandos headless do projeto.
+   Imprima no console do desenvolvedor:
+   `echo "[Vetor:AutoSetup] ATENÇÃO: Configuração não encontrada. Recomenda-se rodar o comando /vetor para inicializar. Gerado mapeamento temporário em .claude/vetor/module-test-map.md"`
+3. Se a auto-detecção falhar, instrua o usuário a rodar o comando `/vetor` para preparar o ambiente.
 
 Mapeie arquivos alterados (`git diff "$DEFAULT_BRANCH" --name-only`) aos módulos usando a tabela de
 detecção do `module-test-map.md` resolvido.

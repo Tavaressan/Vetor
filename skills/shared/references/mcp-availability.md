@@ -7,7 +7,7 @@ pule) a checagem.
 ## O mecanismo correto
 
 Ferramentas de servidores MCP aparecem no seu namespace de ferramentas com o prefixo
-`mcp__<server>__<tool>` (ex.: `mcp__github__search_issues`, `mcp__sentry__list_issues`) — diretas na
+`mcp__<server>__<tool>` (ex.: `mcp__sentry__list_issues`) — diretas na
 lista de ferramentas disponíveis, ou listadas por nome entre as ferramentas diferidas (que você
 carrega via `ToolSearch` antes de chamar).
 
@@ -16,7 +16,7 @@ necessário rodar comando, nem tentar a chamada MCP "para ver se funciona":
 
 1. Procure na sua lista de ferramentas (diretas + diferidas, listadas em `<system-reminder>` no
    início da conversa e sempre que atualizadas) por qualquer nome começando com `mcp__<server>__`,
-   onde `<server>` é o servidor relevante para a tarefa (`github`, `sentry`/observabilidade,
+   onde `<server>` é o servidor relevante para a tarefa (sentry/observabilidade,
    banco de dados).
 2. **Se existir:** o MCP está disponível. Se a ferramenta estiver na lista de diferidas, carregue-a
    primeiro com `ToolSearch({query: "select:<tool_name>"})` antes de chamá-la.
@@ -33,12 +33,9 @@ correta é estática (olhar a lista), não uma tentativa em runtime.
 
 ## Servidores relevantes neste plugin
 
-| Servidor | Prefixo | Usado em |
-|---|---|---|
-| GitHub | `mcp__github__` | `backlog-ideator`, `issue-coordinator`, `guardian` (issues, PRs) |
 | Observabilidade (Sentry/Datadog) | `mcp__sentry__` / `mcp__datadog__` | `backlog-ideator` §2.a (opcional) |
 | Banco de dados | `mcp__<db>__` (nome depende do MCP configurado) | `guardian` (auditoria de schema/queries) |
 
-Cada skill que referencia este documento deve nomear o servidor esperado (ex.: "GitHub" na seção
+Cada skill que referencia este documento deve nomear o servidor esperado (ex.: "Observabilidade" na seção
 acima) antes de aplicar o mecanismo — este documento define *como* checar, não *quais* servidores
 uma skill específica precisa.

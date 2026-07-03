@@ -21,6 +21,7 @@ Pronto. Os comandos ficam disponíveis com o prefixo `/vetor:`. Não é preciso 
 
 | Comando | O que faz |
 |---------|----------|
+| `/vetor [--force]` | Porta de entrada — inicializa e configura o ambiente do Vetor no projeto-alvo |
 | `/vetor:worktree-create <type> <slug> [issue#]` | Primitivo headless — cria worktree isolado sem prompts, todos os parâmetros via args |
 | `/vetor:worktree-ship [issue#]` | Pipeline headless: test local → push → PR draft → CI watch → merge → sync root → cleanup |
 | `/vetor:fix-loop <descrição>` | Loop autônomo reproduce → fix → rebuild → test (máx. 5 iterações) |
@@ -49,16 +50,17 @@ As skills de teste (`worktree-ship`, `fix-loop`, `guardian`) precisam saber **co
 
 1. Leem `.claude/vetor/module-test-map.md` se existir;
 2. Senão, tentam **auto-detectar** os comandos a partir de `.github/workflows/*.yml`;
-3. Senão, pedem que você crie o arquivo a partir do template.
+3. Senão, pedem que você inicialize as configurações do plugin.
 
-Para o controle mais previsível, copie o template e preencha:
+Para inicializar a pasta e gerar as configurações padrão automaticamente, execute o comando de entrada:
 
 ```bash
-mkdir -p .claude/vetor
-cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" \
-   .claude/vetor/module-test-map.md
-# edite com os comandos de teste headless do SEU projeto
+/vetor
 ```
+
+Isso criará o diretório `.claude/vetor`, gerará o arquivo de mapeamento de testes `module-test-map.md` (utilizando scripts de auto-detecção) e o arquivo `config.json` configurando o limite padrão de workers simultâneos para 5.
+
+Após a geração, você pode abrir e editar o arquivo `.claude/vetor/module-test-map.md` para ajustar os comandos específicos de teste de seu repositório.
 
 A branch principal é **detectada automaticamente** (`main`, `master`, etc.) — não há nada a configurar.
 
