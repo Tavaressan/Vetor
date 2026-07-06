@@ -208,41 +208,20 @@ Aguardando aprovação antes de prosseguir com merge.
 ### 10 — Merge e Auto-Resolução de Conflitos
 
 ```bash
-gh pr ready <PR-number>
-gh pr merge <PR-number> --squash --delete-branch
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-merge.sh" <PR-number>
 ```
 
-`gh pr merge` já é não-interativo quando invocado assim (sem prompt de confirmação) — a CLI atual
-não possui uma flag `--yes`/`-y` de auto-confirmação (verificado com `gh pr merge --help`; passá-la
-resulta em erro de flag desconhecida). Se uma versão futura da CLI introduzir prompts interativos
-nesse comando, confirme as flags disponíveis com `gh pr merge --help` antes de ajustar.
+O script faz `gh pr ready` + `gh pr merge --squash --delete-branch` e verifica o estado real do PR
+quando o `gh` sai não-zero (um erro de cleanup local da branch não é falha de merge):
+- **exit 0** — PR mergeado. Siga direto para o passo 11.
+- **exit 3** — merge não aconteceu. Entre no fluxo de resolução de conflitos abaixo.
 
-#### Se `gh pr merge` sair com erro: confirme o estado real do PR primeiro
+**Se o comando for negado pela camada de permissões do Claude Code** (classificador de auto-mode,
+motivo tipo "merge sem review") — barreira independente do `reviewDecision` já verificado no passo
+9: **pare, peça aprovação explícita ao usuário via `AskUserQuestion`** e só repita após o "sim".
+**Nunca** tente contornar a negação.
 
-Um código de saída não-zero **não** significa necessariamente que o merge remoto falhou. Antes de
-tratar o erro como conflito, verifique o estado real do PR:
-
-```bash
-gh pr view <PR-number> --json state,mergedAt,mergeCommit
-```
-
-- Se `state == MERGED` (com `mergedAt`/`mergeCommit` preenchidos): o merge remoto **teve sucesso**; o
-  erro veio do cleanup **local** da branch — tipicamente `fatal: '<default>' is already used by
-  worktree at ...`, que ocorre quando o root está na branch default enquanto worktrees paralelos
-  existem. Trate como **sucesso** e siga direto para o passo 11.
-- Só entre no fluxo de resolução de conflitos (subseção seguinte) se `state != MERGED`.
-
-#### Se o merge for negado pela camada de permissões do Claude Code (auto-mode)
-
-Distinto de um erro da CLI `gh`: o próprio Claude Code pode **negar** o `gh pr merge` via seu
-classificador de auto-mode, com motivo relacionado a "merge sem review". Essa é uma barreira
-**independente** do `reviewDecision` do GitHub já verificado no passo 9 — mesmo com o PR aprovado no
-GitHub, a negação pode ocorrer.
-
-Nesse caso: **pare, peça aprovação explícita ao usuário via `AskUserQuestion`** e só repita o comando
-após o "sim". **Nunca** tente contornar a negação.
-
-#### Se o merge falhar por conflito de branch com a branch default:
+#### Se o merge falhar por conflito de branch com a branch default (exit 3):
 1. Execute `git merge "$DEFAULT_BRANCH"` localmente no worktree.
 2. Identifique os arquivos conflitantes usando:
    ```bash
