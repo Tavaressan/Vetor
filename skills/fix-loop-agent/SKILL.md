@@ -39,7 +39,6 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" in-worktree
 ```
 
 Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.
-Extraia slug do path do worktree atual para uso no `AGENT_STATUS.md`.
 
 ### 1 — Detectar módulos
 
@@ -51,38 +50,17 @@ git diff "$DEFAULT_BRANCH" --name-only
 
 Mapeie ao módulo usando a tabela do module-test-map.
 
-### 2 — Status file (KISS Status Tracker)
+### 2 — Status file
 
-Antes de cada iteração, atualize o arquivo de status. Siga as diretrizes de design de `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` (§3) mantendo a estrutura simples e focada (KISS/YAGNI/DRY):
+Antes de cada iteração, atualize o status file. Path e formato (estados, blocos obrigatórios de
+`BLOCKED_WAITING`): `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`.
+Se você foi despachado pelo `issue-coordinator`, use o path absoluto recebido no prompt; em uso
+manual, derive-o: `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md`
+(root via `git rev-parse --git-common-dir`).
 
-```bash
-# Escreva em .claude/worktrees/<slug>/AGENT_STATUS.md
-```
-
-Formato:
-```markdown
-# Agent Status — <branch>
-Updated: <ISO 8601 timestamp>
-Status: RUNNING
-Iteration: <N>/5
-Last action: <descrição da última ação>
-Next: <próximo passo planejado>
-
-## Progresso (KISS & TDD):
-- [ ] Teste de Reprodução Escrito (TDD)
-- [ ] Código de Correção Simples (KISS/YAGNI)
-- [ ] Validação de Regressões (DRY)
-```
-
-Se bloqueado por permissão ou decisão técnica, mude Status para `BLOCKED_WAITING` e descreva o que é necessário:
-```markdown
-Status: BLOCKED_WAITING
-Blocked on: <descrição do que precisa — permissão, decisão, etc.>
-Options:
-1. <opção sugerida>
-2. <opção alternativa>
-Recommendation: <qual opção o agente recomenda e por quê>
-```
+Se bloqueado por permissão ou decisão técnica, mude `Status` para `BLOCKED_WAITING` preenchendo os
+blocos `Blocked on` / `Options` / `Recommendation` do template — o coordinator escala ao usuário a
+partir deles.
 
 ### 3 — Loop principal (máximo N=5 iterações)
 
@@ -114,14 +92,14 @@ Se **verde** (todos os testes passaram):
 ```json
 {"status": "green", "iterations": <i>, "module": "<módulo>"}
 ```
-Atualize `AGENT_STATUS.md` com `Status: GREEN` e **pare**.
+Atualize o status file com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
 1. Leia a saída de erro. **Opcional (economia de tokens):** se `agy` estiver disponível, condense a saída antes de analisar. Primeiro imprima o log `echo "[Vetor:Gemini] Delegando tarefa: Condensando log de erro de testes"` e depois execute: `<comando-de-teste> 2>&1 | agy -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
-2. **Abordagem Test-Driven (TDD Rígido - §3.2)**: Se for a primeira iteração (`i=1`) e os testes ainda não estiverem falhando para o bug relatado, escreva um teste de reprodução simples que quebre. Só prossiga para alterar o código do produto após garantir que o teste está falhando (vermelho). Marque `[x] Teste de Reprodução Escrito` no status.
+2. **Abordagem Test-Driven (TDD Rígido - §3.2)**: Se for a primeira iteração (`i=1`) e os testes ainda não estiverem falhando para o bug relatado, escreva um teste de reprodução simples que quebre. Só prossiga para alterar o código do produto após garantir que o teste está falhando (vermelho).
 3. **Resolução Simples (KISS/YAGNI - §3.2)**: Identifique a causa raiz e aplique a menor alteração de código atômica necessária para fazer o teste passar. Não faça refatorações especulativas ou limpezas fora de escopo.
 4. Commit: `fix: <descrição curta do fix>`
-5. Atualize `AGENT_STATUS.md`
+5. Atualize o status file
 6. Continue para a próxima iteração
 
 **Opcional — investigação com hipóteses concorrentes (só uso manual, NÃO orquestrado).** Se a causa
@@ -143,7 +121,7 @@ orquestrado.**
 
 Se o loop esgotar sem atingir verde:
 
-1. Atualize `AGENT_STATUS.md` com `Status: FAILED_MAX_ITERATIONS`.
+1. Atualize o status file com `Status: FAILED_MAX_ITERATIONS`.
 2. **Criar Handover de Falha (`FAIL_ANALYSIS.md`)**: Crie um arquivo markdown chamado `FAIL_ANALYSIS.md` no root do worktree atual contendo o diagnóstico da falha para o desenvolvedor humano:
 
 ```markdown
@@ -185,7 +163,7 @@ O agente de correção automática falhou após 5 iterações.
 
 ## Escalação ao coordinator
 
-Quando invocado pelo `issue-coordinator`, o `fix-loop-agent` comunica-se via `AGENT_STATUS.md`:
+Quando invocado pelo `issue-coordinator`, o `fix-loop-agent` comunica-se via status file:
 - `RUNNING`: iterando normalmente
 - `GREEN`: sucesso — pronto para `worktree-ship`
 - `BLOCKED_WAITING`: precisa de intervenção (permissão, decisão técnica)
