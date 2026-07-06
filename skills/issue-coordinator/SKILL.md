@@ -199,7 +199,7 @@ concorrência da Fase 4):
 | #42 | slug-a | RUNNING | 2/5 | cargo test → 1 failure |
 | #43 | slug-b | GREEN | done | all tests passing |
 | #44 | slug-c | BLOCKED_WAITING | 3/5 | needs docker permission |
-| #45 | slug-d | QUEUED | — | aguardando vaga (teto: 3 workers simultâneos) |
+| #45 | slug-d | QUEUED | — | aguardando vaga (teto: 5 workers simultâneos) |
 ```
 
 Ao mover um grupo de `QUEUED` para despachado, siga o critério de fila (ordem de prioridade) da
@@ -313,7 +313,7 @@ Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar 
 - **worktree-ship:** máximo 3 tentativas de fix de CI
 - **Coordinator:** timeout global de 90 minutos — após isso, reporta status final e para
 - **Coordinator:** máximo `maxConcurrentWorkers` workers despachados simultaneamente por rodada
-  (default 3, configurável em `.claude/vetor/config.json`) — grupos além do teto ficam `QUEUED` até
+  (default 5, configurável em `.claude/vetor/config.json`) — grupos além do teto ficam `QUEUED` até
   uma vaga abrir (Fase 4)
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
 
