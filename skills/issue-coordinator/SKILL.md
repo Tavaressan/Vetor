@@ -16,9 +16,12 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 
 ```
 /coordinator [label]
+/coordinator <n1>,<n2>,...
 ```
 
 - `[label]`: label das issues a despachar (default: `backlog`)
+- `<n1>,<n2>,...`: alternativa ao label — lista de números de issue separados por vírgula
+  (ex.: `/coordinator 12,14,17`). Casa o regex `^[0-9]+(,[0-9]+)*$`.
 
 ---
 
@@ -40,10 +43,20 @@ Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` 
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
-Use a CLI `gh` para buscar as issues pelo label:
-```bash
-gh issue list --label <label> --state open --json number,title,labels,body
-```
+**Detecção do argumento (início da fase).** Se o argumento casar o regex `^[0-9]+(,[0-9]+)*$`, trate-o
+como **lista de issues por número**; caso contrário, como **label** (fluxo padrão).
+
+- **Lista por número:** busque cada issue diretamente:
+  ```bash
+  for N in ${ARG//,/ }; do gh issue view "$N" --json number,title,labels,body; done
+  ```
+- **Label:** use a CLI `gh` para buscar as issues pelo label:
+  ```bash
+  gh issue list --label <label> --state open --json number,title,labels,body
+  ```
+
+O restante do fluxo (verificação de PR já aberto, análise de afinidade, dispatch) é **idêntico** nos
+dois modos.
 
 Para cada issue, verifique se já há PR aberto:
 ```bash
@@ -134,6 +147,12 @@ Agent({
 
 **Critério de escolha do `model`:** use `haiku` se todas as issues do grupo forem `chore` ou `fix` simples; use `sonnet` se houver alguma `feat`, `refactor` ou se o grupo contiver mais de 2 issues complementares. Se esgotar iterações, redespache uma vez com `sonnet`.
 
+⚠️ **Nota (colisão de migrations paralelas).** Workers paralelos que tocam o mesmo módulo com
+versionamento sequencial de arquivos (ex.: migrations Flyway `V<N>__*.sql`) podem gerar colisões de
+versão **invisíveis ao git** — arquivos distintos, sem conflito textual. A rede de segurança é o merge
+serializado (Fase 6) combinado com a checagem 2.b do `worktree-ship`, que falha cedo ao detectar dois
+arquivos com o mesmo número de versão após o sync com a branch default.
+
 ⚠️ **`isolation: "worktree"` é só para dispatch inicial (worktree ainda não existe).** Se o worktree já
 existe — retomada de uma sessão anterior, redespacho após resposta a um `BLOCKED_WAITING` (Fase 5.b)
 ou redespacho após `FAILED_MAX_ITERATIONS` — **NÃO** passe `isolation: "worktree"`: isso cria um
@@ -180,13 +199,18 @@ concorrência da Fase 4):
 | #42 | slug-a | RUNNING | 2/5 | cargo test → 1 failure |
 | #43 | slug-b | GREEN | done | all tests passing |
 | #44 | slug-c | BLOCKED_WAITING | 3/5 | needs docker permission |
-| #45 | slug-d | QUEUED | — | aguardando vaga (teto: 3 workers simultâneos) |
+| #45 | slug-d | QUEUED | — | aguardando vaga (teto: 5 workers simultâneos) |
 ```
 
 Ao mover um grupo de `QUEUED` para despachado, siga o critério de fila (ordem de prioridade) da
 Fase 4.
 
 **5.b — Escalação de bloqueios**
+
+**A fonte de verdade da escalação é o `AGENT_STATUS.md`.** Se um worker sinalizar bloqueio apenas por
+chat, sem gravar `Status: BLOCKED_WAITING` com os blocos estruturados no arquivo, **não escale ainda**:
+instrua-o via `SendMessage` a gravar o `BLOCKED_WAITING` estruturado (`Blocked on` / `Options` /
+`Recommendation`) primeiro. Isso garante que o estado sobreviva a um reinício da sessão coordenadora.
 
 Se um agente estiver em `BLOCKED_WAITING`, leia o bloco `Blocked on` / `Options` / `Recommendation` do `AGENT_STATUS.md` e escale para o usuário via `AskUserQuestion`:
 
@@ -289,7 +313,7 @@ Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar 
 - **worktree-ship:** máximo 3 tentativas de fix de CI
 - **Coordinator:** timeout global de 90 minutos — após isso, reporta status final e para
 - **Coordinator:** máximo `maxConcurrentWorkers` workers despachados simultaneamente por rodada
-  (default 3, configurável em `.claude/vetor/config.json`) — grupos além do teto ficam `QUEUED` até
+  (default 5, configurável em `.claude/vetor/config.json`) — grupos além do teto ficam `QUEUED` até
   uma vaga abrir (Fase 4)
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
 

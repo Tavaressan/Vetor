@@ -68,6 +68,32 @@ Se houver conflito de merge aqui, resolva-o já (mesmo procedimento de resoluç�
 passo 10, incluindo a regra de lockfiles) antes de prosseguir para os testes locais. Não prossiga
 com testes contra uma base desatualizada.
 
+### 2.b — Colisão de versão de migration (condicional)
+
+Colisão **semântica invisível ao git**: dois workers paralelos criam migrations com o mesmo número
+de versão (`V13__a.sql` e `V13__b.sql`) — arquivos distintos, sem conflito textual, e testes locais
+sem Docker não pegam. O ponto natural de detecção é **aqui**, logo após o merge do passo 2: o arquivo
+já mergeado do outro worker passa a coexistir com o do worker atual.
+
+Esta é uma variante focada e de *early-fail* da checagem de duplicatas do `guardian` (§2) — mesma
+convenção Flyway (`V<N>__<descrição>.sql`, diretório `*/db/migration`), mas escopada ao momento do
+sync e executada **antes dos testes locais**:
+
+```bash
+# colisão de versão de migration (convenção Flyway V<N>__*.sql; ver guardian §2)
+git ls-files '*/db/migration/V*__*.sql' \
+  | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort | uniq -d
+```
+
+Se houver saída (um ou mais números duplicados), **pare antes dos testes locais**:
+```
+FALHA: colisão de versão de migration: V<N> usado por dois arquivos.
+Renumere a migration deste worker para a próxima versão livre antes de prosseguir.
+```
+O padrão é descrito com Flyway como exemplo, mas aplica-se a qualquer convenção de versionamento
+sequencial de arquivos. Se o projeto não usar migrations versionadas, a listagem sai vazia e o passo
+é um no-op.
+
 ### 3 — Detecção de módulos alterados
 
 ```bash
@@ -214,6 +240,31 @@ não possui uma flag `--yes`/`-y` de auto-confirmação (verificado com `gh pr m
 resulta em erro de flag desconhecida). Se uma versão futura da CLI introduzir prompts interativos
 nesse comando, confirme as flags disponíveis com `gh pr merge --help` antes de ajustar.
 
+#### Se `gh pr merge` sair com erro: confirme o estado real do PR primeiro
+
+Um código de saída não-zero **não** significa necessariamente que o merge remoto falhou. Antes de
+tratar o erro como conflito, verifique o estado real do PR:
+
+```bash
+gh pr view <PR-number> --json state,mergedAt,mergeCommit
+```
+
+- Se `state == MERGED` (com `mergedAt`/`mergeCommit` preenchidos): o merge remoto **teve sucesso**; o
+  erro veio do cleanup **local** da branch — tipicamente `fatal: '<default>' is already used by
+  worktree at ...`, que ocorre quando o root está na branch default enquanto worktrees paralelos
+  existem. Trate como **sucesso** e siga direto para o passo 11.
+- Só entre no fluxo de resolução de conflitos (subseção seguinte) se `state != MERGED`.
+
+#### Se o merge for negado pela camada de permissões do Claude Code (auto-mode)
+
+Distinto de um erro da CLI `gh`: o próprio Claude Code pode **negar** o `gh pr merge` via seu
+classificador de auto-mode, com motivo relacionado a "merge sem review". Essa é uma barreira
+**independente** do `reviewDecision` do GitHub já verificado no passo 9 — mesmo com o PR aprovado no
+GitHub, a negação pode ocorrer.
+
+Nesse caso: **pare, peça aprovação explícita ao usuário via `AskUserQuestion`** e só repita o comando
+após o "sim". **Nunca** tente contornar a negação.
+
 #### Se o merge falhar por conflito de branch com a branch default:
 1. Execute `git merge "$DEFAULT_BRANCH"` localmente no worktree.
 2. Identifique os arquivos conflitantes usando:
@@ -237,6 +288,20 @@ ExitWorktree
 git checkout "$DEFAULT_BRANCH"
 git pull origin "$DEFAULT_BRANCH"
 ```
+
+**Sobre o retorno de `ExitWorktree` — não trate como falha bloqueante.** No fluxo do
+`issue-coordinator`, que cria worktrees nativamente (via `git worktree add` / dispatch com
+`isolation:"worktree"`), `ExitWorktree` **frequentemente** não remove nada, e isso é o caminho
+**esperado e benigno**. Ele pode:
+- retornar `"it was not created by EnterWorktree, so this tool will not remove it"` (worktree
+  pré-existente entrado via `EnterWorktree({path})`), ou
+- ser no-op `"there is no active EnterWorktree session to exit"` (worktree criado fora de uma sessão
+  `EnterWorktree`).
+
+Em qualquer um dos casos, **prossiga normalmente** para `git checkout "$DEFAULT_BRANCH"` +
+`git pull` — a remoção efetiva do worktree e da branch é feita pelo passo 12 (`git worktree remove` /
+`git branch -d`). Isso é coerente com a restrição do `issue-coordinator` de que sub-agentes nunca
+chamam `EnterWorktree`/`ExitWorktree`.
 
 Confirme:
 ```

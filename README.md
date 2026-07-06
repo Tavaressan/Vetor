@@ -6,6 +6,15 @@ Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix aut
 
 ---
 
+## Pré-requisitos
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
+- `gh` CLI autenticado (para issues, PRs, CI)
+- Git com suporte a worktrees (`git worktree`)
+- *(opcional)* `agy` CLI no PATH para delegação de tarefas ao Gemini
+
+---
+
 ## Instalação (no Claude Code)
 
 ```
@@ -14,6 +23,25 @@ Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix aut
 ```
 
 Pronto. Os comandos ficam disponíveis com o prefixo `/vetor:`. Não é preciso copiar pastas nem editar o `CLAUDE.md` do projeto.
+
+---
+
+## Início rápido
+
+### Fluxo completo automatizado
+
+1. **`/vetor:backlog resiliência`** — gera e cria issues no GitHub com label `ai-generated`
+2. **`/vetor:coordinator ai-generated`** — despacha cada issue para um sub-agente em worktree isolado
+3. Cada sub-agente: implementa → `/vetor:fix-loop` → testes verdes
+4. Coordinator: `/vetor:worktree-ship` sequencial → PR → CI → merge
+5. **`/vetor:guardian`** — audita o estado pós-merge
+
+### Fluxo manual (skill por skill)
+
+1. **`/vetor:worktree-create fix auth-bug 42`** — cria worktree isolado
+2. *(desenvolve normalmente)*
+3. **`/vetor:fix-loop testes falhando`** — itera até verde
+4. **`/vetor:worktree-ship 42`** — PR + CI + merge
 
 ---
 
@@ -30,21 +58,13 @@ Pronto. Os comandos ficam disponíveis com o prefixo `/vetor:`. Não é preciso 
 | `/vetor:coordinator [label] [--dry-run]` | Despacho paralelo de issues para sub-agentes com escalação de permissões e merge serializado |
 | `/vetor:retro` | Avalia o uso do Vetor na sessão e propõe issues de melhoria no repositório do próprio plugin (não do projeto) |
 
-### Referência compartilhada
-
-- **`skills/shared/references/module-test-map.template.md`** — Template de comandos de teste headless por módulo. Veja "Configuração por projeto" abaixo.
-- **`skills/shared/references/delegate-to-gemini.md`** — Padrão opcional de delegação ao Gemini CLI para economizar tokens. Veja "Delegação ao Gemini".
-- **`skills/shared/references/project-conventions.md`** — Detecção de branch default e resolução do `module-test-map`, compartilhada por `fix-loop-agent`, `worktree-ship` e `worktree-create` (evita duplicar a mesma lógica três vezes).
-
-### Subagente nativo
-
-- **`agents/issue-worker.md`** — Subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução (o push para branches protegidas também é bloqueado por hook `PreToolUse`) e pré-carrega a skill `fix-loop-agent` via campo `skills:`. Ver "Arquitetura dos skills" e "Custo de tokens" abaixo.
-
-> ⚠️ A skill `worktree-session` foi **aposentada**. Era monolítica demais e perdia contexto. Use a composição `worktree-create` + `worktree-ship` (e `coordinator` para orquestração). O arquivo legado fica em `legacy/worktree-session/` apenas como referência histórica e **não é carregado** pelo plugin.
+> ⚠️ A skill `worktree-session` foi **aposentada** (monolítica demais, perdia contexto). Use a composição `worktree-create` + `worktree-ship` (e `coordinator` para orquestração). O arquivo legado fica em `legacy/worktree-session/` só como referência histórica e **não é carregado** pelo plugin.
 
 ---
 
-## Configuração por projeto (opcional)
+## Configuração (opcional)
+
+### Testes por projeto
 
 As skills de teste (`worktree-ship`, `fix-loop`, `guardian`) precisam saber **como rodar os testes do seu projeto**. Elas resolvem isso nesta ordem:
 
@@ -52,51 +72,28 @@ As skills de teste (`worktree-ship`, `fix-loop`, `guardian`) precisam saber **co
 2. Senão, tentam **auto-detectar** os comandos a partir de `.github/workflows/*.yml`;
 3. Senão, pedem que você inicialize as configurações do plugin.
 
-Para inicializar a pasta e gerar as configurações padrão automaticamente, execute o comando de entrada:
+Para inicializar a pasta e gerar as configurações padrão, execute a porta de entrada:
 
 ```bash
 /vetor
 ```
 
-Isso criará o diretório `.claude/vetor`, gerará o arquivo de mapeamento de testes `module-test-map.md` (utilizando scripts de auto-detecção) e o arquivo `config.json` configurando o limite padrão de workers simultâneos para 5.
-
-Após a geração, você pode abrir e editar o arquivo `.claude/vetor/module-test-map.md` para ajustar os comandos específicos de teste de seu repositório.
+Isso cria o diretório `.claude/vetor`, gera o `module-test-map.md` (via scripts de auto-detecção) e o `config.json`. Depois, edite `.claude/vetor/module-test-map.md` para ajustar os comandos de teste do seu repositório.
 
 A branch principal é **detectada automaticamente** (`main`, `master`, etc.) — não há nada a configurar.
 
-### Frameworks de feature opcionais
-
 Se o projeto usar um framework de docs/feature (ex.: um diretório `.reversa/` ou `_reversa_sdd/`), o `backlog-ideator` o detecta e usa como âncora. Se não houver, ele recorre a `docs/`, `ARCHITECTURE.md`, `README.md` e `CLAUDE.md`. Nada a configurar.
 
----
+### Permissões
 
-## Delegação ao Gemini (opcional)
+Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do projeto. Escolha um caminho conforme seu modelo de ameaça e uso de dependências de terceiros:
 
-Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco ao CLI `agy` (Google Antigravity/Gemini CLI), seguindo o padrão **Gemini rascunha, Claude valida**:
+**Opção A — Modo Seguro (privilégio mínimo, recomendado).** Auto-aprova leitura do GitHub e gerenciamento de worktrees locais, mas **mantém a confirmação visual** para execução de testes, builds, pushes e merges.
 
-- Resumir logs de CI longos antes do diagnóstico (`worktree-ship`, `fix-loop`)
-- Rascunhar corpos de issue (`backlog`)
-- Rascunhar mensagens de commit e relatórios (`guardian`)
+> ⚠️ **Incompatível com dispatch em background do `issue-coordinator`.** Workers em `run_in_background: true` não têm ninguém observando o terminal para confirmar prompts — um teste ou build pendente trava o worker indefinidamente (o comando fica pendente antes mesmo de o agente marcar `BLOCKED_WAITING`). Use este modo só para invocação manual e interativa (`/vetor:fix-loop`, `/vetor:guardian` sem `--cron`). Para `/vetor:coordinator`, use a Opção B.
 
-É **totalmente opcional**: se `agy` não estiver no PATH, as skills fazem tudo inline. Correção de código, resolução de conflito e decisão de merge **nunca** são delegadas — ficam sempre com o Claude. Detalhes em `skills/shared/references/delegate-to-gemini.md`.
-
----
-
-## Permissões (opcional)
-
-Para evitar prompts repetitivos, configure o arquivo `.claude/settings.json` na raiz do seu projeto. Dependendo do seu modelo de ameaça e uso de dependências de terceiros, escolha um dos caminhos abaixo:
-
-### Opção A: Modo Seguro (Privilégio Mínimo - Recomendado)
-*Indicado se o projeto consome dependências externas (npm, pip, cargo, etc.) que executam scripts dinâmicos de build/teste.*
-
-Este modo auto-aprova a leitura do GitHub e o gerenciamento de worktrees locais, mas **mantém a confirmação visual** no seu terminal para qualquer execução de teste (`npm test`, `cargo test`), builds ou pushes e merges remotos.
-
-⚠️ **Incompatível com dispatch em background do `issue-coordinator`.** Workers despachados via
-`run_in_background: true` não têm ninguém observando o terminal para confirmar prompts — um teste ou
-build pendente de aprovação nesse modo trava o worker indefinidamente (o comando fica pendente antes
-mesmo do agente poder reagir e marcar `BLOCKED_WAITING`). Use este modo apenas para invocação manual
-e interativa (`/vetor:fix-loop`, `/vetor:guardian` sem `--cron`), onde você acompanha a sessão. Para
-`/vetor:coordinator`, use a Opção B.
+<details>
+<summary><code>.claude/settings.json</code> — Opção A</summary>
 
 ```json
 {
@@ -113,14 +110,12 @@ e interativa (`/vetor:fix-loop`, `/vetor:guardian` sem `--cron`), onde você aco
   }
 }
 ```
+</details>
 
-### Opção B: Modo Alta Eficiência (Autônomo)
-*Indicado apenas para projetos 100% privados de sua autoria exclusiva, onde as dependências são rigidamente controladas e você deseja rodar tudo em background sem interrupções — é o modo exigido pelo `issue-coordinator` (dispatch em background), ver aviso na Opção A.*
+**Opção B — Modo Alta Eficiência (autônomo).** Para projetos 100% privados de sua autoria exclusiva, com dependências rigidamente controladas, rodando tudo em background sem interrupções — é o modo **exigido pelo `issue-coordinator`** (dispatch em background). **Adapte a lista de teste/build/install aos comandos reais do seu `module-test-map`** — o Vetor é agnóstico a projeto e não pode adivinhar seu stack; se um comando que o `fix-loop-agent` roda a cada iteração não estiver na lista, o worker trava igual ao Modo Seguro.
 
-**Adapte a lista de teste/build/install aos comandos reais do seu `module-test-map`** — o Vetor é
-agnóstico a projeto e não pode adivinhar seu stack. Os exemplos abaixo cobrem os ecossistemas mais
-comuns; adicione ou remova conforme o que `worktree-create` (§4.b) e seu `module-test-map` realmente
-rodam a cada iteração do `fix-loop-agent`, senão o worker trava do mesmo jeito que no Modo Seguro:
+<details>
+<summary><code>.claude/settings.json</code> — Opção B (ajuste o stack)</summary>
 
 ```json
 {
@@ -154,13 +149,23 @@ rodam a cada iteração do `fix-loop-agent`, senão o worker trava do mesmo jeit
   }
 }
 ```
+</details>
+
+### Delegação ao Gemini
+
+Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco ao CLI `agy` (Google Antigravity/Gemini CLI), seguindo o padrão **Gemini rascunha, Claude valida**:
+
+- Resumir logs de CI longos antes do diagnóstico (`worktree-ship`, `fix-loop`)
+- Rascunhar corpos de issue (`backlog`)
+- Rascunhar mensagens de commit e relatórios (`guardian`)
+
+É **totalmente opcional**: se `agy` não estiver no PATH, as skills fazem tudo inline. Correção de código, resolução de conflito e decisão de merge **nunca** são delegadas — ficam sempre com o Claude. Detalhes em `skills/shared/references/delegate-to-gemini.md`.
 
 ---
 
-## Arquitetura dos skills
+## Como funciona
 
-Primitivos compostos por skills de nível superior. A Fase 4 do coordinator despacha um subagente
-nativo (`issue-worker`, não uma skill genérica) por issue — ver "Subagente nativo" acima:
+Primitivos compostos por skills de nível superior. A Fase 4 do coordinator despacha um subagente nativo (`issue-worker`, não uma skill genérica) por issue:
 
 ```
                     coordinator
@@ -176,28 +181,32 @@ nativo (`issue-worker`, não uma skill genérica) por issue — ver "Subagente n
           guardian  (independente)
 ```
 
-### Por que não claude-squad ou vibe-kanban?
+### Subagente nativo
 
-Já avaliamos: ambos são ferramentas de **supervisão interativa** (claude-squad via TUI/tmux,
-vibe-kanban via board web) — pressupõem um humano abrindo/observando cada sessão ou card. O
-`issue-coordinator` é **dispatch autônomo em background**, que só aciona o humano quando bloqueado.
-Nenhum dos dois cobre os cinco diferenciais reais do coordinator hoje: dispatch em lote por label,
-resiliência a reinício via `AGENT_STATUS.md` (arquivo em disco, não estado em memória), escalação
-seletiva via `AskUserQuestion`, hard caps explícitos, e merge serializado via `worktree-ship`. Além
-disso, o `vibe-kanban` está congelado desde a saída da Bloop (sem commits há meses). Por isso o Vetor
-mantém a orquestração própria.
+**`agents/issue-worker.md`** — subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução (o push para branches protegidas também é bloqueado por hook `PreToolUse`); pré-carrega a skill `fix-loop-agent` via campo `skills:`.
 
-### Sobre Agent Teams
+### Arquivos de referência compartilhados
 
-Claude Code tem um recurso experimental de "Agent Teams" (múltiplas sessões independentes que se
-comunicam entre si, habilitado via `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). **Não é usado no
-dispatch autônomo do coordinator** — teammates in-process não sobrevivem a `/resume`, o que quebraria
-a resiliência a reinício que o design do coordinator garante hoje via arquivo. É usado só em dois
-pontos pontuais, com o humano como lead da sessão:
-- `backlog-ideator`, para gerar propostas de issue a partir de múltiplas perspectivas (opcional)
-- `fix-loop-agent`, para investigar causa raiz incerta com hipóteses concorrentes — **só quando
-  invocado manualmente**, nunca no caminho orquestrado pelo coordinator (subagentes não podem abrir
-  seu próprio time)
+- **`skills/shared/references/module-test-map.template.md`** — template de comandos de teste headless por módulo (ver "Testes por projeto").
+- **`skills/shared/references/delegate-to-gemini.md`** — padrão opcional de delegação ao Gemini CLI.
+- **`skills/shared/references/project-conventions.md`** — detecção de branch default e resolução do `module-test-map`, compartilhada por `fix-loop-agent`, `worktree-ship` e `worktree-create` (evita duplicar a mesma lógica três vezes).
+
+### Observabilidade
+
+Quando o `coordinator` despacha sub-agentes:
+
+- **`AGENT_STATUS.md`** por worktree — cada agente atualiza seu status a cada iteração.
+- **Tabela de status** no chat — coordinator consolida via `gh pr list`.
+- **Escalação** — bloqueios de permissão e decisões técnicas são repassados ao usuário com opções (permitir / permitir para o agente / negar / parar).
+
+### Decisões de design
+
+**Por que orquestração própria (não claude-squad ou vibe-kanban).** Ambos são ferramentas de **supervisão interativa** (claude-squad via TUI/tmux, vibe-kanban via board web) — pressupõem um humano observando cada sessão ou card. O `issue-coordinator` é **dispatch autônomo em background**, que só aciona o humano quando bloqueado. Nenhum dos dois cobre os cinco diferenciais do coordinator: dispatch em lote por label, resiliência a reinício via `AGENT_STATUS.md` (arquivo em disco, não estado em memória), escalação seletiva via `AskUserQuestion`, hard caps explícitos e merge serializado. Além disso, o `vibe-kanban` está congelado desde a saída da Bloop.
+
+**Sobre Agent Teams.** O recurso experimental de "Agent Teams" (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) **não é usado no dispatch autônomo do coordinator** — teammates in-process não sobrevivem a `/resume`, o que quebraria a resiliência a reinício garantida via arquivo. É usado só em dois pontos, com o humano como lead da sessão:
+
+- `backlog-ideator`, para gerar propostas de issue a partir de múltiplas perspectivas (opcional);
+- `fix-loop-agent`, para investigar causa raiz incerta com hipóteses concorrentes — **só quando invocado manualmente**, nunca no caminho orquestrado (subagentes não podem abrir seu próprio time).
 
 Para habilitar, adicione ao `.claude/settings.json` do projeto (ou exporte no shell):
 
@@ -209,30 +218,9 @@ Para habilitar, adicione ao `.claude/settings.json` do projeto (ou exporte no sh
 }
 ```
 
-### Fluxo completo automatizado
-
-1. **`/vetor:backlog resiliência`** — gera e cria issues no GitHub com label `ai-generated`
-2. **`/vetor:coordinator ai-generated`** — despacha cada issue para um sub-agente em worktree isolado
-3. Cada sub-agente: implementa → `/vetor:fix-loop` → testes verdes
-4. Coordinator: `/vetor:worktree-ship` sequencial → PR → CI → merge
-5. **`/vetor:guardian`** — audita o estado pós-merge
-
-### Fluxo manual (skill por skill)
-
-1. **`/vetor:worktree-create fix auth-bug 42`** — cria worktree isolado
-2. *(desenvolve normalmente)*
-3. **`/vetor:fix-loop testes falhando`** — itera até verde
-4. **`/vetor:worktree-ship 42`** — PR + CI + merge
-
 ---
 
-## Observabilidade
-
-Quando o `coordinator` despacha sub-agentes:
-
-- **`AGENT_STATUS.md`** por worktree — cada agente atualiza seu status a cada iteração
-- **Tabela de status** no chat — coordinator consolida via `gh pr list`
-- **Escalação** — bloqueios de permissão e decisões técnicas são repassados ao usuário com opções (permitir / permitir para o agente / negar / parar)
+## Referência
 
 ### Hard caps
 
@@ -241,47 +229,19 @@ Quando o `coordinator` despacha sub-agentes:
 | Iterações do fix-loop | 5 |
 | Retentativas de CI no ship | 3 |
 | Timeout global do coordinator | 90 min |
-| Workers simultâneos por rodada do coordinator | 3 (`vetor.maxConcurrentWorkers` em `.claude/settings.json`) |
+| Workers simultâneos por rodada do coordinator | 5 (`maxConcurrentWorkers` em `.claude/vetor/config.json`) |
 
----
+### Custo de tokens
 
-## Custo de tokens
+Alavancas para manter o custo baixo no dispatch paralelo:
 
-Alavancas usadas para manter o custo de token baixo no dispatch paralelo:
+- **Teto de workers simultâneos no `issue-coordinator`** (ver Hard caps) — cada subagente paralelo é uma instância Claude completa sem contexto compartilhado, então é a alavanca mais direta contra o custo agregado. Grupos além do teto ficam `QUEUED` e só são despachados quando um worker ativo libera vaga. É contabilidade do próprio coordinator, não um bloqueio de plataforma — o Claude Code não tem mecanismo real de limite de tokens por subagente (verificado na doc oficial em 2026-07-02).
+- **`tools` restritos no `issue-worker`** — menos ferramentas carregadas por invocação. A restrição de "nunca push/PR/merge" é de instrução/prompt; só o push para branches protegidas (`main`/`master`/`production`) é bloqueado de fato, via hook `PreToolUse`.
+- **`model: haiku` por padrão no `issue-worker`**, com escalação para `sonnet` decidida pelo coordinator conforme tipo/labels da issue (`chore`/`fix` pequenos → `haiku`; `feat`/`refactor` → `sonnet`). Se uma issue em `haiku` esgotar as iterações do fix-loop, o coordinator redespacha uma vez com `sonnet` antes de desistir.
+- **Subagentes em vez de Agent Teams** sempre que não houver necessidade real de debate entre pares — um subagente comum retorna só um resumo ao chamador; cada teammate é uma instância Claude completa e mais cara.
+- **Delegação ao Gemini** para resumir logs de CI grandes antes de qualquer subagente/skill processá-los.
 
-- **Teto de workers simultâneos no `issue-coordinator`** (default 3, `vetor.maxConcurrentWorkers`) —
-  cada subagente paralelo é uma instância Claude completa sem contexto compartilhado, então é a
-  alavanca mais direta contra o custo agregado. Grupos além do teto ficam `QUEUED` e só são
-  despachados quando um worker ativo libera vaga. É contabilidade do próprio coordinator, não um
-  bloqueio de plataforma — o Claude Code não tem um mecanismo real de limite de tokens por subagente
-  (nem em frontmatter, nem em hooks, nem no `Agent()`; verificado na doc oficial em 2026-07-02).
-- **`tools` restritos no `issue-worker`** — menos ferramentas carregadas por invocação. A restrição
-  de "nunca push/PR/merge" é de instrução/prompt (o Claude Code não bloqueia padrões de comando Bash
-  via frontmatter de subagente); só o push para branches protegidas (`main`/`master`/`production`) é
-  bloqueado de fato, via hook `PreToolUse`.
-- **`model: haiku` por padrão no `issue-worker`**, com escalação para `sonnet` decidida pelo
-  `issue-coordinator` conforme o tipo/labels da issue (`chore`/`fix` pequenos → `haiku`;
-  `feat`/`refactor` → `sonnet`). Se uma issue em `haiku` esgotar as iterações do fix-loop, o
-  coordinator redespacha uma vez com `sonnet` antes de desistir.
-- **Subagentes em vez de Agent Teams sempre que não houver necessidade real de debate entre pares** —
-  um subagente comum retorna só um resumo ao chamador; cada teammate de um Agent Team é uma instância
-  Claude completa e mais cara. Por isso Agent Teams fica restrito aos dois usos pontuais descritos em
-  "Sobre Agent Teams", e não é o padrão do plugin.
-- **Delegação ao Gemini** (ver abaixo) para resumir logs de CI grandes antes de qualquer
-  subagente/skill processá-los.
-
----
-
-## Pré-requisitos
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
-- `gh` CLI autenticado (para issues, PRs, CI)
-- Git com suporte a worktrees (`git worktree`)
-- *(opcional)* `agy` CLI no PATH para delegação de tarefas
-
----
-
-## Estrutura do repositório
+### Estrutura do repositório
 
 ```
 .claude-plugin/
