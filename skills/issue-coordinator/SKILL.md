@@ -16,9 +16,12 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 
 ```
 /coordinator [label]
+/coordinator <n1>,<n2>,...
 ```
 
 - `[label]`: label das issues a despachar (default: `backlog`)
+- `<n1>,<n2>,...`: alternativa ao label — lista de números de issue separados por vírgula
+  (ex.: `/coordinator 12,14,17`). Casa o regex `^[0-9]+(,[0-9]+)*$`.
 
 ---
 
@@ -40,10 +43,20 @@ Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` 
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
-Use a CLI `gh` para buscar as issues pelo label:
-```bash
-gh issue list --label <label> --state open --json number,title,labels,body
-```
+**Detecção do argumento (início da fase).** Se o argumento casar o regex `^[0-9]+(,[0-9]+)*$`, trate-o
+como **lista de issues por número**; caso contrário, como **label** (fluxo padrão).
+
+- **Lista por número:** busque cada issue diretamente:
+  ```bash
+  for N in ${ARG//,/ }; do gh issue view "$N" --json number,title,labels,body; done
+  ```
+- **Label:** use a CLI `gh` para buscar as issues pelo label:
+  ```bash
+  gh issue list --label <label> --state open --json number,title,labels,body
+  ```
+
+O restante do fluxo (verificação de PR já aberto, análise de afinidade, dispatch) é **idêntico** nos
+dois modos.
 
 Para cada issue, verifique se já há PR aberto:
 ```bash
