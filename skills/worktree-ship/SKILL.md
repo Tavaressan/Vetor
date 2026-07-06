@@ -240,6 +240,21 @@ não possui uma flag `--yes`/`-y` de auto-confirmação (verificado com `gh pr m
 resulta em erro de flag desconhecida). Se uma versão futura da CLI introduzir prompts interativos
 nesse comando, confirme as flags disponíveis com `gh pr merge --help` antes de ajustar.
 
+#### Se `gh pr merge` sair com erro: confirme o estado real do PR primeiro
+
+Um código de saída não-zero **não** significa necessariamente que o merge remoto falhou. Antes de
+tratar o erro como conflito, verifique o estado real do PR:
+
+```bash
+gh pr view <PR-number> --json state,mergedAt,mergeCommit
+```
+
+- Se `state == MERGED` (com `mergedAt`/`mergeCommit` preenchidos): o merge remoto **teve sucesso**; o
+  erro veio do cleanup **local** da branch — tipicamente `fatal: '<default>' is already used by
+  worktree at ...`, que ocorre quando o root está na branch default enquanto worktrees paralelos
+  existem. Trate como **sucesso** e siga direto para o passo 11.
+- Só entre no fluxo de resolução de conflitos (subseção seguinte) se `state != MERGED`.
+
 #### Se o merge falhar por conflito de branch com a branch default:
 1. Execute `git merge "$DEFAULT_BRANCH"` localmente no worktree.
 2. Identifique os arquivos conflitantes usando:
