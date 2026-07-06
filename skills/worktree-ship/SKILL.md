@@ -289,6 +289,20 @@ git checkout "$DEFAULT_BRANCH"
 git pull origin "$DEFAULT_BRANCH"
 ```
 
+**Sobre o retorno de `ExitWorktree` — não trate como falha bloqueante.** No fluxo do
+`issue-coordinator`, que cria worktrees nativamente (via `git worktree add` / dispatch com
+`isolation:"worktree"`), `ExitWorktree` **frequentemente** não remove nada, e isso é o caminho
+**esperado e benigno**. Ele pode:
+- retornar `"it was not created by EnterWorktree, so this tool will not remove it"` (worktree
+  pré-existente entrado via `EnterWorktree({path})`), ou
+- ser no-op `"there is no active EnterWorktree session to exit"` (worktree criado fora de uma sessão
+  `EnterWorktree`).
+
+Em qualquer um dos casos, **prossiga normalmente** para `git checkout "$DEFAULT_BRANCH"` +
+`git pull` — a remoção efetiva do worktree e da branch é feita pelo passo 12 (`git worktree remove` /
+`git branch -d`). Isso é coerente com a restrição do `issue-coordinator` de que sub-agentes nunca
+chamam `EnterWorktree`/`ExitWorktree`.
+
 Confirme:
 ```
 Root sincronizado com <default-branch>. Branch <branch> mergeada e deletada remotamente.
