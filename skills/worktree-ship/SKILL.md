@@ -255,6 +255,16 @@ gh pr view <PR-number> --json state,mergedAt,mergeCommit
   existem. Trate como **sucesso** e siga direto para o passo 11.
 - Só entre no fluxo de resolução de conflitos (subseção seguinte) se `state != MERGED`.
 
+#### Se o merge for negado pela camada de permissões do Claude Code (auto-mode)
+
+Distinto de um erro da CLI `gh`: o próprio Claude Code pode **negar** o `gh pr merge` via seu
+classificador de auto-mode, com motivo relacionado a "merge sem review". Essa é uma barreira
+**independente** do `reviewDecision` do GitHub já verificado no passo 9 — mesmo com o PR aprovado no
+GitHub, a negação pode ocorrer.
+
+Nesse caso: **pare, peça aprovação explícita ao usuário via `AskUserQuestion`** e só repita o comando
+após o "sim". **Nunca** tente contornar a negação.
+
 #### Se o merge falhar por conflito de branch com a branch default:
 1. Execute `git merge "$DEFAULT_BRANCH"` localmente no worktree.
 2. Identifique os arquivos conflitantes usando:
