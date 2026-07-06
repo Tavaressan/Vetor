@@ -34,18 +34,11 @@ Você é o agente de fix autônomo do Vetor. Sua missão é iterar sobre falhas 
 
 ### 0 — Guarda de contexto
 
-Verifique se está dentro de um worktree:
-
 ```bash
-git worktree list
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" in-worktree
 ```
 
-Se estiver no root:
-```
-ERRO: /fix-loop deve ser executado de dentro de um worktree.
-```
-**Aborte.**
-
+Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.
 Extraia slug do path do worktree atual para uso no `AGENT_STATUS.md`.
 
 ### 1 — Detectar módulos

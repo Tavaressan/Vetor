@@ -34,23 +34,13 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 ### 1 — Guarda de contexto
 
-Verifique se está dentro de um worktree:
-
 ```bash
-git worktree list
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" in-worktree
 ```
 
-Se o diretório atual for o root do repositório (e não um worktree em `.claude/worktrees/`):
-```
-ERRO: /worktree-ship deve ser executado de dentro de um worktree, não do root.
-Use /worktree-create para criar um worktree primeiro.
-```
-**Aborte.**
-
-Extraia a branch e o slug do worktree atual:
-```bash
-git branch --show-current
-```
+Se sair não-zero, **aborte**: `/worktree-ship` deve rodar de dentro de um worktree (use
+`/worktree-create` primeiro). Se passar, guarde a branch atual (`git branch --show-current`)
+para os passos seguintes.
 
 ### 2 — Sincronizar com a branch default
 
@@ -70,29 +60,15 @@ com testes contra uma base desatualizada.
 
 ### 2.b — Colisão de versão de migration (condicional)
 
-Colisão **semântica invisível ao git**: dois workers paralelos criam migrations com o mesmo número
-de versão (`V13__a.sql` e `V13__b.sql`) — arquivos distintos, sem conflito textual, e testes locais
-sem Docker não pegam. O ponto natural de detecção é **aqui**, logo após o merge do passo 2: o arquivo
-já mergeado do outro worker passa a coexistir com o do worker atual.
-
-Esta é uma variante focada e de *early-fail* da checagem de duplicatas do `guardian` (§2) — mesma
-convenção Flyway (`V<N>__<descrição>.sql`, diretório `*/db/migration`), mas escopada ao momento do
-sync e executada **antes dos testes locais**:
+Logo após o merge do passo 2 — **antes dos testes locais** — detecte colisões semânticas invisíveis
+ao git entre workers paralelos (dois arquivos com a mesma versão de migration, sem conflito textual):
 
 ```bash
-# colisão de versão de migration (convenção Flyway V<N>__*.sql; ver guardian §2)
-git ls-files '*/db/migration/V*__*.sql' \
-  | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort | uniq -d
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" migrations
 ```
 
-Se houver saída (um ou mais números duplicados), **pare antes dos testes locais**:
-```
-FALHA: colisão de versão de migration: V<N> usado por dois arquivos.
-Renumere a migration deste worker para a próxima versão livre antes de prosseguir.
-```
-O padrão é descrito com Flyway como exemplo, mas aplica-se a qualquer convenção de versionamento
-sequencial de arquivos. Se o projeto não usar migrations versionadas, a listagem sai vazia e o passo
-é um no-op.
+Se sair não-zero, **pare** e mostre a saída (ela lista os arquivos e instrui a renumeração).
+Projetos sem migrations versionadas: no-op. Mesma convenção Flyway do `guardian` §2.
 
 ### 3 — Detecção de módulos alterados
 
@@ -119,13 +95,14 @@ Saída: <últimas 30 linhas do log>
 ```
 **Pare.** Não faça push de código vermelho.
 
-### 4.b — Scan de Debugging (KISS Linting)
+### 4.b — Scan de debugging
 
-Antes de fazer o push, faça uma varredura estática rápida no diff em relação ao default branch buscando padrões temporários de depuração ou flags exclusivas de testes:
 ```bash
-git diff "$DEFAULT_BRANCH" --name-only | xargs egrep -n "console\.log|var_dump|fit\(|fdescribe\(|it\.only" 2>/dev/null
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "$DEFAULT_BRANCH"
 ```
-Se encontrar qualquer padrão de debugging ou testes exclusivos (`it.only`, etc.), **remova-os automaticamente** ou corrija-os antes de realizar o push, mantendo o código limpo (KISS).
+
+Se sair não-zero, remova os padrões apontados (debug temporário, `it.only` etc.) e commite antes
+do push.
 
 ### 5 — Push
 

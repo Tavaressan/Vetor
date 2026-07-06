@@ -8,12 +8,10 @@ skill precisa disso.
 
 ## Branch default
 
-Nunca assuma `master`. Detecte em runtime:
+Nunca assuma `master`. Resolva em runtime via mecanismo compartilhado:
 
 ```bash
-DEFAULT_BRANCH=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
+DEFAULT_BRANCH=$(bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" default-branch)
 ```
 
 Use `$DEFAULT_BRANCH` em todos os comandos subsequentes (`git diff`, `git pull`, `git push`,
