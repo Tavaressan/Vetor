@@ -68,6 +68,32 @@ Se houver conflito de merge aqui, resolva-o já (mesmo procedimento de resoluç�
 passo 10, incluindo a regra de lockfiles) antes de prosseguir para os testes locais. Não prossiga
 com testes contra uma base desatualizada.
 
+### 2.b — Colisão de versão de migration (condicional)
+
+Colisão **semântica invisível ao git**: dois workers paralelos criam migrations com o mesmo número
+de versão (`V13__a.sql` e `V13__b.sql`) — arquivos distintos, sem conflito textual, e testes locais
+sem Docker não pegam. O ponto natural de detecção é **aqui**, logo após o merge do passo 2: o arquivo
+já mergeado do outro worker passa a coexistir com o do worker atual.
+
+Esta é uma variante focada e de *early-fail* da checagem de duplicatas do `guardian` (§2) — mesma
+convenção Flyway (`V<N>__<descrição>.sql`, diretório `*/db/migration`), mas escopada ao momento do
+sync e executada **antes dos testes locais**:
+
+```bash
+# colisão de versão de migration (convenção Flyway V<N>__*.sql; ver guardian §2)
+git ls-files '*/db/migration/V*__*.sql' \
+  | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort | uniq -d
+```
+
+Se houver saída (um ou mais números duplicados), **pare antes dos testes locais**:
+```
+FALHA: colisão de versão de migration: V<N> usado por dois arquivos.
+Renumere a migration deste worker para a próxima versão livre antes de prosseguir.
+```
+O padrão é descrito com Flyway como exemplo, mas aplica-se a qualquer convenção de versionamento
+sequencial de arquivos. Se o projeto não usar migrations versionadas, a listagem sai vazia e o passo
+é um no-op.
+
 ### 3 — Detecção de módulos alterados
 
 ```bash

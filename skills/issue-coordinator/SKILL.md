@@ -134,6 +134,12 @@ Agent({
 
 **Critério de escolha do `model`:** use `haiku` se todas as issues do grupo forem `chore` ou `fix` simples; use `sonnet` se houver alguma `feat`, `refactor` ou se o grupo contiver mais de 2 issues complementares. Se esgotar iterações, redespache uma vez com `sonnet`.
 
+⚠️ **Nota (colisão de migrations paralelas).** Workers paralelos que tocam o mesmo módulo com
+versionamento sequencial de arquivos (ex.: migrations Flyway `V<N>__*.sql`) podem gerar colisões de
+versão **invisíveis ao git** — arquivos distintos, sem conflito textual. A rede de segurança é o merge
+serializado (Fase 6) combinado com a checagem 2.b do `worktree-ship`, que falha cedo ao detectar dois
+arquivos com o mesmo número de versão após o sync com a branch default.
+
 ⚠️ **`isolation: "worktree"` é só para dispatch inicial (worktree ainda não existe).** Se o worktree já
 existe — retomada de uma sessão anterior, redespacho após resposta a um `BLOCKED_WAITING` (Fase 5.b)
 ou redespacho após `FAILED_MAX_ITERATIONS` — **NÃO** passe `isolation: "worktree"`: isso cria um
