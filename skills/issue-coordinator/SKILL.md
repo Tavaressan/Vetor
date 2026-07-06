@@ -207,6 +207,11 @@ Fase 4.
 
 **5.b — Escalação de bloqueios**
 
+**A fonte de verdade da escalação é o `AGENT_STATUS.md`.** Se um worker sinalizar bloqueio apenas por
+chat, sem gravar `Status: BLOCKED_WAITING` com os blocos estruturados no arquivo, **não escale ainda**:
+instrua-o via `SendMessage` a gravar o `BLOCKED_WAITING` estruturado (`Blocked on` / `Options` /
+`Recommendation`) primeiro. Isso garante que o estado sobreviva a um reinício da sessão coordenadora.
+
 Se um agente estiver em `BLOCKED_WAITING`, leia o bloco `Blocked on` / `Options` / `Recommendation` do `AGENT_STATUS.md` e escale para o usuário via `AskUserQuestion`:
 
 Para **permissões bloqueadas:**

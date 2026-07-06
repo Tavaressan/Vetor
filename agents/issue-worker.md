@@ -51,5 +51,9 @@ correspondente.
   atingir `GREEN`.
 - Não crie nem remova o worktree — ele já existe quando você é despachado.
 - Não entre em `EnterWorktree`/`ExitWorktree` — seu contexto de trabalho já está no worktree correto.
-- Se bloqueado por permissão ou decisão técnica, siga o protocolo `BLOCKED_WAITING` da
-  `fix-loop-agent` — o `issue-coordinator` escalona ao usuário por você.
+- Se bloqueado por permissão ou decisão técnica, **primeiro** escreva `AGENT_STATUS.md` com
+  `Status: BLOCKED_WAITING` e os blocos estruturados `Blocked on` / `Options` / `Recommendation`
+  (formato da `fix-loop-agent` §2) — só depois, opcionalmente e como complemento, notifique por chat.
+  **Nunca** substitua a escrita do arquivo por uma mensagem informal: a reconstrução de estado após
+  um reinício da sessão coordenadora depende exclusivamente do arquivo, e o `issue-coordinator`
+  escalona ao usuário a partir dele.
