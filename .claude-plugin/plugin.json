@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "vetor",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Skills de automação de workflow: ideação → backlog → worktree isolado → fix autônomo → ship → guarda. Agnóstico a projeto.",
   "author": { "name": "Vitor Tavares Chaves" },
   "homepage": "https://github.com/Tavaressan/Vetor",
