@@ -165,11 +165,10 @@ correto quando o agente descobre a inconsistência. Nesse caso, despache **sem**
 `isolation` e instrua um `cd` explícito para o path real do worktree existente (obtenha via
 `git worktree list`) no prompt do worker.
 
-**Nota (Antigravity) — suporte a subagente customizado:** O subagente `issue-worker` é registrado para o Google Antigravity através do arquivo [agent.json](file:///Users/vitortavares/Desktop/Projetos/Vetor/agents/issue-worker/agent.json), que define a especificação do agente (`customAgentSpec`), ferramentas compatíveis (ex. `run_command`, `view_file`, `replace_file_content`) e escopo de contexto, tornando-o invocável nativamente via `invoke_subagent` com o nome `vetor:issue-worker` (ou apenas `issue-worker` dependendo da resolução de escopo).
-
-Esta estrutura complementa o arquivo `agents/issue-worker.md` utilizado pelo Claude Code para auto-descoberta.
-
-**Sobre ferramentas MCP (Banco de Dados):** o `issue-worker` define `tools:` explicitamente em seu arquivo de definição, então ele **não** herda MCP automaticamente do contexto pai. Se um worker precisar de acesso a um MCP de banco de dados, adicione-o diretamente à lista de ferramentas permitidas.
+**Nota (Antigravity):** o `issue-worker` também é registrado para o Google Antigravity via
+`agents/issue-worker/agent.json` (`customAgentSpec`), complementando `agents/issue-worker.md`
+usado pelo Claude Code. Como ele define `tools:` explicitamente, **não** herda MCP do contexto
+pai — se um worker precisar de MCP (ex.: banco de dados), adicione-o à lista de ferramentas.
 
 **Prompt de execução sequencial para o worker:**
 Envie ao `issue-worker` a lista de tarefas a realizar:
@@ -204,42 +203,19 @@ chat, sem gravar `Status: BLOCKED_WAITING` com os blocos estruturados no arquivo
 instrua-o via `SendMessage` a gravar o `BLOCKED_WAITING` estruturado (`Blocked on` / `Options` /
 `Recommendation`) primeiro. Isso garante que o estado sobreviva a um reinício da sessão coordenadora.
 
-Se um agente estiver em `BLOCKED_WAITING`, leia o bloco `Blocked on` / `Options` / `Recommendation` do status file e escale para o usuário via `AskUserQuestion`:
+Se um agente estiver em `BLOCKED_WAITING`, leia o bloco `Blocked on` / `Options` /
+`Recommendation` do status file e escale ao usuário via `AskUserQuestion`, identificando o agente
+(`<slug>` / Issue `#<N>`) e transmitindo a recomendação do agente. As opções dependem do tipo:
+- **Permissão bloqueada** (`<comando>`): permitir esta vez / permitir para este agente
+  (auto-aprova chamadas similares deste agente) / negar (registra "skipped") / parar agente.
+- **Decisão técnica**: as opções do bloco `Options` do status file.
 
-Para **permissões bloqueadas:**
-```
-🔒 Pedido de permissão — agente <slug> (Issue #<N>)
+Após a resposta, comunique a decisão ao sub-agente via `SendMessage`. Se "permitir para este
+agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras
+do mesmo tipo daquele agente.
 
-O agente precisa executar: <comando bloqueado>
-
-Contexto: <por que precisa>
-
-1. Permitir esta vez — executa e continua
-2. Permitir para este agente — auto-aprova chamadas similares deste agente
-3. Negar — agente registra "skipped" e continua sem
-4. Parar agente — encerra e preserva worktree
-```
-
-Para **decisões técnicas:**
-```
-❓ Decisão técnica — agente <slug> (Issue #<N>)
-
-<descrição do dilema>
-
-1. <opção 1>
-2. <opção 2>
-3. <opção 3>
-
-Recomendação do agente: <opção e justificativa>
-```
-
-Após resposta do usuário, comunique a decisão ao sub-agente via `SendMessage`.
-Se "permitir para este agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras do mesmo tipo daquele agente.
-
-Se a resposta exigir **redespachar** um novo `Agent()` (em vez de só `SendMessage` no agente já
-ativo) — ex.: "Parar agente" seguido de nova tentativa, ou qualquer redespacho para um worktree que
-já existe — **NÃO** passe `isolation: "worktree"` (ver nota na Fase 4): despache sem isolamento e
-instrua `cd` explícito para o path existente no prompt do worker.
+Se a resposta exigir **redespachar** um novo `Agent()` para um worktree que já existe, **NÃO**
+passe `isolation: "worktree"` — ver a nota de redispatch na Fase 4.
 
 **5.c — Circuit Breaker (Disjuntor de Falhas)**
 - Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.
@@ -261,9 +237,9 @@ Quando um agente atingir `GREEN`:
 
 Se `worktree-ship` falhar (CI vermelho, review required), marque na tabela e continue com outros agentes.
 
-### 7 — Relatório final e Geração de Changelog
+### 7 — Relatório final
 
-Após todos os agentes terminarem (ou timeout de 90 minutos):
+Após todos os agentes terminarem (ou timeout de 90 minutos), apresente o relatório no chat:
 
 ```
 ## Coordinator Report
@@ -276,26 +252,6 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 
 Resumo: <N> merged, <M> falharam, <K> aguardando review.
 ```
-
-**Geração de Changelog Consolidado (Delegação ao Gemini):**
-Antes de finalizar, o coordenador gera o changelog a partir do histórico de commits da sessão.
-Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
-1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando Changelog Consolidado"`
-2. Execute o comando para gerar o rascunho de changelog a partir do diff/commits mesclados da sessão:
-   ```bash
-   git log origin/main...HEAD --oneline -200 | agy -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
-   ```
-3. O Claude valida o rascunho do Gemini, formata-o adequadamente e salva no arquivo `.claude/vetor/CHANGELOG.md`.
-
-Se o agy não estiver disponível, faça inline lendo o título e os commits dos PRs mergeados com sucesso e gerando no formato:
-```markdown
-# Changelog da Sessão Vetor — <data>
-
-## Melhorias Implementadas
-- **[Módulo] <título-da-issue> (#<N>)**: <descrição curta dos commits ou das mudanças realizadas>
-```
-
-Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar o changelog.
 
 ---
 
