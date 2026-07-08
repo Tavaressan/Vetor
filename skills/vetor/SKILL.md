@@ -26,11 +26,17 @@ Você é a skill de inicialização e configuração do Vetor. Sua missão é pr
 
 ### 1 — Garantir estrutura de diretórios
 
-Crie o diretório de configurações do Vetor no projeto-alvo:
+Crie os diretórios do Vetor no projeto-alvo e garanta que os status files dos workers
+(escritos em `.claude/vetor/status/` — ver
+`$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`) nunca sejam commitados:
 
 ```bash
-mkdir -p .claude/vetor
+mkdir -p .claude/vetor/status
+grep -qxF '.claude/vetor/status/' .gitignore 2>/dev/null || echo '.claude/vetor/status/' >> .gitignore
 ```
+
+A entrada no `.gitignore` é idempotente — este passo substitui qualquer ajuste de gitignore por
+worker.
 
 ### 2 — Configurar Mapeamento de Testes (`module-test-map.md`)
 
@@ -76,6 +82,7 @@ Após a criação/validação dos arquivos, exiba uma mensagem informativa clara
 Arquivos configurados:
 - [x] .claude/vetor/module-test-map.md (Mapeamento de testes por módulo)
 - [x] .claude/vetor/config.json (Configurações do plugin. maxConcurrentWorkers: 5)
+- [x] .claude/vetor/status/ (status files dos workers — gitignorado)
 
 Próximos passos recomendados:
 1. Abra e revise o arquivo `.claude/vetor/module-test-map.md` para garantir que os comandos de teste headless e os mapeamentos de pasta de seu projeto estejam 100% corretos.

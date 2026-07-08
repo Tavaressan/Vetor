@@ -34,19 +34,11 @@ Você é o agente de fix autônomo do Vetor. Sua missão é iterar sobre falhas 
 
 ### 0 — Guarda de contexto
 
-Verifique se está dentro de um worktree:
-
 ```bash
-git worktree list
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" in-worktree
 ```
 
-Se estiver no root:
-```
-ERRO: /fix-loop deve ser executado de dentro de um worktree.
-```
-**Aborte.**
-
-Extraia slug do path do worktree atual para uso no `AGENT_STATUS.md`.
+Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.
 
 ### 1 — Detectar módulos
 
@@ -58,38 +50,17 @@ git diff "$DEFAULT_BRANCH" --name-only
 
 Mapeie ao módulo usando a tabela do module-test-map.
 
-### 2 — Status file (KISS Status Tracker)
+### 2 — Status file
 
-Antes de cada iteração, atualize o arquivo de status. Siga as diretrizes de design de `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` (§3) mantendo a estrutura simples e focada (KISS/YAGNI/DRY):
+Antes de cada iteração, atualize o status file. Path e formato (estados, blocos obrigatórios de
+`BLOCKED_WAITING`): `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`.
+Se você foi despachado pelo `issue-coordinator`, use o path absoluto recebido no prompt; em uso
+manual, derive-o: `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md`
+(root via `git rev-parse --git-common-dir`).
 
-```bash
-# Escreva em .claude/worktrees/<slug>/AGENT_STATUS.md
-```
-
-Formato:
-```markdown
-# Agent Status — <branch>
-Updated: <ISO 8601 timestamp>
-Status: RUNNING
-Iteration: <N>/5
-Last action: <descrição da última ação>
-Next: <próximo passo planejado>
-
-## Progresso (KISS & TDD):
-- [ ] Teste de Reprodução Escrito (TDD)
-- [ ] Código de Correção Simples (KISS/YAGNI)
-- [ ] Validação de Regressões (DRY)
-```
-
-Se bloqueado por permissão ou decisão técnica, mude Status para `BLOCKED_WAITING` e descreva o que é necessário:
-```markdown
-Status: BLOCKED_WAITING
-Blocked on: <descrição do que precisa — permissão, decisão, etc.>
-Options:
-1. <opção sugerida>
-2. <opção alternativa>
-Recommendation: <qual opção o agente recomenda e por quê>
-```
+Se bloqueado por permissão ou decisão técnica, mude `Status` para `BLOCKED_WAITING` preenchendo os
+blocos `Blocked on` / `Options` / `Recommendation` do template — o coordinator escala ao usuário a
+partir deles.
 
 ### 3 — Loop principal (máximo N=5 iterações)
 
@@ -121,36 +92,25 @@ Se **verde** (todos os testes passaram):
 ```json
 {"status": "green", "iterations": <i>, "module": "<módulo>"}
 ```
-Atualize `AGENT_STATUS.md` com `Status: GREEN` e **pare**.
+Atualize o status file com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
-1. Leia a saída de erro. **Opcional (economia de tokens):** se `agy` estiver disponível, condense a saída antes de analisar. Primeiro imprima o log `echo "[Vetor:Gemini] Delegando tarefa: Condensando log de erro de testes"` e depois execute: `<comando-de-teste> 2>&1 | agy -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
-2. **Abordagem Test-Driven (TDD Rígido - §3.2)**: Se for a primeira iteração (`i=1`) e os testes ainda não estiverem falhando para o bug relatado, escreva um teste de reprodução simples que quebre. Só prossiga para alterar o código do produto após garantir que o teste está falhando (vermelho). Marque `[x] Teste de Reprodução Escrito` no status.
-3. **Resolução Simples (KISS/YAGNI - §3.2)**: Identifique a causa raiz e aplique a menor alteração de código atômica necessária para fazer o teste passar. Não faça refatorações especulativas ou limpezas fora de escopo.
+1. Leia a saída de erro. Opcional (economia de tokens): condense com `agy` — ver
+   `delegate-to-gemini.md` §1.
+2. **TDD**: se for a primeira iteração (`i=1`) e os testes ainda não falharem para o bug relatado,
+   escreva um teste de reprodução simples que quebre. Só altere o código do produto após o teste
+   estar vermelho.
+3. **KISS/YAGNI**: aplique a menor alteração atômica que faz o teste passar — sem refatoração
+   especulativa fora de escopo.
 4. Commit: `fix: <descrição curta do fix>`
-5. Atualize `AGENT_STATUS.md`
+5. Atualize o status file
 6. Continue para a próxima iteração
-
-**Opcional — investigação com hipóteses concorrentes (só uso manual, NÃO orquestrado).** Se a causa
-raiz não for óbvia após 1-2 iterações (ex.: falha intermitente, múltiplos subsistemas envolvidos) e
-`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` estiver habilitada, você pode instruir, em linguagem natural:
-
-> "Spawne N teammates com hipóteses diferentes sobre a causa raiz desta falha. Façam debate entre si
-> tentando refutar a hipótese um do outro; atualize este arquivo de status com o consenso que
-> emergir."
-
-**Restrição explícita:** isso só se aplica quando `/vetor:fix-loop` é invocado diretamente pelo
-usuário como lead da sessão. Quando `fix-loop-agent` roda pré-carregada dentro do subagente
-`issue-worker` (despachado pelo `issue-coordinator`), você já é um worker, não o lead — a
-documentação oficial de Agent Teams não confirma que um subagente possa abrir seu próprio time
-("no nested teams" está entre as limitações conhecidas). **Não tente spawnar teammates no caminho
-orquestrado.**
 
 ### 4 — Após N=5 falhas (Handover de Falha)
 
 Se o loop esgotar sem atingir verde:
 
-1. Atualize `AGENT_STATUS.md` com `Status: FAILED_MAX_ITERATIONS`.
+1. Atualize o status file com `Status: FAILED_MAX_ITERATIONS`.
 2. **Criar Handover de Falha (`FAIL_ANALYSIS.md`)**: Crie um arquivo markdown chamado `FAIL_ANALYSIS.md` no root do worktree atual contendo o diagnóstico da falha para o desenvolvedor humano:
 
 ```markdown
@@ -192,7 +152,7 @@ O agente de correção automática falhou após 5 iterações.
 
 ## Escalação ao coordinator
 
-Quando invocado pelo `issue-coordinator`, o `fix-loop-agent` comunica-se via `AGENT_STATUS.md`:
+Quando invocado pelo `issue-coordinator`, o `fix-loop-agent` comunica-se via status file:
 - `RUNNING`: iterando normalmente
 - `GREEN`: sucesso — pronto para `worktree-ship`
 - `BLOCKED_WAITING`: precisa de intervenção (permissão, decisão técnica)

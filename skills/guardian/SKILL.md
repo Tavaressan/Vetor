@@ -71,14 +71,14 @@ Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
    ```
 3. O Claude analisa a saída do Gemini e extrai os findings.
 
-Se o agy não estiver disponível, faça inline executando:
+Se o agy não estiver disponível, faça inline:
 ```bash
+# duplicatas de versão — mecanismo compartilhado com o worktree-ship §2.b
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" migrations
 ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 ```
-E analise manualmente:
-- Buracos de versão (ex.: V3 → V5 sem V4)
-- Versões duplicadas
-- Naming convention: `V<N>__<descrição>.sql`
+E analise a listagem manualmente para buracos de versão (ex.: V3 → V5 sem V4) e naming
+(`V<N>__<descrição>.sql`) — duplicatas já são cobertas pelo script acima.
 
 **Finding:** buraco de versão, duplicata ou naming inválido
 **Auto-fix:** nenhum — apenas reporta. Migrations são domínio do desenvolvedor.

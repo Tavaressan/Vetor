@@ -34,23 +34,13 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 ### 1 — Guarda de contexto
 
-Verifique se está dentro de um worktree:
-
 ```bash
-git worktree list
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" in-worktree
 ```
 
-Se o diretório atual for o root do repositório (e não um worktree em `.claude/worktrees/`):
-```
-ERRO: /worktree-ship deve ser executado de dentro de um worktree, não do root.
-Use /worktree-create para criar um worktree primeiro.
-```
-**Aborte.**
-
-Extraia a branch e o slug do worktree atual:
-```bash
-git branch --show-current
-```
+Se sair não-zero, **aborte**: `/worktree-ship` deve rodar de dentro de um worktree (use
+`/worktree-create` primeiro). Se passar, guarde a branch atual (`git branch --show-current`)
+para os passos seguintes.
 
 ### 2 — Sincronizar com a branch default
 
@@ -70,29 +60,15 @@ com testes contra uma base desatualizada.
 
 ### 2.b — Colisão de versão de migration (condicional)
 
-Colisão **semântica invisível ao git**: dois workers paralelos criam migrations com o mesmo número
-de versão (`V13__a.sql` e `V13__b.sql`) — arquivos distintos, sem conflito textual, e testes locais
-sem Docker não pegam. O ponto natural de detecção é **aqui**, logo após o merge do passo 2: o arquivo
-já mergeado do outro worker passa a coexistir com o do worker atual.
-
-Esta é uma variante focada e de *early-fail* da checagem de duplicatas do `guardian` (§2) — mesma
-convenção Flyway (`V<N>__<descrição>.sql`, diretório `*/db/migration`), mas escopada ao momento do
-sync e executada **antes dos testes locais**:
+Logo após o merge do passo 2 — **antes dos testes locais** — detecte colisões semânticas invisíveis
+ao git entre workers paralelos (dois arquivos com a mesma versão de migration, sem conflito textual):
 
 ```bash
-# colisão de versão de migration (convenção Flyway V<N>__*.sql; ver guardian §2)
-git ls-files '*/db/migration/V*__*.sql' \
-  | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort | uniq -d
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" migrations
 ```
 
-Se houver saída (um ou mais números duplicados), **pare antes dos testes locais**:
-```
-FALHA: colisão de versão de migration: V<N> usado por dois arquivos.
-Renumere a migration deste worker para a próxima versão livre antes de prosseguir.
-```
-O padrão é descrito com Flyway como exemplo, mas aplica-se a qualquer convenção de versionamento
-sequencial de arquivos. Se o projeto não usar migrations versionadas, a listagem sai vazia e o passo
-é um no-op.
+Se sair não-zero, **pare** e mostre a saída (ela lista os arquivos e instrui a renumeração).
+Projetos sem migrations versionadas: no-op. Mesma convenção Flyway do `guardian` §2.
 
 ### 3 — Detecção de módulos alterados
 
@@ -119,13 +95,14 @@ Saída: <últimas 30 linhas do log>
 ```
 **Pare.** Não faça push de código vermelho.
 
-### 4.b — Scan de Debugging (KISS Linting)
+### 4.b — Scan de debugging
 
-Antes de fazer o push, faça uma varredura estática rápida no diff em relação ao default branch buscando padrões temporários de depuração ou flags exclusivas de testes:
 ```bash
-git diff "$DEFAULT_BRANCH" --name-only | xargs egrep -n "console\.log|var_dump|fit\(|fdescribe\(|it\.only" 2>/dev/null
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "$DEFAULT_BRANCH"
 ```
-Se encontrar qualquer padrão de debugging ou testes exclusivos (`it.only`, etc.), **remova-os automaticamente** ou corrija-os antes de realizar o push, mantendo o código limpo (KISS).
+
+Se sair não-zero, remova os padrões apontados (debug temporário, `it.only` etc.) e commite antes
+do push.
 
 ### 5 — Push
 
@@ -133,7 +110,7 @@ Se encontrar qualquer padrão de debugging ou testes exclusivos (`it.only`, etc.
 git push -u origin <branch>
 ```
 
-Se falhar por rede, tente até 4 vezes com backoff exponencial (2s, 4s, 8s, 16s).
+Se falhar por rede, retente.
 
 ### 6 — Criar PR draft
 
@@ -142,16 +119,9 @@ Construa o título a partir dos commits:
 git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```
 
-#### Rascunho da Descrição do PR (Delegação ao Gemini):
-Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
-1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando corpo do Pull Request"`
-2. Execute o comando para gerar a descrição preliminar:
-   ```bash
-   git diff "origin/$DEFAULT_BRANCH"...HEAD | agy -p "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
-   ```
-3. O Claude valida a descrição gerada pelo Gemini, anexa `"Closes #<issue#>"` ao final (se `issue#` foi fornecida) junto com a nota `"🤖 Desenvolvido com [Claude Code](https://claude.ai/code)"` e usa o texto final no `--body`.
-
-Se o agy não estiver disponível, monte o `--body` com o template inline padrão:
+**Opcional (delegação ao Gemini):** para rascunhar o corpo do PR a partir do diff, ver
+`delegate-to-gemini.md` §4. Anexe `Closes #<issue#>` (se fornecida) e a nota do rodapé ao final.
+Caso contrário, monte o `--body` com o template inline padrão:
 ```markdown
 ## Resumo
 - <bullet points das mudanças principais, derivados dos commits>
@@ -231,41 +201,20 @@ Aguardando aprovação antes de prosseguir com merge.
 ### 10 — Merge e Auto-Resolução de Conflitos
 
 ```bash
-gh pr ready <PR-number>
-gh pr merge <PR-number> --squash --delete-branch
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-merge.sh" <PR-number>
 ```
 
-`gh pr merge` já é não-interativo quando invocado assim (sem prompt de confirmação) — a CLI atual
-não possui uma flag `--yes`/`-y` de auto-confirmação (verificado com `gh pr merge --help`; passá-la
-resulta em erro de flag desconhecida). Se uma versão futura da CLI introduzir prompts interativos
-nesse comando, confirme as flags disponíveis com `gh pr merge --help` antes de ajustar.
+O script faz `gh pr ready` + `gh pr merge --squash --delete-branch` e verifica o estado real do PR
+quando o `gh` sai não-zero (um erro de cleanup local da branch não é falha de merge):
+- **exit 0** — PR mergeado. Siga direto para o passo 11.
+- **exit 3** — merge não aconteceu. Entre no fluxo de resolução de conflitos abaixo.
 
-#### Se `gh pr merge` sair com erro: confirme o estado real do PR primeiro
+**Se o comando for negado pela camada de permissões do Claude Code** (classificador de auto-mode,
+motivo tipo "merge sem review") — barreira independente do `reviewDecision` já verificado no passo
+9: **pare, peça aprovação explícita ao usuário via `AskUserQuestion`** e só repita após o "sim".
+**Nunca** tente contornar a negação.
 
-Um código de saída não-zero **não** significa necessariamente que o merge remoto falhou. Antes de
-tratar o erro como conflito, verifique o estado real do PR:
-
-```bash
-gh pr view <PR-number> --json state,mergedAt,mergeCommit
-```
-
-- Se `state == MERGED` (com `mergedAt`/`mergeCommit` preenchidos): o merge remoto **teve sucesso**; o
-  erro veio do cleanup **local** da branch — tipicamente `fatal: '<default>' is already used by
-  worktree at ...`, que ocorre quando o root está na branch default enquanto worktrees paralelos
-  existem. Trate como **sucesso** e siga direto para o passo 11.
-- Só entre no fluxo de resolução de conflitos (subseção seguinte) se `state != MERGED`.
-
-#### Se o merge for negado pela camada de permissões do Claude Code (auto-mode)
-
-Distinto de um erro da CLI `gh`: o próprio Claude Code pode **negar** o `gh pr merge` via seu
-classificador de auto-mode, com motivo relacionado a "merge sem review". Essa é uma barreira
-**independente** do `reviewDecision` do GitHub já verificado no passo 9 — mesmo com o PR aprovado no
-GitHub, a negação pode ocorrer.
-
-Nesse caso: **pare, peça aprovação explícita ao usuário via `AskUserQuestion`** e só repita o comando
-após o "sim". **Nunca** tente contornar a negação.
-
-#### Se o merge falhar por conflito de branch com a branch default:
+#### Se o merge falhar por conflito de branch com a branch default (exit 3):
 1. Execute `git merge "$DEFAULT_BRANCH"` localmente no worktree.
 2. Identifique os arquivos conflitantes usando:
    ```bash
@@ -283,25 +232,19 @@ após o "sim". **Nunca** tente contornar a negação.
 
 ### 11 — Sincronizar root
 
+Volte para o root do repositório e sincronize com a branch default. Descubra o path do root
+(não assuma) e vá até ele:
+
 ```bash
-ExitWorktree
+ROOT=$(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)
+cd "$ROOT"
 git checkout "$DEFAULT_BRANCH"
 git pull origin "$DEFAULT_BRANCH"
 ```
 
-**Sobre o retorno de `ExitWorktree` — não trate como falha bloqueante.** No fluxo do
-`issue-coordinator`, que cria worktrees nativamente (via `git worktree add` / dispatch com
-`isolation:"worktree"`), `ExitWorktree` **frequentemente** não remove nada, e isso é o caminho
-**esperado e benigno**. Ele pode:
-- retornar `"it was not created by EnterWorktree, so this tool will not remove it"` (worktree
-  pré-existente entrado via `EnterWorktree({path})`), ou
-- ser no-op `"there is no active EnterWorktree session to exit"` (worktree criado fora de uma sessão
-  `EnterWorktree`).
-
-Em qualquer um dos casos, **prossiga normalmente** para `git checkout "$DEFAULT_BRANCH"` +
-`git pull` — a remoção efetiva do worktree e da branch é feita pelo passo 12 (`git worktree remove` /
-`git branch -d`). Isso é coerente com a restrição do `issue-coordinator` de que sub-agentes nunca
-chamam `EnterWorktree`/`ExitWorktree`.
+(Só numa sessão manual em que você entrou no worktree com `EnterWorktree` é preciso sair com
+`ExitWorktree` antes do `cd`; no fluxo orquestrado do `issue-coordinator`, sub-agentes nunca usam
+`EnterWorktree`/`ExitWorktree`.)
 
 Confirme:
 ```
@@ -310,9 +253,11 @@ Root sincronizado com <default-branch>. Branch <branch> mergeada e deletada remo
 
 ### 12 — Cleanup
 
-Se invocado pelo `issue-coordinator` (modo headless): execute cleanup automaticamente:
+Descubra o path real do worktree via `git worktree list` (não assuma a convenção de path — a
+localização é do harness). Se invocado pelo `issue-coordinator` (modo headless), execute o
+cleanup automaticamente:
 ```bash
-git worktree remove .claude/worktrees/<slug>
+git worktree remove "<path-do-worktree>"
 git branch -d <branch>
 ```
 

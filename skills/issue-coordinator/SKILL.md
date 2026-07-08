@@ -110,10 +110,14 @@ manual e utilize o modelo modificado no dispatch da Fase 4.
 
 ⚠️ **Esta fase é serializada** para evitar `git index lock` ao inicializar os worktrees nativos.
 
-Para cada grupo de issues (ou issue individual), o ecossistema do Antigravity/Claude Code gerencia a criação de forma nativa quando o subagente é invocado. O coordenador deve derivar os parâmetros:
+A criação e a **localização** do worktree são do harness (`isolation: "worktree"` no dispatch da
+Fase 4) — não assuma path de worktree. O coordenador deriva apenas:
 1. **Slug:** kebab-case derivado da Lead Issue (máx 30 chars).
-2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue.
-3. **Status File Path:** Caminho absoluto do status file: `.claude/worktrees/<slug>/AGENT_STATUS.md`.
+2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue — o worker a cria como primeiro passo
+   (`git checkout -b <branch>`).
+3. **Status File Path (absoluto, no root do repo):**
+   `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` — fica fora do worktree;
+   formato em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`.
 
 ### 4 — Fase de desenvolvimento (paralela, com teto de concorrência)
 
@@ -158,20 +162,22 @@ existe — retomada de uma sessão anterior, redespacho após resposta a um `BLO
 ou redespacho após `FAILED_MAX_ITERATIONS` — **NÃO** passe `isolation: "worktree"`: isso cria um
 worktree novo e desconectado do path pretendido, e a ferramenta `Write` recusa gravar no caminho
 correto quando o agente descobre a inconsistência. Nesse caso, despache **sem** o parâmetro
-`isolation` e instrua um `cd` explícito para o path do worktree existente (`.claude/worktrees/<slug>`)
-no prompt do worker.
+`isolation` e instrua um `cd` explícito para o path real do worktree existente (obtenha via
+`git worktree list`) no prompt do worker.
 
-**Nota (Antigravity) — suporte a subagente customizado:** O subagente `issue-worker` é registrado para o Google Antigravity através do arquivo [agent.json](file:///Users/vitortavares/Desktop/Projetos/Vetor/agents/issue-worker/agent.json), que define a especificação do agente (`customAgentSpec`), ferramentas compatíveis (ex. `run_command`, `view_file`, `replace_file_content`) e escopo de contexto, tornando-o invocável nativamente via `invoke_subagent` com o nome `vetor:issue-worker` (ou apenas `issue-worker` dependendo da resolução de escopo).
-
-Esta estrutura complementa o arquivo `agents/issue-worker.md` utilizado pelo Claude Code para auto-descoberta.
-
-**Sobre ferramentas MCP (Banco de Dados):** o `issue-worker` define `tools:` explicitamente em seu arquivo de definição, então ele **não** herda MCP automaticamente do contexto pai. Se um worker precisar de acesso a um MCP de banco de dados, adicione-o diretamente à lista de ferramentas permitidas.
+**Nota (Antigravity):** o `issue-worker` também é registrado para o Google Antigravity via
+`agents/issue-worker/agent.json` (`customAgentSpec`), complementando `agents/issue-worker.md`
+usado pelo Claude Code. Como ele define `tools:` explicitamente, **não** herda MCP do contexto
+pai — se um worker precisar de MCP (ex.: banco de dados), adicione-o à lista de ferramentas.
 
 **Prompt de execução sequencial para o worker:**
 Envie ao `issue-worker` a lista de tarefas a realizar:
 1. **Lead Issue:** #<N> (título, descrição, critérios de aceite).
 2. **Issues Sequenciais:** #<M1>, #<M2> (título, descrição, critérios de aceite).
-3. **Status File Path:** Instrua o worker a atualizar o arquivo de status absoluto `.claude/worktrees/<slug>/AGENT_STATUS.md` a cada iteração de cada issue do grupo. O formato do `AGENT_STATUS.md` deve refletir a issue atual em execução (ex.: `Iteration: 2/5 (Issue #<M1>)`). O `AGENT_STATUS.md` é um artefato de scratch — não faz parte do código do projeto: instrua o worker a garantir que ele esteja no `.gitignore` do projeto do usuário (ver `agents/issue-worker.md` §"O que fazer" item 5) e a nunca usar staging amplo (`git add -A`/`git add .`) ao commitar, para não capturá-lo por acidente.
+3. **Branch:** `<type>/<issue#>-<slug>` (Fase 3) — criar como primeiro passo no worktree.
+4. **Status File Path:** o path absoluto derivado na Fase 3. Instrua o worker a atualizá-lo a cada
+   iteração de cada issue do grupo, refletindo a issue atual (ex.: `Iteration: 2/5 (Issue #<M1>)`).
+   O arquivo fica fora do worktree — sem risco de commit acidental.
 
 Quando o worker concluir todas as issues do grupo com sucesso, ele deve marcar o status final como `GREEN`. Caso falhe em alguma, para e marca como `FAILED_MAX_ITERATIONS` especificando qual issue do grupo falhou.
 
@@ -181,73 +187,35 @@ Enquanto há agentes rodando, monitore periodicamente:
 
 **5.a — Tabela de status**
 
-Construa via fontes externas, não por estado interno de task:
-
 ```bash
-# Para cada worktree ativo
-cat .claude/worktrees/<slug>/AGENT_STATUS.md 2>/dev/null
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"
 ```
 
-Atualize a tabela no chat, incluindo os grupos ainda `QUEUED` (aguardando vaga no teto de
-concorrência da Fase 4):
-
-```
-## Status — <timestamp>
-
-| Issue | Worktree | Status | Iteração | Último action |
-|-------|----------|--------|----------|---------------|
-| #42 | slug-a | RUNNING | 2/5 | cargo test → 1 failure |
-| #43 | slug-b | GREEN | done | all tests passing |
-| #44 | slug-c | BLOCKED_WAITING | 3/5 | needs docker permission |
-| #45 | slug-d | QUEUED | — | aguardando vaga (teto: 5 workers simultâneos) |
-```
-
-Ao mover um grupo de `QUEUED` para despachado, siga o critério de fila (ordem de prioridade) da
-Fase 4.
+O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
+manualmente → `cancelled (worktree removed)`; não recrie) e imprime a tabela pronta. Reproduza-a
+no chat acrescentando as linhas dos grupos ainda `QUEUED` (aguardando vaga no teto da Fase 4).
+Ao mover um grupo de `QUEUED` para despachado, siga a ordem de prioridade da Fase 4.
 
 **5.b — Escalação de bloqueios**
 
-**A fonte de verdade da escalação é o `AGENT_STATUS.md`.** Se um worker sinalizar bloqueio apenas por
+**A fonte de verdade da escalação é o status file.** Se um worker sinalizar bloqueio apenas por
 chat, sem gravar `Status: BLOCKED_WAITING` com os blocos estruturados no arquivo, **não escale ainda**:
 instrua-o via `SendMessage` a gravar o `BLOCKED_WAITING` estruturado (`Blocked on` / `Options` /
 `Recommendation`) primeiro. Isso garante que o estado sobreviva a um reinício da sessão coordenadora.
 
-Se um agente estiver em `BLOCKED_WAITING`, leia o bloco `Blocked on` / `Options` / `Recommendation` do `AGENT_STATUS.md` e escale para o usuário via `AskUserQuestion`:
+Se um agente estiver em `BLOCKED_WAITING`, leia o bloco `Blocked on` / `Options` /
+`Recommendation` do status file e escale ao usuário via `AskUserQuestion`, identificando o agente
+(`<slug>` / Issue `#<N>`) e transmitindo a recomendação do agente. As opções dependem do tipo:
+- **Permissão bloqueada** (`<comando>`): permitir esta vez / permitir para este agente
+  (auto-aprova chamadas similares deste agente) / negar (registra "skipped") / parar agente.
+- **Decisão técnica**: as opções do bloco `Options` do status file.
 
-Para **permissões bloqueadas:**
-```
-🔒 Pedido de permissão — agente <slug> (Issue #<N>)
+Após a resposta, comunique a decisão ao sub-agente via `SendMessage`. Se "permitir para este
+agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras
+do mesmo tipo daquele agente.
 
-O agente precisa executar: <comando bloqueado>
-
-Contexto: <por que precisa>
-
-1. Permitir esta vez — executa e continua
-2. Permitir para este agente — auto-aprova chamadas similares deste agente
-3. Negar — agente registra "skipped" e continua sem
-4. Parar agente — encerra e preserva worktree
-```
-
-Para **decisões técnicas:**
-```
-❓ Decisão técnica — agente <slug> (Issue #<N>)
-
-<descrição do dilema>
-
-1. <opção 1>
-2. <opção 2>
-3. <opção 3>
-
-Recomendação do agente: <opção e justificativa>
-```
-
-Após resposta do usuário, comunique a decisão ao sub-agente via `SendMessage`.
-Se "permitir para este agente" foi escolhido, registre a permissão expandida em memória e auto-aprove chamadas futuras do mesmo tipo daquele agente.
-
-Se a resposta exigir **redespachar** um novo `Agent()` (em vez de só `SendMessage` no agente já
-ativo) — ex.: "Parar agente" seguido de nova tentativa, ou qualquer redespacho para um worktree que
-já existe — **NÃO** passe `isolation: "worktree"` (ver nota na Fase 4): despache sem isolamento e
-instrua `cd` explícito para o path existente no prompt do worker.
+Se a resposta exigir **redespachar** um novo `Agent()` para um worktree que já existe, **NÃO**
+passe `isolation: "worktree"` — ver a nota de redispatch na Fase 4.
 
 **5.c — Circuit Breaker (Disjuntor de Falhas)**
 - Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.
@@ -260,7 +228,7 @@ instrua `cd` explícito para o path existente no prompt do worker.
 
 Quando um agente atingir `GREEN`:
 
-1. Verifique que o worktree está de fato verde (leia `AGENT_STATUS.md`)
+1. Verifique que o worker está de fato verde (leia o status file do grupo)
 2. Execute `worktree-ship` para o worktree correspondente:
    ```
    /vetor:worktree-ship <issue#>
@@ -269,9 +237,9 @@ Quando um agente atingir `GREEN`:
 
 Se `worktree-ship` falhar (CI vermelho, review required), marque na tabela e continue com outros agentes.
 
-### 7 — Relatório final e Geração de Changelog
+### 7 — Relatório final
 
-Após todos os agentes terminarem (ou timeout de 90 minutos):
+Após todos os agentes terminarem (ou timeout de 90 minutos), apresente o relatório no chat:
 
 ```
 ## Coordinator Report
@@ -284,26 +252,6 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 
 Resumo: <N> merged, <M> falharam, <K> aguardando review.
 ```
-
-**Geração de Changelog Consolidado (Delegação ao Gemini):**
-Antes de finalizar, o coordenador gera o changelog a partir do histórico de commits da sessão.
-Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
-1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando Changelog Consolidado"`
-2. Execute o comando para gerar o rascunho de changelog a partir do diff/commits mesclados da sessão:
-   ```bash
-   git log origin/main...HEAD --oneline -200 | agy -p "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
-   ```
-3. O Claude valida o rascunho do Gemini, formata-o adequadamente e salva no arquivo `.claude/vetor/CHANGELOG.md`.
-
-Se o agy não estiver disponível, faça inline lendo o título e os commits dos PRs mergeados com sucesso e gerando no formato:
-```markdown
-# Changelog da Sessão Vetor — <data>
-
-## Melhorias Implementadas
-- **[Módulo] <título-da-issue> (#<N>)**: <descrição curta dos commits ou das mudanças realizadas>
-```
-
-Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar o changelog.
 
 ---
 
@@ -319,17 +267,9 @@ Se o diretório `.claude/vetor` não existir no projeto, crie-o antes de salvar 
 
 ---
 
-## Detecção de worktrees removidos manualmente
-
-A cada ciclo de monitoramento, verifique `git worktree list`. Se um worktree esperado não estiver mais lá:
-- Marque a issue como "cancelled (worktree removed manually)" na tabela
-- Não tente recriar o worktree
-
----
-
 ## Restrições
 
 - `worktree-create` e fase de merge são **sempre serializados** — nunca em paralelo
-- Fonte de verdade para status: `AGENT_STATUS.md` + `gh pr list` + `gh pr checks`
+- Fonte de verdade para status: status files (`.claude/vetor/status/`) + `gh pr list` + `gh pr checks`
 - Nunca chama `EnterWorktree` ou `ExitWorktree` por sub-agentes — cada Agent gerencia seu próprio contexto
-- Se interrompido e reiniciado, reconstrói estado via `git worktree list` + `gh pr list` — não depende de estado em memória
+- Se interrompido e reiniciado, reconstrói estado com `vetor-status.sh` + `gh pr list` — não depende de estado em memória
