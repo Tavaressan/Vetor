@@ -110,7 +110,7 @@ do push.
 git push -u origin <branch>
 ```
 
-Se falhar por rede, tente até 4 vezes com backoff exponencial (2s, 4s, 8s, 16s).
+Se falhar por rede, retente.
 
 ### 6 — Criar PR draft
 
@@ -119,16 +119,9 @@ Construa o título a partir dos commits:
 git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```
 
-#### Rascunho da Descrição do PR (Delegação ao Gemini):
-Se o CLI `agy` estiver disponível (verifique via `command -v agy`):
-1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando corpo do Pull Request"`
-2. Execute o comando para gerar a descrição preliminar:
-   ```bash
-   git diff "origin/$DEFAULT_BRANCH"...HEAD | agy -p "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
-   ```
-3. O Claude valida a descrição gerada pelo Gemini, anexa `"Closes #<issue#>"` ao final (se `issue#` foi fornecida) junto com a nota `"🤖 Desenvolvido com [Claude Code](https://claude.ai/code)"` e usa o texto final no `--body`.
-
-Se o agy não estiver disponível, monte o `--body` com o template inline padrão:
+**Opcional (delegação ao Gemini):** para rascunhar o corpo do PR a partir do diff, ver
+`delegate-to-gemini.md` §4. Anexe `Closes #<issue#>` (se fornecida) e a nota do rodapé ao final.
+Caso contrário, monte o `--body` com o template inline padrão:
 ```markdown
 ## Resumo
 - <bullet points das mudanças principais, derivados dos commits>
@@ -239,25 +232,19 @@ motivo tipo "merge sem review") — barreira independente do `reviewDecision` j�
 
 ### 11 — Sincronizar root
 
+Volte para o root do repositório e sincronize com a branch default. Descubra o path do root
+(não assuma) e vá até ele:
+
 ```bash
-ExitWorktree
+ROOT=$(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)
+cd "$ROOT"
 git checkout "$DEFAULT_BRANCH"
 git pull origin "$DEFAULT_BRANCH"
 ```
 
-**Sobre o retorno de `ExitWorktree` — não trate como falha bloqueante.** No fluxo do
-`issue-coordinator`, que cria worktrees nativamente (via `git worktree add` / dispatch com
-`isolation:"worktree"`), `ExitWorktree` **frequentemente** não remove nada, e isso é o caminho
-**esperado e benigno**. Ele pode:
-- retornar `"it was not created by EnterWorktree, so this tool will not remove it"` (worktree
-  pré-existente entrado via `EnterWorktree({path})`), ou
-- ser no-op `"there is no active EnterWorktree session to exit"` (worktree criado fora de uma sessão
-  `EnterWorktree`).
-
-Em qualquer um dos casos, **prossiga normalmente** para `git checkout "$DEFAULT_BRANCH"` +
-`git pull` — a remoção efetiva do worktree e da branch é feita pelo passo 12 (`git worktree remove` /
-`git branch -d`). Isso é coerente com a restrição do `issue-coordinator` de que sub-agentes nunca
-chamam `EnterWorktree`/`ExitWorktree`.
+(Só numa sessão manual em que você entrou no worktree com `EnterWorktree` é preciso sair com
+`ExitWorktree` antes do `cd`; no fluxo orquestrado do `issue-coordinator`, sub-agentes nunca usam
+`EnterWorktree`/`ExitWorktree`.)
 
 Confirme:
 ```
@@ -266,9 +253,11 @@ Root sincronizado com <default-branch>. Branch <branch> mergeada e deletada remo
 
 ### 12 — Cleanup
 
-Se invocado pelo `issue-coordinator` (modo headless): execute cleanup automaticamente:
+Descubra o path real do worktree via `git worktree list` (não assuma a convenção de path — a
+localização é do harness). Se invocado pelo `issue-coordinator` (modo headless), execute o
+cleanup automaticamente:
 ```bash
-git worktree remove .claude/worktrees/<slug>
+git worktree remove "<path-do-worktree>"
 git branch -d <branch>
 ```
 

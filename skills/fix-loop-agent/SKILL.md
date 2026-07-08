@@ -95,27 +95,16 @@ Se **verde** (todos os testes passaram):
 Atualize o status file com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
-1. Leia a saída de erro. **Opcional (economia de tokens):** se `agy` estiver disponível, condense a saída antes de analisar. Primeiro imprima o log `echo "[Vetor:Gemini] Delegando tarefa: Condensando log de erro de testes"` e depois execute: `<comando-de-teste> 2>&1 | agy -p "Resuma a causa raiz das falhas em até 15 linhas, citando arquivo:linha."`
-2. **Abordagem Test-Driven (TDD Rígido - §3.2)**: Se for a primeira iteração (`i=1`) e os testes ainda não estiverem falhando para o bug relatado, escreva um teste de reprodução simples que quebre. Só prossiga para alterar o código do produto após garantir que o teste está falhando (vermelho).
-3. **Resolução Simples (KISS/YAGNI - §3.2)**: Identifique a causa raiz e aplique a menor alteração de código atômica necessária para fazer o teste passar. Não faça refatorações especulativas ou limpezas fora de escopo.
+1. Leia a saída de erro. Opcional (economia de tokens): condense com `agy` — ver
+   `delegate-to-gemini.md` §1.
+2. **TDD**: se for a primeira iteração (`i=1`) e os testes ainda não falharem para o bug relatado,
+   escreva um teste de reprodução simples que quebre. Só altere o código do produto após o teste
+   estar vermelho.
+3. **KISS/YAGNI**: aplique a menor alteração atômica que faz o teste passar — sem refatoração
+   especulativa fora de escopo.
 4. Commit: `fix: <descrição curta do fix>`
 5. Atualize o status file
 6. Continue para a próxima iteração
-
-**Opcional — investigação com hipóteses concorrentes (só uso manual, NÃO orquestrado).** Se a causa
-raiz não for óbvia após 1-2 iterações (ex.: falha intermitente, múltiplos subsistemas envolvidos) e
-`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` estiver habilitada, você pode instruir, em linguagem natural:
-
-> "Spawne N teammates com hipóteses diferentes sobre a causa raiz desta falha. Façam debate entre si
-> tentando refutar a hipótese um do outro; atualize este arquivo de status com o consenso que
-> emergir."
-
-**Restrição explícita:** isso só se aplica quando `/vetor:fix-loop` é invocado diretamente pelo
-usuário como lead da sessão. Quando `fix-loop-agent` roda pré-carregada dentro do subagente
-`issue-worker` (despachado pelo `issue-coordinator`), você já é um worker, não o lead — a
-documentação oficial de Agent Teams não confirma que um subagente possa abrir seu próprio time
-("no nested teams" está entre as limitações conhecidas). **Não tente spawnar teammates no caminho
-orquestrado.**
 
 ### 4 — Após N=5 falhas (Handover de Falha)
 
