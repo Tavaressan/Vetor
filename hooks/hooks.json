@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/cc-safety-hook.sh\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/cc-safety-hook.sh\"",
+            "timeout": 300
           }
         ]
       }

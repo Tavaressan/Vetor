@@ -14,6 +14,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INPUT="$(cat)"
+
+# Fast bypass: safety-check.sh só age em "git push" e "gh pr (create|ready|merge)"
+# (ver scripts/safety-check.sh) — evita 2x python3 por chamada para todo o resto.
+if [[ ! "$INPUT" =~ git[[:space:]]+push ]] && [[ ! "$INPUT" =~ gh[[:space:]]+pr[[:space:]]+(create|ready|merge) ]]; then
+  exit 0
+fi
+
 COMMAND="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("tool_input", {}).get("command", ""))' <<<"$INPUT")"
 HOOK_CWD="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("cwd", ""))' <<<"$INPUT")"
 
