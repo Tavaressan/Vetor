@@ -32,6 +32,25 @@ correspondente.
    `issue-coordinator` acompanhar seu progresso. Ele fica fora do worktree, no root do repo —
    sem risco de commit acidental.
 
+## Instalação de dependências
+
+Se durante a execução você descobrir que dependências estão faltando no worktree (ex.: `node_modules` ausente, lockfile incompleto), **sempre instale dentro do diretório do módulo modificado**, nunca a partir da raiz do monorepo:
+
+```bash
+# ✅ Correto — instala isoladamente no módulo do worktree
+cd <módulo-alterado> && npm ci
+
+# ❌ Evite — modifica recursos compartilhados, pode ser bloqueado por permissão
+npm ci --workspace=<módulo>  # (a partir da raiz)
+```
+
+Rodando o instalador dentro do diretório do módulo:
+- Opera apenas no worktree, sem tocar no `node_modules` ou lockfile da raiz
+- Evita conflitos de permissão da camada de sandbox
+- Permite que workers paralelos instalem dependências de forma isolada e segura
+
+**Exceção:** Se o instalador de dependências do módulo já foi executado pelo `worktree-create` na criação, você não precisa repetir — proceda com os testes.
+
 
 ## Restrições
 
