@@ -119,6 +119,16 @@ Fase 4) — não assuma path de worktree. O coordenador deriva apenas:
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` — fica fora do worktree;
    formato em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`.
 
+⚠️ **O slug é só nominal — não é o path do worktree.** Ele serve unicamente para (a) compor o nome
+da branch e (b) compor o nome do arquivo de status (que fica FORA do worktree, em
+`.claude/vetor/status/`, então independe de onde o harness de fato materializa o worktree). Quando
+o dispatch usa `isolation: "worktree"` nativo, quem decide o path real do worktree é a
+plataforma/harness — **nunca** infira ou assuma que o worktree está em `.claude/worktrees/<slug>/`
+ou qualquer outra convenção derivada do slug. O worker despachado, ou qualquer agente que precise
+do path real do worktree (ex.: para instruir outro processo, ou para o `worktree-ship` na Fase 6),
+deve obtê-lo via `git worktree list` (correlacionando pela branch) ou pelo campo de retorno do
+`Agent()` ao concluir — nunca inferido do slug.
+
 ### 4 — Fase de desenvolvimento (paralela, com teto de concorrência)
 
 **Teto de workers simultâneos (economia de tokens):** cada subagente paralelo é uma instância Claude
