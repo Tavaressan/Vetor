@@ -17,11 +17,16 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 ```
 /coordinator [label]
 /coordinator <n1>,<n2>,...
+/coordinator
+/coordinator --resume
 ```
 
 - `[label]`: label das issues a despachar (default: `backlog`)
 - `<n1>,<n2>,...`: alternativa ao label — lista de números de issue separados por vírgula
   (ex.: `/coordinator 12,14,17`). Casa o regex `^[0-9]+(,[0-9]+)*$`.
+- **sem argumento** ou **`--resume`**: modo de retomada — reconstrói o estado a partir dos
+  worktrees/status files existentes e vai direto para monitoramento/ship, sem depender de label
+  ou lista de issues (ver Fase 0).
 
 ---
 
@@ -40,6 +45,22 @@ Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` 
 ---
 
 ## Comportamento
+
+### 0 — Detecção de modo
+
+Antes de qualquer outra fase, avalie o argumento recebido:
+
+- **Sem argumento** (`/coordinator` puro) ou **`--resume`**: entre em **modo de retomada**.
+  1. Rode `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"` para listar os worktrees ativos com
+     status file.
+  2. Se houver ao menos um status file ativo: **pule as Fases 1–4** e vá direto para o
+     monitoramento — monte a tabela de status (equivalente à Fase 5.a) e, para cada grupo em
+     `GREEN`, ofereça o ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>),
+     que está GREEN?"). Prossiga o restante do fluxo a partir da Fase 5/6 normalmente.
+  3. Se **não houver** nenhum worktree ativo com status file: caia no fluxo padrão — trate como se
+     fosse `/coordinator backlog` (Fase 1, label default `backlog`).
+- **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
+  da Fase 1, sem passar pelo modo de retomada.
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
