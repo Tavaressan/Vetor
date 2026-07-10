@@ -194,13 +194,40 @@ Não crie as issues imediatamente. Aguarde até que o usuário revise o plano e 
 ### 6 — Criar issues
 
 Após o usuário aprovar o plano de implementação:
+
+#### 6.a — Validar e mapear labels de tipo
+
+Antes de criar as issues, verifique quais labels existem no repositório alvo:
+
+```bash
+gh label list --limit 100 --json name
+```
+
+Com base no resultado, crie um mapeamento dos tipos de issue (`feat`, `fix`, `chore`, `refactor`, `test`) para os labels existentes no repo alvo, seguindo esta estratégia de fallback:
+
+| Tipo | Label Preferido | Fallback 1 | Fallback 2 | Ação se nenhum existir |
+|------|------------------|-----------|-----------|----------------------|
+| `feat` | `feat` | `feature` | `enhancement` | Omitir |
+| `fix` | `fix` | `bug` | — | Omitir |
+| `chore` | `chore` | — | — | Omitir |
+| `refactor` | `refactor` | `enhancement` | — | Omitir |
+| `test` | `test` | `tests` | — | Omitir |
+
+**Regra:** Use o primeiro label da linha que existir no repo alvo. Se nenhum existir, **omita completamente** o label de tipo da issue (mantendo apenas `backlog`, `ai-generated` e `<módulo>`).
+
+**Documentação do mapeamento:** Antes de criar cada issue, registre qual label de tipo será usado (ou que foi omitido) em um comentário interno da sessão, para rastreabilidade.
+
+#### 6.b — Rascunho opcional
+
 **Opcional (economia de tokens):** se `agy` estiver disponível, rascunhe o corpo de cada
 issue com ele antes de criar. Lembre-se de primeiro imprimir o log:
 `echo "[Vetor:Gemini] Delegando tarefa: Rascunhando corpo da issue <título>"`
 e então rodar:
 `agy -p "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) em PT-BR para: <título + âncora>"`. Revise e ancore o rascunho na documentação antes de prosseguir.
 
-Após aprovação, crie cada issue aprovada usando a CLI `gh`:
+#### 6.c — Criar as issues
+
+Após aprovação e validação dos labels, crie cada issue aprovada usando a CLI `gh`. Use o mapeamento de labels definido em 6.a:
 
   ```bash
   gh issue create \
@@ -220,19 +247,27 @@ Após aprovação, crie cada issue aprovada usando a CLI `gh`:
   🤖 Gerado por `/backlog` — [Claude Code](https://claude.ai/code)
   EOF
   )" \
-    --label "backlog,ai-generated"
+    --label "backlog,ai-generated,<módulo>,<tipo-mapeado>"
   ```
 
-O label `ai-generated` é **mandatório** — o `issue-coordinator` usa esse label para filtrar issues.
+Onde:
+- `<módulo>` é o nome do módulo da issue
+- `<tipo-mapeado>` é o resultado do mapeamento de 6.a (ou omitido se nenhum label de tipo existir)
 
-Após criação, imprima a lista de issues criadas com seus números:
+**Obs.:** O label `ai-generated` é **mandatório** — o `issue-coordinator` usa esse label para filtrar issues.
+
+#### 6.d — Validação e confirmação
+
+Após criação, imprima a lista de issues criadas com seus números e o mapeamento de labels usado:
 
 ```
 Issues criadas:
-- #<N1> — <título 1>
-- #<N2> — <título 2>
+- #<N1> — <título 1> [labels: backlog, ai-generated, <módulo>, <tipo-mapeado>]
+- #<N2> — <título 2> [labels: backlog, ai-generated, <módulo>, <tipo-mapeado>]
 ...
 ```
+
+Se alguma issue foi criada com labels de tipo omitidos, detalhe por quê na confirmação.
 
 ---
 

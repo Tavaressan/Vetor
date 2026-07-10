@@ -64,9 +64,28 @@ for dir in */; do
       module_cmd="cd $dir && go test ./..."
     elif [ -f "$dir/requirements.txt" ] || [ -f "$dir/pyproject.toml" ]; then
       module_cmd="cd $dir && pytest"
+    elif [ -f "$dir/build.gradle" ] || [ -f "$dir/build.gradle.kts" ] || [ -f "$dir/gradlew" ]; then
+      module_cmd="cd $dir && ./gradlew test"
     else
-      # fallback command
-      if [ "$LENG" != "unknown" ]; then
+      # Nothing found at this level; look one level below for nested modules
+      nested_dir=""
+      for sub in "$dir"/*/; do
+        sub=${sub%/}
+        if [ -f "$sub/package.json" ] || [ -f "$sub/requirements.txt" ] || [ -f "$sub/pyproject.toml" ]; then
+          nested_dir="$sub"
+          break
+        fi
+      done
+
+      if [ -n "$nested_dir" ] && [ -f "$nested_dir/package.json" ]; then
+        nested_cmd="npm test"
+        [ -f "$nested_dir/pnpm-lock.yaml" ] && nested_cmd="pnpm test"
+        [ -f "$nested_dir/yarn.lock" ] && nested_cmd="yarn test"
+        module_cmd="cd $nested_dir && $nested_cmd"
+      elif [ -n "$nested_dir" ]; then
+        module_cmd="cd $nested_dir && pytest"
+      elif [ "$LENG" != "unknown" ]; then
+        # fallback command
         module_cmd="cd $dir && $TEST_CMD"
       else
         module_cmd="cd $dir && echo 'Run tests' && exit 0"
