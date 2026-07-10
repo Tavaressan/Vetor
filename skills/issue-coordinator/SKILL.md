@@ -239,7 +239,14 @@ passe `isolation: "worktree"` — ver a nota de redispatch na Fase 4.
 Quando um agente atingir `GREEN`:
 
 1. Verifique que o worker está de fato verde (leia o status file do grupo)
-2. Execute `worktree-ship` para o worktree correspondente:
+2. `/vetor:worktree-ship` aborta se o `cwd` não for já um worktree (seu Passo 1) — o contexto do
+   coordinator é o root do repo, não o worktree do grupo. Descubra o path real do worktree
+   correlacionando pela branch do grupo e entre nele **antes** de invocar o comando:
+   ```bash
+   git worktree list   # localize a linha cuja branch é a do grupo (Fase 3)
+   cd <path-do-worktree-do-grupo>
+   ```
+   Só então execute:
    ```
    /vetor:worktree-ship <issue#>
    ```

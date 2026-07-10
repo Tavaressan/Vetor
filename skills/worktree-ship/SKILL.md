@@ -42,6 +42,11 @@ Se sair não-zero, **aborte**: `/worktree-ship` deve rodar de dentro de um workt
 `/worktree-create` primeiro). Se passar, guarde a branch atual (`git branch --show-current`)
 para os passos seguintes.
 
+**Nota (cwd é responsabilidade de quem invoca).** Este comando nunca muda de diretório por conta
+própria — quem o invoca a partir de um contexto diferente (ex.: o `issue-coordinator`, cujo
+contexto é o root do repo) deve fazer `cd` para o path real do worktree do grupo **antes** de
+chamar `/vetor:worktree-ship` (ver `issue-coordinator` Fase 6).
+
 ### 2 — Sincronizar com a branch default
 
 Antes de rodar testes locais e fazer push, sincronize o worktree com o estado atual da branch
