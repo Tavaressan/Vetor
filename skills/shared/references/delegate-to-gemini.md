@@ -27,6 +27,21 @@ depende nem gerencia esse cache. Não é necessário limpar esses arquivos manua
 
 ---
 
+## Negação de Permissão pelo Classificador de Auto-Mode
+
+Mesmo com o binário `agy` presente, a chamada pode ser **negada em runtime** pela camada de permissão/classificador de auto-mode do Claude Code — motivo típico é **exfiltração de dados** (envio de diff ou conteúdo de código confidencial para CLI externo não estabelecido como confiável).
+
+**Esta não é uma falha transiente de rede; é uma política de segurança.** Não deve ser retentado.
+
+Se a chamada ao `agy` com diff/conteúdo de código completo for negada:
+1. **Não retente** — a negação é consistente enquanto a política do ambiente não mudar
+2. **Use o fallback inline imediatamente** — monte a descrição, o resumo ou o rascunho manualmente usando o template padrão fornecido na skill (ex.: template de PR padrão em §6 do `worktree-ship`)
+3. **Prossiga sem atraso** — evita I/O desnecessário e mensagens de erro em sessões com auto-mode restritivo
+
+A delegação ao Gemini é **opcional e confortável para falhar**; a tarefa sempre tem um caminho inline viável.
+
+---
+
 ## Tarefas delegáveis (baixo risco, alto volume)
 
 ### 1. Resumir logs de CI / build
