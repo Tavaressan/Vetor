@@ -17,11 +17,16 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 ```
 /coordinator [label]
 /coordinator <n1>,<n2>,...
+/coordinator
+/coordinator --resume
 ```
 
 - `[label]`: label das issues a despachar (default: `backlog`)
 - `<n1>,<n2>,...`: alternativa ao label — lista de números de issue separados por vírgula
   (ex.: `/coordinator 12,14,17`). Casa o regex `^[0-9]+(,[0-9]+)*$`.
+- **sem argumento** ou **`--resume`**: modo de retomada — reconstrói o estado a partir dos
+  worktrees/status files existentes e vai direto para monitoramento/ship, sem depender de label
+  ou lista de issues (ver Fase 0).
 
 ---
 
@@ -40,6 +45,22 @@ Consulte `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` 
 ---
 
 ## Comportamento
+
+### 0 — Detecção de modo
+
+Antes de qualquer outra fase, avalie o argumento recebido:
+
+- **Sem argumento** (`/coordinator` puro) ou **`--resume`**: entre em **modo de retomada**.
+  1. Rode `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"` para listar os worktrees ativos com
+     status file.
+  2. Se houver ao menos um status file ativo: **pule as Fases 1–4** e vá direto para o
+     monitoramento — monte a tabela de status (equivalente à Fase 5.a) e, para cada grupo em
+     `GREEN`, ofereça o ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>),
+     que está GREEN?"). Prossiga o restante do fluxo a partir da Fase 5/6 normalmente.
+  3. Se **não houver** nenhum worktree ativo com status file: caia no fluxo padrão — trate como se
+     fosse `/coordinator backlog` (Fase 1, label default `backlog`).
+- **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
+  da Fase 1, sem passar pelo modo de retomada.
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
@@ -119,6 +140,16 @@ Fase 4) — não assuma path de worktree. O coordenador deriva apenas:
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` — fica fora do worktree;
    formato em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`.
 
+⚠️ **O slug é só nominal — não é o path do worktree.** Ele serve unicamente para (a) compor o nome
+da branch e (b) compor o nome do arquivo de status (que fica FORA do worktree, em
+`.claude/vetor/status/`, então independe de onde o harness de fato materializa o worktree). Quando
+o dispatch usa `isolation: "worktree"` nativo, quem decide o path real do worktree é a
+plataforma/harness — **nunca** infira ou assuma que o worktree está em `.claude/worktrees/<slug>/`
+ou qualquer outra convenção derivada do slug. O worker despachado, ou qualquer agente que precise
+do path real do worktree (ex.: para instruir outro processo, ou para o `worktree-ship` na Fase 6),
+deve obtê-lo via `git worktree list` (correlacionando pela branch) ou pelo campo de retorno do
+`Agent()` ao concluir — nunca inferido do slug.
+
 ### 4 — Fase de desenvolvimento (paralela, com teto de concorrência)
 
 **Teto de workers simultâneos (economia de tokens):** cada subagente paralelo é uma instância Claude
@@ -134,6 +165,17 @@ esse arquivo); na ausência de `.claude/vetor/config.json` ou da chave, **defaul
   próximo grupo `QUEUED` da fila, mantendo o número de workers ativos no teto.
 - Isto é **contabilidade real do coordinator, não um bloqueio de plataforma** — dependeria do
   coordinator de fato respeitar o teto a cada ciclo de monitoramento (Fase 5).
+
+⚠️ **Checagem de duplicidade (antes de despachar cada grupo).** Antes de chamar `Agent()` para um
+novo grupo, rode `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"` e cruze as issues do grupo
+candidato (Lead + Sequential) contra as issues já reportadas como "em andamento" (`Iteration: N/5
+(Issue #<M>)`) nos status files ativos (`RUNNING` ou `BLOCKED_WAITING`; `GREEN` ainda não mergeado
+também conta). Se qualquer issue do grupo já aparecer em um worktree ativo:
+- **Alerte** no chat (`⚠️ Issue #<M> já está em andamento no worktree/branch <outra-branch> —
+  pulando dispatch duplicado`) e **pule** o dispatch desse grupo, mantendo-o fora da fila até o
+  outro worker concluir ou ser cancelado.
+- Isso evita dois workers em worktrees diferentes convergindo para a mesma issue entre rodadas ou
+  sessões do coordinator.
 
 Despache um sub-agente por grupo de issues (respeitando o teto acima) utilizando a chamada do
 subagente nativo `issue-worker` com isolamento de worktree nativo (`isolation: "worktree"`):
@@ -194,6 +236,15 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"
 O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
 manualmente → `cancelled (worktree removed)`; não recrie) e imprime a tabela pronta. Reproduza-a
 no chat acrescentando as linhas dos grupos ainda `QUEUED` (aguardando vaga no teto da Fase 4).
+
+⚠️ **Detecção de workers duplicados na mesma issue.** Ao montar a tabela, extraia o número de issue
+de cada linha `Iteration: N/5 (Issue #<M>)` de todos os status files ativos (`RUNNING`,
+`BLOCKED_WAITING` ou `GREEN` ainda não mergeado) e cruze-os entre si. Se a mesma issue `#<M>`
+aparecer em mais de um worktree ativo, **sinalize** no chat junto à tabela:
+`⚠️ Issue #<M> em andamento simultaneamente em <slug-A> e <slug-B> — possível dispatch duplicado`.
+Isso normalmente indica um redespacho acidental entre rodadas/sessões (ver checagem equivalente na
+Fase 4 antes do dispatch); avalie com o usuário qual dos dois workers deve continuar e qual deve
+ser cancelado/descartado.
 Ao mover um grupo de `QUEUED` para despachado, siga a ordem de prioridade da Fase 4.
 
 **5.b — Escalação de bloqueios**
@@ -229,7 +280,14 @@ passe `isolation: "worktree"` — ver a nota de redispatch na Fase 4.
 Quando um agente atingir `GREEN`:
 
 1. Verifique que o worker está de fato verde (leia o status file do grupo)
-2. Execute `worktree-ship` para o worktree correspondente:
+2. `/vetor:worktree-ship` aborta se o `cwd` não for já um worktree (seu Passo 1) — o contexto do
+   coordinator é o root do repo, não o worktree do grupo. Descubra o path real do worktree
+   correlacionando pela branch do grupo e entre nele **antes** de invocar o comando:
+   ```bash
+   git worktree list   # localize a linha cuja branch é a do grupo (Fase 3)
+   cd <path-do-worktree-do-grupo>
+   ```
+   Só então execute:
    ```
    /vetor:worktree-ship <issue#>
    ```
