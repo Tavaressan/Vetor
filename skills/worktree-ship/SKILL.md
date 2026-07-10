@@ -230,7 +230,33 @@ motivo tipo "merge sem review") — barreira independente do `reviewDecision` j�
    - Roda `git checkout --theirs <lockfile-path>` para aceitar a versão da branch padrão e limpar os marcadores de conflito textuais.
    - Execute o instalador correspondente do projeto (ex: `npm install`, `pnpm install`, `cargo build`, `poetry lock --no-update`) para que o próprio gerenciador de pacotes regenere o lockfile de forma correta e reconciliada.
    - Adicione a resolução com `git add <lockfile-path>`.
-4. Para os demais arquivos de código conflitantes, localize as seções com marcadores de conflito (`<<<<<<<`, `=======`, `>>>>>>>`), mescle logicamente as regras de negócio e remova os marcadores.
+3.b. **Resolução de Conflitos Aditivos em Listas (Múltiplos Workers Paralelos)**:
+   Se houver conflitos **na mesma linha** de campos que concatenam ou agrupam itens de forma aditiva (ex.: 
+   `"test"` e outros campos `"scripts"` em `package.json`, arrays JSON, ou strings que concatenam com 
+   `&&`), e ambas as versões **só adicionam itens sem remover nada do outro lado**:
+   - **Identifique o padrão:** Examine os dois lados do conflito (`<<<<<<<` ... `=======` ... `>>>>>>>`). 
+     Se ambos expandem a lista sem truncar, aplique **união aditiva** em vez de escolher um lado.
+   - **Exemplo concreto** (package.json):
+     ```json
+     <<<<<<< HEAD
+     "scripts": {
+       "test": "jest unit && npm run lint"
+     }
+     =======
+     "scripts": {
+       "test": "jest unit && npm run e2e"
+     }
+     >>>>>>> origin/master
+     ```
+     Resolução (unir ambas):
+     ```json
+     "scripts": {
+       "test": "jest unit && npm run lint && npm run e2e"
+     }
+     ```
+   - **Remova duplicatas:** Se o resultado contiver o mesmo comando duas vezes, mantenha apenas uma cópia.
+   - **Adicione a resolução:** `git add <arquivo>`.
+4. Para os demais arquivos de código conflitantes (que não sejam lockfiles nem listas aditivas puras), localize as seções com marcadores de conflito (`<<<<<<<`, `=======`, `>>>>>>>`), mescle logicamente as regras de negócio e remova os marcadores.
 5. Execute os testes do módulo correspondente via `module-test-map`.
 6. **Se os testes passarem:** Commite a resolução (`merge branch '$DEFAULT_BRANCH' and resolve conflicts`), faça `git push origin <branch>` e volte ao passo 7 (monitoramento do CI).
 7. **Se os testes falharem:** Chame o `fix-loop-agent` localmente para corrigir o código. Se as iterações estourarem sem obter testes verdes, aborte o merge, preserve o worktree e alerte o usuário.
