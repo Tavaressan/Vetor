@@ -86,6 +86,21 @@ já deveria ter sido resolvida na criação do worktree (`worktree-create` §4.b
 instalação aparecer aqui mesmo assim, é sinal de dependência faltante não coberta por aquele passo —
 reporte isso no `BLOCKED_WAITING`, não tente resolver com `rm`/reinstalação ampla por conta própria.
 
+**Regra de instalação de dependências em worktrees:** se descobrir que dependências estão faltando no worktree durante testes (ex.: `node_modules` ausente, lockfile incompleto), **instale sempre dentro do diretório do módulo**, nunca a partir da raiz do monorepo com flags de workspace:
+
+```bash
+# ✅ Correto — instala isoladamente no worktree
+cd <módulo-alterado> && npm ci
+
+# ❌ Evite — toca recursos compartilhados, pode ser bloqueado por permissão
+npm ci --workspace=<módulo>  # (a partir da raiz)
+```
+
+Isso garante que:
+- A instalação opera apenas no worktree, sem afetar a raiz do monorepo
+- Não há conflitos de permissão com a camada de sandbox
+- Workers paralelos podem instalar dependências de forma isolada
+
 **3.b — Avaliar resultado**
 
 Se **verde** (todos os testes passaram):
