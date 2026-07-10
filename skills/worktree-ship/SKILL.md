@@ -120,8 +120,11 @@ git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```
 
 **Opcional (delegação ao Gemini):** para rascunhar o corpo do PR a partir do diff, ver
-`delegate-to-gemini.md` §4. Anexe `Closes #<issue#>` (se fornecida) e a nota do rodapé ao final.
-Caso contrário, monte o `--body` com o template inline padrão:
+`delegate-to-gemini.md` §4. Se a chamada ao `agy` for **negada pelo classificador de permissão** do
+ambiente (motivo típico: exfiltração de dados), **não retente** — use imediatamente o template inline
+padrão (ver abaixo). Essa negação não é transiente; é uma política. Anexe `Closes #<issue#>` (se fornecida) 
+e a nota do rodapé ao final.
+Caso contrário (ou se negada), monte o `--body` com o template inline padrão:
 ```markdown
 ## Resumo
 - <bullet points das mudanças principais, derivados dos commits>
@@ -166,6 +169,8 @@ Para cada falha detectada no monitoramento do CI:
    echo "[Vetor:Gemini] Delegando tarefa: Condensando logs de CI do PR"
    gh run view <run-id> --log-failed | agy -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver."
    ```
+   Se a chamada ao `agy` for **negada pelo classificador de permissão** do ambiente, **não retente** — leia 
+   o log bruto diretamente e proceda à análise manual. Essa negação não é transiente; é uma política. 
    Avalie a natureza do erro:
    - **Erro Transiente (Rede/Timeout de Infraestrutura):** Se o erro for de conexão, falha de API externa temporária ou timeout do próprio runner do CI, **não altere o código**. Aguarde 30 segundos e dispare uma nova verificação ou re-run de testes via CLI (`gh run rerun <run-id>`). Use backoff exponencial de até 3 tentativas.
    - **Erro de Código (Lint/Compilação/Teste Falho):** Siga para o passo de correção abaixo.
