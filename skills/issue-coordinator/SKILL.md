@@ -166,6 +166,17 @@ esse arquivo); na ausência de `.claude/vetor/config.json` ou da chave, **defaul
 - Isto é **contabilidade real do coordinator, não um bloqueio de plataforma** — dependeria do
   coordinator de fato respeitar o teto a cada ciclo de monitoramento (Fase 5).
 
+⚠️ **Checagem de duplicidade (antes de despachar cada grupo).** Antes de chamar `Agent()` para um
+novo grupo, rode `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"` e cruze as issues do grupo
+candidato (Lead + Sequential) contra as issues já reportadas como "em andamento" (`Iteration: N/5
+(Issue #<M>)`) nos status files ativos (`RUNNING` ou `BLOCKED_WAITING`; `GREEN` ainda não mergeado
+também conta). Se qualquer issue do grupo já aparecer em um worktree ativo:
+- **Alerte** no chat (`⚠️ Issue #<M> já está em andamento no worktree/branch <outra-branch> —
+  pulando dispatch duplicado`) e **pule** o dispatch desse grupo, mantendo-o fora da fila até o
+  outro worker concluir ou ser cancelado.
+- Isso evita dois workers em worktrees diferentes convergindo para a mesma issue entre rodadas ou
+  sessões do coordinator.
+
 Despache um sub-agente por grupo de issues (respeitando o teto acima) utilizando a chamada do
 subagente nativo `issue-worker` com isolamento de worktree nativo (`isolation: "worktree"`):
 
@@ -225,6 +236,15 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"
 O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
 manualmente → `cancelled (worktree removed)`; não recrie) e imprime a tabela pronta. Reproduza-a
 no chat acrescentando as linhas dos grupos ainda `QUEUED` (aguardando vaga no teto da Fase 4).
+
+⚠️ **Detecção de workers duplicados na mesma issue.** Ao montar a tabela, extraia o número de issue
+de cada linha `Iteration: N/5 (Issue #<M>)` de todos os status files ativos (`RUNNING`,
+`BLOCKED_WAITING` ou `GREEN` ainda não mergeado) e cruze-os entre si. Se a mesma issue `#<M>`
+aparecer em mais de um worktree ativo, **sinalize** no chat junto à tabela:
+`⚠️ Issue #<M> em andamento simultaneamente em <slug-A> e <slug-B> — possível dispatch duplicado`.
+Isso normalmente indica um redespacho acidental entre rodadas/sessões (ver checagem equivalente na
+Fase 4 antes do dispatch); avalie com o usuário qual dos dois workers deve continuar e qual deve
+ser cancelado/descartado.
 Ao mover um grupo de `QUEUED` para despachado, siga a ordem de prioridade da Fase 4.
 
 **5.b — Escalação de bloqueios**
