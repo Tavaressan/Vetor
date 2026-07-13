@@ -6,8 +6,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/cc-safety-hook.sh\"",
+            "command": "deno run -A \"${CLAUDE_PLUGIN_ROOT}/scripts/safety-check.ts\"",
             "timeout": 300
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run -A \"${CLAUDE_PLUGIN_ROOT}/scripts/prepare-worktree.ts\"",
+            "timeout": 600
           }
         ]
       }

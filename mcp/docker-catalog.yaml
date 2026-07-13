@@ -1,0 +1,41 @@
+# Catálogo MCP mínimo do Vetor — expõe apenas o servidor `docker` oficial.
+#
+# Por que este arquivo existe: o servidor `docker` (Docker Inc., Apache-2.0) está publicado
+# em github.com/docker/mcp-registry (servers/docker/server.yaml), mas NÃO faz parte do
+# catálogo distribuído `mcp/docker-mcp-catalog:latest` — que só traz servidores do tipo
+# `image`, nenhum `poci`. Sem este catálogo, `docker mcp gateway run --servers docker`
+# sobe com "0 tools listed".
+#
+# Spec copiada de docker/mcp-registry @ servers/docker/server.yaml.
+#
+# ATENÇÃO: monta /var/run/docker.sock — a ferramenta executa o Docker CLI com o poder do
+# daemon. É inerente a qualquer MCP de Docker. Desabilite o servidor se não quiser essa
+# superfície.
+registry:
+  docker:
+    title: Docker
+    description: Use the Docker CLI.
+    type: poci
+    meta:
+      category: devops
+      tags:
+        - docker
+    tools:
+      - name: docker
+        description: use the docker cli
+        parameters:
+          type: object
+          properties:
+            args:
+              type: array
+              description: Arguments to pass to the Docker command
+              items:
+                type: string
+          required:
+            - args
+        container:
+          image: docker:cli
+          command:
+            - "{{args|into}}"
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock

@@ -26,7 +26,7 @@ Resolva nesta ordem:
 1. Verifique se `.claude/vetor/module-test-map.md` existe no projeto-alvo.
 2. Se não existir, alerte o desenvolvedor que o ambiente não está inicializado e recomende rodar a skill `/vetor` para configurá-lo corretamente. Como fallback de execução automática, execute o script de auto-detecção:
    ```bash
-   $CLAUDE_PLUGIN_ROOT/scripts/auto-detect.sh
+   deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/detect-project.ts"
    ```
    Imprima no console do desenvolvedor:
    `echo "[Vetor:AutoSetup] ATENÇÃO: Configuração não encontrada. Recomenda-se rodar o comando /vetor para inicializar. Gerado mapeamento temporário em .claude/vetor/module-test-map.md"`

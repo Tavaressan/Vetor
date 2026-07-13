@@ -74,6 +74,6 @@ e do `fix-loop-agent` (não replique estes parágrafos nas skills):
 * **KISS/YAGNI no código**: a menor alteração que faz o teste passar; sem refatoração oportunista
   em arquivos adjacentes nem abstrações "para o futuro".
 * **Reuso antes de reinventar**: rotinas complexas (detecção de testes, checagens de git) já podem
-  estar em `scripts/` (ex.: `auto-detect.sh`, `vetor-checks.sh`) ou nas referências — verifique
+  estar em `scripts/` (ex.: `detect-project.ts`, `vetor-checks.sh`) ou nas referências — verifique
   antes de escrever lógica inline.
 

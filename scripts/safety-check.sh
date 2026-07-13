@@ -1,8 +1,9 @@
 #!/bin/bash
-# Safety gate do Vetor — política compartilhada entre ecossistemas.
-# Antigravity: chamado direto pelo hooks.json da raiz (matcher run_command).
-# Claude Code: chamado pelo adaptador scripts/cc-safety-hook.sh (PreToolUse), que
-# posiciona o cwd no diretório da chamada interceptada antes de delegar.
+# Safety gate do Vetor — versão Antigravity (chamado pelo hooks.json da raiz,
+# matcher run_command). Recebe o comando como argumentos.
+#
+# O Claude Code usa scripts/safety-check.ts (Deno), que espelha esta política.
+# Mantenha as duas em sincronia ao alterar as regras.
 #
 # Recebe o comando como argumentos. Exit 1 = violação (o adaptador traduz para
 # exit 2, que é o código de bloqueio do Claude Code).

@@ -24,6 +24,19 @@ Você é a skill de inicialização e configuração do Vetor. Sua missão é pr
 
 ## Comportamento
 
+### 0 — Verificar pré-requisitos
+
+O Vetor executa seus scripts com Deno. Confirme que ele está disponível:
+
+```bash
+deno --version
+```
+
+Se o comando falhar, **pare** e instrua a instalação — sem Deno, o hook de segurança e a preparação
+de dependências dos worktrees não funcionam:
+- macOS/Linux: `curl -fsSL https://deno.land/install.sh | sh`
+- Windows: `winget install DenoLand.Deno`
+
 ### 1 — Garantir estrutura de diretórios
 
 Crie os diretórios do Vetor no projeto-alvo e garanta que os status files dos workers
@@ -38,50 +51,38 @@ grep -qxF '.claude/vetor/status/' .gitignore 2>/dev/null || echo '.claude/vetor/
 A entrada no `.gitignore` é idempotente — este passo substitui qualquer ajuste de gitignore por
 worker.
 
-### 2 — Configurar Mapeamento de Testes (`module-test-map.md`)
+### 2 — Detectar o projeto (`module-test-map.md` + `config.json`)
 
-O mapeamento de testes é essencial para que skills como `worktree-ship` e `fix-loop-agent` saibam como rodar testes de forma automatizada.
+Um único script detecta o runtime, gera o mapeamento de testes e persiste a configuração:
 
-1. Verifique se o arquivo `.claude/vetor/module-test-map.md` já existe.
-2. **Se o arquivo já existir** e a flag `--force` **não** foi fornecida:
-   - Reporte que o arquivo já existe e mantenha o conteúdo atual intacto.
-3. **Se o arquivo não existir** ou a flag `--force` **oi** fornecida:
-   - Execute o script de auto-detecção padrão:
-     ```bash
-     $CLAUDE_PLUGIN_ROOT/scripts/auto-detect.sh
-     ```
-   - Se o script de auto-detecção reportar sucesso, informe a criação do arquivo.
-   - Se o script falhar ou não encontrar comandos, use o template padrão como fallback:
-     ```bash
-     cp "$CLAUDE_PLUGIN_ROOT/skills/shared/references/module-test-map.template.md" \
-        .claude/vetor/module-test-map.md
-     ```
+```bash
+deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/detect-project.ts" [--force]
+```
 
-### 3 — Configurar Parâmetros globais (`config.json`)
+Repasse o `--force` recebido nos args. Sem ele, o script preserva um `module-test-map.md`
+existente e responde `{"status":"skipped"}`.
 
-O arquivo `.claude/vetor/config.json` define variáveis comportamentais do plugin, como o limite de concorrência de subagentes.
+O script grava:
+- `.claude/vetor/module-test-map.md` — comandos de teste por módulo;
+- `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados, preservando
+  o `maxConcurrentWorkers` (default 5). O `prepare-worktree.ts` lê isso para saber como preparar
+  cada worktree.
 
-1. Verifique se o arquivo `.claude/vetor/config.json` já existe.
-2. **Se o arquivo não existir** ou a flag `--force` **foi** fornecida:
-   - Crie o arquivo `.claude/vetor/config.json` com a configuração padrão de concorrência inicializada para 5 workers:
-     ```json
-     {
-       "maxConcurrentWorkers": 5
-     }
-     ```
-     (Caso `--force` seja passado e o arquivo já exista, sobrescreva-o para garantir o valor padrão de 5, ou relate se foi mantido).
-3. **Se o arquivo já existir** e a flag `--force` **não** foi fornecida, preserve o conteúdo atual.
+Se o runtime sair como `unknown`, avise o usuário de que o `module-test-map.md` precisa de ajuste
+manual — as skills de teste dependem dele.
 
-### 4 — Exibir Sumário de Configuração e Próximos Passos
+### 3 — Exibir Sumário de Configuração e Próximos Passos
 
 Após a criação/validação dos arquivos, exiba uma mensagem informativa clara e amigável para o desenvolvedor:
 
 ```
 🚀 Vetor inicializado com sucesso em .claude/vetor/!
 
+Runtime detectado: <runtime> (<testCommand>)
+
 Arquivos configurados:
 - [x] .claude/vetor/module-test-map.md (Mapeamento de testes por módulo)
-- [x] .claude/vetor/config.json (Configurações do plugin. maxConcurrentWorkers: 5)
+- [x] .claude/vetor/config.json (runtime detectado + maxConcurrentWorkers: 5)
 - [x] .claude/vetor/status/ (status files dos workers — gitignorado)
 
 Próximos passos recomendados:
