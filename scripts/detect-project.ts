@@ -5,15 +5,28 @@
 // Substitui scripts/auto-detect.sh. Diferenças: --force funciona de verdade e o
 // runtime detectado é persistido em vez de descartado.
 
-import { detectProject, type ProjectInfo, readJson } from "./lib/project.ts";
+import { detectConventions, detectProject, type ProjectInfo, readJson } from "./lib/project.ts";
+import { renderRules, RULES_DIR } from "./lib/rules.ts";
 
 const TARGET_DIR = ".claude/vetor";
 const MAP_FILE = `${TARGET_DIR}/module-test-map.md`;
 const CONFIG_FILE = `${TARGET_DIR}/config.json`;
 
 const IGNORED_DIRS = new Set([
-  ".git", ".github", ".claude", "node_modules", "target", "build", "dist",
-  "venv", ".venv", "tests", "docs", "legacy", "coverage", ".vscode",
+  ".git",
+  ".github",
+  ".claude",
+  "node_modules",
+  "target",
+  "build",
+  "dist",
+  "venv",
+  ".venv",
+  "tests",
+  "docs",
+  "legacy",
+  "coverage",
+  ".vscode",
 ]);
 
 function exists(path: string): boolean {
@@ -68,7 +81,9 @@ function detectModules(root: ProjectInfo): Module[] {
 function renderMap(root: ProjectInfo, modules: Module[]): string {
   const rows = modules.length > 0
     ? modules.map((m) => `| \`${m.name}\` | \`${m.command}\` | Auto-detectado |`).join("\n")
-    : `| \`root\` | \`${root.testCommand || "AJUSTE: comando de teste não detectado"}\` | Módulo raiz |`;
+    : `| \`root\` | \`${
+      root.testCommand || "AJUSTE: comando de teste não detectado"
+    }\` | Módulo raiz |`;
 
   const mapping = modules.length > 0
     ? modules.map((m) => `| \`${m.name}/\` | \`${m.name}\` |`).join("\n")
@@ -120,29 +135,51 @@ function writeConfig(info: ProjectInfo): void {
   Deno.writeTextFileSync(CONFIG_FILE, JSON.stringify(config, null, 2) + "\n");
 }
 
+/** Mesmo contrato do map: arquivo existente é preservado sem --force. */
+function writeRules(root: ProjectInfo, force: boolean) {
+  const files = renderRules(root, detectConventions("."));
+  const created: string[] = [];
+  const skipped: string[] = [];
+
+  if (files.length === 0) return { created, skipped };
+
+  Deno.mkdirSync(RULES_DIR, { recursive: true });
+  for (const file of files) {
+    if (exists(file.path) && !force) {
+      skipped.push(file.path);
+      continue;
+    }
+    Deno.writeTextFileSync(file.path, file.content);
+    created.push(file.path);
+  }
+
+  return { created, skipped };
+}
+
 function main() {
   const force = Deno.args.includes("--force");
-
-  if (exists(MAP_FILE) && !force) {
-    console.log(JSON.stringify({ status: "skipped", reason: "already_exists", path: MAP_FILE }));
-    return;
-  }
+  const mapExisted = exists(MAP_FILE);
+  // A guarda é por arquivo: um map preexistente não impede a geração das rules, senão
+  // quem já rodou o /vetor antes só as receberia com --force — que destruiria o map.
+  const mapSkipped = mapExisted && !force;
 
   Deno.mkdirSync(TARGET_DIR, { recursive: true });
 
   const root = detectProject(".");
   const modules = detectModules(root);
 
-  Deno.writeTextFileSync(MAP_FILE, renderMap(root, modules));
+  if (!mapSkipped) Deno.writeTextFileSync(MAP_FILE, renderMap(root, modules));
   writeConfig(root);
+  const rules = writeRules(root, force);
 
   console.log(JSON.stringify({
-    status: force && exists(MAP_FILE) ? "overwritten" : "created",
+    status: mapSkipped ? "skipped" : mapExisted ? "overwritten" : "created",
     runtime: root.runtime,
     packageManager: root.packageManager,
     testCommand: root.testCommand,
     modules: modules.map((m) => m.name),
     path: MAP_FILE,
+    rules,
   }));
 }
 
