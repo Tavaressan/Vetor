@@ -58,7 +58,9 @@ async function prepareDeps(worktreePath: string, sourceDir: string): Promise<voi
     }
 
     const pm = info.packageManager ?? "npm";
-    const args = pm === "npm" ? ["ci", "--prefer-offline", "--no-audit"] : ["install"];
+    const args = pm === "npm"
+      ? ["ci", "--prefer-offline", "--no-audit"]
+      : ["install"];
     const { code, stderr } = await run(pm, args, worktreePath);
     if (code !== 0) console.error(`AVISO: ${pm} install falhou no worktree: ${stderr.trim()}`);
     return;

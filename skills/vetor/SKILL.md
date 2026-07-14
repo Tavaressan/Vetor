@@ -89,6 +89,8 @@ Após a criação/validação dos arquivos, exiba uma mensagem informativa clara
 
 Runtime detectado: <runtime> (<testCommand>)
 
+Runtime detectado: <runtime> (<testCommand>)
+
 Arquivos configurados:
 - [x] .claude/vetor/module-test-map.md (Mapeamento de testes por módulo)
 - [x] .claude/vetor/config.json (runtime detectado + maxConcurrentWorkers: 5)
