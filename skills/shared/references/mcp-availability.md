@@ -35,6 +35,7 @@ correta é estática (olhar a lista), não uma tentativa em runtime.
 
 | Observabilidade (Sentry/Datadog) | `mcp__sentry__` / `mcp__datadog__` | `backlog-ideator` §2.a (opcional) |
 | Banco de dados | `mcp__<db>__` (nome depende do MCP configurado) | `guardian` (auditoria de schema/queries) |
+| Docker | `mcp__docker__` | `guardian` (auditoria de saúde de containers) |
 
 Cada skill que referencia este documento deve nomear o servidor esperado (ex.: "Observabilidade" na seção
 acima) antes de aplicar o mecanismo — este documento define *como* checar, não *quais* servidores
