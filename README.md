@@ -212,7 +212,36 @@ Primitivos compostos por skills de nível superior. A Fase 4 do coordinator desp
 
 ### Subagente nativo
 
-**`agents/issue-worker.md`** — subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução (o push para branches protegidas também é bloqueado por hook `PreToolUse`); pré-carrega a skill `fix-loop-agent` via campo `skills:`.
+**`agents/issue-worker.md`** — subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução; pré-carrega a skill `fix-loop-agent` via campo `skills:`. O que é aplicado por hook, e não por instrução: push para branch protegida, push/PR de worker não-GREEN, escrita fora do worktree e encerramento sem status file (ver "Hooks").
+
+### Hooks
+
+Hooks disparam **dentro dos subagentes** (o payload traz `agent_id`/`agent_type`), então são o único
+mecanismo que aplica uma política de fato — instrução em prompt o agente pode ignorar.
+
+| Evento | Matcher | Script | O que faz |
+|--------|---------|--------|-----------|
+| `PreToolUse` | `Bash\|Edit\|Write` | `safety-check.ts` | Barra push para branch protegida; barra push/PR de worker não-GREEN; barra escrita fora do worktree (exceto o status file) |
+| `PostToolUse` | `Edit\|Write` | `check-edit.ts` | Roda o typecheck no arquivo editado e injeta o erro no contexto do agente |
+| `SubagentStop` | `vetor:issue-worker` | `check-status.ts` | Impede o worker de encerrar sem status file em estado terminal |
+| `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor` |
+| `WorktreeCreate` | — | `prepare-worktree.ts` | Cria o worktree e prepara as dependências |
+
+O `check-edit.ts` existe para poupar iterações do fix-loop: sem ele, um erro de tipo ou import quebrado
+só apareceria ao **rodar o teste**, e cada descoberta dessas queima uma das 5 iterações do worker.
+Com ele, o erro volta junto com o resultado do próprio `Edit`. Só age em `.ts`/`.tsx`, tem timeout de
+20s e **fica em silêncio quando não há erro**.
+
+### Convenções do projeto (`.claude/rules/vetor/`)
+
+O `/vetor` gera rules com frontmatter `paths`, que o Claude Code carrega **apenas** quando lê um
+arquivo casando com o glob — custo zero de contexto quando irrelevante. Cada linha corresponde a um
+fato lido do repositório (`deno.json`, `package.json`, arquivos de config do formatador/linter);
+o que não foi detectado não vira regra, porque uma convenção inventada faria o worker "consertar"
+código correto.
+
+Rules ficam no subdiretório `vetor/` para não pisar nas suas, e não são sobrescritas sem `--force`.
+**Commite-as**: os workers rodam em worktrees, que só contêm arquivos rastreados pelo git.
 
 ### Arquivos de referência compartilhados
 
