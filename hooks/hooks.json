@@ -2,12 +2,47 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Edit|Write",
         "hooks": [
           {
             "type": "command",
             "command": "deno run -A \"${CLAUDE_PLUGIN_ROOT}/scripts/safety-check.ts\"",
             "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run -A \"${CLAUDE_PLUGIN_ROOT}/scripts/check-edit.ts\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "vetor:issue-worker",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run -A \"${CLAUDE_PLUGIN_ROOT}/scripts/check-status.ts\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run -A \"${CLAUDE_PLUGIN_ROOT}/scripts/session-check.ts\"",
+            "timeout": 30
           }
         ]
       }

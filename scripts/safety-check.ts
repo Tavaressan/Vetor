@@ -1,18 +1,26 @@
-// Safety gate do Vetor para o Claude Code (hook PreToolUse, matcher Bash).
+// Safety gate do Vetor para o Claude Code (hook PreToolUse, matcher Bash|Edit|Write).
 //
 // Substitui scripts/cc-safety-hook.sh, que dependia de `python3` no PATH — ausente no
 // Windows, onde o interpretador costuma se chamar `python`. Sob `set -euo pipefail`
 // aquele hook morria em silêncio e o gate não era aplicado.
 //
 // Contrato do Claude Code: recebe o evento em JSON no stdin; exit 2 BLOQUEIA a chamada.
-// Espelha a política de scripts/safety-check.sh, que segue servindo ao Antigravity.
+// Espelha a política de scripts/safety-check.sh, que segue servindo ao Antigravity —
+// exceto pelo guard de escrita, que o Antigravity não tem como aplicar (lá o matcher só
+// cobre run_command).
+//
+// Duas políticas:
+//   Bash        — não empurrar para branch protegida; não fazer push/PR de worker não-GREEN.
+//   Edit/Write  — dentro de um worktree, não escrever fora dele.
 
-import { run } from "./lib/project.ts";
+import { isWriteAllowed } from "./lib/guard.ts";
+import { readStatus, resolveWorktree, statusFilePath } from "./lib/status.ts";
 
 const PROTECTED_BRANCHES = ["main", "master", "production"];
 
 interface HookInput {
-  tool_input?: { command?: string };
+  tool_name?: string;
+  tool_input?: { command?: string; file_path?: string };
   cwd?: string;
 }
 
@@ -31,33 +39,42 @@ function pushDestination(command: string): string | null {
   return last.split(":")[0];
 }
 
-async function checkNonGreenWorker(command: string, cwd: string): Promise<void> {
-  if (!/git push|gh pr (create|ready|merge)/.test(command)) return;
-
-  const gitDir = (await run("git", ["rev-parse", "--git-dir"], cwd)).stdout.trim();
-  const commonDir = (await run("git", ["rev-parse", "--git-common-dir"], cwd)).stdout.trim();
-  // git-dir != git-common-dir apenas em worktree linkado.
-  if (!gitDir || gitDir === commonDir) return;
-
-  const branch = (await run("git", ["branch", "--show-current"], cwd)).stdout.trim();
-  const root = (await run("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd))
-    .stdout.trim().replace(/\/?\.git\/?$/, "");
-  if (!branch || !root) return;
-
-  const statusFile = `${root}/.claude/vetor/status/${branch.replaceAll("/", "-")}.md`;
-  let content: string;
-  try {
-    content = Deno.readTextFileSync(statusFile);
-  } catch {
-    // Sem status file, a branch não pertence ao fluxo do coordinator: não interfere.
-    return;
+async function checkBash(command: string, cwd: string): Promise<void> {
+  const dest = pushDestination(command);
+  if (dest && PROTECTED_BRANCHES.includes(dest)) {
+    blocked(
+      "ERROR: Push to protected branches (main, master, production) is prohibited by Vetor Safety Hook.",
+    );
   }
 
-  const status = content.match(/^Status: *(.+)$/m)?.[1]?.trim();
+  if (!/git push|gh pr (create|ready|merge)/.test(command)) return;
+
+  const wt = await resolveWorktree(cwd);
+  if (!wt?.isLinked) return;
+
+  const status = readStatus(statusFilePath(wt.root, wt.branch));
+  // Sem status file, a branch não pertence ao fluxo do coordinator: não interfere.
+  if (status === null) return;
+
   if (status !== "GREEN") {
     blocked(
-      `ERROR: worker não-GREEN (Status: ${status ?? "desconhecido"}) — push/PR bloqueado pelo Vetor Safety Hook.\n` +
+      `ERROR: worker não-GREEN (Status: ${
+        status || "desconhecido"
+      }) — push/PR bloqueado pelo Vetor Safety Hook.\n` +
         "Registre BLOCKED_WAITING no status file se precisar de intervenção; o worktree-ship faz a entrega após GREEN.",
+    );
+  }
+}
+
+async function checkWrite(filePath: string, cwd: string): Promise<void> {
+  const wt = await resolveWorktree(cwd);
+  if (!wt?.isLinked) return;
+
+  if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
+    blocked(
+      `ERROR: escrita fora do worktree bloqueada pelo Vetor Safety Hook: ${filePath}\n` +
+        `O worker só escreve dentro de ${wt.toplevel} (e no seu status file). Editar a raiz ` +
+        "contamina os demais workers em paralelo.",
     );
   }
 }
@@ -73,17 +90,16 @@ async function main() {
     Deno.exit(0);
   }
 
-  const command = input.tool_input?.command;
-  if (!command) Deno.exit(0);
+  const cwd = input.cwd ?? Deno.cwd();
 
-  const dest = pushDestination(command);
-  if (dest && PROTECTED_BRANCHES.includes(dest)) {
-    blocked(
-      "ERROR: Push to protected branches (main, master, production) is prohibited by Vetor Safety Hook.",
-    );
+  if (input.tool_name === "Edit" || input.tool_name === "Write") {
+    const filePath = input.tool_input?.file_path;
+    if (filePath) await checkWrite(filePath, cwd);
+    Deno.exit(0);
   }
 
-  await checkNonGreenWorker(command, input.cwd ?? Deno.cwd());
+  const command = input.tool_input?.command;
+  if (command) await checkBash(command, cwd);
   Deno.exit(0);
 }
 
