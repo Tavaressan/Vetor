@@ -84,26 +84,21 @@ AVISO: git pull falhou — criando worktree a partir da <default-branch> local.
 
 Se `git worktree add` falhar, reporte o erro e aborte.
 
-### 4.b — Preparar Dependências (Instalação Concorrente-Safe e Reuso de Cache)
+### 4.b — Preparar dependências
 
-Como a criação de worktrees é executada de forma serializada/sequencial, aproveite este momento seguro para preparar as dependências do novo diretório:
-1. Verifique se `node_modules` já está presente no diretório do worktree `.claude/worktrees/<slug>` (isso ocorre se a configuração nativa do Claude Code `worktree.symlinkDirectories: ["node_modules"]` estiver ativa). Se já existir, pule a preparação de dependências do Node e prossiga.
-2. Detecte o ecossistema do projeto-alvo a partir dos arquivos presentes no root.
-3. Para projetos **Node** (onde exista `node_modules` no root do projeto principal e não esteja no worktree):
-   - Crie as dependências no worktree `.claude/worktrees/<slug>` preferencialmente copiando ou linkando do root principal para evitar re-instalação lenta e prevenir conflitos com hooks de pre-commit (Husky/lint-staged):
-     - **Link Simbólico (Rápido/Recomendado)**: Crie um link simbólico apontando para o `node_modules` do root:
-       ```bash
-       ln -s ../../../node_modules node_modules
-       ```
-     - **Cópia Otimizada (Clone CoW se link falhar ou para isolamento físico)**:
-       - No macOS (APFS): `cp -Rc ../../../node_modules node_modules`
-       - No Linux: `cp -a --reflink=auto ../../../node_modules node_modules`
-   - Se o `node_modules` do root não existir, ou se a criação do link/cópia falhar, realize o fallback de instalação a partir do diretório do worktree:
-     - **Node (pnpm)**: `pnpm install` (concorrente-safe e instantâneo via hard-links).
-     - **Node (npm)**: `npm ci --prefer-offline --no-audit` (rápido e limpo).
-     - **Node (yarn)**: `yarn install --prefer-offline`.
-4. Para projetos **Python (poetry)**: Execute `poetry install --no-root` a partir do diretório do worktree.
-5. Se a preparação de dependências falhar, imprima `AVISO: Falha ao preparar dependências no worktree. A compilação/teste local poderá falhar.`, mas continue (KISS/tolerância a falhas).
+Delegue ao script determinístico — ele detecta o runtime e faz o que couber (Deno puro é no-op,
+pois o cache `$DENO_DIR` já é global; Node ganha um link para o `node_modules` da raiz):
+
+```bash
+deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/prepare-worktree.ts" --path .claude/worktrees/<slug>
+```
+
+O script é tolerante a falhas: avisa em stderr e sai com 0 mesmo se a preparação falhar. Prossiga
+normalmente — o worker instala o que faltar.
+
+> No fluxo do `issue-coordinator`, o worktree é criado pelo harness (`isolation: "worktree"`) e a
+> preparação roda sozinha via hook `WorktreeCreate`. Esta chamada só é necessária aqui, no uso
+> standalone do skill.
 
 ### 5 — Entrar no worktree
 

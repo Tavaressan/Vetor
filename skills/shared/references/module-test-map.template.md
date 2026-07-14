@@ -33,9 +33,10 @@ ser **headless** (sem interação) e retornar exit code 0 em caso de sucesso.
 <!--
 Exemplo ilustrativo (remova após preencher):
 
-| `backend`       | `cd backend && npm ci && npm run lint && npm test`      | Lint + unit |
+| `api`           | `cd api && deno task test`                              | Deno; deps vêm do cache global |
+| `core`          | `cd core && deno test -A`                               | Deno sem task `test` definida |
+| `backend`       | `cd backend && npm ci && npm run lint && npm test`      | Node: lint + unit |
 | `backend-integ` | `cd backend && npm run test:integration`                | Requer DB vivo; pular em sandbox |
-| `frontend`      | `cd frontend && npm ci && npm run lint && npm run build`| Lint + build |
 -->
 
 ## Detecção de módulo por arquivos alterados

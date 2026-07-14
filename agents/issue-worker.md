@@ -34,22 +34,23 @@ correspondente.
 
 ## Instalação de dependências
 
-Se durante a execução você descobrir que dependências estão faltando no worktree (ex.: `node_modules` ausente, lockfile incompleto), **sempre instale dentro do diretório do módulo modificado**, nunca a partir da raiz do monorepo:
+O hook `WorktreeCreate` já preparou as dependências quando o worktree foi criado (em Deno puro não
+há nada a preparar — o cache `$DENO_DIR` é global e compartilhado). **Não reinstale por precaução:**
+só aja se um teste falhar por dependência ausente.
+
+Se precisar instalar, faça **dentro do diretório do módulo modificado**, nunca a partir da raiz do
+monorepo com flags de workspace (que tocam recursos compartilhados e podem ser bloqueadas por
+permissão):
 
 ```bash
 # ✅ Correto — instala isoladamente no módulo do worktree
-cd <módulo-alterado> && npm ci
+cd <módulo-alterado> && <deno install | npm ci | pnpm install>
 
-# ❌ Evite — modifica recursos compartilhados, pode ser bloqueado por permissão
+# ❌ Evite — modifica recursos compartilhados
 npm ci --workspace=<módulo>  # (a partir da raiz)
 ```
 
-Rodando o instalador dentro do diretório do módulo:
-- Opera apenas no worktree, sem tocar no `node_modules` ou lockfile da raiz
-- Evita conflitos de permissão da camada de sandbox
-- Permite que workers paralelos instalem dependências de forma isolada e segura
-
-**Exceção:** Se o instalador de dependências do módulo já foi executado pelo `worktree-create` na criação, você não precisa repetir — proceda com os testes.
+O instalador correto vem do `runtime`/`packageManager` gravados em `.claude/vetor/config.json`.
 
 
 ## Restrições

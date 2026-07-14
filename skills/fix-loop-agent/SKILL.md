@@ -86,20 +86,22 @@ já deveria ter sido resolvida na criação do worktree (`worktree-create` §4.b
 instalação aparecer aqui mesmo assim, é sinal de dependência faltante não coberta por aquele passo —
 reporte isso no `BLOCKED_WAITING`, não tente resolver com `rm`/reinstalação ampla por conta própria.
 
-**Regra de instalação de dependências em worktrees:** se descobrir que dependências estão faltando no worktree durante testes (ex.: `node_modules` ausente, lockfile incompleto), **instale sempre dentro do diretório do módulo**, nunca a partir da raiz do monorepo com flags de workspace:
+**Regra de instalação de dependências em worktrees:** as dependências já foram preparadas na criação
+do worktree pelo hook `WorktreeCreate` (`scripts/prepare-worktree.ts`) — em Deno puro não há nada a
+preparar, pois o cache `$DENO_DIR` é global. Só instale se o teste falhar por dependência ausente.
+
+Nesse caso, **instale sempre dentro do diretório do módulo**, nunca a partir da raiz do monorepo com
+flags de workspace (que tocam recursos compartilhados e podem ser bloqueadas por permissão):
 
 ```bash
-# ✅ Correto — instala isoladamente no worktree
-cd <módulo-alterado> && npm ci
+# ✅ Correto — instala isoladamente no worktree, com o instalador do runtime do projeto
+cd <módulo-alterado> && <deno install | npm ci | pnpm install>
 
-# ❌ Evite — toca recursos compartilhados, pode ser bloqueado por permissão
+# ❌ Evite — toca recursos compartilhados
 npm ci --workspace=<módulo>  # (a partir da raiz)
 ```
 
-Isso garante que:
-- A instalação opera apenas no worktree, sem afetar a raiz do monorepo
-- Não há conflitos de permissão com a camada de sandbox
-- Workers paralelos podem instalar dependências de forma isolada
+O instalador correto vem do `runtime`/`packageManager` gravados em `.claude/vetor/config.json`.
 
 **3.b — Avaliar resultado**
 

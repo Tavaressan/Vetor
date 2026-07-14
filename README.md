@@ -9,8 +9,13 @@ Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix aut
 ## Pré-requisitos
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
+- [Deno](https://deno.com) no PATH — o Vetor roda seus scripts (safety hook, preparação de worktree, auto-detecção) com Deno, o que garante o mesmo comportamento em Windows, macOS e Linux
+  - macOS/Linux: `curl -fsSL https://deno.land/install.sh | sh`
+  - Windows: `winget install DenoLand.Deno`
 - `gh` CLI autenticado (para issues, PRs, CI)
 - Git com suporte a worktrees (`git worktree`)
+- *(opcional)* Node/`npx` — necessário apenas para o MCP `chrome-devtools`
+- *(opcional)* Docker com o plugin `docker mcp` — necessário apenas para o MCP `docker`
 - *(opcional)* `agy` CLI no PATH para delegação de tarefas ao Gemini
 
 ---
@@ -23,6 +28,26 @@ Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix aut
 ```
 
 Pronto. Os comandos ficam disponíveis com o prefixo `/vetor:`. Não é preciso copiar pastas nem editar o `CLAUDE.md` do projeto.
+
+Depois, rode **`/vetor`** no projeto-alvo: ele detecta o runtime, gera o mapeamento de testes e grava a configuração em `.claude/vetor/`.
+
+---
+
+## MCPs incluídos
+
+O plugin já traz três servidores MCP. O Claude Code usa *tool search* por padrão, então os schemas ficam diferidos e o custo de contexto é baixo.
+
+| Servidor | Para quê | Requer |
+|----------|----------|--------|
+| `context7` | Documentação atualizada de bibliotecas, direto na sessão | Nada. A API key é opcional (só aumenta o rate limit) e é pedida na habilitação do plugin |
+| `chrome-devtools` | Dirigir o Chrome: navegar, screenshot, rede, performance trace, Lighthouse | Node (`npx`) e Chrome |
+| `docker` | O Docker CLI inteiro (`ps`, `logs`, `stats`, `compose`, `exec`) via o servidor **oficial da Docker Inc.** — uma única ferramenta | Docker + plugin `docker mcp` |
+
+Sobre o servidor `docker`:
+
+- Ele é o [servidor oficial](https://github.com/docker/mcp-registry) da Docker (Apache-2.0), mas **não faz parte do catálogo distribuído** (`mcp/docker-mcp-catalog:latest` só traz servidores do tipo `image`). Por isso o plugin embarca `mcp/docker-catalog.yaml` e passa `--catalog` ao gateway. Sem isso, `docker mcp gateway run --servers docker` sobe com *0 tools*.
+- **Sem Docker Desktop recente:** o gateway roda em Docker Engine/CE — baixe o binário do [docker/mcp-gateway](https://github.com/docker/mcp-gateway) para `~/.docker/cli-plugins/` e, se necessário, exporte `DOCKER_MCP_IN_CONTAINER=1`.
+- ⚠️ **Superfície de risco:** a ferramenta monta `/var/run/docker.sock` e executa o Docker CLI com o poder do daemon. É inerente a qualquer MCP de Docker. Remova o servidor do `.mcp.json` se não quiser essa superfície.
 
 ---
 
@@ -133,6 +158,10 @@ Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do pr
       "Bash(git worktree remove:*)",
       "Bash(git worktree list:*)",
       "Bash(agy:*)",
+      "Bash(deno run:*)",
+      "Bash(deno task:*)",
+      "Bash(deno test:*)",
+      "Bash(deno install:*)",
       "Bash(npm ci:*)",
       "Bash(npm test:*)",
       "Bash(npm run *:*)",
@@ -183,7 +212,36 @@ Primitivos compostos por skills de nível superior. A Fase 4 do coordinator desp
 
 ### Subagente nativo
 
-**`agents/issue-worker.md`** — subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução (o push para branches protegidas também é bloqueado por hook `PreToolUse`); pré-carrega a skill `fix-loop-agent` via campo `skills:`.
+**`agents/issue-worker.md`** — subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução; pré-carrega a skill `fix-loop-agent` via campo `skills:`. O que é aplicado por hook, e não por instrução: push para branch protegida, push/PR de worker não-GREEN, escrita fora do worktree e encerramento sem status file (ver "Hooks").
+
+### Hooks
+
+Hooks disparam **dentro dos subagentes** (o payload traz `agent_id`/`agent_type`), então são o único
+mecanismo que aplica uma política de fato — instrução em prompt o agente pode ignorar.
+
+| Evento | Matcher | Script | O que faz |
+|--------|---------|--------|-----------|
+| `PreToolUse` | `Bash\|Edit\|Write` | `safety-check.ts` | Barra push para branch protegida; barra push/PR de worker não-GREEN; barra escrita fora do worktree (exceto o status file) |
+| `PostToolUse` | `Edit\|Write` | `check-edit.ts` | Roda o typecheck no arquivo editado e injeta o erro no contexto do agente |
+| `SubagentStop` | `vetor:issue-worker` | `check-status.ts` | Impede o worker de encerrar sem status file em estado terminal |
+| `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor` |
+| `WorktreeCreate` | — | `prepare-worktree.ts` | Cria o worktree e prepara as dependências |
+
+O `check-edit.ts` existe para poupar iterações do fix-loop: sem ele, um erro de tipo ou import quebrado
+só apareceria ao **rodar o teste**, e cada descoberta dessas queima uma das 5 iterações do worker.
+Com ele, o erro volta junto com o resultado do próprio `Edit`. Só age em `.ts`/`.tsx`, tem timeout de
+20s e **fica em silêncio quando não há erro**.
+
+### Convenções do projeto (`.claude/rules/vetor/`)
+
+O `/vetor` gera rules com frontmatter `paths`, que o Claude Code carrega **apenas** quando lê um
+arquivo casando com o glob — custo zero de contexto quando irrelevante. Cada linha corresponde a um
+fato lido do repositório (`deno.json`, `package.json`, arquivos de config do formatador/linter);
+o que não foi detectado não vira regra, porque uma convenção inventada faria o worker "consertar"
+código correto.
+
+Rules ficam no subdiretório `vetor/` para não pisar nas suas, e não são sobrescritas sem `--force`.
+**Commite-as**: os workers rodam em worktrees, que só contêm arquivos rastreados pelo git.
 
 ### Arquivos de referência compartilhados
 

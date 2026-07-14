@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "${user_config.context7_api_key}"
+      }
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest", "--isolated"]
+    },
+    "docker": {
+      "command": "docker",
+      "args": [
+        "mcp",
+        "gateway",
+        "run",
+        "--catalog",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/docker-catalog.yaml",
+        "--servers",
+        "docker"
+      ]
+    }
+  }
+}

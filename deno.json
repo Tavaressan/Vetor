@@ -1,0 +1,13 @@
+{
+  "tasks": {
+    "test": "deno test -A scripts/",
+    "fmt": "deno fmt scripts/",
+    "lint": "deno lint scripts/"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1"
+  },
+  "fmt": {
+    "lineWidth": 100
+  }
+}

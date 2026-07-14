@@ -231,9 +231,9 @@ motivo tipo "merge sem review") — barreira independente do `reviewDecision` j�
    git diff --name-only --diff-filter=U
    ```
 3. **Resolução de Conflitos em Lockfiles (KISS/YAGNI - §3.2)**: 
-   Se houver arquivos de lock na lista de conflitos (ex: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`, `poetry.lock`):
+   Se houver arquivos de lock na lista de conflitos (ex: `deno.lock`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`, `poetry.lock`):
    - Roda `git checkout --theirs <lockfile-path>` para aceitar a versão da branch padrão e limpar os marcadores de conflito textuais.
-   - Execute o instalador correspondente do projeto (ex: `npm install`, `pnpm install`, `cargo build`, `poetry lock --no-update`) para que o próprio gerenciador de pacotes regenere o lockfile de forma correta e reconciliada.
+   - Execute o instalador correspondente do projeto (ex: `deno install`, `npm install`, `pnpm install`, `cargo build`, `poetry lock --no-update`) para que o próprio gerenciador de pacotes regenere o lockfile de forma correta e reconciliada. O `runtime` gravado em `.claude/vetor/config.json` diz qual usar.
    - Adicione a resolução com `git add <lockfile-path>`.
 3.b. **Resolução de Conflitos Aditivos em Listas (Múltiplos Workers Paralelos)**:
    Se houver conflitos **na mesma linha** de campos que concatenam ou agrupam itens de forma aditiva (ex.: 
