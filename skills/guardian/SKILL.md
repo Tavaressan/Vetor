@@ -1,11 +1,11 @@
 ---
 name: guardian
-description: Audit + auto-fix de gaps que o pre-commit não cobre guiado por Planejamento. JSON validity, migrations, worktrees, uncommitted work, Dependabot.
+description: Audit + auto-fix de gaps que o pre-commit não cobre guiado por Planejamento. JSON validity, migrations, worktrees, uncommitted work, Dependabot, saúde de containers Docker.
 license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 Você é o guardião do Vetor. Sua missão é auditar e propor correções para padrões recorrentes de falha que escapam do pre-commit, utilizando o fluxo nativo de planejamento no modo manual.
@@ -130,6 +130,15 @@ Se estiver disponível, use as ferramentas de query para auditar a saúde estrut
 **Finding:** <detalhes da anomalia encontrada no banco>
 **Auto-fix:** nenhum — apenas reporta para o desenvolvedor analisar.
 
+### 7 — Auditoria de Saúde de Containers Docker (via MCP)
+
+Verifique disponibilidade de um MCP Docker conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure qualquer `mcp__docker__*` na sua lista de ferramentas — diretas ou diferidas). Se não houver, ignore este check silenciosamente.
+
+Se disponível, liste os containers do projeto com a ferramenta MCP equivalente a `docker ps`/`docker inspect` e identifique quais **não** estão em estado `running`/`healthy` (ex.: `exited`, `restarting`, `unhealthy`).
+
+**Finding:** container `<nome>` em estado `<status>` (esperado: running/healthy)
+**Auto-fix:** nenhum — apenas reporta. Diagnóstico e correção (logs, restart, rebuild) são domínio do desenvolvedor. Este check não valida especificidades de nenhuma stack (ex.: Flyway/JAR) — apenas o estado do container reportado pelo Docker.
+
 ---
 
 ## Relatório e Fluxo de Planejamento (Modo Manual)
@@ -151,6 +160,7 @@ Audit concluído. Mutações recomendadas abaixo.
 - [Aviso] Sequência de migrations com buracos ou timestamps incorretos
 - [Aviso] Trabalho não commitado no worktree: `<worktree-path>`
 - [Aviso] Worktree localizado fora do padrão: `<path>`
+- [Aviso] Container Docker fora de healthy/running: `<nome>` (`<status>`)
 
 ## Instruções de Aprovação
 Clique no botão **Proceed** no seu editor para autorizar o Guardian a aplicar os auto-fixes recomendados.
@@ -176,6 +186,7 @@ Após a execução (ou se nenhum finding necessitar de correção), produza o re
 - Worktrees: ✅ todos em .claude/worktrees/
 - Uncommitted work: ✅ nenhum
 - Dependabot: ✅ <N> PRs abertos, nenhum com conflito
+- Docker containers: ✅ <N> containers, todos healthy/running (ou "skipped — MCP indisponível")
 
 ### Skipped
 - <checks não executados e por quê>
