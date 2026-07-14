@@ -58,9 +58,7 @@ async function prepareDeps(worktreePath: string, sourceDir: string): Promise<voi
     }
 
     const pm = info.packageManager ?? "npm";
-    const args = pm === "npm"
-      ? ["ci", "--prefer-offline", "--no-audit"]
-      : ["install"];
+    const args = pm === "npm" ? ["ci", "--prefer-offline", "--no-audit"] : ["install"];
     const { code, stderr } = await run(pm, args, worktreePath);
     if (code !== 0) console.error(`AVISO: ${pm} install falhou no worktree: ${stderr.trim()}`);
     return;
@@ -108,9 +106,17 @@ async function main() {
   }
 
   // Branch nova por padrão; se já existir, faz checkout dela no worktree.
-  let created = await run("git", ["-C", source_dir, "worktree", "add", "-b", branch, worktree_path], source_dir);
+  let created = await run(
+    "git",
+    ["-C", source_dir, "worktree", "add", "-b", branch, worktree_path],
+    source_dir,
+  );
   if (created.code !== 0) {
-    created = await run("git", ["-C", source_dir, "worktree", "add", worktree_path, branch], source_dir);
+    created = await run(
+      "git",
+      ["-C", source_dir, "worktree", "add", worktree_path, branch],
+      source_dir,
+    );
   }
   if (created.code !== 0) {
     console.error(`ERRO: git worktree add falhou: ${created.stderr.trim()}`);
