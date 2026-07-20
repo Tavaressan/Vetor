@@ -36,3 +36,20 @@ Recommendation: <opção recomendada e por quê>
 worktree com o handover de falha (ver `fix-loop-agent` §4).
 
 Iterações em `BLOCKED_WAITING` não contam contra o hard cap de 5 do fix-loop.
+
+## Efeitos colaterais externos (fora do controle de versão)
+
+Testes locais passarem (verde) não é evidência de que uma ação que altera estado **fora do repositório**
+de fato colou — ex.: `gh api` fazendo PATCH/POST em branch protection, webhooks, secrets, configurações
+de repositório/organização no GitHub, ou qualquer outra chamada de API externa que muda estado remoto.
+
+**Regra:** antes de marcar `Status: GREEN` para uma ação desse tipo, o worker deve rodar um GET (ou
+comando de leitura equivalente) que confirme o novo estado imediatamente após o PATCH/POST, e incluir
+o resultado bruto (ou um resumo objetivo e verificável) no `Last action` do status file.
+
+- Se a verificação confirmar o estado esperado → prossiga para `GREEN` normalmente.
+- Se a verificação falhar, for inconclusiva, ou não puder ser executada (ex.: falta de permissão) →
+  marque `Status: BLOCKED_WAITING` com o motivo em `Blocked on`, nunca `GREEN` sem confirmação.
+
+Isso evita que o `issue-coordinator` e sessões futuras confiem em um estado externo que pode nunca ter
+sido aplicado ou que foi revertido silenciosamente, sem nenhum sinal de alerta no painel de status.
