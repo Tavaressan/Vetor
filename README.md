@@ -374,7 +374,7 @@ Para habilitar, adicione ao `.claude/settings.json` do projeto (ou exporte no sh
 | Iterações do fix-loop | 5 |
 | Retentativas de CI no ship | 3 |
 | Timeout global do coordinator | 90 min |
-| Workers simultâneos por rodada do coordinator | 5 (`maxConcurrentWorkers` em `.claude/vetor/config.json`) |
+| Workers simultâneos por rodada do coordinator | Perguntado por sessão (padrão: 5, máx: 8) |
 
 ### Custo de tokens
 
