@@ -1,5 +1,11 @@
 import { assertEquals } from "@std/assert";
-import { isTerminal, prepareFailedMarkerPath, readStatus, statusFilePath } from "./status.ts";
+import {
+  isTerminal,
+  prepareFailedMarkerPath,
+  readStatus,
+  resolveWorktree,
+  statusFilePath,
+} from "./status.ts";
 
 Deno.test("branch com barra vira nome de arquivo plano", () => {
   assertEquals(
@@ -43,4 +49,29 @@ Deno.test("readStatus distingue arquivo ausente de arquivo sem Status", async (t
   });
 
   await Deno.remove(dir, { recursive: true });
+});
+
+Deno.test("resolveWorktree resolve a raiz do repositório com isLinked:false (issue #57)", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await new Deno.Command("git", { args: ["init", "-q", "-b", "chore/vetor-init"], cwd: dir })
+      .output();
+    await new Deno.Command("git", { args: ["config", "user.email", "t@e.com"], cwd: dir })
+      .output();
+    await new Deno.Command("git", { args: ["config", "user.name", "t"], cwd: dir }).output();
+    await new Deno.Command("git", {
+      args: ["commit", "-q", "--allow-empty", "-m", "init"],
+      cwd: dir,
+    }).output();
+
+    const wt = await resolveWorktree(dir);
+
+    // Confirma a causa raiz: a raiz do projeto resolve como WorktreeInfo válido, só que
+    // com isLinked:false — não null. Chamadores que não checam isLinked tratam a raiz como
+    // se fosse um worktree de worker.
+    assertEquals(wt?.isLinked, false);
+    assertEquals(wt?.branch, "chore/vetor-init");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
 });

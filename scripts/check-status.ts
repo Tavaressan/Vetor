@@ -39,7 +39,9 @@ function sentinelPath(statusFile: string): string {
 /** True se este mesmo agente já foi bloqueado uma vez. */
 function alreadyBlocked(sentinel: string, agentId: string): boolean {
   try {
-    return Deno.readTextFileSync(sentinel).trim() === agentId;
+    // Primeira linha do sentinel é o agent_id; a segunda (opcional) é o cwd bruto, só para
+    // correlação em diagnóstico — não entra na comparação de identidade.
+    return Deno.readTextFileSync(sentinel).split("\n")[0].trim() === agentId;
   } catch {
     return false;
   }
@@ -64,8 +66,21 @@ async function main() {
     allow();
   }
 
-  const wt = await resolveWorktree(input.cwd ?? Deno.cwd());
+  const rawCwd = input.cwd ?? Deno.cwd();
+  const wt = await resolveWorktree(rawCwd);
   if (!wt) allow();
+
+  // O matcher deste hook (vetor:issue-worker) só deveria disparar dentro de um worktree
+  // linkado (.claude/worktrees/<slug>). Se cwd resolveu para a raiz do repositório principal
+  // (isLinked: false), algo entregou um cwd incorreto ao agente — rastrear/bloquear aqui
+  // criaria um stopguard órfão para uma branch que não é de worker (issue #57).
+  if (!wt.isLinked) {
+    console.error(
+      `[vetor] AVISO: check-status disparou com cwd fora de um worktree linkado (${rawCwd}); ` +
+        `resolveu para a raiz do repositório (branch: ${wt.branch}). Ignorando.`,
+    );
+    allow();
+  }
 
   const statusFile = statusFilePath(wt.root, wt.branch);
   const sentinel = sentinelPath(statusFile);
@@ -89,7 +104,7 @@ async function main() {
 
   try {
     Deno.mkdirSync(`${wt.root}/.claude/vetor/status`, { recursive: true });
-    Deno.writeTextFileSync(sentinel, agentId);
+    Deno.writeTextFileSync(sentinel, `${agentId}\n${rawCwd}\n`);
   } catch {
     // Sem conseguir marcar, bloquear arriscaria um loop infinito.
     allow();
