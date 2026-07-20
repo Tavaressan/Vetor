@@ -70,8 +70,6 @@ function detectModules(root: ProjectInfo): Module[] {
 
     if (nested) {
       modules.push(nested);
-    } else if (root.runtime !== "unknown") {
-      modules.push({ name: entry.name, command: `cd ${entry.name} && ${root.testCommand}` });
     }
   }
 

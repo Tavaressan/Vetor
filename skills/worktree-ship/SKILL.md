@@ -295,9 +295,11 @@ cleanup automaticamente:
 ```bash
 git worktree remove "<path-do-worktree>"
 git branch -d <branch>
+rm -f .claude/vetor/status/<branch>.md
 ```
 
-Se invocado manualmente pelo usuário: pergunte antes de remover.
+Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
+branch e arquivo de status).
 
 ---
 

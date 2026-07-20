@@ -2,10 +2,11 @@
 # Checagens determinísticas compartilhadas pelas skills do Vetor.
 #
 # Uso: vetor-checks.sh <subcomando> [args]
-#   default-branch            imprime a branch default do repositório (nunca assume master)
-#   in-worktree               exit 0 se o cwd é um worktree linkado; exit 1 se é o root
-#   migrations                exit 1 se há versões de migration duplicadas (convenção Flyway)
-#   debug-scan <base-branch>  exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
+#   default-branch             imprime a branch default do repositório (nunca assume master)
+#   in-worktree                exit 0 se o cwd é um worktree linkado; exit 1 se é o root
+#   migrations                 exit 1 se há versões de migration duplicadas (convenção Flyway)
+#   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
+#   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
 #
 # Exit codes: 0 = passou; 1 = checagem falhou (a skill deve parar e mostrar a saída); 2 = uso incorreto.
 
@@ -55,8 +56,16 @@ case "$cmd" in
     fi
     ;;
 
+  validate-issue-ref)
+    valor="${2:?uso: vetor-checks.sh validate-issue-ref <valor>}"
+    if ! [[ "$valor" =~ ^[1-9][0-9]*$ ]]; then
+      echo "ERRO: issue# deve ser um inteiro positivo, recebido \"$valor\"" >&2
+      exit 1
+    fi
+    ;;
+
   *)
-    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>>" >&2
+    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>>" >&2
     exit 2
     ;;
 esac
