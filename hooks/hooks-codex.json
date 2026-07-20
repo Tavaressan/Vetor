@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run -A \"${PLUGIN_ROOT}/scripts/safety-check.ts\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run -A \"${PLUGIN_ROOT}/scripts/check-edit.ts\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run -A \"${PLUGIN_ROOT}/scripts/check-status.ts\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run -A \"${PLUGIN_ROOT}/scripts/session-check.ts\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
