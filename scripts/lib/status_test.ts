@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { isTerminal, readStatus, statusFilePath } from "./status.ts";
+import { isTerminal, prepareFailedMarkerPath, readStatus, statusFilePath } from "./status.ts";
 
 Deno.test("branch com barra vira nome de arquivo plano", () => {
   assertEquals(
@@ -14,6 +14,13 @@ Deno.test("estados terminais x RUNNING x ausente", () => {
   assertEquals(isTerminal("BLOCKED_WAITING"), true);
   assertEquals(isTerminal("RUNNING"), false);
   assertEquals(isTerminal(null), false);
+});
+
+Deno.test("prepareFailedMarkerPath aponta para dentro do worktree, não da raiz", () => {
+  assertEquals(
+    prepareFailedMarkerPath("/repo/.claude/worktrees/feat-x"),
+    "/repo/.claude/worktrees/feat-x/.claude/vetor/prepare-failed",
+  );
 });
 
 Deno.test("readStatus distingue arquivo ausente de arquivo sem Status", async (t) => {

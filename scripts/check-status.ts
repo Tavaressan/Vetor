@@ -10,7 +10,13 @@
 // proteção contra loop é nossa: bloqueia UMA vez por agente, via arquivo sentinela. Na
 // segunda passagem deixa terminar — o coordinator já trata worker sem status como falha.
 
-import { isTerminal, readStatus, resolveWorktree, statusFilePath } from "./lib/status.ts";
+import {
+  isTerminal,
+  prepareFailedMarkerPath,
+  readStatus,
+  resolveWorktree,
+  statusFilePath,
+} from "./lib/status.ts";
 
 interface HookInput {
   cwd?: string;
@@ -39,6 +45,15 @@ function alreadyBlocked(sentinel: string, agentId: string): boolean {
   }
 }
 
+/** Conteúdo do marcador gravado por prepareDeps quando a instalação de deps falhou, se houver. */
+function readPrepareFailedWarning(worktreeToplevel: string): string | null {
+  try {
+    return Deno.readTextFileSync(prepareFailedMarkerPath(worktreeToplevel)).trim();
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
 
@@ -55,11 +70,17 @@ async function main() {
   const statusFile = statusFilePath(wt.root, wt.branch);
   const sentinel = sentinelPath(statusFile);
   const status = readStatus(statusFile);
+  const prepareWarning = readPrepareFailedWarning(wt.toplevel);
 
   if (isTerminal(status)) {
     try {
       Deno.removeSync(sentinel);
     } catch { /* nunca houve bloqueio: nada a limpar */ }
+    if (prepareWarning) {
+      console.error(
+        `[vetor] AVISO: preparação de dependências falhou neste worktree: ${prepareWarning}`,
+      );
+    }
     allow();
   }
 
@@ -75,11 +96,16 @@ async function main() {
   }
 
   const observed = status === null ? "arquivo ausente" : `Status: ${status || "vazio"}`;
+  const prepareNote = prepareWarning
+    ? `\n\nAVISO: a preparação de dependências deste worktree falhou: ${prepareWarning}\n` +
+      "Instale as dependências manualmente antes de rodar testes."
+    : "";
   block(
     `O status file do worker não está em estado terminal (${observed}).\n` +
       `Escreva ${statusFile} com um Status entre GREEN, FAILED_MAX_ITERATIONS ou ` +
       "BLOCKED_WAITING antes de encerrar — o issue-coordinator depende dele para agregar o " +
-      "resultado. O formato está em skills/shared/references/agent-status.template.md.",
+      "resultado. O formato está em skills/shared/references/agent-status.template.md." +
+      prepareNote,
   );
 }
 

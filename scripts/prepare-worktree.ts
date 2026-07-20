@@ -11,6 +11,7 @@
 // instalar por conta própria). A criação do worktree, no modo hook, é fatal.
 
 import { detectProject, run } from "./lib/project.ts";
+import { prepareFailedMarkerPath } from "./lib/status.ts";
 
 interface HookInput {
   worktree_path: string;
@@ -18,7 +19,16 @@ interface HookInput {
   branch: string;
 }
 
-async function prepareDeps(worktreePath: string, sourceDir: string): Promise<void> {
+function markPrepareFailed(worktreePath: string, message: string): void {
+  try {
+    Deno.mkdirSync(`${worktreePath}/.claude/vetor`, { recursive: true });
+    Deno.writeTextFileSync(prepareFailedMarkerPath(worktreePath), `${message}\n`);
+  } catch {
+    // Sem conseguir gravar o marcador, o aviso em stderr já emitido é o único rastro possível.
+  }
+}
+
+export async function prepareDeps(worktreePath: string, sourceDir: string): Promise<void> {
   const info = detectProject(sourceDir);
 
   if (!info.needsInstall) {
@@ -30,7 +40,11 @@ async function prepareDeps(worktreePath: string, sourceDir: string): Promise<voi
 
   if (info.runtime === "deno") {
     const { code, stderr } = await run("deno", ["install"], worktreePath);
-    if (code !== 0) console.error(`AVISO: deno install falhou no worktree: ${stderr.trim()}`);
+    if (code !== 0) {
+      const msg = `deno install falhou no worktree: ${stderr.trim()}`;
+      console.error(`AVISO: ${msg}`);
+      markPrepareFailed(worktreePath, msg);
+    }
     return;
   }
 
@@ -58,17 +72,23 @@ async function prepareDeps(worktreePath: string, sourceDir: string): Promise<voi
     }
 
     const pm = info.packageManager ?? "npm";
-    const args = pm === "npm"
-      ? ["ci", "--prefer-offline", "--no-audit"]
-      : ["install"];
+    const args = pm === "npm" ? ["ci", "--prefer-offline", "--no-audit"] : ["install"];
     const { code, stderr } = await run(pm, args, worktreePath);
-    if (code !== 0) console.error(`AVISO: ${pm} install falhou no worktree: ${stderr.trim()}`);
+    if (code !== 0) {
+      const msg = `${pm} install falhou no worktree: ${stderr.trim()}`;
+      console.error(`AVISO: ${msg}`);
+      markPrepareFailed(worktreePath, msg);
+    }
     return;
   }
 
   if (info.runtime === "python" && info.packageManager === "poetry") {
     const { code, stderr } = await run("poetry", ["install", "--no-root"], worktreePath);
-    if (code !== 0) console.error(`AVISO: poetry install falhou no worktree: ${stderr.trim()}`);
+    if (code !== 0) {
+      const msg = `poetry install falhou no worktree: ${stderr.trim()}`;
+      console.error(`AVISO: ${msg}`);
+      markPrepareFailed(worktreePath, msg);
+    }
     return;
   }
 
@@ -131,4 +151,6 @@ async function main() {
   console.log(worktree_path);
 }
 
-await main();
+if (import.meta.main) {
+  await main();
+}

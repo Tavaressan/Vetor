@@ -38,6 +38,11 @@ export function statusFilePath(root: string, branch: string): string {
   return `${root}/.claude/vetor/status/${branch.replaceAll("/", "-")}.md`;
 }
 
+/** Marcador gravado por prepareDeps (prepare-worktree.ts) quando a instalação de deps falha. */
+export function prepareFailedMarkerPath(worktreePath: string): string {
+  return `${worktreePath}/.claude/vetor/prepare-failed`;
+}
+
 /** Devolve o valor de `Status:` do arquivo, ou null se ele não existe. */
 export function readStatus(path: string): string | null {
   let content: string;
