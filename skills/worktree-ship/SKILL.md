@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e verde de um worktree até o merge na branch default, sem intervenção manual exceto quando review é necessário.

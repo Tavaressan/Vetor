@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge, utilizando o fluxo nativo de planejamento.
