@@ -254,7 +254,8 @@ Onde:
 - `<módulo>` é o nome do módulo da issue
 - `<tipo-mapeado>` é o resultado do mapeamento de 6.a (ou omitido se nenhum label de tipo existir)
 
-**Obs.:** O label `ai-generated` é **mandatório** — o `issue-coordinator` usa esse label para filtrar issues.
+**Obs.:** O label `ai-generated` é **mandatório** para rastreabilidade e proveniência. O `issue-coordinator` 
+despacha issues com base no label `backlog` (argumento `--label <label>` com default `backlog`), não por `ai-generated`.
 
 #### 6.d — Validação e confirmação
 
