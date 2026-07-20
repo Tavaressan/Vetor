@@ -17,10 +17,23 @@
 //                 nunca deveria escrever com cwd resolvendo para a raiz do projeto (fora de
 //                 qualquer worktree linkado) — se acontecer, é sinal de cwd mal resolvido pelo
 //                 harness, não uma escrita legítima (ver issue #57).
+//   Binding     — segunda camada, independente do guard acima: com múltiplos workers em
+//                 paralelo (ver issue #63), o cwd recebido no payload pode contaminar entre
+//                 subagentes — o cwd resolve para um worktree real, só que de OUTRO worker
+//                 ativo na mesma sessão. `isLinked` sozinho não pega esse caso. Aqui
+//                 correlacionamos `agent_id` (estável por instância de subagente, diferente
+//                 de `agent_type`) com o worktree resolvido na primeira chamada; uma mudança
+//                 de worktree para o mesmo agent_id é bloqueada.
 
 import { isWriteAllowed } from "./lib/guard.ts";
 import { run } from "./lib/project.ts";
-import { readStatus, resolveWorktree, statusFilePath, type WorktreeInfo } from "./lib/status.ts";
+import {
+  agentBindingPath,
+  readStatus,
+  resolveWorktree,
+  statusFilePath,
+  type WorktreeInfo,
+} from "./lib/status.ts";
 import { evaluateFreshness } from "./lib/worktree.ts";
 
 const PROTECTED_BRANCHES = ["main", "master", "production"];
@@ -31,6 +44,8 @@ interface HookInput {
   cwd?: string;
   /** Presente quando o hook dispara dentro de um subagente (ex.: "vetor:issue-worker"). */
   agent_type?: string;
+  /** Identificador único da instância do subagente — estável entre chamadas, ao contrário de agent_type. */
+  agent_id?: string;
 }
 
 function blocked(message: string): never {
@@ -83,7 +98,49 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
   }
 }
 
-async function checkWrite(filePath: string, cwd: string, agentType?: string): Promise<void> {
+/**
+ * Segunda camada de defesa contra cwd contaminado (issue #63): sem `agent_id` não há como
+ * correlacionar, então não se aplica — não é regressão, é a mesma cobertura de antes.
+ * Na primeira chamada de um `agent_id`, grava o worktree resolvido; em chamadas seguintes,
+ * uma mudança de worktree para o MESMO agent_id indica cwd contaminado — bloqueia.
+ */
+function checkAgentBinding(root: string, agentId: string | undefined, toplevel: string): void {
+  if (!agentId) return;
+
+  const path = agentBindingPath(root, agentId);
+  let bound: string | null = null;
+  try {
+    bound = Deno.readTextFileSync(path).trim();
+  } catch {
+    // Primeira chamada deste agent_id: nada gravado ainda.
+  }
+
+  if (bound && bound !== toplevel) {
+    blocked(
+      `ERROR: cwd contaminado detectado pelo Vetor Safety Hook (issue #63): agent_id ${agentId} ` +
+        `já estava vinculado ao worktree ${bound}, mas este evento resolveu para ${toplevel}.\n` +
+        "Isso indica cwd entregue incorretamente pelo harness durante execução paralela de " +
+        "subagentes — a escrita foi bloqueada para não vazar entre workers.",
+    );
+  }
+
+  if (!bound) {
+    try {
+      Deno.mkdirSync(`${root}/.claude/vetor/status/.agent-cwd`, { recursive: true });
+      Deno.writeTextFileSync(path, `${toplevel}\n`);
+    } catch {
+      // Sem conseguir gravar o vínculo, a checagem principal (isWriteAllowed) já cobre
+      // a política de escrita — a ausência do vínculo só reduz a segunda camada.
+    }
+  }
+}
+
+async function checkWrite(
+  filePath: string,
+  cwd: string,
+  agentType?: string,
+  agentId?: string,
+): Promise<void> {
   const wt = await resolveWorktree(cwd);
 
   if (!wt?.isLinked) {
@@ -100,6 +157,8 @@ async function checkWrite(filePath: string, cwd: string, agentType?: string): Pr
     }
     return;
   }
+
+  checkAgentBinding(wt.root, agentId, wt.toplevel);
 
   if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
     blocked(
@@ -132,7 +191,7 @@ async function main() {
 
   if (input.tool_name === "Edit" || input.tool_name === "Write") {
     const filePath = input.tool_input?.file_path;
-    if (filePath) await checkWrite(filePath, cwd, input.agent_type);
+    if (filePath) await checkWrite(filePath, cwd, input.agent_type, input.agent_id);
     Deno.exit(0);
   }
 
