@@ -9,12 +9,16 @@
 // exceto pelo guard de escrita, que o Antigravity não tem como aplicar (lá o matcher só
 // cobre run_command).
 //
-// Duas políticas:
+// Três políticas:
+//   Worktree    — dentro de um worktree, o cwd precisa estar em .claude/worktrees/ da raiz
+//                 e continuar registrado em `git worktree list` (não pode ser stale).
 //   Bash        — não empurrar para branch protegida; não fazer push/PR de worker não-GREEN.
 //   Edit/Write  — dentro de um worktree, não escrever fora dele.
 
 import { isWriteAllowed } from "./lib/guard.ts";
-import { readStatus, resolveWorktree, statusFilePath } from "./lib/status.ts";
+import { run } from "./lib/project.ts";
+import { readStatus, resolveWorktree, statusFilePath, type WorktreeInfo } from "./lib/status.ts";
+import { evaluateFreshness } from "./lib/worktree.ts";
 
 const PROTECTED_BRANCHES = ["main", "master", "production"];
 
@@ -39,7 +43,17 @@ function pushDestination(command: string): string | null {
   return last.split(":")[0];
 }
 
-async function checkBash(command: string, cwd: string): Promise<void> {
+/**
+ * Só se aplica dentro de um worktree linkado (`wt.isLinked`): a raiz do repositório
+ * principal não tem essa restrição, senão o próprio uso legítimo do hook lá quebraria.
+ */
+async function checkFreshness(wt: WorktreeInfo): Promise<void> {
+  const list = await run("git", ["worktree", "list", "--porcelain"], wt.root);
+  const message = evaluateFreshness(wt.toplevel, wt.root, list.stdout);
+  if (message) blocked(message);
+}
+
+function checkBash(command: string, wt: WorktreeInfo | null): void {
   const dest = pushDestination(command);
   if (dest && PROTECTED_BRANCHES.includes(dest)) {
     blocked(
@@ -48,8 +62,6 @@ async function checkBash(command: string, cwd: string): Promise<void> {
   }
 
   if (!/git push|gh pr (create|ready|merge)/.test(command)) return;
-
-  const wt = await resolveWorktree(cwd);
   if (!wt?.isLinked) return;
 
   const status = readStatus(statusFilePath(wt.root, wt.branch));
@@ -66,8 +78,7 @@ async function checkBash(command: string, cwd: string): Promise<void> {
   }
 }
 
-async function checkWrite(filePath: string, cwd: string): Promise<void> {
-  const wt = await resolveWorktree(cwd);
+function checkWrite(filePath: string, wt: WorktreeInfo | null): void {
   if (!wt?.isLinked) return;
 
   if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
@@ -91,15 +102,22 @@ async function main() {
   }
 
   const cwd = input.cwd ?? Deno.cwd();
+  const wt = await resolveWorktree(cwd);
+
+  // A checagem de frescor só faz sentido dentro de um worktree linkado — na raiz do
+  // repositório principal (isLinked === false) o hook segue liberando normalmente.
+  if (wt?.isLinked) {
+    await checkFreshness(wt);
+  }
 
   if (input.tool_name === "Edit" || input.tool_name === "Write") {
     const filePath = input.tool_input?.file_path;
-    if (filePath) await checkWrite(filePath, cwd);
+    if (filePath) checkWrite(filePath, wt);
     Deno.exit(0);
   }
 
   const command = input.tool_input?.command;
-  if (command) await checkBash(command, cwd);
+  if (command) checkBash(command, wt);
   Deno.exit(0);
 }
 

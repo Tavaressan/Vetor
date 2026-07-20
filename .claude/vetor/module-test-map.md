@@ -9,7 +9,7 @@ Revise os comandos: eles são executados de forma headless pelo `fix-loop-agent`
 
 | Módulo | Comando headless | Notas |
 |--------|------------------|-------|
-| `root` | `deno task test` | Projeto único: os testes vivem em `scripts/lib/*_test.ts` |
+| `root` | `deno task test` | Módulo raiz |
 
 ## Detecção de módulo por arquivos alterados
 

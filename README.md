@@ -221,9 +221,11 @@ Primitivos compostos por skills de nível superior. A Fase 4 do coordinator desp
 Hooks disparam **dentro dos subagentes** (o payload traz `agent_id`/`agent_type`), então são o único
 mecanismo que aplica uma política de fato — instrução em prompt o agente pode ignorar.
 
+**⚠️ Cobertura por plataforma:** A tabela abaixo lista os hooks do **Claude Code**. A cobertura no Antigravity é reduzida (ver seção "Compatibilidade com Antigravity" abaixo).
+
 | Evento | Matcher | Script | O que faz |
 |--------|---------|--------|-----------|
-| `PreToolUse` | `Bash\|Edit\|Write` | `safety-check.ts` | Barra push para branch protegida; barra push/PR de worker não-GREEN; barra escrita fora do worktree (exceto o status file) |
+| `PreToolUse` | `Bash\|Edit\|Write` | `safety-check.ts` / `safety-check.sh` | Barra push para branch protegida; barra push/PR de worker não-GREEN; barra escrita fora do worktree (exceto o status file) |
 | `PostToolUse` | `Edit\|Write` | `check-edit.ts` | Roda o typecheck no arquivo editado e injeta o erro no contexto do agente |
 | `SubagentStop` | `vetor:issue-worker` | `check-status.ts` | Impede o worker de encerrar sem status file em estado terminal |
 | `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor` |
@@ -233,6 +235,22 @@ O `check-edit.ts` existe para poupar iterações do fix-loop: sem ele, um erro d
 só apareceria ao **rodar o teste**, e cada descoberta dessas queima uma das 5 iterações do worker.
 Com ele, o erro volta junto com o resultado do próprio `Edit`. Só age em `.ts`/`.tsx`, tem timeout de
 20s e **fica em silêncio quando não há erro**.
+
+#### Compatibilidade com Antigravity
+
+**Claude Code** (`hooks/hooks.json`):
+- ✅ `PreToolUse`, `PostToolUse`, `SubagentStop`, `SessionStart`, `WorktreeCreate`
+- **Proteção**: completa. Bloqueia escrita fora do worktree, obriga status file em estado terminal, injeta diagnostics de edição
+
+**Antigravity** (`hooks.json` na raiz):
+- ✅ `PreToolUse` (suportado e configurado)
+- ⚠️ `PostToolUse` (evento existe no Antigravity, mas **não está configurado** no `hooks.json`)
+- ❌ `SubagentStop` (não existe. Antigravity tem um evento `Stop` genérico, mas não específico a subagentes; não é equivalente)
+- ❌ `SessionStart` (não suportado)
+- ❌ `WorktreeCreate` (não suportado)
+- **Proteção**: reduzida. Apenas prévia de push/escrita via `PreToolUse`; **sem** diagnostics de edição ou garantia de status file
+
+Para usar o Vetor com Antigravity, a restrição crítica é que workers podem escrever fora do worktree (além do `status file`), encerrar sem preenchê-lo, e não recebem feedback de tipo. Recomenda-se manter a invocação manual (`/vetor:fix-loop`, `/vetor:worktree-ship`) e **não usar `/vetor:coordinator`** com dispatch em background até que Antigravity suporte os eventos faltantes.
 
 ### Convenções do projeto (`.claude/rules/vetor/`)
 
