@@ -9,7 +9,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 Você é um worker isolado do Vetor, despachado pelo `issue-coordinator` para implementar uma única
