@@ -76,7 +76,7 @@ Sobre o servidor `docker`:
 |---------|----------|
 | `/vetor [--force]` | Porta de entrada — inicializa e configura o ambiente do Vetor no projeto-alvo |
 | `/vetor:worktree-create <type> <slug> [issue#]` | Primitivo headless — cria worktree isolado sem prompts, todos os parâmetros via args |
-| `/vetor:worktree-ship [issue#]` | Pipeline headless: test local → push → PR draft → CI watch → merge → sync root → cleanup |
+| `/vetor:worktree-ship [issue#]` | Pipeline headless: test local → push → PR draft → CI watch → code review consultivo → merge → sync root → cleanup |
 | `/vetor:fix-loop <descrição>` | Loop autônomo reproduce → fix → rebuild → test (máx. 5 iterações) |
 | `/vetor:backlog [tema]` | Ideação guiada ancorada em docs do projeto → batch de issues GitHub com aprovação humana |
 | `/vetor:guardian [--cron]` | Audit + auto-fix de gaps que o pre-commit não cobre (JSON, migrations, worktrees, Dependabot) |
@@ -214,6 +214,8 @@ Primitivos compostos por skills de nível superior. A Fase 4 do coordinator desp
 
 **`agents/issue-worker.md`** — subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução; pré-carrega a skill `fix-loop-agent` via campo `skills:`. O que é aplicado por hook, e não por instrução: push para branch protegida, push/PR de worker não-GREEN, escrita fora do worktree e encerramento sem status file (ver "Hooks").
 
+**`agents/code-review.md`** — subagente nativo de revisão de código, despachado pelo `worktree-ship` (passo 8.5) depois do CI verde e antes da checagem de review humano. Substitui o antigo GitHub Action `code-review@claude-code-plugins` (desativado por cobrar por execução independente do risco/tamanho da PR). Tools restritos a leitura (`Bash`/`Read`/`Grep`/`Glob`, sem `Write`/`Edit`); publica achados como comentário na PR via `gh pr comment` e **nunca bloqueia o merge** — a decisão de agir sobre um achado é sempre humana. Só roda quando o diff tocou algum módulo real (mesmo filtro do passo 3 do `worktree-ship`), então PRs só de docs/lockfile/config não pagam o custo da revisão.
+
 ### Hooks
 
 Hooks disparam **dentro dos subagentes** (o payload traz `agent_id`/`agent_type`), então são o único
@@ -306,7 +308,8 @@ Alavancas para manter o custo baixo no dispatch paralelo:
 ├── plugin.json              # manifesto do plugin
 └── marketplace.json         # listagem do marketplace
 agents/
-└── issue-worker.md          # subagente nativo — worker isolado despachado pelo coordinator
+├── issue-worker.md          # subagente nativo — worker isolado despachado pelo coordinator
+└── code-review.md           # subagente nativo — revisão consultiva despachada pelo worktree-ship
 skills/
 ├── shared/references/
 │   ├── module-test-map.template.md
