@@ -1,9 +1,10 @@
 // Cria o worktree e prepara suas dependências de forma determinística.
 //
 // Dois modos, porque um worktree nasce por dois caminhos:
-//   - Hook (sem args): recebe o JSON do evento WorktreeCreate no stdin. Substitui a
+//   - Hook (sem args): recebe o JSON do evento WorktreeCreate no stdin — campos comuns
+//     (cwd, ...) + `name` (slug do novo worktree; ver HookInput abaixo). Substitui a
 //     criação git padrão do harness, então precisa criar o worktree E imprimir o path
-//     resultante no stdout. Cobre o dispatch com `isolation: "worktree"` do issue-coordinator.
+//     resultante no stdout. Cobre o dispatch com `isolation: "worktree"` do Agent tool.
 //   - CLI (--path <p>): o worktree já existe (criado pelo skill worktree-create);
 //     apenas prepara as dependências.
 //
@@ -11,14 +12,47 @@
 // instalar por conta própria). A criação do worktree, no modo hook, é fatal.
 
 import { detectProject, run } from "./lib/project.ts";
+import { prepareFailedMarkerPath } from "./lib/status.ts";
 
+// Schema real do evento WorktreeCreate (https://code.claude.com/docs/en/hooks.md#worktreecreate-input):
+// campos comuns (cwd, session_id, ...) + `name`, um slug para o novo worktree. Não existe
+// worktree_path/source_dir/branch no payload — o hook é quem decide o path e a branch.
 interface HookInput {
-  worktree_path: string;
-  source_dir: string;
-  branch: string;
+  cwd: string;
+  name: string;
 }
 
-async function prepareDeps(worktreePath: string, sourceDir: string): Promise<void> {
+/** Branch remota default (origin/HEAD), com fallback para master. Nunca assume a branch atual. */
+async function detectDefaultBranch(sourceDir: string): Promise<string> {
+  const symbolicRef = await run(
+    "git",
+    ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+    sourceDir,
+  );
+  const fromSymbolicRef = symbolicRef.stdout.trim().replace(/^refs\/remotes\/origin\//, "");
+  if (fromSymbolicRef) return fromSymbolicRef;
+
+  const remoteShow = await run("git", ["remote", "show", "origin"], sourceDir);
+  const fromRemoteShow = remoteShow.stdout.match(/HEAD branch: (.+)/)?.[1]?.trim();
+  if (fromRemoteShow) return fromRemoteShow;
+
+  // Sem origin (ex.: repositório local isolado): a branch atual do cwd é o melhor palpite.
+  const currentBranch = await run("git", ["branch", "--show-current"], sourceDir);
+  if (currentBranch.stdout.trim()) return currentBranch.stdout.trim();
+
+  return "master";
+}
+
+function markPrepareFailed(worktreePath: string, message: string): void {
+  try {
+    Deno.mkdirSync(`${worktreePath}/.claude/vetor`, { recursive: true });
+    Deno.writeTextFileSync(prepareFailedMarkerPath(worktreePath), `${message}\n`);
+  } catch {
+    // Sem conseguir gravar o marcador, o aviso em stderr já emitido é o único rastro possível.
+  }
+}
+
+export async function prepareDeps(worktreePath: string, sourceDir: string): Promise<void> {
   const info = detectProject(sourceDir);
 
   if (!info.needsInstall) {
@@ -30,7 +64,11 @@ async function prepareDeps(worktreePath: string, sourceDir: string): Promise<voi
 
   if (info.runtime === "deno") {
     const { code, stderr } = await run("deno", ["install"], worktreePath);
-    if (code !== 0) console.error(`AVISO: deno install falhou no worktree: ${stderr.trim()}`);
+    if (code !== 0) {
+      const msg = `deno install falhou no worktree: ${stderr.trim()}`;
+      console.error(`AVISO: ${msg}`);
+      markPrepareFailed(worktreePath, msg);
+    }
     return;
   }
 
@@ -58,17 +96,23 @@ async function prepareDeps(worktreePath: string, sourceDir: string): Promise<voi
     }
 
     const pm = info.packageManager ?? "npm";
-    const args = pm === "npm"
-      ? ["ci", "--prefer-offline", "--no-audit"]
-      : ["install"];
+    const args = pm === "npm" ? ["ci", "--prefer-offline", "--no-audit"] : ["install"];
     const { code, stderr } = await run(pm, args, worktreePath);
-    if (code !== 0) console.error(`AVISO: ${pm} install falhou no worktree: ${stderr.trim()}`);
+    if (code !== 0) {
+      const msg = `${pm} install falhou no worktree: ${stderr.trim()}`;
+      console.error(`AVISO: ${msg}`);
+      markPrepareFailed(worktreePath, msg);
+    }
     return;
   }
 
   if (info.runtime === "python" && info.packageManager === "poetry") {
     const { code, stderr } = await run("poetry", ["install", "--no-root"], worktreePath);
-    if (code !== 0) console.error(`AVISO: poetry install falhou no worktree: ${stderr.trim()}`);
+    if (code !== 0) {
+      const msg = `poetry install falhou no worktree: ${stderr.trim()}`;
+      console.error(`AVISO: ${msg}`);
+      markPrepareFailed(worktreePath, msg);
+    }
     return;
   }
 
@@ -93,6 +137,10 @@ async function main() {
 
   // Modo hook: o harness delega a criação do worktree a este script.
   const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
+  // Log incondicional do stdin bruto, antes de qualquer parse: sem isso, uma falha aqui não
+  // deixa rastro do payload real recebido (motivo original da issue #47).
+  console.error(`[vetor] WorktreeCreate stdin bruto: ${raw}`);
+
   let input: HookInput;
   try {
     input = JSON.parse(raw);
@@ -101,23 +149,27 @@ async function main() {
     Deno.exit(1);
   }
 
-  const { worktree_path, source_dir, branch } = input;
-  if (!worktree_path || !source_dir || !branch) {
-    console.error("ERRO: WorktreeCreate sem worktree_path/source_dir/branch.");
+  const { cwd: sourceDir, name } = input;
+  if (!sourceDir || !name) {
+    console.error("ERRO: WorktreeCreate sem cwd/name.");
     Deno.exit(1);
   }
+
+  const worktreePath = `${sourceDir}/.claude/worktrees/${name}`;
+  const branch = name;
+  const defaultBranch = await detectDefaultBranch(sourceDir);
 
   // Branch nova por padrão; se já existir, faz checkout dela no worktree.
   let created = await run(
     "git",
-    ["-C", source_dir, "worktree", "add", "-b", branch, worktree_path],
-    source_dir,
+    ["-C", sourceDir, "worktree", "add", "-b", branch, worktreePath, defaultBranch],
+    sourceDir,
   );
   if (created.code !== 0) {
     created = await run(
       "git",
-      ["-C", source_dir, "worktree", "add", worktree_path, branch],
-      source_dir,
+      ["-C", sourceDir, "worktree", "add", worktreePath, branch],
+      sourceDir,
     );
   }
   if (created.code !== 0) {
@@ -125,10 +177,12 @@ async function main() {
     Deno.exit(1);
   }
 
-  await prepareDeps(worktree_path, source_dir);
+  await prepareDeps(worktreePath, sourceDir);
 
-  // O harness usa esta linha como o path efetivo do worktree.
-  console.log(worktree_path);
+  // O harness usa a última linha não vazia do stdout como o path efetivo do worktree.
+  console.log(worktreePath);
 }
 
-await main();
+if (import.meta.main) {
+  await main();
+}

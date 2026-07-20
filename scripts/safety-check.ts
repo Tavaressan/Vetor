@@ -13,7 +13,10 @@
 //   Worktree    — dentro de um worktree, o cwd precisa estar em .claude/worktrees/ da raiz
 //                 e continuar registrado em `git worktree list` (não pode ser stale).
 //   Bash        — não empurrar para branch protegida; não fazer push/PR de worker não-GREEN.
-//   Edit/Write  — dentro de um worktree, não escrever fora dele.
+//   Edit/Write  — dentro de um worktree, não escrever fora dele; um agente vetor:issue-worker
+//                 nunca deveria escrever com cwd resolvendo para a raiz do projeto (fora de
+//                 qualquer worktree linkado) — se acontecer, é sinal de cwd mal resolvido pelo
+//                 harness, não uma escrita legítima (ver issue #57).
 
 import { isWriteAllowed } from "./lib/guard.ts";
 import { run } from "./lib/project.ts";
@@ -26,6 +29,8 @@ interface HookInput {
   tool_name?: string;
   tool_input?: { command?: string; file_path?: string };
   cwd?: string;
+  /** Presente quando o hook dispara dentro de um subagente (ex.: "vetor:issue-worker"). */
+  agent_type?: string;
 }
 
 function blocked(message: string): never {
@@ -78,8 +83,23 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
   }
 }
 
-function checkWrite(filePath: string, wt: WorktreeInfo | null): void {
-  if (!wt?.isLinked) return;
+async function checkWrite(filePath: string, cwd: string, agentType?: string): Promise<void> {
+  const wt = await resolveWorktree(cwd);
+
+  if (!wt?.isLinked) {
+    // Um vetor:issue-worker deveria estar sempre dentro do seu worktree isolado. cwd
+    // resolvendo para fora de um worktree linkado (ex.: a raiz do projeto) indica cwd
+    // incorreto entregue pelo harness — deixar passar contamina a raiz compartilhada por
+    // todos os workers em paralelo (reprodução real: issue #57).
+    if (agentType === "vetor:issue-worker") {
+      blocked(
+        `ERROR: vetor:issue-worker escrevendo com cwd fora de um worktree linkado: ${filePath}\n` +
+          `cwd resolvido: ${cwd}${wt ? ` (branch: ${wt.branch})` : ""}. Um issue-worker só ` +
+          "deveria escrever dentro do seu próprio worktree — bloqueado pelo Vetor Safety Hook.",
+      );
+    }
+    return;
+  }
 
   if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
     blocked(
@@ -112,7 +132,7 @@ async function main() {
 
   if (input.tool_name === "Edit" || input.tool_name === "Write") {
     const filePath = input.tool_input?.file_path;
-    if (filePath) checkWrite(filePath, wt);
+    if (filePath) await checkWrite(filePath, cwd, input.agent_type);
     Deno.exit(0);
   }
 
