@@ -53,10 +53,12 @@ Antes de qualquer outra fase, avalie o argumento recebido:
 - **Sem argumento** (`/coordinator` puro) ou **`--resume`**: entre em **modo de retomada**.
   1. Rode `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"` para listar os worktrees ativos com
      status file.
-  2. Se houver ao menos um status file ativo: **pule as Fases 1–4** e vá direto para o
-     monitoramento — monte a tabela de status (equivalente à Fase 5.a) e, para cada grupo em
-     `GREEN`, ofereça o ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>),
-     que está GREEN?"). Prossiga o restante do fluxo a partir da Fase 5/6 normalmente.
+  2. Se houver ao menos um status file ativo: **pule as Fases 1–3** e faça a pergunta de workers
+     (Fase 2, seção "Pergunta sobre teto de workers") — o estado em memória de `N` não sobrevive a
+     um reinício da sessão. Depois, vá para o monitoramento — monte a tabela de status (equivalente
+     à Fase 5.a) e, para cada grupo em `GREEN`, ofereça o ship via `AskUserQuestion` ("Fazer ship do
+     grupo `<slug>` (Issue #<N>), que está GREEN?"). Prossiga o restante do fluxo a partir da
+     Fase 5/6 normalmente.
   3. Se **não houver** nenhum worktree ativo com status file: caia no fluxo padrão — trate como se
      fosse `/coordinator backlog` (Fase 1, label default `backlog`).
 - **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
@@ -117,14 +119,47 @@ Coordenando issues com a label: <label>
 | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar |
 ```
 
-Obtenha aprovação seguindo o mecanismo do ecossistema atual (planning-conventions.md §2.2):
-- **No Claude Code:** apresente o plano acima e conclua com `ExitPlanMode` para pedir aprovação.
+#### Pergunta sobre teto de workers simultâneos (antes da aprovação)
+
+Antes de pedir aprovação do plano, pergunte ao usuário quantos workers simultâneos usar nesta rodada:
+
+1. **Calcule uma recomendação** (`N_rec`): `min(número de grupos formados na Fase 1,
+   maxConcurrentWorkers de .claude/vetor/config.json se existir — senão 5)`, com **teto duro de 8**
+   independente da conta acima (acima disso o custo agregado e o ruído de monitoramento da Fase 5
+   crescem mais rápido que o ganho de paralelismo). Se houver menos grupos do que a recomendação,
+   ela cai para o número de grupos.
+2. **Pergunte via `AskUserQuestion`** (uma única pergunta para a sessão inteira, não repita a cada
+   rodada):
+   - `"<N_rec> (Recomendado)"` — justifique em 1 linha (nº de grupos formados, custo agregado por
+     worker, teto duro de 8)
+   - `"1 — serializado"` — um grupo por vez; mais lento, mais previsível, menor custo e menor ruído
+     de monitoramento
+   - `"<maxConcurrentWorkers de config.json>"` — só inclua esta opção se existir no config **e** for
+     diferente de `N_rec`
+   - O usuário também pode responder com um valor customizado (mecanismo nativo de "Other" do
+     `AskUserQuestion`)
+3. **Armazene a resposta como `N`** (variável de sessão/contexto) para uso na Fase 4 — o valor
+   escolhido vale para toda esta sessão de dispatch, incluindo redespachos de
+   `BLOCKED_WAITING`/`FAILED_MAX_ITERATIONS`. Em modo de retomada (Fase 0, sem Fase 1-4), repita
+   esta pergunta antes de despachar qualquer grupo `QUEUED` — o estado em memória de `N` não
+   sobrevive a um reinício da sessão coordenadora.
+
+**Nota:** este valor **não persiste em `.claude/vetor/config.json`** — é só para a sessão atual de
+dispatch. O usuário pode depois editar o config manualmente se quiser fazer uma mudança permanente
+no padrão.
+
+#### Obtenção de aprovação
+
+Obtenha aprovação do plano (incluindo o teto de workers) seguindo o mecanismo do ecossistema atual
+(planning-conventions.md §2.2):
+- **No Claude Code:** apresente o plano acima (com a pergunta de workers já respondida e integrada)
+  e conclua com `ExitPlanMode` para pedir aprovação.
 - **No Antigravity/Gemini:** gere/atualize `implementation_plan.md` com `request_feedback: true` e
   `user_facing: true`, e aguarde `request_feedback: false` ou clique em "Proceed".
 - Sem nenhum dos dois: exiba o plano no chat e aguarde resposta afirmativa explícita.
 
-**Pare** até a aprovação. Se o usuário pedir para trocar o modelo de algum grupo, respeite a escolha
-manual e utilize o modelo modificado no dispatch da Fase 4.
+**Pare** até a aprovação. Se o usuário pedir para trocar o modelo de algum grupo ou o teto de
+workers, respeite a escolha manual e utilize os valores modificados no dispatch da Fase 4.
 
 
 ### 3 — Fase de criação (nativa e serializada)
@@ -152,11 +187,9 @@ deve obtê-lo via `git worktree list` (correlacionando pela branch) ou pelo camp
 
 ### 4 — Fase de desenvolvimento (paralela, com teto de concorrência)
 
-**Teto de workers simultâneos (economia de tokens):** cada subagente paralelo é uma instância Claude
-completa, sem contexto compartilhado — é o maior driver de custo agregado do coordinator. Antes de
-despachar, leia `.claude/vetor/config.json` em busca de `maxConcurrentWorkers` (o schema de
-`.claude/settings.json` do Claude Code rejeita chaves de topo customizadas como `vetor`, então não use
-esse arquivo); na ausência de `.claude/vetor/config.json` ou da chave, **default 5**.
+**Teto de workers simultâneos:** cada subagente paralelo é uma instância Claude completa, sem
+contexto compartilhado — é o maior driver de custo agregado do coordinator. O teto foi definido na
+Fase 2 (pergunta ao usuário `N`, valor desta sessão).
 
 - Ordene os grupos (Fase 1) por prioridade (ex.: ordem das issues no label).
 - Despache apenas os primeiros N grupos (N = teto). Os demais ficam com status `QUEUED` na tabela de
