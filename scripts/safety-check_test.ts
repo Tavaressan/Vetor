@@ -175,6 +175,80 @@ Deno.test("safety-check.ts (integração): worktree movido no disco sem atualiza
   await Deno.remove(repo, { recursive: true });
 });
 
+Deno.test("cwd contaminado: mesmo agent_id, worktree diferente na segunda chamada é bloqueado — issue #63", async () => {
+  const { root, worktreePath: worktreeA } = await makeLinkedWorktree("worker-a");
+  const worktreeB = `${root}/.claude/worktrees/worker-b`;
+  await git(["worktree", "add", "-q", "-b", "worker-b", worktreeB], root);
+  try {
+    const first = await runHook({
+      tool_name: "Edit",
+      tool_input: { file_path: `${worktreeA}/README.md` },
+      cwd: worktreeA,
+      agent_type: "vetor:issue-worker",
+      agent_id: "agent-123",
+    });
+    assertEquals(first.code, 0, first.stderr);
+
+    // Mesmo agent_id da primeira chamada, mas agora o cwd resolve para o worktree de
+    // OUTRO worker — reprodução do cenário real relatado na issue #63.
+    const second = await runHook({
+      tool_name: "Edit",
+      tool_input: { file_path: `${worktreeB}/README.md` },
+      cwd: worktreeB,
+      agent_type: "vetor:issue-worker",
+      agent_id: "agent-123",
+    });
+
+    assertEquals(second.code, 2);
+    assertStringIncludes(second.stderr, "cwd contaminado");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("cwd contaminado: mesmo agent_id e mesmo worktree em chamadas repetidas continua liberado", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("worker-a");
+  try {
+    for (let i = 0; i < 3; i++) {
+      const { code, stderr } = await runHook({
+        tool_name: "Edit",
+        tool_input: { file_path: `${worktreePath}/README.md` },
+        cwd: worktreePath,
+        agent_type: "vetor:issue-worker",
+        agent_id: "agent-stable",
+      });
+      assertEquals(code, 0, stderr);
+    }
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("cwd contaminado: sem agent_id no payload, a checagem de binding não se aplica (sem regressão)", async () => {
+  const { root, worktreePath: worktreeA } = await makeLinkedWorktree("worker-a");
+  const worktreeB = `${root}/.claude/worktrees/worker-b`;
+  await git(["worktree", "add", "-q", "-b", "worker-b", worktreeB], root);
+  try {
+    await runHook({
+      tool_name: "Edit",
+      tool_input: { file_path: `${worktreeA}/README.md` },
+      cwd: worktreeA,
+      agent_type: "vetor:issue-worker",
+    });
+
+    const { code } = await runHook({
+      tool_name: "Edit",
+      tool_input: { file_path: `${worktreeB}/README.md` },
+      cwd: worktreeB,
+      agent_type: "vetor:issue-worker",
+    });
+
+    assertEquals(code, 0);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("safety-check.ts (integração): sem regressão — raiz do repositório principal continua liberada", async () => {
   const repo = await makeRepo("main");
 

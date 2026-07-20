@@ -38,6 +38,16 @@ export function statusFilePath(root: string, branch: string): string {
   return `${root}/.claude/vetor/status/${branch.replaceAll("/", "-")}.md`;
 }
 
+/**
+ * Onde fica registrado, por `agent_id`, qual worktree (toplevel) esse agente resolveu da
+ * primeira vez que o hook de escrita rodou para ele. `agent_id` é estável e único por
+ * instância de subagente (ver issue #63) — diferente de `agent_type`, compartilhado por
+ * todos os workers do mesmo tipo.
+ */
+export function agentBindingPath(root: string, agentId: string): string {
+  return `${root}/.claude/vetor/status/.agent-cwd/${agentId}`;
+}
+
 /** Marcador gravado por prepareDeps (prepare-worktree.ts) quando a instalação de deps falha. */
 export function prepareFailedMarkerPath(worktreePath: string): string {
   return `${worktreePath}/.claude/vetor/prepare-failed`;
