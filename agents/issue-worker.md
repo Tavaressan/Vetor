@@ -65,3 +65,8 @@ O instalador correto vem do `runtime`/`packageManager` gravados em `.claude/veto
   `Status: BLOCKED_WAITING` e os blocos do template (`Blocked on` / `Options` / `Recommendation`) —
   chat é opcional e complementar; a escalação ao usuário e a reconstrução de estado pós-reinício
   dependem exclusivamente do arquivo.
+- Se sua tarefa envolver efeitos colaterais **fora do repositório** (ex.: `gh api` alterando branch
+  protection, webhooks, secrets, configurações de repositório/organização no GitHub), nunca marque
+  `Status: GREEN` sem antes rodar um GET de confirmação do novo estado e registrar o resultado no
+  status file — ver `agent-status.template.md` §"Efeitos colaterais externos". Verificação falhou ou
+  foi inconclusiva → `BLOCKED_WAITING`, não `GREEN`.

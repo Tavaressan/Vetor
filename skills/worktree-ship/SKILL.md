@@ -194,6 +194,34 @@ Worktree preservado para inspeção manual.
 ```
 **Pare.** Não tente mergear.
 
+### 8.5 — Revisão de código nativa (consultiva, não bloqueante)
+
+Substitui o antigo GitHub Action `code-review@claude-code-plugins` (desativado por custar por
+execução independente do risco/tamanho da mudança). Roda **só quando há mudança real de
+código-fonte** — o mesmo filtro do passo 3 já resolve isso: se `git diff "$DEFAULT_BRANCH"
+--name-only` (passo 3) não mapeou nenhum módulo (ex.: PR só de docs, lockfile ou config), **pule
+este passo**.
+
+Caso haja módulo alterado, despache o subagente nativo:
+
+```javascript
+Agent({
+  description: "Code review: PR #<PR-number>",
+  prompt: "PR #<PR-number>, branch <branch>, base $DEFAULT_BRANCH.",
+  subagent_type: "vetor:code-review",
+  model: "sonnet",
+  run_in_background: false
+})
+```
+
+O subagente é somente leitura sobre o código (nunca `push`/`commit`/`merge`) e publica os achados
+como comentário na PR (`gh pr comment`). **Nunca pare o pipeline por causa dos achados** — mesmo
+com itens `blocker`, prossiga para o passo 9. A revisão é consultiva: quem decide agir sobre um
+achado é o humano, ao ler o comentário na PR (antes ou depois do merge).
+
+Se o dispatch do subagente falhar por qualquer motivo (rate limit, erro de ferramenta), registre a
+falha no sumário e prossiga mesmo assim — este passo nunca bloqueia o ship.
+
 ### 9 — Verificar review
 
 ```bash
@@ -295,9 +323,11 @@ cleanup automaticamente:
 ```bash
 git worktree remove "<path-do-worktree>"
 git branch -d <branch>
+rm -f .claude/vetor/status/<branch>.md
 ```
 
-Se invocado manualmente pelo usuário: pergunte antes de remover.
+Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
+branch e arquivo de status).
 
 ---
 
@@ -307,3 +337,4 @@ Se invocado manualmente pelo usuário: pergunte antes de remover.
 - Nunca entra em loop de merge se review é necessário
 - Máximo 3 iterações de fix de CI
 - Preserva worktree intacto em caso de falha (para inspeção manual)
+- A revisão de código nativa (passo 8.5) é sempre consultiva — achados nunca bloqueiam o merge
