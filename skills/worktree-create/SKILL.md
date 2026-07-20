@@ -28,7 +28,13 @@ Você é o primitivo de criação de worktree do Vetor. Sua única responsabilid
 
 ### 1 — Validação de args
 
-Verifique os argumentos recebidos:
+Verifique os argumentos recebidos usando o script determinístico:
+
+```bash
+scripts/vetor-checks.sh validate-issue-ref "$issue_ref" || exit 1
+```
+
+Valide também:
 
 - Se `<type>` não for um dos valores aceitos (`feat`, `fix`, `chore`, `refactor`):
   ```
