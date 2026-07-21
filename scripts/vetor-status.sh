@@ -5,23 +5,44 @@
 # Uso: vetor-status.sh
 # Saída: tabela markdown com uma linha por status file em .claude/vetor/status/.
 #        Worktree correspondente removido manualmente -> "cancelled (worktree removed)".
+#        Worktree sem status file -> ⚠️ WARNING (possível falha anômala, issue #72).
 
 set -uo pipefail
 
 STATUS_DIR=".claude/vetor/status"
 
-if [ ! -d "$STATUS_DIR" ] || ! ls "$STATUS_DIR"/*.md >/dev/null 2>&1; then
-  echo "(nenhum status file em $STATUS_DIR)"
-  exit 0
-fi
+# Branch principal (main worktree) — excluída da lista de workers ativos.
+default_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
 
-# Branches com worktree ativo, sanitizadas com a mesma convenção dos status files (/ -> -).
-active=$(git worktree list --porcelain | sed -n 's#^branch refs/heads/##p' | tr '/' '-')
+# Branches com worktree ativo (workers), sanitizadas com a mesma convenção dos status files (/ -> -).
+# Exclui a branch principal do repositório.
+active=$(git worktree list --porcelain | sed -n 's#^branch refs/heads/##p' | tr '/' '-' | grep -v "^${default_branch}$")
 
 echo "## Status — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo
+
+if [ ! -d "$STATUS_DIR" ] || ! ls "$STATUS_DIR"/*.md >/dev/null 2>&1; then
+  # Sem status files — verificar se há worktrees ativos sem status (falha anômala)
+  if [ -n "$active" ]; then
+    echo "⚠️ **ALERTA: worktrees ativos sem status file (possível falha anômala — issue #72):**"
+    echo
+    echo "| Worker (branch) | Status | Worktree |"
+    echo "|---|---|---|"
+    while IFS= read -r branch; do
+      echo "| $branch | ⚠️ SEM STATUS FILE | ativo |"
+    done <<< "$active"
+    echo
+  else
+    echo "(nenhum status file em $STATUS_DIR)"
+  fi
+  exit 0
+fi
+
 echo "| Worker (branch) | Status | Iteração | Última ação | Worktree |"
 echo "|---|---|---|---|---|"
+
+# Rastrear branches que já apareceram em status files (compatível com bash 3.2)
+seen_branches=""
 
 for f in "$STATUS_DIR"/*.md; do
   name=$(basename "$f" .md)
@@ -33,5 +54,28 @@ for f in "$STATUS_DIR"/*.md; do
   else
     wt="cancelled (worktree removed)"
   fi
+  seen_branches="${seen_branches}${name}
+"
   echo "| $name | ${status:-?} | ${iter:--} | ${last:--} | $wt |"
 done
+
+# Detectar worktrees ativos sem nenhum status file (possível falha anômala — issue #72)
+missing_status=""
+while IFS= read -r branch; do
+  if ! printf '%s\n' "$seen_branches" | grep -qx "$branch"; then
+    missing_status="${missing_status}${branch}
+"
+  fi
+done <<< "$active"
+
+if [ -n "$missing_status" ]; then
+  echo
+  echo "⚠️ **ALERTA: worktrees ativos sem status file (possível falha anômala — issue #72):**"
+  echo
+  echo "| Worker (branch) | Status | Worktree |"
+  echo "|---|---|---|"
+  while IFS= read -r branch; do
+    [ -z "$branch" ] && continue
+    echo "| $branch | ⚠️ SEM STATUS FILE | ativo |"
+  done <<< "$missing_status"
+fi
