@@ -370,8 +370,16 @@ v1.18.4, `dist/index.d.ts:175` `Hooks.event`; `@opencode-ai/sdk`, `dist/gen/type
 via `opencode/scripts/model-health.ts` (`deno run -A`, mesmo padrão do restante) — em
 `.claude/vetor/status/model-health.json`, na raiz do repositório, porque cada worker é um processo
 separado sem estado compartilhado. Entradas com `until` no passado são tratadas como saudáveis por
-quem lê o arquivo (`isHealthy` em `opencode/scripts/lib/model-health.ts`, usado pelo
-`issue-coordinator` na issue #84 para fallback de modelo/provedor).
+quem lê o arquivo (`isHealthy` em `opencode/scripts/lib/model-health.ts`).
+
+**Fallback de modelo/provedor no coordinator (issue #84).** Antes de montar cada comando
+`opencode run --dir ... --model <provider/model>`, o `issue-coordinator` portado
+(`opencode/skills/issue-coordinator/SKILL.md`) roda `opencode/scripts/resolve-model.ts`, que lê a
+lista ordenada `modelFallback.<simple|complex>` de `.claude/vetor/config.json` (default embutido no
+script se a chave não existir — `anthropic/claude-haiku-4-5` → `anthropic/claude-sonnet-4-5` para
+`simple`, ordem invertida para `complex`) e devolve o primeiro modelo não-`degraded`/não-expirado
+em `model-health.json`. Se todos os modelos do tier estiverem `degraded`, o script sai com código 1
+e o grupo correspondente fica `QUEUED` em vez de ser despachado sabendo que vai falhar.
 
 **Gaps confirmados (sem hook equivalente):**
 - `SubagentStop` (obrigar status file em estado terminal) — sem cobertura; não há evento
@@ -507,7 +515,8 @@ opencode/                    # camada de compatibilidade (OpenCode) — copiar p
 ├── plugin/vetor.ts          # plugin real: tool.execute.before/after + event (rate-limit, #83)
 ├── scripts/                 # cópia de scripts/{safety-check,check-edit,vetor-status,vetor-checks,lib/*}
 │   ├── model-health.ts        # CLI: grava .claude/vetor/status/model-health.json (#83)
-│   └── lib/model-health.ts    # computeUntil/isHealthy — sem $CLAUDE_PLUGIN_ROOT
+│   ├── resolve-model.ts       # CLI: fallback de modelo/provedor (#84)
+│   └── lib/model-health.ts    # computeUntil/isHealthy/pickHealthyModel — sem $CLAUDE_PLUGIN_ROOT
 └── mcp.jsonc                # tradução de .mcp.json para o campo "mcp" de opencode.json
 agents/
 ├── issue-worker.md          # subagente nativo (Claude Code) — worker isolado despachado pelo coordinator

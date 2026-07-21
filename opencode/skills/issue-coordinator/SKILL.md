@@ -64,6 +64,10 @@ relativos abaixo assumem esse cwd.
   `scripts/vetor-status.sh`, sem alteração)
 - `.opencode/scripts/vetor-checks.sh` — checagens determinísticas (`default-branch`, `in-worktree`,
   `migrations`, `debug-scan`, `validate-issue-ref`; cópia direta de `scripts/vetor-checks.sh`)
+- `.opencode/scripts/resolve-model.ts` — fallback de modelo/provedor (issue #84): lê
+  `modelFallback.<tier>` de `.claude/vetor/config.json` e `.claude/vetor/status/model-health.json`
+  (issue #83), devolve no stdout o primeiro modelo saudável ou sai com código 1 se todos estiverem
+  `degraded`
 - `.opencode/agent/issue-worker.md` — subagente/processo despachado por grupo de issues na Fase 4
 - Comandos de teste: `.claude/vetor/module-test-map.md` (cópia preenchida pelo usuário) ou
   auto-detecção a partir do CI, na ausência dela
@@ -159,10 +163,13 @@ Coordenando issues com a label: <label>
 | <slug-2> | #<N3> (Lead) | <provider/model> | Despachar |
 ```
 
-**Modelo/provedor sugerido**: use o de fallback preferencial da issue #84 (`opencode/skills/
-issue-coordinator/references/model-fallback.md` ou `.claude/vetor/config.json` →
-`modelFallback[0]`) para tarefas simples (`chore`/`fix`), e o modelo mais capaz da mesma lista para
-`feat`/`refactor` ou grupos com mais de 2 issues.
+**Modelo/provedor sugerido**: classifique cada grupo em um `tier` — `simple` (todas as issues são
+`chore`/`fix` pequenos) ou `complex` (há `feat`/`refactor`, ou o grupo tem mais de 2 issues) — e
+mostre no plano o **primeiro item** de `modelFallback.<tier>` (`.claude/vetor/config.json`; default
+embutido em `opencode/scripts/resolve-model.ts` se a chave não existir no config) como sugestão.
+O `tier` do grupo (não um modelo fixo) é o que vale para o dispatch real na Fase 4 — a escolha final
+do modelo específico dentro do tier é sempre resolvida ali contra `model-health.json` (issue #83),
+podendo diferir do sugerido aqui se ele estiver `degraded` no momento do dispatch.
 
 #### Pergunta sobre teto de workers simultâneos
 
@@ -215,9 +222,25 @@ teto `N` da Fase 2:
 `RUNNING`/`BLOCKED_WAITING`/`GREEN` (ainda não mergeado) em outro status file. Se colidir, alerte no
 chat e pule o dispatch.
 
-**Comando de dispatch** (um processo em background por grupo, dentro do teto):
+**Resolução de modelo/provedor (issue #84 — antes de montar o comando de dispatch).** Para o `tier`
+do grupo (Fase 2), rode:
 ```bash
-opencode run --dir ".claude/worktrees/<slug>" --agent issue-worker \
+echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd)"'"}' | deno run -A .opencode/scripts/resolve-model.ts
+```
+- **Código 0:** o stdout traz o modelo/provedor saudável a usar (`<provider/model>`) — primeiro da
+  lista `modelFallback.<tier>` (`.claude/vetor/config.json`) que não estiver `degraded` e não
+  expirado em `.claude/vetor/status/model-health.json` (escrito pelo hook `event` da issue #83). Se
+  o preferencial (primeiro da lista) estiver saudável, é ele mesmo — sem mudança de comportamento
+  na ausência de degradação.
+- **Código 1:** todos os modelos do tier estão `degraded` agora — **não despache este grupo**.
+  Mantenha-o `QUEUED`, registre no chat `⚠️ Grupo <slug> aguardando modelo saudável (todos os
+  fallbacks de "<tier>" degraded)` e tente de novo no próximo ciclo de monitoramento (Fase 5),
+  quando alguma entrada já puder ter expirado.
+
+Só então monte o comando de dispatch (um processo em background por grupo, dentro do teto),
+usando o modelo resolvido:
+```bash
+opencode run --dir ".claude/worktrees/<slug>" --agent issue-worker --model "<provider/model resolvido>" \
   "Lead Issue #<N> (título, body, critérios de aceite). Issues Sequenciais: #<M1>, #<M2>
    (idem). Branch <type>/<issue#>-<slug> já criada. Status File Path: <path absoluto>.
    Atualize-o a cada iteração de cada issue (Iteration: <i>/5 (Issue #<M>))." \
@@ -227,13 +250,6 @@ opencode run --dir ".claude/worktrees/<slug>" --agent issue-worker \
 Guarde o PID (`$!`) só como referência de debug local — a fonte de verdade do progresso é sempre o
 status file, nunca o processo do SO (ele pode ter sido lançado em outra sessão do coordenador, no
 caso de retomada).
-
-**Critério de escolha do modelo/provedor:** ver Fase 2 e (issue #84) a lógica de fallback contra
-`.claude/vetor/status/model-health.json` — antes de montar cada comando `opencode run --dir`,
-resolva o modelo/provedor efetivo consultando `model-health.json` (ver referência
-`opencode/skills/issue-coordinator/references/model-fallback.md`); se todos os modelos da lista de
-fallback do grupo estiverem `degraded`, **não despache** — mantenha o grupo `QUEUED` e registre no
-chat `⚠️ Grupo <slug> aguardando modelo saudável (todos os fallbacks degraded)`.
 
 ⚠️ **Redespacho de worktree existente** (retomada, resposta a `BLOCKED_WAITING`, ou redespacho após
 `FAILED_MAX_ITERATIONS`): **não** rode `git worktree add` de novo — reaproveite o worktree existente
@@ -346,3 +362,19 @@ de ponta a ponta. Procedimento para quem for validar contra uma instalação rea
      merge.
 4. Registre desvios encontrados como issue de acompanhamento (mesmo padrão usado para o gap do Codex
    documentado em `codex_plugin_hook_gap.md`).
+
+**Fallback de modelo/provedor (issue #84)** — a lógica de escolha em si já tem cobertura
+automatizada (`deno task test`, `opencode/scripts/resolve-model_test.ts` e
+`opencode/scripts/lib/model-health_test.ts`), sem depender de um ambiente OpenCode real. Para
+validar a integração completa (hook `event` → `model-health.json` → `resolve-model.ts` →
+`opencode run --dir --model`) contra uma instalação real:
+1. Force uma entrada `degraded` sintética: `echo '{"anthropic/claude-haiku-4-5":{"status":
+   "degraded","until":9999999999999,"lastError":"teste manual"}}' >
+   .claude/vetor/status/model-health.json` no repositório de teste.
+2. Rode `opencode run --agent issue-coordinator "backlog"` e confirme no log/chat que o comando
+   de dispatch monta `--model anthropic/claude-sonnet-4-5` (ou o próximo saudável do tier) em vez
+   do preferencial degraded.
+3. Zere `model-health.json` (ou aguarde `until` expirar) e confirme que o próximo dispatch volta a
+   escolher o preferencial original.
+4. Force **todos** os modelos do tier como `degraded` e confirme que o grupo fica `QUEUED` em vez
+   de despachar — sem processo `opencode run` para ele até uma entrada expirar.

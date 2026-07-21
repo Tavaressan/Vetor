@@ -65,7 +65,7 @@ function exists(path: string): boolean {
   }
 }
 
-function readModelHealthFile(path: string): ModelHealthFile {
+export function readModelHealthFile(path: string): ModelHealthFile {
   if (!exists(path)) return {};
   try {
     const parsed = JSON.parse(Deno.readTextFileSync(path));
@@ -99,4 +99,17 @@ export function recordModelHealth(
 /** Entrada ausente ou `until` no passado = saudável. Consumido pelo issue-coordinator (#84). */
 export function isHealthy(entry: ModelHealthEntry | undefined, now: number): boolean {
   return entry === undefined || entry.status !== "degraded" || entry.until <= now;
+}
+
+/**
+ * Percorre `fallback` (lista ordenada de "<provider>/<model>") e devolve o primeiro que estiver
+ * saudável em `health`. `null` se todos os modelos da lista estiverem `degraded` e não expirados
+ * — o issue-coordinator (issue #84) trata isso como "não despache, mantenha o grupo QUEUED".
+ */
+export function pickHealthyModel(
+  fallback: string[],
+  health: ModelHealthFile,
+  now: number,
+): string | null {
+  return fallback.find((model) => isHealthy(health[model], now)) ?? null;
 }

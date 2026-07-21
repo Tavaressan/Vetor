@@ -4,6 +4,7 @@ import {
   DEFAULT_BACKOFF_MS,
   isHealthy,
   isRateLimitOrQuotaStatus,
+  pickHealthyModel,
   recordModelHealth,
 } from "./model-health.ts";
 
@@ -93,4 +94,54 @@ Deno.test("isHealthy - entrada com until no futuro é degraded", () => {
 Deno.test("isHealthy - entrada com until no passado é saudável (expirada)", () => {
   const now = 1_000_000;
   assert(isHealthy({ status: "degraded", until: now - 5_000, lastError: "x" }, now));
+});
+
+Deno.test("pickHealthyModel - escolhe o primeiro saudável da lista", () => {
+  const now = 1_000_000;
+  const fallback = ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"];
+  assertEquals(pickHealthyModel(fallback, {}, now), "anthropic/claude-haiku-4-5");
+});
+
+Deno.test("pickHealthyModel - modelo preferencial degraded e não expirado cai para o próximo", () => {
+  const now = 1_000_000;
+  const fallback = ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"];
+  const health = {
+    "anthropic/claude-haiku-4-5": {
+      status: "degraded" as const,
+      until: now + 60_000,
+      lastError: "HTTP 429",
+    },
+  };
+  assertEquals(pickHealthyModel(fallback, health, now), "anthropic/claude-sonnet-4-5");
+});
+
+Deno.test("pickHealthyModel - modelo preferencial degraded mas expirado é escolhido de novo", () => {
+  const now = 1_000_000;
+  const fallback = ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"];
+  const health = {
+    "anthropic/claude-haiku-4-5": {
+      status: "degraded" as const,
+      until: now - 1_000,
+      lastError: "HTTP 429",
+    },
+  };
+  assertEquals(pickHealthyModel(fallback, health, now), "anthropic/claude-haiku-4-5");
+});
+
+Deno.test("pickHealthyModel - todos degraded devolve null", () => {
+  const now = 1_000_000;
+  const fallback = ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"];
+  const health = {
+    "anthropic/claude-haiku-4-5": {
+      status: "degraded" as const,
+      until: now + 60_000,
+      lastError: "HTTP 429",
+    },
+    "anthropic/claude-sonnet-4-5": {
+      status: "degraded" as const,
+      until: now + 60_000,
+      lastError: "HTTP 429",
+    },
+  };
+  assertEquals(pickHealthyModel(fallback, health, now), null);
 });
