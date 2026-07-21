@@ -83,7 +83,7 @@ Projetos sem migrations versionadas: no-op. Mesma convenção Flyway do `guardia
 ### 3 — Detecção de módulos alterados
 
 ```bash
-git diff "$DEFAULT_BRANCH" --name-only
+git diff "origin/$DEFAULT_BRANCH" --name-only
 ```
 
 Mapeie os arquivos alterados aos módulos usando a tabela de detecção do module-test-map.
@@ -108,7 +108,7 @@ Saída: <últimas 30 linhas do log>
 ### 4.b — Scan de debugging
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "$DEFAULT_BRANCH"
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "origin/$DEFAULT_BRANCH"
 ```
 
 Se sair não-zero, remova os padrões apontados (debug temporário, `it.only` etc.) e commite antes
@@ -203,7 +203,7 @@ Worktree preservado para inspeção manual.
 
 Substitui o antigo GitHub Action `code-review@claude-code-plugins` (desativado por custar por
 execução independente do risco/tamanho da mudança). Roda **só quando há mudança real de
-código-fonte** — o mesmo filtro do passo 3 já resolve isso: se `git diff "$DEFAULT_BRANCH"
+código-fonte** — o mesmo filtro do passo 3 já resolve isso: se `git diff "origin/$DEFAULT_BRANCH"
 --name-only` (passo 3) não mapeou nenhum módulo (ex.: PR só de docs, lockfile ou config), **pule
 este passo**.
 

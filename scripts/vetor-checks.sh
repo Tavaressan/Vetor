@@ -49,7 +49,12 @@ case "$cmd" in
 
   debug-scan)
     base="${2:?uso: vetor-checks.sh debug-scan <base-branch>}"
-    hits=$(git diff "$base" --name-only | xargs -r grep -nE 'console\.log|var_dump|fit\(|fdescribe\(|it\.only' 2>/dev/null || true)
+    # Grep only added lines from diff (lines starting with +), not the entire file content.
+    # The caller MUST pass origin/$DEFAULT_BRANCH (not local $DEFAULT_BRANCH) to avoid
+    # stale branch references in worktrees (issue #70).
+    hits=$(git diff "$base" -U0 -- '*.ts' '*.sh' '*.js' '*.tsx' '*.jsx' 2>/dev/null \
+      | grep -E '^\+' | grep -vE '^\+\+\+' \
+      | grep -nE 'console\.log|var_dump|fit\(|fdescribe\(|it\.only' 2>/dev/null || true)
     if [ -n "$hits" ]; then
       echo "FALHA: padrões de debug/teste exclusivo no diff (remova antes do push):" >&2
       echo "$hits" >&2
