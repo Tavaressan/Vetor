@@ -80,6 +80,32 @@ arquivos de config). O que não foi detectado não vira regra.
 Se o runtime sair como `unknown`, avise o usuário de que o `module-test-map.md` precisa de ajuste
 manual — as skills de teste dependem dele.
 
+### 2.b — Inserir/atualizar resumo de capacidades em CLAUDE.md/AGENTS.md
+
+`CLAUDE.md`/`AGENTS.md` são os arquivos que agentes de código carregam automaticamente no início de
+uma sessão — diferente de `.claude/rules/vetor/`, que só entra em contexto sob demanda. Um
+desenvolvedor (ou agente) que abre esses arquivos deve ficar sabendo, sem já conhecer o Vetor de
+antemão, que o plugin está instalado e como invocar suas skills/agentes.
+
+Para cada um de `CLAUDE.md` e `AGENTS.md` que já exista na raiz do projeto-alvo, rode:
+
+```bash
+deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/inject-capabilities-doc.ts" <caminho-do-arquivo>
+```
+
+O script acha o bloco delimitado por `<!-- vetor:capabilities:start -->` / `<!-- vetor:capabilities:end -->`
+e o substitui; se o bloco ainda não existir, insere no fim do arquivo; se o arquivo não existir, não
+faz nada — **nunca crie `CLAUDE.md`/`AGENTS.md` do zero**, isso é convenção de onboarding do
+projeto-alvo, não algo que o Vetor deva opinar. Rodar `/vetor` de novo é idempotente: o bloco é
+atualizado no lugar, sem duplicar e sem exigir `--force`.
+
+O conteúdo do bloco é fixo e definido em uma única fonte — a constante `CAPABILITIES_BODY` em
+`scripts/inject-capabilities-doc.ts` — para não divergir entre execuções nem exigir que o agente
+redija prosa a cada `/vetor`. É um resumo sucinto (não duplica o conteúdo completo dos `SKILL.md`):
+título curto, lista das skills/agentes com o comando de invocação e, entre parênteses, o nome do
+agente/skill correspondente. Se novas skills forem adicionadas ao plugin, atualize a constante — não
+gere a lista ad hoc na hora de rodar `/vetor`.
+
 ### 3 — Exibir Sumário de Configuração e Próximos Passos
 
 Após a criação/validação dos arquivos, exiba uma mensagem informativa clara e amigável para o desenvolvedor:
@@ -96,6 +122,8 @@ Arquivos configurados:
 - [x] .claude/vetor/config.json (runtime detectado + maxConcurrentWorkers: 5)
 - [x] .claude/vetor/status/ (status files dos workers — gitignorado)
 - [x] .claude/rules/vetor/<runtime>.md (convenções do projeto, carregadas sob demanda)
+- [<x ou ->] CLAUDE.md — bloco de capacidades <inserido | atualizado | não encontrado (arquivo ausente)>
+- [<x ou ->] AGENTS.md — bloco de capacidades <inserido | atualizado | não encontrado (arquivo ausente)>
 
 Próximos passos recomendados:
 1. Abra e revise o arquivo `.claude/vetor/module-test-map.md` para garantir que os comandos de teste headless e os mapeamentos de pasta de seu projeto estejam 100% corretos.
@@ -103,7 +131,9 @@ Próximos passos recomendados:
 3. (Opcional) Crie a pasta `.claude/vetor/docs/` e adicione guias de arquitetura, padrões do projeto e gaps em markdown. O comando `/vetor:backlog` lerá automaticamente estes arquivos para propor issues altamente contextualizadas.
 ```
 
-Se o script pulou algum arquivo por já existir, diga qual — e que só `--force` o sobrescreve.
+Se o script pulou algum arquivo por já existir, diga qual — e que só `--force` o sobrescreve. Reporte
+também o resultado do passo 2.b: se o bloco de capacidades foi inserido, atualizado, ou se nenhum
+`CLAUDE.md`/`AGENTS.md` foi encontrado na raiz (nesse caso, nenhuma ação foi tomada).
 
 ---
 

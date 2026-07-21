@@ -41,3 +41,30 @@ export function injectBlock(path: string, body: string): InjectResult {
   Deno.writeTextFileSync(path, `${current}${separator}${block}\n`);
   return "inserted";
 }
+
+/** Resumo padrão inserido em CLAUDE.md/AGENTS.md — mantido em um só lugar (fonte única). */
+export const CAPABILITIES_BODY = `## Vetor (plugin instalado)
+
+Automação de ciclo de desenvolvimento (issues → worktrees → fix loop → PR). Skills e agentes:
+
+- \`/vetor\` — inicializa/atualiza a configuração do Vetor neste projeto.
+- \`/vetor:backlog\` (\`backlog-ideator\`) — propõe issues a partir de gaps do código/docs.
+- \`/vetor:coordinator\` (\`issue-coordinator\`) — orquestra workers para issues do backlog.
+- \`/vetor:worktree-create\` (\`worktree-create\`) — cria um worktree isolado para uma issue.
+- \`/vetor:fix-loop\` (\`fix-loop-agent\`) — itera build/test até verde num worktree existente.
+- \`/vetor:worktree-ship\` (\`worktree-ship\`) — abre PR a partir de um worktree em estado verde.
+- \`/vetor:guardian\` (\`guardian\`) — auditoria de banco de dados por stack (condicional).
+- \`/vetor:retro\` (\`retro\`) — retrospectiva do ciclo de trabalho.
+- Agentes \`code-review\` e \`issue-worker\` — usados internamente pelos comandos acima.
+
+Detalhes de cada skill: \`skills/<nome>/SKILL.md\` no plugin.`;
+
+if (import.meta.main) {
+  const path = Deno.args[0];
+  if (!path) {
+    console.error("uso: inject-capabilities-doc.ts <caminho-do-arquivo>");
+    Deno.exit(1);
+  }
+  const result = injectBlock(path, CAPABILITIES_BODY);
+  console.log(JSON.stringify({ path, result }));
+}
