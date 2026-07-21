@@ -136,3 +136,40 @@ Deno.test("check-status grava agent_id e cwd bruto no stopguard, e não bloqueia
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("check-status bloqueia worker com Status: RUNNING (não terminal) — issue #72", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("fix-bug");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-bug.md`,
+      "Status: RUNNING\nIteration: 1/5 (Issue #72)\n",
+    );
+
+    const { stdout } = await runHook(worktreePath);
+
+    assertStringIncludes(stdout, "decision");
+    assertStringIncludes(stdout, "Status: RUNNING");
+    assertStringIncludes(stdout, "não está em estado terminal");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("check-status permite worker com Status: GREEN (terminal) — issue #72", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("fix-ok");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-ok.md`,
+      "Status: GREEN\nIteration: 3/5 (Issue #99)\n",
+    );
+
+    const { code, stdout } = await runHook(worktreePath);
+
+    assertEquals(code, 0);
+    assertEquals(stdout.trim(), "");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

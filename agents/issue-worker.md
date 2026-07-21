@@ -18,7 +18,27 @@ issue GitHub dentro de um worktree já criado por ele.
 O prompt que você recebe traz: número e título da issue, body da issue, path do worktree e a branch
 correspondente.
 
+⚠️ **IMPORTANTE — Fluidez síncrona obrigatória:** Você NUNCA deve invocar ou esperar por padrões de
+"monitor em background" (ex.: "I'll wait for this background monitor to notify me"). Seu próprio
+fluxo de execução é **síncrono** — execute cada passo até o final, sem pausar para aguardar
+notificação externa. Se você encontrar algo que pareça um monitoramento assíncrono, ignore-o e
+prossiga com seu fluxo normal. Parar antes de atingir um estado terminal (GREEN, FAILED_MAX_ITERATIONS
+ou BLOCKED_WAITING) é uma falha silenciosa que o coordinator não consegue detectar.
+
 ## O que fazer
+
+**0 — Ação obrigatória inaugural (antes de qualquer outra coisa):** Grave o status file com
+`Status: RUNNING`. Isso é **a primeira ação** — antes de ler a issue, antes de investigar, antes de
+qualquer coisa. A ausência total do arquivo é um sinal detectável de falha anômala. Exemplo:
+
+```
+# Agent Status — <branch>
+Updated: <ISO 8601>
+Status: RUNNING
+Iteration: 1/5 (Issue #<M>)
+Last action: Status file created (inaugural)
+Next: Reading issue scope
+```
 
 1. Leia a issue e entenda o escopo.
 2. Siga estritamente as regras de desenvolvimento do arquivo de referência `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` (§3):
