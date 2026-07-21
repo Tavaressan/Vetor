@@ -370,15 +370,25 @@ há build/sync automático entre as duas cópias nesta versão.
   allow/ask/deny), usado em `opencode/agent/issue-worker.md` para negar `git push`/`gh pr
   create|ready|merge` como camada extra além do hook.
 
-**Skills — não portadas nesta versão (mesmo bloqueio do Codex).** O formato `SKILL.md` do
-OpenCode é compatível (frontmatter `name`/`description`; campos extras são ignorados) e o
-OpenCode até escaneia `.claude/skills/*/SKILL.md` nativamente — mas isso não ajuda aqui, porque
-as skills do Vetor (`skills/*/SKILL.md`) referenciam `$CLAUDE_PLUGIN_ROOT` no corpo do texto para
-localizar `scripts/` e `skills/shared/references/`, variável que o OpenCode não define. Portar as
-8 skills (ajustar cada referência para caminho relativo dentro de uma cópia auto-contida em
-`.opencode/skills/`, e reescrever a seção de dispatch do `issue-coordinator` para o modelo
-`opencode run --dir`) é trabalho substancial deixado como issue de acompanhamento — igual ao que
-foi feito para o Codex.
+**Skills — `issue-coordinator` portado (issue #82); as demais 7 seguem bloqueadas pelo mesmo
+motivo do Codex.** O formato `SKILL.md` do OpenCode é compatível (frontmatter `name`/`description`;
+campos extras são ignorados) e o OpenCode até escaneia `.claude/skills/*/SKILL.md` nativamente —
+mas isso não ajudava por si só, porque as skills do Vetor (`skills/*/SKILL.md`) referenciam
+`$CLAUDE_PLUGIN_ROOT` no corpo do texto para localizar `scripts/` e
+`skills/shared/references/`, variável que o OpenCode não define. `opencode/skills/issue-coordinator/
+SKILL.md` é uma cópia auto-contida (sem `$CLAUDE_PLUGIN_ROOT` em nenhum ponto) que resolve todas as
+referências como caminho relativo à raiz do repositório onde `.opencode/` foi copiado — inclusive
+`.opencode/scripts/vetor-status.sh` e `.opencode/scripts/vetor-checks.sh` (cópias diretas de
+`scripts/vetor-status.sh`/`vetor-checks.sh`, adicionadas junto com o skill). O modelo de dispatch
+foi reescrito para o processo `opencode run --dir <worktree> --agent issue-worker`, já que não há
+`Agent()`/`isolation: "worktree"` nem `SendMessage` no OpenCode — a escalação de `BLOCKED_WAITING`
+e o acompanhamento de progresso acontecem por **polling do status file**
+(`.opencode/scripts/vetor-status.sh`), não por canal de mensagens entre processos. Ver
+`opencode/skills/issue-coordinator/SKILL.md`, seção "Validação manual", para o procedimento de teste
+contra uma instalação real do OpenCode (não executado nesta investigação por falta de CLI
+interativo disponível). Portar as 7 skills restantes (mesmo ajuste de referências, sem a
+complexidade adicional do modelo de dispatch multi-processo) segue como trabalho futuro — igual ao
+que foi feito para o Codex.
 
 **Instalação manual** (sem marketplace de primeira classe no OpenCode — plugins/agentes/skills são
 arquivos copiados, não um pacote instalável em um comando):
@@ -392,10 +402,10 @@ path do `docker-catalog.yaml` se for usar o servidor `docker`).
 
 **Resumo:** isolamento de worktree por worker é **verificado e resolvido** (via `opencode run
 --dir`, testado contra o CLI real instalado). Hooks de segurança são **reais e funcionais**
-(reaproveitando os scripts Deno existentes). Skills seguem **bloqueadas** pela mesma limitação de
-path do Codex. Não usar `/vetor:coordinator` completo (a skill em si) no OpenCode até a issue de
-portar as skills ser resolvida — hoje só os dois subagentes nativos e o plugin de segurança estão
-prontos para uso.
+(reaproveitando os scripts Deno existentes). O `issue-coordinator` está **portado**
+(`opencode/skills/issue-coordinator/SKILL.md`) — hoje os dois subagentes nativos, o plugin de
+segurança e o coordinator estão prontos para uso; as demais 7 skills seguem bloqueadas pela mesma
+limitação de path do Codex.
 
 ### Convenções do projeto (`.claude/rules/vetor/`)
 
@@ -478,8 +488,11 @@ opencode/                    # camada de compatibilidade (OpenCode) — copiar p
 ├── agent/
 │   ├── issue-worker.md      # subagente (OpenCode) — instrui dispatch via `opencode run --dir`
 │   └── code-review.md       # subagente (OpenCode) — permission.edit: deny
+├── skills/issue-coordinator/
+│   └── SKILL.md              # coordinator portado (issue #82) — auto-contido, sem $CLAUDE_PLUGIN_ROOT
 ├── plugin/vetor.ts          # plugin real: tool.execute.before/after, reaproveita scripts/ via deno run
-├── scripts/                 # cópia de scripts/{safety-check,check-edit,lib/*}.ts (sem $CLAUDE_PLUGIN_ROOT)
+├── scripts/                 # cópia de scripts/{safety-check,check-edit,vetor-status,vetor-checks,lib/*}
+│                             # (sem $CLAUDE_PLUGIN_ROOT)
 └── mcp.jsonc                # tradução de .mcp.json para o campo "mcp" de opencode.json
 agents/
 ├── issue-worker.md          # subagente nativo (Claude Code) — worker isolado despachado pelo coordinator
