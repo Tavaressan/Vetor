@@ -36,5 +36,10 @@ export function isWithin(child: string, parent: string): boolean {
  */
 export function isWriteAllowed(target: string, worktree: string, root: string): boolean {
   if (isWithin(target, worktree)) return true;
-  return isWithin(target, `${root}/.claude/vetor/status`);
+
+  const statusDir = normalizePath(`${root}/.claude/vetor/status`);
+  const normalizedTarget = normalizePath(target);
+  const fileName = normalizedTarget.slice(statusDir.length + 1);
+  return normalizedTarget.startsWith(`${statusDir}/`) && !fileName.includes("/") &&
+    fileName.endsWith(".md");
 }

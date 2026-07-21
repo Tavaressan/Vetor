@@ -56,6 +56,8 @@ export interface ModelHealthEntry {
 
 export type ModelHealthFile = Record<string, ModelHealthEntry>;
 
+const LOCK_RETRY_MS = 10;
+
 function exists(path: string): boolean {
   try {
     Deno.statSync(path);
@@ -86,14 +88,30 @@ export function recordModelHealth(
   key: string,
   entry: ModelHealthEntry,
 ): ModelHealthFile {
-  const file = readModelHealthFile(path);
-  file[key] = entry;
-
   const dir = path.slice(0, path.lastIndexOf("/"));
   if (dir) Deno.mkdirSync(dir, { recursive: true });
-  Deno.writeTextFileSync(path, JSON.stringify(file, null, 2) + "\n");
 
-  return file;
+  const lockPath = `${path}.lock`;
+  while (true) {
+    try {
+      Deno.openSync(lockPath, { createNew: true, write: true }).close();
+      break;
+    } catch (error) {
+      if (!(error instanceof Deno.errors.AlreadyExists)) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, LOCK_RETRY_MS);
+    }
+  }
+
+  try {
+    const file = readModelHealthFile(path);
+    file[key] = entry;
+    const tempPath = `${path}.${Deno.pid}.${crypto.randomUUID()}.tmp`;
+    Deno.writeTextFileSync(tempPath, JSON.stringify(file, null, 2) + "\n");
+    Deno.renameSync(tempPath, path);
+    return file;
+  } finally {
+    Deno.removeSync(lockPath);
+  }
 }
 
 /** Entrada ausente ou `until` no passado = saudável. Consumido pelo issue-coordinator (#84). */

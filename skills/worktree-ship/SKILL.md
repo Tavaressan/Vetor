@@ -83,7 +83,7 @@ Projetos sem migrations versionadas: no-op. Mesma convenção Flyway do `guardia
 ### 3 — Detecção de módulos alterados
 
 ```bash
-git diff "$DEFAULT_BRANCH" --name-only
+git diff "origin/$DEFAULT_BRANCH" --name-only
 ```
 
 Mapeie os arquivos alterados aos módulos usando a tabela de detecção do module-test-map.
@@ -110,7 +110,7 @@ Saída: <últimas 30 linhas do log>
 ### 4.b — Scan de debugging
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "$DEFAULT_BRANCH"
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "origin/$DEFAULT_BRANCH"
 ```
 
 Se sair não-zero, remova os padrões apontados (debug temporário, `it.only` etc.) e commite antes
@@ -205,7 +205,7 @@ Worktree preservado para inspeção manual.
 
 Substitui o antigo GitHub Action `code-review@claude-code-plugins` (desativado por custar por
 execução independente do risco/tamanho da mudança). Roda **só quando há mudança real de
-código-fonte** — o mesmo filtro do passo 3 já resolve isso: se `git diff "$DEFAULT_BRANCH"
+código-fonte** — o mesmo filtro do passo 3 já resolve isso: se `git diff "origin/$DEFAULT_BRANCH"
 --name-only` (passo 3) não mapeou nenhum módulo (ex.: PR só de docs, lockfile ou config), **pule
 este passo**.
 
@@ -349,11 +349,15 @@ Descubra o path real do worktree via `git worktree list` (não assuma a convenç
 localização é do harness). Se invocado pelo `issue-coordinator` (modo headless), execute o
 cleanup automaticamente:
 ```bash
-git worktree remove "<path-do-worktree>"
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" safe-remove-worktree "<path-do-worktree>"
 git branch -d <branch>
 rm -f .claude/vetor/status/<branch>.md
 rm -f .claude/vetor/status/<branch>-touched-files.json
 ```
+
+Se a checagem falhar, **pare o cleanup**: ela encontrou um worktree ativo dentro do path alvo e
+removê-lo apagaria também o filho. Mostre os paths listados e preserve o worktree pai, branch e
+arquivos de status/cache até os filhos serem realocados ou removidos com segurança.
 
 A última linha remove o cache de arquivos tocados gravado pelo `fix-loop-agent` (issue #81) — ele é
 efêmero por branch/worktree e nunca deve persistir entre PRs.
