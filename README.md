@@ -359,6 +359,20 @@ para dentro de cada worktree, já que `git worktree` só contém arquivos rastre
 assumido:** os scripts em `opencode/scripts/` podem divergir de `scripts/` ao longo do tempo — não
 há build/sync automático entre as duas cópias nesta versão.
 
+**Detecção reativa de rate-limit/quota (issue #83).** `opencode/plugin/vetor.ts` também escuta o
+hook `event` para `session.error`. Confirmado contra o SDK instalado (`@opencode-ai/plugin`
+v1.18.4, `dist/index.d.ts:175` `Hooks.event`; `@opencode-ai/sdk`, `dist/gen/types.gen.d.ts:86`
+`ApiError`, `:518` `EventSessionError`): o campo `error` pode ser um `ApiError` com
+`data.statusCode` (429/529 tratados como rate limit/quota), `data.isRetryable` e
+`data.responseHeaders` (tipicamente `retry-after`). Como `EventSessionError.properties` só carrega
+`sessionID` (sem provider/model), o plugin correlaciona `sessionID -> "<providerID>/<modelID>"` via
+`chat.params` (que recebe `model: { providerID, id }`) antes de gravar. O sinal é persistido —
+via `opencode/scripts/model-health.ts` (`deno run -A`, mesmo padrão do restante) — em
+`.claude/vetor/status/model-health.json`, na raiz do repositório, porque cada worker é um processo
+separado sem estado compartilhado. Entradas com `until` no passado são tratadas como saudáveis por
+quem lê o arquivo (`isHealthy` em `opencode/scripts/lib/model-health.ts`, usado pelo
+`issue-coordinator` na issue #84 para fallback de modelo/provedor).
+
 **Gaps confirmados (sem hook equivalente):**
 - `SubagentStop` (obrigar status file em estado terminal) — sem cobertura; não há evento
   específico de fim de subagente entre os ~26 eventos documentados.
@@ -490,9 +504,10 @@ opencode/                    # camada de compatibilidade (OpenCode) — copiar p
 │   └── code-review.md       # subagente (OpenCode) — permission.edit: deny
 ├── skills/issue-coordinator/
 │   └── SKILL.md              # coordinator portado (issue #82) — auto-contido, sem $CLAUDE_PLUGIN_ROOT
-├── plugin/vetor.ts          # plugin real: tool.execute.before/after, reaproveita scripts/ via deno run
+├── plugin/vetor.ts          # plugin real: tool.execute.before/after + event (rate-limit, #83)
 ├── scripts/                 # cópia de scripts/{safety-check,check-edit,vetor-status,vetor-checks,lib/*}
-│                             # (sem $CLAUDE_PLUGIN_ROOT)
+│   ├── model-health.ts        # CLI: grava .claude/vetor/status/model-health.json (#83)
+│   └── lib/model-health.ts    # computeUntil/isHealthy — sem $CLAUDE_PLUGIN_ROOT
 └── mcp.jsonc                # tradução de .mcp.json para o campo "mcp" de opencode.json
 agents/
 ├── issue-worker.md          # subagente nativo (Claude Code) — worker isolado despachado pelo coordinator
