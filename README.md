@@ -254,11 +254,12 @@ Para usar o Vetor com Antigravity, a restrição crítica é que workers podem e
 
 #### Compatibilidade com OpenAI Codex
 
-Investigação feita em 2026-07-20 contra a documentação pública do Codex CLI
+Investigação feita em 2026-07-20/21 contra a documentação pública do Codex CLI
 ([`developers.openai.com/codex`](https://developers.openai.com/codex/cli), espelhada em
-`learn.chatgpt.com/docs/*`) — sem acesso a uma instância real do `codex` CLI neste ambiente para
-validar o payload exato dos hooks. Trate o que segue como verificado **contra a doc**, não contra
-comportamento em produção; valide antes de mergear em um projeto que dependa disto.
+`learn.chatgpt.com/docs/*`), o CLI `codex` v0.144.6 instalado nesta máquina, e logs locais em
+`~/.codex/logs_2.sqlite`. Trate o que segue como verificado **contra a doc e comportamento observado
+em máquina local**; valide a cobertura de eventos do hook contra uma sessão real antes de mergear em
+um projeto que dependa de `/vetor:coordinator` com Codex.
 
 Ao contrário do Antigravity, o Codex tem hooks de ciclo de vida com o **mesmo formato de arquivo**
 do Claude Code (`hooks.json` com `hooks.<Evento>[].matcher`/`hooks[].type: "command"`) e uma lista
@@ -316,6 +317,25 @@ de risco documentada para o Antigravity (issue #57: cwd mal resolvido contaminan
 compartilhada), só que sem o guard `PreToolUse` de escrita fora do worktree para pegar o caso,
 porque esse guard depende do payload não verificado. **Não usar `/vetor:coordinator` com dispatch
 em background no Codex** até essa validação ser feita contra uma sessão real.
+
+**Rate-limit/quota — nenhum sinal observável (investigação #85).** Explorados comandos `codex --help`,
+`codex exec --help`, `codex debug --help`, `codex doctor --help`, `codex features --help` e o banco
+de logs em `~/.codex/logs_2.sqlite`. Achados:
+- JSONL events do `codex exec --json` incluem tipos: `thread.started`, `turn.started`,
+  `item.completed`, `turn.completed`
+- `turn.completed` expõe `usage` com `input_tokens`, `cached_input_tokens`, `output_tokens`,
+  `reasoning_output_tokens` — informação de consumo, mas **não há limite ou quota nesse event**
+- HTTP logs registram requests/responses com headers completos (status code, x-oai-request-id,
+  etc.), mas **nenhum header de rate-limit** (`x-ratelimit-*` ou similar) observado
+- `codex doctor` não expõe stats de rate-limit ou quota
+- Nenhum comando de CLI para `stats` ou `quota` descoberto (diferente do esperado na OpenCode/OpenAI
+  SDK)
+- Limitação de plataforma: **Codex não expõe sinal viável de rate-limit ou quota ao cliente** —
+  diferente da OpenAI API que inclui headers `x-ratelimit-limit-requests`, `x-ratelimit-remaining-requests`,
+  `retry-after` em respostas HTTP. Se o Codex exceder quota, o CLI retorna um error na websocket ou
+  uma resposta HTTP 429/503, mas sem contexto útil de "quantos requests me restam" —
+  recomendação: **não é viável implementar detecção de rate-limit/quota no Vetor sem mudança no
+  Codex CLI ou API** (issue para OpenAI abrir, não escopo do Vetor).
 
 #### Compatibilidade com OpenCode
 
