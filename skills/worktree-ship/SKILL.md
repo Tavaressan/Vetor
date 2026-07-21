@@ -350,10 +350,14 @@ cleanup automaticamente:
 git worktree remove "<path-do-worktree>"
 git branch -d <branch>
 rm -f .claude/vetor/status/<branch>.md
+rm -f .claude/vetor/status/<branch>-touched-files.json
 ```
 
+A última linha remove o cache de arquivos tocados gravado pelo `fix-loop-agent` (issue #81) — ele é
+efêmero por branch/worktree e nunca deve persistir entre PRs.
+
 Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
-branch e arquivo de status).
+branch, arquivo de status e cache de arquivos tocados).
 
 ---
 
