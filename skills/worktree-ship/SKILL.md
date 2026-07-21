@@ -222,6 +222,27 @@ achado é o humano, ao ler o comentário na PR (antes ou depois do merge).
 Se o dispatch do subagente falhar por qualquer motivo (rate limit, erro de ferramenta), registre a
 falha no sumário e prossiga mesmo assim — este passo nunca bloqueia o ship.
 
+### 8.6 — Gate de segurança de aplicação (consultivo, não bloqueante, opcional)
+
+Cobre segurança da *aplicação* (OWASP: injeção, XSS, segredos expostos etc.) — diferente do
+`agents/code-review.md`, focado em bugs/correção/arquitetura, e do `safety-check.ts`/`guardian`,
+focados em segurança *estrutural* do próprio Vetor. Roda no mesmo ponto do passo 8.5, só quando
+houve módulo alterado (mesmo filtro).
+
+Verifique se a skill nativa `security-review` está disponível nesta sessão (procure pelo nome entre
+as skills carregáveis). **Se não estiver disponível, pule este passo silenciosamente** — é aditivo,
+nunca bloqueia o fluxo.
+
+Se disponível, invoque-a sobre o diff da PR (`gh pr diff <PR-number>`) e publique os achados como
+comentário na PR, no mesmo formato consultivo do passo 8.5:
+
+```bash
+gh pr comment <PR-number> --body "<achados de security-review em markdown>"
+```
+
+**Nunca pare o pipeline por causa dos achados** — mesmo com vulnerabilidades reportadas, prossiga
+para o passo 9. A decisão de agir é sempre humana, lendo o comentário na PR.
+
 ### 9 — Verificar review
 
 ```bash
