@@ -170,6 +170,29 @@ Timeout: 20 minutos. Se expirar, notifique e pare.
 Para cada falha detectada no monitoramento do CI:
 
 1. **Classificação de Erro:**
+
+   **8.a — Circuit Breaker de Infraestrutura (executa ANTES da análise de logs):**
+
+   Antes de ler logs detalhados, verifique se a falha é de infraestrutura da plataforma
+   (billing, outage, job not started) — cenário que nenhum fix de código resolve:
+
+   ```bash
+   deno run -A scripts/detect-infra-failure.ts <run-id>
+   ```
+
+   Se o script retornar exit 0 (saída JSON com `isInfrastructureFailure: true`):
+   - **Pule inteiramente** as iterações de fix de código (§8.1 abaixo).
+   - **Pare** e escreva o status file com `Status: BLOCKED_INFRA` e o motivo:
+     ```markdown
+     Status: BLOCKED_INFRA
+     Motivo: Falha de infraestrutura da plataforma — <reason do script>.
+     Ação necessária: resolver billing/outage no GitHub antes de retomar.
+     ```
+   - **Escale ao usuário** via AskUserQuestion:
+     `⚠️ Falha de infraestrutura detectada no CI (billing/outage). Não é possível resolver com fix de código. Deseja aguardar a resolução ou prosseguir sem CI (merge manual)?`
+   - **Pare.** Não consuma iterações de fix-loop.
+
+   **8.b — Classificação de Erro (apenas se NÃO for infraestrutura):**
    Leia o log de erro do CI:
    ```bash
    gh run view <run-id> --log-failed
@@ -368,3 +391,9 @@ branch, arquivo de status e cache de arquivos tocados).
 - Máximo 3 iterações de fix de CI
 - Preserva worktree intacto em caso de falha (para inspeção manual)
 - A revisão de código nativa (passo 8.5) é sempre consultiva — achados nunca bloqueiam o merge
+- **Circuit Breaker de Infraestrutura (§8.a):** distinto do circuit breaker de falhas
+  recorrentes do `issue-coordinator` (§5.c). Este detecta falhas da *plataforma* CI
+  (billing, outage, job not started) via anotações de job e pausa imediatamente sem
+  consumir iterações de fix — o problema não é resolvível por alteração de código. O
+  circuit breaker do `issue-coordinator` agrega múltiplos workers com falhas idênticas
+  de código (padrão textual repetido) e pergunta se deve pausar ou prosseguir.
