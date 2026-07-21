@@ -29,6 +29,17 @@ Deno.test("status file na raiz é a exceção permitida", () => {
   );
 });
 
+Deno.test("exceção de status não permite outros arquivos ou subdiretórios", () => {
+  assertEquals(
+    isWriteAllowed(`${ROOT}/.claude/vetor/status/issue-42.json`, WORKTREE, ROOT),
+    false,
+  );
+  assertEquals(
+    isWriteAllowed(`${ROOT}/.claude/vetor/status/.agent-cwd/agent-42`, WORKTREE, ROOT),
+    false,
+  );
+});
+
 Deno.test("escape por .. é bloqueado", () => {
   assertEquals(isWriteAllowed(`${WORKTREE}/../../../src/a.ts`, WORKTREE, ROOT), false);
 });

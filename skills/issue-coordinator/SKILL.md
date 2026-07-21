@@ -254,6 +254,18 @@ Envie ao `issue-worker` a lista de tarefas a realizar:
    iteração de cada issue do grupo, refletindo a issue atual (ex.: `Iteration: 2/5 (Issue #<M1>)`).
    O arquivo fica fora do worktree — sem risco de commit acidental.
 
+   ⚠️ **Fallback de status file (issue #94).** Instrua o worker explicitamente:
+   > Escreva o status file no path absoluto `<status-file-path>`. Se a plataforma rejeitar com
+   > mensagem como *"Edit the worktree copy..."* ou qualquer bloqueio de escrita fora do worktree,
+   > salve também uma cópia dentro do worktree em `.claude/vetor-status.md` (relativo ao worktree).
+   > Se apenas a cópia local foi gravada, sinalize no chat que o status está no worktree para que o
+   > coordinator saiba ler de lá.
+
+   O coordinator (Fase 5) ao ler o status, verifica primeiro o path absoluto; se não existir ou
+   estiver desatualizado, tenta `.claude/vetor-status.md` dentro do worktree correspondente
+   (obtido via `git worktree list`). Isso garante que o monitoramento funcione mesmo quando a
+   plataforma bloqueia a escrita fora do worktree.
+
 Quando o worker concluir todas as issues do grupo com sucesso, ele deve marcar o status final como `GREEN`. Caso falhe em alguma, para e marca como `FAILED_MAX_ITERATIONS` especificando qual issue do grupo falhou.
 
 ### 5 — Monitoramento
@@ -269,6 +281,8 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"
 O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
 manualmente → `cancelled (worktree removed)`; não recrie) e imprime a tabela pronta. Reproduza-a
 no chat acrescentando as linhas dos grupos ainda `QUEUED` (aguardando vaga no teto da Fase 4).
+
+⚠️ **Fallback de leitura de status (issue #94).** Se o status file no path absoluto (`.claude/vetor/status/`) não existir ou estiver desatualizado para um worktree ativo, verifique se existe `.claude/vetor-status.md` dentro desse worktree. O worker pode ter escrito apenas localmente quando a plataforma bloqueou a escrita fora do worktree. Ao ler do worktree, extraia a branch via `git worktree list` e leia `<path-do-worktree>/.claude/vetor-status.md`.
 
 ⚠️ **Detecção de workers duplicados na mesma issue.** Ao montar a tabela, extraia o número de issue
 de cada linha `Iteration: N/5 (Issue #<M>)` de todos os status files ativos (`RUNNING`,
