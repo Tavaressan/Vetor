@@ -121,6 +121,99 @@ Deno.test("issue-worker escrevendo fora do próprio worktree (outro diretório) 
   }
 });
 
+function applyPatchCommand(...ops: string[]): string[] {
+  return ["apply_patch", `*** Begin Patch\n${ops.join("\n")}\n*** End Patch\n`];
+}
+
+Deno.test("apply_patch (Codex) fora de um worktree linkado (cwd = raiz) é bloqueado — issue #76", async () => {
+  const root = await makeRepo("main");
+  try {
+    const { code, stderr } = await runHook({
+      tool_name: "apply_patch",
+      tool_input: { command: applyPatchCommand("*** Update File: README.md\n@@\n-a\n+b") },
+      cwd: root,
+      agent_type: "vetor:issue-worker",
+    });
+
+    assertEquals(code, 2);
+    assertStringIncludes(stderr, "fora de um worktree linkado");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("apply_patch (Codex) escrevendo dentro do próprio worktree continua permitido — issue #76", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  try {
+    const { code } = await runHook({
+      tool_name: "apply_patch",
+      tool_input: { command: applyPatchCommand("*** Update File: README.md\n@@\n-a\n+b") },
+      cwd: worktreePath,
+      agent_type: "vetor:issue-worker",
+    });
+
+    assertEquals(code, 0);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("apply_patch (Codex) escrevendo fora do próprio worktree (path absoluto de outro dir) é bloqueado — issue #76", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  try {
+    const { code, stderr } = await runHook({
+      tool_name: "apply_patch",
+      tool_input: {
+        command: applyPatchCommand(`*** Update File: ${root}/README.md\n@@\n-a\n+b`),
+      },
+      cwd: worktreePath,
+      agent_type: "vetor:issue-worker",
+    });
+
+    assertEquals(code, 2);
+    assertStringIncludes(stderr, "escrita fora do worktree bloqueada");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("apply_patch (Codex) multi-arquivo: um Add File fora do worktree é suficiente para bloquear — issue #76", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  try {
+    const { code, stderr } = await runHook({
+      tool_name: "apply_patch",
+      tool_input: {
+        command: applyPatchCommand(
+          "*** Update File: README.md\n@@\n-a\n+b",
+          `*** Add File: ${root}/outside.txt\n+conteudo`,
+        ),
+      },
+      cwd: worktreePath,
+      agent_type: "vetor:issue-worker",
+    });
+
+    assertEquals(code, 2);
+    assertStringIncludes(stderr, "escrita fora do worktree bloqueada");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("apply_patch (Codex) sem agent_type (sessão normal) na raiz não é afetado — issue #76", async () => {
+  const root = await makeRepo("main");
+  try {
+    const { code } = await runHook({
+      tool_name: "apply_patch",
+      tool_input: { command: applyPatchCommand("*** Update File: README.md\n@@\n-a\n+b") },
+      cwd: root,
+    });
+
+    assertEquals(code, 0);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("safety-check.ts (integração): worktree válido dentro de .claude/worktrees passa", async () => {
   const repo = await makeRepo("main");
   const wt = `${repo}/.claude/worktrees/valid-wt`;

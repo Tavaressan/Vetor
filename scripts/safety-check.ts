@@ -16,7 +16,11 @@
 //   Edit/Write  — dentro de um worktree, não escrever fora dele; um agente vetor:issue-worker
 //                 nunca deveria escrever com cwd resolvendo para a raiz do projeto (fora de
 //                 qualquer worktree linkado) — se acontecer, é sinal de cwd mal resolvido pelo
-//                 harness, não uma escrita legítima (ver issue #57).
+//                 harness, não uma escrita legítima (ver issue #57). No Codex, edição de arquivo
+//                 chega como tool_name "apply_patch" (nunca "Edit"/"Write" — só aliases de
+//                 matcher no hooks.json) com um patch multi-arquivo em tool_input.command, em
+//                 vez de tool_input.file_path — mesma política, paths extraídos do patch
+//                 (ver issue #76).
 //   Binding     — segunda camada, independente do guard acima: com múltiplos workers em
 //                 paralelo (ver issue #63), o cwd recebido no payload pode contaminar entre
 //                 subagentes — o cwd resolve para um worktree real, só que de OUTRO worker
@@ -40,12 +44,31 @@ const PROTECTED_BRANCHES = ["main", "master", "production"];
 
 interface HookInput {
   tool_name?: string;
-  tool_input?: { command?: string; file_path?: string };
+  /** command é string no Bash; array (["apply_patch", "<patch>"]) no apply_patch do Codex. */
+  tool_input?: { command?: string | string[]; file_path?: string };
   cwd?: string;
   /** Presente quando o hook dispara dentro de um subagente (ex.: "vetor:issue-worker"). */
   agent_type?: string;
   /** Identificador único da instância do subagente — estável entre chamadas, ao contrário de agent_type. */
   agent_id?: string;
+}
+
+const APPLY_PATCH_PATH_RE = /^\*\*\* (?:Add File|Delete File|Update File|Move to): (.+)$/gm;
+
+/**
+ * Extrai os paths tocados por um patch do apply_patch (formato descrito em
+ * https://github.com/openai/codex/blob/main/codex-rs/core/gpt_5_2_prompt.md): um envelope com
+ * uma ou mais operações "Add/Delete/Update File" e "Move to" opcional por operação.
+ */
+function extractApplyPatchPaths(command: string | string[] | undefined): string[] {
+  const patchText = Array.isArray(command) ? command.at(-1) : command;
+  if (!patchText) return [];
+
+  return [...patchText.matchAll(APPLY_PATCH_PATH_RE)].map((match) => match[1].trim());
+}
+
+function resolveAgainstCwd(path: string, cwd: string): string {
+  return path.startsWith("/") ? path : `${cwd}/${path}`;
 }
 
 function blocked(message: string): never {
@@ -195,8 +218,15 @@ async function main() {
     Deno.exit(0);
   }
 
+  if (input.tool_name === "apply_patch") {
+    for (const path of extractApplyPatchPaths(input.tool_input?.command)) {
+      await checkWrite(resolveAgainstCwd(path, cwd), cwd, input.agent_type, input.agent_id);
+    }
+    Deno.exit(0);
+  }
+
   const command = input.tool_input?.command;
-  if (command) checkBash(command, wt);
+  if (typeof command === "string") checkBash(command, wt);
   Deno.exit(0);
 }
 
