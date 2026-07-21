@@ -113,17 +113,29 @@ export function parseTranscript(raw: string): EditRecord[] {
   return [...byFile.values()];
 }
 
+/** True quando `filePath` está dentro de `repoRoot` (mesmo diretório ou subdiretório). */
+function isInsideRepo(filePath: string, repoRoot: string): boolean {
+  return filePath === repoRoot || filePath.startsWith(repoRoot.replace(/\/$/, "") + "/");
+}
+
 /**
  * Compara cada edição pendente com o conteúdo atual em disco. `readFile` deve devolver
  * `null` quando o arquivo não existe, e nunca lançar.
+ *
+ * `repoRoot`, quando informado, restringe a checagem a arquivos dentro do repositório atual:
+ * arquivos fora dele (ex.: `~/.claude/**`, geridos por outros subsistemas) são ignorados,
+ * pois podem sofrer mutação legítima por processos alheios à sessão (issue #87).
  */
 export function findDivergences(
   records: EditRecord[],
   readFile: (path: string) => string | null,
+  repoRoot?: string,
 ): Divergence[] {
   const divergences: Divergence[] = [];
 
   for (const record of records) {
+    if (repoRoot !== undefined && !isInsideRepo(record.filePath, repoRoot)) continue;
+
     const disk = readFile(record.filePath);
 
     if (disk === null) {

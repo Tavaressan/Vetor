@@ -35,6 +35,21 @@ function readFile(path: string): string | null {
   }
 }
 
+/** Root do repositório git atual, ou `undefined` se não for possível determiná-lo. */
+function repoRoot(): string | undefined {
+  try {
+    const { success, stdout } = new Deno.Command("git", {
+      args: ["rev-parse", "--show-toplevel"],
+      stdout: "piped",
+      stderr: "null",
+    }).outputSync();
+    if (!success) return undefined;
+    return new TextDecoder().decode(stdout).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function main() {
   const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
 
@@ -55,7 +70,7 @@ async function main() {
   if (transcript === null) quiet();
 
   const records = parseTranscript(transcript);
-  const divergences = findDivergences(records, readFile);
+  const divergences = findDivergences(records, readFile, repoRoot());
 
   if (divergences.length === 0) quiet();
 

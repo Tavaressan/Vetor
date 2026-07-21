@@ -108,3 +108,36 @@ Deno.test("findDivergences: arquivo ausente em disco é reportado", () => {
   assertEquals(divergences.length, 1);
   assertEquals(divergences[0].reason, "arquivo não encontrado em disco");
 });
+
+Deno.test("findDivergences: arquivo fora do repo mutado por processo externo (issue #87) não é reportado", () => {
+  // Edit aplicado com sucesso a um arquivo de memória fora do repositório (ex.: ~/.claude/**);
+  // o subsistema de memória reescreve o campo `modified:` depois, então o disco não contém
+  // mais o `new_string` exato — mas isso não é trabalho perdido: é mutação legítima de terceiro.
+  const raw = jsonl(
+    editToolUse("t1", "/home/user/.claude/projects/x/memory/MEMORY.md", "modified: 10:00"),
+    toolResult("t1"),
+  );
+  const records = parseTranscript(raw);
+
+  const divergences = findDivergences(
+    records,
+    () => "modified: 10:05\nconteudo mutado por outro processo",
+    "/repo",
+  );
+
+  assertEquals(divergences.length, 0);
+});
+
+Deno.test("findDivergences: regressão issue #46 — edição dentro do repo não persistida continua detectada", () => {
+  const raw = jsonl(editToolUse("t1", "/repo/a.ts", "linha nova"));
+  const records = parseTranscript(raw);
+
+  const divergences = findDivergences(
+    records,
+    () => "conteudo antigo sem a mudanca esperada",
+    "/repo",
+  );
+
+  assertEquals(divergences.length, 1);
+  assertEquals(divergences[0].filePath, "/repo/a.ts");
+});
