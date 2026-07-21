@@ -297,7 +297,9 @@ Quando um status file atingir `GREEN`:
 3. `cd <path-do-worktree>` e rode o pipeline de entrega equivalente ao `worktree-ship` do Claude
    Code — se ele não tiver sido portado ainda para o OpenCode neste repositório, rode manualmente:
    `<comando de teste> && git push -u origin <branch> && gh pr create ... && gh pr merge --squash`.
-4. Após merge bem-sucedido, `git worktree remove <path>` e atualize a tabela.
+4. Após merge bem-sucedido, execute `bash "$VETOR_PLUGIN_ROOT/scripts/vetor-checks.sh"
+   safe-remove-worktree <path>` e atualize a tabela. Se a checagem apontar um worktree filho,
+   pare o cleanup e alerte com o path do filho; nunca rode `git worktree remove <path>` diretamente.
 
 Se falhar (CI vermelho, review required): marque na tabela e continue com outros grupos.
 

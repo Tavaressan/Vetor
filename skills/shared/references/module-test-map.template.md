@@ -29,6 +29,7 @@ ser **headless** (sem interação) e retornar exit code 0 em caso de sucesso.
 | `<seu-modulo-1>`  | `<comando de format + lint + test>`               | `<observações>` |
 | `<seu-modulo-2>`  | `<comando de build + test>`                        | `<observações>` |
 | `<modulo-integ>`  | `<comando de testes de integração>`                | Requer serviço externo (DB etc.); pular em sandbox e reportar "skipped (requires <dep>)" |
+| `<modulo-sem-testes>` | `sem suíte de testes` | Não executar; reportar como "skipped (no test suite)" |
 
 <!--
 Exemplo ilustrativo (remova após preencher):
@@ -62,6 +63,8 @@ sequência.
 - **Testes que exigem serviço externo (DB, broker, etc.):** só executar em ambiente com a
   dependência disponível (docker ou CI); em headless, pular e reportar como
   "skipped (requires <dep>)" no sumário.
+- **Módulo sem suíte:** quando o comando for `sem suíte de testes`, não execute comando algum;
+  reporte "skipped (no test suite)". Isso não é falha de teste.
 
 ### Exclusões obrigatórias
 Todo `find` ou `grep` executado pelos skills deve excluir:

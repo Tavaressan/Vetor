@@ -54,6 +54,8 @@ git diff "$DEFAULT_BRANCH" --name-only
 ```
 
 Mapeie ao módulo usando a tabela do module-test-map.
+Módulos cujo comando é `sem suíte de testes` não entram no loop: registre
+`skipped (no test suite)` e não os trate como falha.
 
 **Cache de arquivos tocados (issue #81).** Depois de resolver os módulos, grave um cache leve e
 efêmero em `<repo-root>/.claude/vetor/status/<branch com / trocada por ->-touched-files.json`
@@ -101,6 +103,7 @@ Para cada iteração `i` de 1 a 5:
 **3.a — Executar testes**
 
 Execute o comando headless do módulo detectado.
+Se o comando for `sem suíte de testes`, pule o módulo sem consumir uma iteração.
 
 **Regra sandbox de docker:**
 - Na **primeira** tentativa, tente docker se aplicável

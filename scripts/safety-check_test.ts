@@ -104,6 +104,30 @@ Deno.test("issue-worker escrevendo dentro do seu próprio worktree continua perm
   }
 });
 
+Deno.test("issue-worker só pode escrever seu status Markdown na raiz — issue #71", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  try {
+    const status = await runHook({
+      tool_name: "Write",
+      tool_input: { file_path: `${root}/.claude/vetor/status/feat-x.md` },
+      cwd: worktreePath,
+      agent_type: "vetor:issue-worker",
+    });
+    assertEquals(status.code, 0, status.stderr);
+
+    const nonMarkdown = await runHook({
+      tool_name: "Write",
+      tool_input: { file_path: `${root}/.claude/vetor/status/feat-x.json` },
+      cwd: worktreePath,
+      agent_type: "vetor:issue-worker",
+    });
+    assertEquals(nonMarkdown.code, 2);
+    assertStringIncludes(nonMarkdown.stderr, "escrita fora do worktree bloqueada");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("issue-worker escrevendo fora do próprio worktree (outro diretório) continua bloqueado", async () => {
   const { root, worktreePath } = await makeLinkedWorktree("feat-x");
   try {

@@ -40,30 +40,60 @@ function exists(path: string): boolean {
 
 interface Module {
   name: string;
-  command: string;
+  command: string | null;
+}
+
+const TEST_FILE = /(?:_test|\.(?:test|spec))\.[cm]?[jt]sx?$|(?:^|\/)test_[^/]+\.py$|_test\.go$/;
+const TEST_DIRS = new Set(["test", "tests", "__tests__"]);
+
+function hasTestSuite(path: string): boolean {
+  const paths = [path];
+
+  while (paths.length > 0) {
+    const current = paths.pop()!;
+    for (const entry of Deno.readDirSync(current)) {
+      const entryPath = `${current}/${entry.name}`;
+      if (entry.isDirectory) {
+        if (IGNORED_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
+        if (TEST_DIRS.has(entry.name)) return true;
+        paths.push(entryPath);
+      } else if (entry.isFile && TEST_FILE.test(entryPath)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /** Um módulo pode estar no subdiretório direto ou um nível abaixo (monorepos rasos). */
-function detectModules(root: ProjectInfo): Module[] {
+export function detectModules(root: ProjectInfo, directory = "."): Module[] {
   const modules: Module[] = [];
 
-  for (const entry of Deno.readDirSync(".")) {
+  for (const entry of Deno.readDirSync(directory)) {
     if (!entry.isDirectory || IGNORED_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
 
-    const info = detectProject(entry.name);
+    const modulePath = `${directory}/${entry.name}`;
+    const info = detectProject(modulePath);
     if (info.runtime !== "unknown") {
-      modules.push({ name: entry.name, command: `cd ${entry.name} && ${info.testCommand}` });
+      modules.push({
+        name: entry.name,
+        command: hasTestSuite(modulePath) ? `cd ${entry.name} && ${info.testCommand}` : null,
+      });
       continue;
     }
 
     // Nada neste nível: procura um módulo um nível abaixo.
     let nested: Module | null = null;
-    for (const sub of Deno.readDirSync(entry.name)) {
+    for (const sub of Deno.readDirSync(modulePath)) {
       if (!sub.isDirectory || IGNORED_DIRS.has(sub.name)) continue;
       const subPath = `${entry.name}/${sub.name}`;
-      const subInfo = detectProject(subPath);
+      const subInfo = detectProject(`${directory}/${subPath}`);
       if (subInfo.runtime !== "unknown") {
-        nested = { name: entry.name, command: `cd ${subPath} && ${subInfo.testCommand}` };
+        nested = {
+          name: entry.name,
+          command: hasTestSuite(`${directory}/${subPath}`) ? `cd ${subPath} && ${subInfo.testCommand}` : null,
+        };
         break;
       }
     }
@@ -76,9 +106,11 @@ function detectModules(root: ProjectInfo): Module[] {
   return modules;
 }
 
-function renderMap(root: ProjectInfo, modules: Module[]): string {
+export function renderMap(root: ProjectInfo, modules: Module[]): string {
   const rows = modules.length > 0
-    ? modules.map((m) => `| \`${m.name}\` | \`${m.command}\` | Auto-detectado |`).join("\n")
+    ? modules.map((m) =>
+      `| \`${m.name}\` | \`${m.command ?? "sem suíte de testes"}\` | Auto-detectado |`
+    ).join("\n")
     : `| \`root\` | \`${
       root.testCommand || "AJUSTE: comando de teste não detectado"
     }\` | Módulo raiz |`;
@@ -181,4 +213,4 @@ function main() {
   }));
 }
 
-main();
+if (import.meta.main) main();
