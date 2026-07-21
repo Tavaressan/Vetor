@@ -2,5 +2,9 @@
   "maxConcurrentWorkers": 5,
   "runtime": "deno",
   "packageManager": "deno",
-  "testCommand": "deno task test"
+  "testCommand": "deno task test",
+  "modelFallback": {
+    "simple": ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"],
+    "complex": ["anthropic/claude-sonnet-4-5", "anthropic/claude-haiku-4-5"]
+  }
 }

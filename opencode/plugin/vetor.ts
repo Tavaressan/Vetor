@@ -77,7 +77,7 @@ function toHookInput(
 
 function runDenoScript(
   script: string,
-  payload: HookInput,
+  payload: HookInput | Record<string, unknown>,
   timeoutMs: number,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
@@ -107,6 +107,26 @@ function runDenoScript(
   });
 }
 
+/** Payload mínimo de `ApiError` (@opencode-ai/sdk v1.18.4, dist/gen/types.gen.d.ts:86). */
+interface ApiErrorLike {
+  name?: string;
+  data?: {
+    message?: string;
+    statusCode?: number;
+    isRetryable?: boolean;
+    responseHeaders?: Record<string, string>;
+  };
+}
+
+/** `EventSessionError.properties` (types.gen.d.ts:518) — sem provider/model, só sessionID. */
+interface SessionErrorEvent {
+  type: string;
+  properties?: {
+    sessionID?: string;
+    error?: ApiErrorLike;
+  };
+}
+
 // deno-lint-ignore require-await -- assinatura exigida pela API de plugin do OpenCode (async).
 export const VetorPlugin = async ({ directory, worktree }: {
   directory: string;
@@ -114,7 +134,42 @@ export const VetorPlugin = async ({ directory, worktree }: {
 }) => {
   const cwd = worktree || directory;
 
+  // `session.error` (issue #83) não carrega provider/model — só `sessionID`. `chat.params`
+  // roda antes de cada chamada ao provedor e já recebe `model: { providerID, id }`; mantemos
+  // esse mapa em memória (por processo — cada worker `opencode run --dir` já é isolado) para
+  // resolver a chave "<provider>/<model>" quando o erro chegar depois na mesma sessão.
+  const sessionModel = new Map<string, string>();
+
   return {
+    // deno-lint-ignore require-await -- assinatura exigida pela API de plugin do OpenCode (async).
+    "chat.params": async (
+      input: { sessionID: string; model: { providerID: string; id: string } },
+      _output: unknown,
+    ) => {
+      sessionModel.set(input.sessionID, `${input.model.providerID}/${input.model.id}`);
+    },
+
+    "event": async ({ event }: { event: SessionErrorEvent }) => {
+      if (event.type !== "session.error") return;
+
+      const error = event.properties?.error;
+      if (!error || error.name !== "APIError") return;
+
+      const statusCode = error.data?.statusCode;
+      if (statusCode === undefined) return;
+
+      const sessionID = event.properties?.sessionID;
+      const model = sessionID ? sessionModel.get(sessionID) : undefined;
+
+      await runDenoScript("model-health.ts", {
+        model,
+        statusCode,
+        responseHeaders: error.data?.responseHeaders,
+        message: error.data?.message,
+        cwd,
+      }, 20_000);
+    },
+
     "tool.execute.before": async (
       input: ToolExecuteBeforeInput,
       output: ToolExecuteBeforeOutput,
