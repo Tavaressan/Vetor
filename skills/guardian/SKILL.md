@@ -130,6 +130,25 @@ Se estiver disponível, use as ferramentas de query para auditar a saúde estrut
 **Finding:** <detalhes da anomalia encontrada no banco>
 **Auto-fix:** nenhum — apenas reporta para o desenvolvedor analisar.
 
+#### 6.a — Stack específico: MySQL/Postgres/PlanetScale (condicional)
+
+Detecte o stack pelo nome do servidor MCP disponível (ex.: `mcp__planetscale__*`,
+`mcp__postgres__*`, `mcp__mysql__*`) ou por config de conexão no projeto-alvo (ex.:
+`DATABASE_URL`, `.env` com dialeto identificável). Se nenhum stack específico for detectado, o
+check genérico acima já é suficiente — pule esta subseção.
+
+Se detectado, aprofunde a auditoria além do check genérico:
+- **Index-aware**: cruze colunas usadas em `WHERE`/`JOIN`/`ORDER BY` (via queries mais frequentes,
+  se o MCP expuser isso) contra os índices existentes — aponte colunas de alto uso sem índice
+  correspondente.
+- **Queries N+1 típicas**: se o MCP expuser log/histórico de queries, procure padrões de query
+  repetida em loop (mesma query parametrizada disparada muitas vezes em sequência curta).
+- PlanetScale especificamente: aponte migrations de schema pendentes de deploy (branch de schema
+  não mergeada), já que o fluxo de branching é uma particularidade dessa stack.
+
+**Finding:** <detalhes da anomalia específica do stack, ex.: coluna sem índice em query frequente>
+**Auto-fix:** nenhum — apenas reporta para o desenvolvedor analisar.
+
 ### 7 — Auditoria de Saúde de Containers Docker (via MCP)
 
 Verifique disponibilidade de um MCP Docker conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure qualquer `mcp__docker__*` na sua lista de ferramentas — diretas ou diferidas). Se não houver, ignore este check silenciosamente.
