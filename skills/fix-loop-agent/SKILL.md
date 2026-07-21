@@ -55,6 +55,33 @@ git diff "$DEFAULT_BRANCH" --name-only
 
 Mapeie ao módulo usando a tabela do module-test-map.
 
+**Cache de arquivos tocados (issue #81).** Depois de resolver os módulos, grave um cache leve e
+efêmero em `<repo-root>/.claude/vetor/status/<branch com / trocada por ->-touched-files.json`
+(mesmo diretório e convenção de nome do status file, root via `git rev-parse --git-common-dir`).
+Isso evita que o `code-review` (despachado pelo `worktree-ship` logo depois, sobre a mesma branch)
+tenha que re-derivar do zero a lista de arquivos alterados e o mapeamento módulo → arquivos.
+
+Formato:
+
+```json
+{
+  "branch": "<branch>",
+  "head": "<git rev-parse HEAD>",
+  "generated_at": "<ISO 8601>",
+  "default_branch": "<DEFAULT_BRANCH>",
+  "modules": {
+    "<módulo>": ["<arquivo1>", "<arquivo2>"]
+  },
+  "files": ["<arquivo1>", "<arquivo2>", "..."]
+}
+```
+
+Grave (sobrescrevendo) esse arquivo sempre que os módulos forem (re)detectados nesta seção — inclui
+a primeira execução e qualquer iteração do loop em que novos arquivos tenham sido alterados. `head`
+deve refletir o `git rev-parse HEAD` **no momento da gravação**, para que o `code-review` consiga
+validar frescor (ver `agents/code-review.md`). O cache é descartado no cleanup do `worktree-ship`
+(passo 12) — nunca persiste entre PRs.
+
 ### 2 — Status file
 
 Antes de cada iteração, atualize o status file. Path e formato (estados, blocos obrigatórios de
