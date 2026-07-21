@@ -347,11 +347,15 @@ Descubra o path real do worktree via `git worktree list` (não assuma a convenç
 localização é do harness). Se invocado pelo `issue-coordinator` (modo headless), execute o
 cleanup automaticamente:
 ```bash
-git worktree remove "<path-do-worktree>"
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" safe-remove-worktree "<path-do-worktree>"
 git branch -d <branch>
 rm -f .claude/vetor/status/<branch>.md
 rm -f .claude/vetor/status/<branch>-touched-files.json
 ```
+
+Se a checagem falhar, **pare o cleanup**: ela encontrou um worktree ativo dentro do path alvo e
+removê-lo apagaria também o filho. Mostre os paths listados e preserve o worktree pai, branch e
+arquivos de status/cache até os filhos serem realocados ou removidos com segurança.
 
 A última linha remove o cache de arquivos tocados gravado pelo `fix-loop-agent` (issue #81) — ele é
 efêmero por branch/worktree e nunca deve persistir entre PRs.
