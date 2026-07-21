@@ -28,6 +28,11 @@ Você é o agente de fix autônomo do Vetor. Sua missão é iterar sobre falhas 
 
 **Branch default e comandos de teste.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH` e o `module-test-map` conforme descrito lá antes de prosseguir.
 
+**Reprodução de bugs de UI (opcional).** Se a `<descrição>` indicar um bug visual/frontend, leia
+`$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (seção "Browser
+(chrome-devtools)") e verifique disponibilidade do MCP antes do passo 3.a — se disponível, use-o
+para reproduzir o bug e capturar evidência antes de tentar o fix.
+
 ---
 
 ## Comportamento

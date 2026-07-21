@@ -28,6 +28,11 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 **Branch default e comandos de teste.** Leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH` e o `module-test-map` conforme descrito lá. Use `$DEFAULT_BRANCH` em todos os comandos abaixo.
 
+**Checagem e2e leve (opcional).** Se os módulos alterados (passo 3) envolverem UI/frontend, leia
+`$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (seção "Browser
+(chrome-devtools)") e, se o MCP estiver disponível, use-o no passo 4 como checagem e2e leve
+adicional aos testes automatizados — nunca como substituto deles.
+
 ---
 
 ## Comportamento
