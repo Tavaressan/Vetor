@@ -82,6 +82,40 @@ Deno.test("recordModelHealth - atualiza entrada existente sem apagar outras chav
   assertEquals(Object.keys(file).sort(), ["anthropic/claude-haiku-4-5", "openai/gpt-5"]);
 });
 
+Deno.test("recordModelHealth - processos concorrentes preservam ambas as entradas", async () => {
+  const dir = await Deno.makeTempDir();
+  const path = `${dir}/.claude/vetor/status/model-health.json`;
+  const gate = `${dir}/start`;
+  const moduleUrl = new URL("./model-health.ts", import.meta.url).href;
+  const run = (key: string) =>
+    new Deno.Command(Deno.execPath(), {
+    args: [
+      "eval",
+      `import { recordModelHealth } from ${JSON.stringify(moduleUrl)};
+while (!await Deno.stat(${JSON.stringify(gate)}).then(() => true).catch(() => false)) {
+  await new Promise((resolve) => setTimeout(resolve, 1));
+}
+recordModelHealth(${JSON.stringify(path)}, ${JSON.stringify(key)}, {
+  status: "degraded", until: 2_000_000, lastError: "HTTP 429"
+});`,
+      ],
+    }).output();
+
+  const first = run("anthropic/claude-sonnet-4-5");
+  const second = run("openai/gpt-5");
+  await Deno.writeTextFile(gate, "go");
+  const results = await Promise.all([first, second]);
+
+  assert(
+    results.every((result) => result.success),
+    results.map((result) => new TextDecoder().decode(result.stderr)).join("\n"),
+  );
+  assertEquals(Object.keys(JSON.parse(await Deno.readTextFile(path))).sort(), [
+    "anthropic/claude-sonnet-4-5",
+    "openai/gpt-5",
+  ]);
+});
+
 Deno.test("isHealthy - entrada ausente é saudável", () => {
   assert(isHealthy(undefined, Date.now()));
 });

@@ -83,7 +83,7 @@ Projetos sem migrations versionadas: no-op. Mesma convenção Flyway do `guardia
 ### 3 — Detecção de módulos alterados
 
 ```bash
-git diff "$DEFAULT_BRANCH" --name-only
+git diff "origin/$DEFAULT_BRANCH" --name-only
 ```
 
 Mapeie os arquivos alterados aos módulos usando a tabela de detecção do module-test-map.
@@ -91,6 +91,8 @@ Mapeie os arquivos alterados aos módulos usando a tabela de detecção do modul
 ### 4 — Testes locais
 
 Para cada módulo alterado, execute o comando headless correspondente do `module-test-map.md`.
+Quando o comando do módulo for `sem suíte de testes`, não execute nada e registre
+`skipped (no test suite)` no sumário; esse estado não bloqueia o ship.
 
 **Regra sandbox:**
 - Tente docker uma vez (se aplicável ao módulo, ex.: testes de integração)
@@ -108,7 +110,7 @@ Saída: <últimas 30 linhas do log>
 ### 4.b — Scan de debugging
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "$DEFAULT_BRANCH"
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "origin/$DEFAULT_BRANCH"
 ```
 
 Se sair não-zero, remova os padrões apontados (debug temporário, `it.only` etc.) e commite antes
@@ -170,6 +172,29 @@ Timeout: 20 minutos. Se expirar, notifique e pare.
 Para cada falha detectada no monitoramento do CI:
 
 1. **Classificação de Erro:**
+
+   **8.a — Circuit Breaker de Infraestrutura (executa ANTES da análise de logs):**
+
+   Antes de ler logs detalhados, verifique se a falha é de infraestrutura da plataforma
+   (billing, outage, job not started) — cenário que nenhum fix de código resolve:
+
+   ```bash
+   deno run -A scripts/detect-infra-failure.ts <run-id>
+   ```
+
+   Se o script retornar exit 0 (saída JSON com `isInfrastructureFailure: true`):
+   - **Pule inteiramente** as iterações de fix de código (§8.1 abaixo).
+   - **Pare** e escreva o status file com `Status: BLOCKED_INFRA` e o motivo:
+     ```markdown
+     Status: BLOCKED_INFRA
+     Motivo: Falha de infraestrutura da plataforma — <reason do script>.
+     Ação necessária: resolver billing/outage no GitHub antes de retomar.
+     ```
+   - **Escale ao usuário** via AskUserQuestion:
+     `⚠️ Falha de infraestrutura detectada no CI (billing/outage). Não é possível resolver com fix de código. Deseja aguardar a resolução ou prosseguir sem CI (merge manual)?`
+   - **Pare.** Não consuma iterações de fix-loop.
+
+   **8.b — Classificação de Erro (apenas se NÃO for infraestrutura):**
    Leia o log de erro do CI:
    ```bash
    gh run view <run-id> --log-failed
@@ -203,7 +228,7 @@ Worktree preservado para inspeção manual.
 
 Substitui o antigo GitHub Action `code-review@claude-code-plugins` (desativado por custar por
 execução independente do risco/tamanho da mudança). Roda **só quando há mudança real de
-código-fonte** — o mesmo filtro do passo 3 já resolve isso: se `git diff "$DEFAULT_BRANCH"
+código-fonte** — o mesmo filtro do passo 3 já resolve isso: se `git diff "origin/$DEFAULT_BRANCH"
 --name-only` (passo 3) não mapeou nenhum módulo (ex.: PR só de docs, lockfile ou config), **pule
 este passo**.
 
@@ -347,11 +372,15 @@ Descubra o path real do worktree via `git worktree list` (não assuma a convenç
 localização é do harness). Se invocado pelo `issue-coordinator` (modo headless), execute o
 cleanup automaticamente:
 ```bash
-git worktree remove "<path-do-worktree>"
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" safe-remove-worktree "<path-do-worktree>"
 git branch -d <branch>
 rm -f .claude/vetor/status/<branch>.md
 rm -f .claude/vetor/status/<branch>-touched-files.json
 ```
+
+Se a checagem falhar, **pare o cleanup**: ela encontrou um worktree ativo dentro do path alvo e
+removê-lo apagaria também o filho. Mostre os paths listados e preserve o worktree pai, branch e
+arquivos de status/cache até os filhos serem realocados ou removidos com segurança.
 
 A última linha remove o cache de arquivos tocados gravado pelo `fix-loop-agent` (issue #81) — ele é
 efêmero por branch/worktree e nunca deve persistir entre PRs.
@@ -368,3 +397,9 @@ branch, arquivo de status e cache de arquivos tocados).
 - Máximo 3 iterações de fix de CI
 - Preserva worktree intacto em caso de falha (para inspeção manual)
 - A revisão de código nativa (passo 8.5) é sempre consultiva — achados nunca bloqueiam o merge
+- **Circuit Breaker de Infraestrutura (§8.a):** distinto do circuit breaker de falhas
+  recorrentes do `issue-coordinator` (§5.c). Este detecta falhas da *plataforma* CI
+  (billing, outage, job not started) via anotações de job e pausa imediatamente sem
+  consumir iterações de fix — o problema não é resolvível por alteração de código. O
+  circuit breaker do `issue-coordinator` agrega múltiplos workers com falhas idênticas
+  de código (padrão textual repetido) e pergunta se deve pausar ou prosseguir.

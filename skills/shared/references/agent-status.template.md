@@ -8,6 +8,9 @@ Escrito pelo worker/fix-loop a cada iteração. Lido pelo `issue-coordinator` (v
 enquanto `Status` ≠ `GREEN`). Fica **fora do worktree**, no root do repo — não há risco de commit
 acidental; o `/vetor` init garante a entrada no `.gitignore`.
 
+**Fallback (issue #94):** se a plataforma bloquear a escrita fora do worktree, o worker deve salvar
+uma cópia em `<worktree>/.claude/vetor-status.md`. O coordinator verifica esse fallback ao ler.
+
 ## Estrutura base (todos os estados)
 
 ```markdown
