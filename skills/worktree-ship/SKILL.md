@@ -91,6 +91,8 @@ Mapeie os arquivos alterados aos módulos usando a tabela de detecção do modul
 ### 4 — Testes locais
 
 Para cada módulo alterado, execute o comando headless correspondente do `module-test-map.md`.
+Quando o comando do módulo for `sem suíte de testes`, não execute nada e registre
+`skipped (no test suite)` no sumário; esse estado não bloqueia o ship.
 
 **Regra sandbox:**
 - Tente docker uma vez (se aplicável ao módulo, ex.: testes de integração)
