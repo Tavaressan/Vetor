@@ -317,6 +317,86 @@ compartilhada), só que sem o guard `PreToolUse` de escrita fora do worktree par
 porque esse guard depende do payload não verificado. **Não usar `/vetor:coordinator` com dispatch
 em background no Codex** até essa validação ser feita contra uma sessão real.
 
+#### Compatibilidade com OpenCode
+
+Investigação feita em 2026-07-21 contra a **documentação oficial** (`opencode.ai/docs/plugins`,
+`/docs/agents`, `/docs/config`, `/docs/skills`), o **código-fonte real** (via Context7,
+`/anomalyco/opencode`) e o **CLI `opencode` v1.18.4 instalado neste ambiente** (`opencode --help`,
+`opencode agent --help`, inspeção do SDK em `node_modules/@opencode-ai/{sdk,plugin}`) — nível de
+confiança mais alto do que o alcançado para o Codex, que não teve CLI real disponível para validar.
+
+**Diferença estrutural central:** o OpenCode **não tem manifesto de plugin único**. Skills, agentes,
+plugin (hooks) e MCP são descobertos separadamente, cada um no seu diretório: `.opencode/skills/`,
+`.opencode/agent/`, `.opencode/plugin/*.ts`, e o campo `mcp` de `opencode.json`. E hooks são
+**código TS/JS** (`tool.execute.before`/`tool.execute.after`, recebem `(input, output)`, bloqueiam
+com `throw new Error()`), não JSON declarativo como no Claude Code e no Codex.
+
+**Isolamento de worktree por worker — o ponto verificado nesta investigação.** O OpenCode **não**
+tem equivalente a `isolation: worktree` nem à tool nativa `task` com cwd isolado por chamada: um
+subagente disparado via `task` herda o cwd/sandbox da sessão pai (confirmado no código-fonte —
+`Tool.Context` não carrega um diretório por chamada, só `sessionID`/`agent`/`callID`). Existe uma
+API `/experimental/worktree` (create/list/remove/reset) no SDK instalado, mas ela é
+sessão/projeto-level, não amarrada ao dispatch de subagente por `task`.
+
+A forma **verificada e funcional** de garantir isolamento: `opencode run --dir <path> --agent
+<nome>` inicia um **processo `opencode` inteiro** com o cwd fixado em `<path>` para toda a sessão
+— não uma tool call isolada. Por isso `opencode/agent/issue-worker.md` instrui o `issue-coordinator`
+a despachar cada worker como `opencode run --dir "<worktree>" --agent issue-worker "<prompt>"` (um
+processo do SO por worker, análogo ao que o `worktree-create` já faz hoje antes de despachar),
+em vez de usar a tool `task` in-process. Consequência prática: a classe de bug da issue #63
+(cwd contaminado entre workers paralelos no Claude Code) **não se aplica** a esse modelo — cada
+worker é um processo isolado do SO, não uma chamada dentro da mesma sessão.
+
+**Plugin de segurança — implementado, não só um template.** `opencode/plugin/vetor.ts` reimplementa
+as políticas de `scripts/safety-check.ts` (branch protegida, push/PR de worker não-`GREEN`, escrita
+fora do worktree) e `scripts/check-edit.ts` (typecheck pós-edição) via `tool.execute.before` /
+`tool.execute.after`. A lógica **não foi duplicada**: o plugin só traduz o payload confirmado do
+OpenCode (`{tool, sessionID, args, agent}`) para o JSON que os scripts Deno originais já esperam no
+stdin, e invoca `deno run -A` — os scripts em `opencode/scripts/` são cópias diretas (sem alteração)
+dos de `scripts/`, porque o OpenCode não define uma variável equivalente a `$CLAUDE_PLUGIN_ROOT`/
+`$PLUGIN_ROOT` para resolver caminho de plugin-root; a cópia viaja com o projeto-alvo (incluindo
+para dentro de cada worktree, já que `git worktree` só contém arquivos rastreados). **Trade-off
+assumido:** os scripts em `opencode/scripts/` podem divergir de `scripts/` ao longo do tempo — não
+há build/sync automático entre as duas cópias nesta versão.
+
+**Gaps confirmados (sem hook equivalente):**
+- `SubagentStop` (obrigar status file em estado terminal) — sem cobertura; não há evento
+  específico de fim de subagente entre os ~26 eventos documentados.
+- `SessionStart`/`WorktreeCreate` (avisar `/vetor` não rodado; preparar deps do worktree) — sem
+  cobertura automática; rodar manualmente `deno run -A scripts/session-check.ts` /
+  `scripts/prepare-worktree.ts` antes de despachar workers.
+- Sem `tools:`/`toolNames` allowlist por agente como no Claude Code/Antigravity — mitigado
+  parcialmente pelo campo `permission` (wildcard por comando de `bash`, `edit`/`webfetch`
+  allow/ask/deny), usado em `opencode/agent/issue-worker.md` para negar `git push`/`gh pr
+  create|ready|merge` como camada extra além do hook.
+
+**Skills — não portadas nesta versão (mesmo bloqueio do Codex).** O formato `SKILL.md` do
+OpenCode é compatível (frontmatter `name`/`description`; campos extras são ignorados) e o
+OpenCode até escaneia `.claude/skills/*/SKILL.md` nativamente — mas isso não ajuda aqui, porque
+as skills do Vetor (`skills/*/SKILL.md`) referenciam `$CLAUDE_PLUGIN_ROOT` no corpo do texto para
+localizar `scripts/` e `skills/shared/references/`, variável que o OpenCode não define. Portar as
+8 skills (ajustar cada referência para caminho relativo dentro de uma cópia auto-contida em
+`.opencode/skills/`, e reescrever a seção de dispatch do `issue-coordinator` para o modelo
+`opencode run --dir`) é trabalho substancial deixado como issue de acompanhamento — igual ao que
+foi feito para o Codex.
+
+**Instalação manual** (sem marketplace de primeira classe no OpenCode — plugins/agentes/skills são
+arquivos copiados, não um pacote instalável em um comando):
+
+```bash
+cp -r opencode/. <projeto-alvo>/.opencode/
+```
+
+Depois, mescle o bloco `mcp` de `opencode/mcp.jsonc` no `opencode.json` do projeto-alvo (ajuste o
+path do `docker-catalog.yaml` se for usar o servidor `docker`).
+
+**Resumo:** isolamento de worktree por worker é **verificado e resolvido** (via `opencode run
+--dir`, testado contra o CLI real instalado). Hooks de segurança são **reais e funcionais**
+(reaproveitando os scripts Deno existentes). Skills seguem **bloqueadas** pela mesma limitação de
+path do Codex. Não usar `/vetor:coordinator` completo (a skill em si) no OpenCode até a issue de
+portar as skills ser resolvida — hoje só os dois subagentes nativos e o plugin de segurança estão
+prontos para uso.
+
 ### Convenções do projeto (`.claude/rules/vetor/`)
 
 O `/vetor` gera rules com frontmatter `paths`, que o Claude Code carrega **apenas** quando lê um
@@ -394,6 +474,13 @@ Alavancas para manter o custo baixo no dispatch paralelo:
 └── marketplace.json         # listagem do marketplace
 .codex-plugin/
 └── plugin.json              # manifesto do plugin (Codex) — sem campo "skills" (ver Compatibilidade)
+opencode/                    # camada de compatibilidade (OpenCode) — copiar para .opencode/ no projeto-alvo
+├── agent/
+│   ├── issue-worker.md      # subagente (OpenCode) — instrui dispatch via `opencode run --dir`
+│   └── code-review.md       # subagente (OpenCode) — permission.edit: deny
+├── plugin/vetor.ts          # plugin real: tool.execute.before/after, reaproveita scripts/ via deno run
+├── scripts/                 # cópia de scripts/{safety-check,check-edit,lib/*}.ts (sem $CLAUDE_PLUGIN_ROOT)
+└── mcp.jsonc                # tradução de .mcp.json para o campo "mcp" de opencode.json
 agents/
 ├── issue-worker.md          # subagente nativo (Claude Code) — worker isolado despachado pelo coordinator
 ├── issue-worker/

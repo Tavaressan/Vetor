@@ -1,0 +1,39 @@
+// Tradução de .mcp.json (Claude Code) para o campo "mcp" de opencode.json/opencode.jsonc.
+// Cole o conteúdo do bloco "mcp" abaixo dentro do opencode.json do projeto-alvo.
+// Schema confirmado contra @opencode-ai/sdk (types.gen.d.ts) e a doc oficial em 2026-07-21.
+{
+  "mcp": {
+    // context7: servidor remoto (SSE/HTTP) — sem alteração de schema, só o nome do campo de
+    // headers muda de "headers" (igual) e a chave de auth vem de env var, não de
+    // "${user_config...}" (mecanismo de plugin.json do Claude Code, sem equivalente aqui).
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true,
+      "headers": { "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}" }
+    },
+    // chrome-devtools: servidor local (stdio) — "command"/"args" viram um único array "command".
+    "chrome-devtools": {
+      "type": "local",
+      "command": ["npx", "-y", "chrome-devtools-mcp@latest", "--isolated"],
+      "enabled": true
+    },
+    // docker: idem, mas o path do catálogo precisa ser absoluto ou relativo ao diretório do
+    // projeto — não há "${CLAUDE_PLUGIN_ROOT}" equivalente. Ajuste o path abaixo para onde
+    // você copiou mcp/docker-catalog.yaml dentro do projeto-alvo (ex.: .opencode/vetor-mcp/).
+    "docker": {
+      "type": "local",
+      "command": [
+        "docker",
+        "mcp",
+        "gateway",
+        "run",
+        "--catalog",
+        "./.opencode/vetor-mcp/docker-catalog.yaml",
+        "--servers",
+        "docker"
+      ],
+      "enabled": true
+    }
+  }
+}
