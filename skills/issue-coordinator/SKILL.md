@@ -94,9 +94,9 @@ pule a issue e registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado 
 #### Análise de Afinidade e Agrupamento Sequencial (Delegação ao Gemini):
 Com as candidatas válidas em mãos, se o CLI `agy` estiver disponível (verifique via `command -v agy`) e houver mais de 3 issues a processar, você pode delegar a proposta de agrupamento de afinidade:
 1. Imprima o log: `echo "[Vetor:Gemini] Delegando tarefa: Propondo agrupamento de afinidade de issues"`
-2. Execute o comando passando o JSON das candidatas:
+2. Execute o comando passando o JSON das candidatas (use command substitution pois pipe direto não funciona — issue #111):
    ```bash
-   gh issue list --label <label> --state open --json number,title,labels,body | agy -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo ideal de execução deve ser haiku (ajustes simples/chore) ou sonnet (features complexas/refactor)."
+   agy -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo ideal de execução deve ser haiku (ajustes simples/chore) ou sonnet (features complexas/refactor). JSON: $(gh issue list --label <label> --state open --json number,title,labels,body)"
    ```
 3. O Claude analisa a proposta sugerida, corrige quaisquer desvios de escopo e define a distribuição final.
 
@@ -214,7 +214,10 @@ também conta). Se qualquer issue do grupo já aparecer em um worktree ativo:
   sessões do coordinator.
 
 Despache um sub-agente por grupo de issues (respeitando o teto acima) utilizando a chamada do
-subagente nativo `issue-worker` com isolamento de worktree nativo (`isolation: "worktree"`):
+subagente nativo `issue-worker` com isolamento de worktree nativo (`isolation: "worktree"`).
+**Antes de invocar `Agent()`, o coordenador DEVE criar o status file** (caminho derivado na Fase 3) com
+`Status: RUNNING`, pois o sandbox de isolamento do worker pode impedi-lo de criar o arquivo fora do worktree (issue #110).
+Exemplo: `echo -e "# Agent Status - <branch>\nStatus: RUNNING\nIteration: 1/5 (Issue #<M>)" > <path>`.
 
 ```javascript
 Agent({

@@ -8,6 +8,7 @@
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
 #   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo
+#   sync-root                  tenta retornar o repositório principal para a branch default de forma segura
 #
 # Exit codes: 0 = passou; 1 = checagem falhou (a skill deve parar e mostrar a saída); 2 = uso incorreto.
 
@@ -51,8 +52,10 @@ case "$cmd" in
     base="${2:?uso: vetor-checks.sh debug-scan <base-branch>}"
     # Grep only added lines from diff (lines starting with +), not the entire file content.
     # The caller MUST pass origin/$DEFAULT_BRANCH (not local $DEFAULT_BRANCH) to avoid
-    # stale branch references in worktrees (issue #70).
-    hits=$(git diff "$base" -U0 -- '*.ts' '*.sh' '*.js' '*.tsx' '*.jsx' 2>/dev/null \
+    # Stale branch references in worktrees (issue #70).
+    # Exclude script/test files that define or test the regex to avoid false positives (issue #108, #109)
+    hits=$(git diff "$base" -U0 -- '*.ts' '*.sh' '*.js' '*.tsx' '*.jsx' \
+      ':!scripts/vetor-checks.sh' ':!scripts/lib/vetor_checks_test.ts' ':!skills/**/*.md' 2>/dev/null \
       | grep -E '^\+' | grep -vE '^\+\+\+' \
       | grep -nE 'console\.log|var_dump|fit\(|fdescribe\(|it\.only' 2>/dev/null || true)
     if [ -n "$hits" ]; then
@@ -100,8 +103,36 @@ case "$cmd" in
     git worktree remove "$target"
     ;;
 
+  sync-root)
+    # Tenta retornar a raiz do repo para a branch default se a branch atual estiver limpa
+    # e sem commits locais pendentes vs remote (ou sem remote tracker caso já deletada).
+    ROOT=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    [ -z "$ROOT" ] && exit 0
+    cd "$ROOT" || exit 0
+    
+    DEFAULT_BRANCH=$("$0" default-branch)
+    current=$(git branch --show-current 2>/dev/null)
+    [ -z "$current" ] || [ "$current" = "$DEFAULT_BRANCH" ] && exit 0
+    
+    # 1. Verifica se tem uncommitted changes
+    if ! git diff-index --quiet HEAD --; then
+      echo "AVISO: root tem mudanças pendentes na branch $current. Não mudando para $DEFAULT_BRANCH." >&2
+      exit 0
+    fi
+    
+    # 2. Verifica se a branch tem commits que não estão na default
+    if ! git merge-base --is-ancestor HEAD "origin/$DEFAULT_BRANCH" 2>/dev/null; then
+      echo "AVISO: root está na branch $current que possui commits não integrados em origin/$DEFAULT_BRANCH. Não mudando para $DEFAULT_BRANCH." >&2
+      exit 0
+    fi
+    
+    git checkout "$DEFAULT_BRANCH" >/dev/null 2>&1
+    git pull origin "$DEFAULT_BRANCH" >/dev/null 2>&1
+    echo "Root sincronizado com $DEFAULT_BRANCH (branch anterior: $current estava limpa e mesclada)."
+    ;;
+
   *)
-    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>>" >&2
+    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root>" >&2
     exit 2
     ;;
 esac

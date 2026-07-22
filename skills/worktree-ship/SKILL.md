@@ -202,7 +202,7 @@ Para cada falha detectada no monitoramento do CI:
    **Opcional (economia de tokens):** use o agy CLI para condensar os logs, se disponível:
    ```bash
    echo "[Vetor:Gemini] Delegando tarefa: Condensando logs de CI do PR"
-   gh run view <run-id> --log-failed | agy -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver."
+   agy -p "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver. Log: $(gh run view <run-id> --log-failed)"
    ```
    Se a chamada ao `agy` for **negada pelo classificador de permissão** do ambiente, **não retente** — leia 
    o log bruto diretamente e proceda à análise manual. Essa negação não é transiente; é uma política. 
@@ -347,24 +347,19 @@ motivo tipo "merge sem review") — barreira independente do `reviewDecision` j�
 
 ### 11 — Sincronizar root
 
-Volte para o root do repositório e sincronize com a branch default. Descubra o path do root
-(não assuma) e vá até ele:
+Volte para o root do repositório e sincronize com a branch default. Para lidar com cenários onde
+o trabalho ocorreu diretamente na raiz, ou para garantir um estado limpo no root, use o script de 
+sincronização compartilhada:
 
 ```bash
-ROOT=$(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)
-cd "$ROOT"
-git checkout "$DEFAULT_BRANCH"
-git pull origin "$DEFAULT_BRANCH"
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" sync-root
 ```
 
 (Só numa sessão manual em que você entrou no worktree com `EnterWorktree` é preciso sair com
-`ExitWorktree` antes do `cd`; no fluxo orquestrado do `issue-coordinator`, sub-agentes nunca usam
-`EnterWorktree`/`ExitWorktree`.)
+`ExitWorktree` antes da sincronização; no fluxo orquestrado do `issue-coordinator`, sub-agentes
+nunca usam `EnterWorktree`/`ExitWorktree`.)
 
-Confirme:
-```
-Root sincronizado com <default-branch>. Branch <branch> mergeada e deletada remotamente.
-```
+Confirme que o Root foi sincronizado se a mensagem de sucesso for exibida.
 
 ### 12 — Cleanup
 
