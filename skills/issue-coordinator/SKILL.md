@@ -52,13 +52,15 @@ Antes de qualquer outra fase, avalie o argumento recebido:
 
 - **Sem argumento** (`/coordinator` puro) ou **`--resume`**: entre em **modo de retomada**.
   1. Rode `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"` para listar os worktrees ativos com
-     status file.
+     status file. O script cruza os status files com `gh pr list` para detectar se branches em
+     `GREEN` já possuem PR aberta (`GREEN (PR #N aberta)`) ou mergeada (`GREEN (já mergeado via #N)`).
   2. Se houver ao menos um status file ativo: **pule as Fases 1–3** e faça a pergunta de workers
      (Fase 2, seção "Pergunta sobre teto de workers") — o estado em memória de `N` não sobrevive a
      um reinício da sessão. Depois, vá para o monitoramento — monte a tabela de status (equivalente
-     à Fase 5.a) e, para cada grupo em `GREEN`, ofereça o ship via `AskUserQuestion` ("Fazer ship do
-     grupo `<slug>` (Issue #<N>), que está GREEN?"). Prossiga o restante do fluxo a partir da
-     Fase 5/6 normalmente.
+     à Fase 5.a) e, para cada grupo em `GREEN` (que não esteja anotado como `PR #N aberta` ou `já mergeado via #N`),
+     ofereça o ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>), que está GREEN?").
+     Se já estiver mergeado (`GREEN (já mergeado via #N)`), apenas informe no relatório e não ofereça ship.
+     Prossiga o restante do fluxo a partir da Fase 5/6 normalmente.
   3. Se **não houver** nenhum worktree ativo com status file: caia no fluxo padrão — trate como se
      fosse `/coordinator backlog` (Fase 1, label default `backlog`).
 - **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
@@ -81,12 +83,13 @@ como **lista de issues por número**; caso contrário, como **label** (fluxo pad
 O restante do fluxo (verificação de PR já aberto, análise de afinidade, dispatch) é **idêntico** nos
 dois modos.
 
-Para cada issue, verifique se já há PR aberto:
+Para cada issue, verifique se já há PR aberto ou se a branch correspondente já foi entregue:
 ```bash
 gh pr list --search "closes:#<N>" --state open --json number,title
 ```
 
-Se já houver PR: pule a issue e registre na tabela como "PR já aberto (#<PR>)".
+Se já houver PR (ou se `vetor-status.sh` reportar `GREEN (PR #N aberta)` ou `GREEN (já mergeado via #N)`):
+pule a issue e registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado (#<PR>)".
 
 #### Análise de Afinidade e Agrupamento Sequencial (Delegação ao Gemini):
 Com as candidatas válidas em mãos, se o CLI `agy` estiver disponível (verifique via `command -v agy`) e houver mais de 3 issues a processar, você pode delegar a proposta de agrupamento de afinidade:
@@ -279,7 +282,8 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"
 ```
 
 O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
-manualmente → `cancelled (worktree removed)`; não recrie) e imprime a tabela pronta. Reproduza-a
+manualmente → `cancelled (worktree removed)`; não recrie) e com `gh pr list --state all`
+(anotando branches `GREEN` com `(PR #N aberta)` ou `(já mergeado via #N)`), e imprime a tabela pronta. Reproduza-a
 no chat acrescentando as linhas dos grupos ainda `QUEUED` (aguardando vaga no teto da Fase 4).
 
 ⚠️ **Fallback de leitura de status (issue #94).** Se o status file no path absoluto (`.claude/vetor/status/`) não existir ou estiver desatualizado para um worktree ativo, verifique se existe `.claude/vetor-status.md` dentro desse worktree. O worker pode ter escrito apenas localmente quando a plataforma bloqueou a escrita fora do worktree. Ao ler do worktree, extraia a branch via `git worktree list` e leia `<path-do-worktree>/.claude/vetor-status.md`.

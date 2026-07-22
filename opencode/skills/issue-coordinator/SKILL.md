@@ -110,6 +110,8 @@ Avalie o argumento recebido antes de qualquer outra fase:
 
 - **Sem argumento** ou **`--resume`**: modo de retomada.
   1. Rode `bash .opencode/scripts/vetor-status.sh` para listar os worktrees ativos com status file.
+     O script cruza os status files com `gh pr list` anotando branches `GREEN` que já possuem PR aberta
+     (`GREEN (PR #N aberta)`) ou mergeada (`GREEN (já mergeado via #N)`).
   2. Se houver ao menos um status file ativo: pule as Fases 1–3, refaça a pergunta de teto de
      workers (Fase 2) e vá direto para o monitoramento (Fase 5) — o estado em memória de `N` não
      sobrevive a um reinício do processo coordenador.
@@ -130,11 +132,12 @@ for N in ${ARG//,/ }; do gh issue view "$N" --json number,title,labels,body; don
 gh issue list --label <label> --state open --json number,title,labels,body
 ```
 
-Para cada issue candidata, verifique se já há PR aberto:
+Para cada issue candidata, verifique se já há PR aberto ou se a branch correspondente já foi entregue:
 ```bash
 gh pr list --search "closes:#<N>" --state open --json number,title
 ```
-Se já houver PR: pule a issue, registre na tabela como "PR já aberto (#<PR>)".
+Se já houver PR (ou se `vetor-status.sh` reportar `GREEN (PR #N aberta)` ou `GREEN (já mergeado via #N)`):
+pule a issue, registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado (#<PR>)".
 
 **Agrupamento de afinidade** (delegação opcional ao `agy`, se disponível e houver mais de 3 issues —
 ver `.opencode/scripts` não tem equivalente ao `agy`; se o CLI estiver no `PATH` do processo
