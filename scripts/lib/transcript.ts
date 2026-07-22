@@ -130,6 +130,7 @@ export function findDivergences(
   records: EditRecord[],
   readFile: (path: string) => string | null,
   repoRoot?: string,
+  isResolvedExternally?: (path: string) => boolean,
 ): Divergence[] {
   const divergences: Divergence[] = [];
 
@@ -152,6 +153,8 @@ export function findDivergences(
       : disk.includes(record.expected);
 
     if (!persisted) {
+      if (isResolvedExternally && isResolvedExternally(record.filePath)) continue;
+
       divergences.push({
         filePath: record.filePath,
         kind: record.kind,

@@ -237,11 +237,19 @@ arquivos com o mesmo número de versão após o sync com a branch default.
 
 ⚠️ **`isolation: "worktree"` é só para dispatch inicial (worktree ainda não existe).** Se o worktree já
 existe — retomada de uma sessão anterior, redespacho após resposta a um `BLOCKED_WAITING` (Fase 5.b)
-ou redespacho após `FAILED_MAX_ITERATIONS` — **NÃO** passe `isolation: "worktree"`: isso cria um
-worktree novo e desconectado do path pretendido, e a ferramenta `Write` recusa gravar no caminho
-correto quando o agente descobre a inconsistência. Nesse caso, despache **sem** o parâmetro
-`isolation` e instrua um `cd` explícito para o path real do worktree existente (obtenha via
-`git worktree list`) no prompt do worker.
+ou redespacho após `FAILED_MAX_ITERATIONS` — **NÃO use `vetor:issue-worker`**. O `vetor:issue-worker`
+força isolamento em worktree novo via frontmatter, ignorando a omissão do parâmetro (issue #104).
+Nesse caso, despache um subagente padrão sem `subagent_type` específico, instruindo-o com a skill
+`fix-loop-agent` no prompt e um `cd` explícito para o path real do worktree existente (obtenha via
+`git worktree list`). Exemplo:
+```javascript
+Agent({
+  description: "Grupo Lead #<N>: <título> (Resumo)",
+  prompt: "Entre no diretório <path> e retome o trabalho usando a skill fix-loop-agent...",
+  model: "<haiku|sonnet>",
+  run_in_background: true
+})
+```
 
 **Nota (Antigravity):** o `issue-worker` também é registrado para o Google Antigravity via
 `agents/issue-worker/agent.json` (`customAgentSpec`), complementando `agents/issue-worker.md`
@@ -317,7 +325,8 @@ agente" foi escolhido, registre a permissão expandida em memória e auto-aprove
 do mesmo tipo daquele agente.
 
 Se a resposta exigir **redespachar** um novo `Agent()` para um worktree que já existe, **NÃO**
-passe `isolation: "worktree"` — ver a nota de redispatch na Fase 4.
+use `vetor:issue-worker` (que força isolamento novo). Despache um agente genérico — ver a nota
+de redispatch na Fase 4.
 
 **5.c — Circuit Breaker (Disjuntor de Falhas)**
 - Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.

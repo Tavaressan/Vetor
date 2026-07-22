@@ -47,6 +47,21 @@ function repoRoot(): string | undefined {
     return new TextDecoder().decode(stdout).trim() || undefined;
   } catch {
     return undefined;
+}
+
+/** True se o arquivo não tem modificações pendentes no git (untracked, modified, staged). */
+function isGitClean(filePath: string, root: string): boolean {
+  try {
+    const { success, stdout } = new Deno.Command("git", {
+      args: ["status", "--porcelain", "--", filePath],
+      cwd: root,
+      stdout: "piped",
+      stderr: "null",
+    }).outputSync();
+    if (!success) return false;
+    return new TextDecoder().decode(stdout).trim() === "";
+  } catch {
+    return false;
   }
 }
 
@@ -69,8 +84,11 @@ async function main() {
   const transcript = readFile(transcriptPath);
   if (transcript === null) quiet();
 
+  const root = repoRoot();
   const records = parseTranscript(transcript);
-  const divergences = findDivergences(records, readFile, repoRoot());
+  const divergences = findDivergences(records, readFile, root, (path) => {
+    return root ? isGitClean(path, root) : false;
+  });
 
   if (divergences.length === 0) quiet();
 

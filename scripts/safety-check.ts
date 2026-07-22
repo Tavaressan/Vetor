@@ -164,7 +164,22 @@ async function checkWrite(
   agentType?: string,
   agentId?: string,
 ): Promise<void> {
-  const wt = await resolveWorktree(cwd);
+  let wt = await resolveWorktree(cwd);
+
+  // Issue #103: If the payload's cwd is contaminated, but the agent provides an absolute filePath
+  // that points to its bound worktree, we should override the contaminated cwd and use the bound worktree.
+  if (agentId && wt?.root && filePath.startsWith("/")) {
+    const path = agentBindingPath(wt.root, agentId);
+    try {
+      const bound = Deno.readTextFileSync(path).trim();
+      if (bound && bound !== wt.toplevel && filePath.startsWith(bound)) {
+        const boundWt = await resolveWorktree(bound);
+        if (boundWt) wt = boundWt;
+      }
+    } catch {
+      // No binding yet
+    }
+  }
 
   if (!wt?.isLinked) {
     // Um vetor:issue-worker deveria estar sempre dentro do seu worktree isolado. cwd
