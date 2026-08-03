@@ -78,7 +78,11 @@ function blocked(message: string): never {
 
 /** Extrai a branch de destino de um `git push [flags] [remote] <branch>[:<remote-branch>]`. */
 function pushDestination(command: string): string | null {
-  const push = command.match(/git push[^&|;\n]*/)?.[0];
+  // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes de
+  // isolar por quebra de linha real, senão `git push \` seguido de `origin master` escaparia do
+  // regex abaixo e o destino real (`master`) nunca seria capturado.
+  const joined = command.replace(/\\\r?\n/g, " ");
+  const push = joined.match(/git push[^&|;\n]*/)?.[0];
   if (!push) return null;
 
   const last = push.trim().split(/\s+/).pop();

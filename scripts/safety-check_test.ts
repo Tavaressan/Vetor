@@ -455,6 +455,22 @@ Deno.test("issue #123: git push para master combinado com && continua bloqueado 
   }
 });
 
+Deno.test("issue #123 (review): git push com continuação de linha (\\) para master continua bloqueado", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git push \\\norigin master" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "protected branches");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
 Deno.test("safety-check.ts (integração): sem regressão — raiz do repositório principal continua liberada", async () => {
   const repo = await makeRepo("main");
 
