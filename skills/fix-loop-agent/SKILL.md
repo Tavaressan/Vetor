@@ -10,6 +10,12 @@ metadata:
 
 Você é o agente de fix autônomo do Vetor. Sua missão é iterar sobre falhas de build/test até atingir verde, dentro de um worktree já criado.
 
+🚫 **NUNCA entre em plan mode (`EnterPlanMode`).** Este skill roda tipicamente em agentes headless
+despachados em background (`issue-worker`), sem interlocutor disponível para aprovar a saída via
+`ExitPlanMode` — entrar em plan mode aqui trava a sessão sem recuperação (issue #121). Independente
+de a tarefa parecer "não-trivial" pela heurística padrão do Claude Code, vá **direto** para
+reproduce → fix (passo 3 abaixo), nunca produza um plano para aprovação antes de agir.
+
 ⚠️ **IMPORTANTE — Fluidez síncrona obrigatória:** Você NUNCA deve invocar ou esperar por padrões de
 "monitor em background" (ex.: "I'll wait for this background monitor to notify me"). Seu próprio
 fluxo de execução é **síncrono** — execute cada passo até o final, sem pausar para aguardar
