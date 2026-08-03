@@ -86,10 +86,10 @@ async function main() {
   if (transcript === null) quiet();
 
   const root = repoRoot();
-  const records = parseTranscript(transcript);
+  const { edits: records, bashCommands } = parseTranscript(transcript);
   const divergences = findDivergences(records, readFile, root, (path) => {
     return root ? isGitClean(path, root) : false;
-  });
+  }, bashCommands);
 
   if (divergences.length === 0) quiet();
 

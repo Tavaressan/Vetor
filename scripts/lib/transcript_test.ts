@@ -47,18 +47,18 @@ function toolResult(id: string, isError = false) {
 
 Deno.test("parseTranscript: edição sem tool_result fica marcada como incompleta", () => {
   const raw = jsonl(editToolUse("t1", "/repo/a.ts", "novo conteudo"));
-  const records = parseTranscript(raw);
+  const { edits } = parseTranscript(raw);
 
-  assertEquals(records.length, 1);
-  assertEquals(records[0].filePath, "/repo/a.ts");
-  assertEquals(records[0].incomplete, true);
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].filePath, "/repo/a.ts");
+  assertEquals(edits[0].incomplete, true);
 });
 
 Deno.test("parseTranscript: edição rejeitada (is_error) é descartada", () => {
   const raw = jsonl(editToolUse("t1", "/repo/a.ts", "novo conteudo"), toolResult("t1", true));
-  const records = parseTranscript(raw);
+  const { edits } = parseTranscript(raw);
 
-  assertEquals(records.length, 0);
+  assertEquals(edits.length, 0);
 });
 
 Deno.test("parseTranscript: só a última edição por arquivo é mantida", () => {
@@ -68,17 +68,17 @@ Deno.test("parseTranscript: só a última edição por arquivo é mantida", () =
     writeToolUse("t2", "/repo/a.ts", "versao final"),
     toolResult("t2"),
   );
-  const records = parseTranscript(raw);
+  const { edits } = parseTranscript(raw);
 
-  assertEquals(records.length, 1);
-  assertEquals(records[0].expected, "versao final");
+  assertEquals(edits.length, 1);
+  assertEquals(edits[0].expected, "versao final");
 });
 
 Deno.test("findDivergences: edição não persistida em disco é reportada", () => {
   const raw = jsonl(editToolUse("t1", "/repo/a.ts", "linha nova"));
-  const records = parseTranscript(raw);
+  const { edits } = parseTranscript(raw);
 
-  const divergences = findDivergences(records, (path) => {
+  const divergences = findDivergences(edits, (path) => {
     assertEquals(path, "/repo/a.ts");
     return "conteudo antigo sem a mudanca esperada";
   });
@@ -92,18 +92,18 @@ Deno.test("findDivergences: sem divergência, nada é reportado", () => {
     editToolUse("t1", "/repo/a.ts", "linha nova"),
     toolResult("t1"),
   );
-  const records = parseTranscript(raw);
+  const { edits } = parseTranscript(raw);
 
-  const divergences = findDivergences(records, () => "conteudo com a linha nova aplicada");
+  const divergences = findDivergences(edits, () => "conteudo com a linha nova aplicada");
 
   assertEquals(divergences.length, 0);
 });
 
 Deno.test("findDivergences: arquivo ausente em disco é reportado", () => {
   const raw = jsonl(writeToolUse("t1", "/repo/novo.ts", "conteudo"), toolResult("t1"));
-  const records = parseTranscript(raw);
+  const { edits } = parseTranscript(raw);
 
-  const divergences = findDivergences(records, () => null);
+  const divergences = findDivergences(edits, () => null);
 
   assertEquals(divergences.length, 1);
   assertEquals(divergences[0].reason, "arquivo não encontrado em disco");
@@ -117,10 +117,10 @@ Deno.test("findDivergences: arquivo fora do repo mutado por processo externo (is
     editToolUse("t1", "/home/user/.claude/projects/x/memory/MEMORY.md", "modified: 10:00"),
     toolResult("t1"),
   );
-  const records = parseTranscript(raw);
+  const { edits } = parseTranscript(raw);
 
   const divergences = findDivergences(
-    records,
+    edits,
     () => "modified: 10:05\nconteudo mutado por outro processo",
     "/repo",
   );
@@ -130,10 +130,10 @@ Deno.test("findDivergences: arquivo fora do repo mutado por processo externo (is
 
 Deno.test("findDivergences: regressão issue #46 — edição dentro do repo não persistida continua detectada", () => {
   const raw = jsonl(editToolUse("t1", "/repo/a.ts", "linha nova"));
-  const records = parseTranscript(raw);
+  const { edits } = parseTranscript(raw);
 
   const divergences = findDivergences(
-    records,
+    edits,
     () => "conteudo antigo sem a mudanca esperada",
     "/repo",
   );
