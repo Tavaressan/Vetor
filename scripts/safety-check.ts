@@ -78,7 +78,7 @@ function blocked(message: string): never {
 
 /** Extrai a branch de destino de um `git push [flags] [remote] <branch>[:<remote-branch>]`. */
 function pushDestination(command: string): string | null {
-  const push = command.match(/git push[^&|;]*/)?.[0];
+  const push = command.match(/git push[^&|;\n]*/)?.[0];
   if (!push) return null;
 
   const last = push.trim().split(/\s+/).pop();
