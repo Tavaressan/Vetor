@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "deno run -A \"${CLAUDE_PLUGIN_ROOT}/scripts/session-check.ts\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/session-check.sh\"",
             "timeout": 30
           }
         ]
