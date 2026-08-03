@@ -25,16 +25,21 @@ export function evaluateFreshness(
   toplevel: string,
   root: string,
   porcelain: string,
+  agentType?: string,
 ): string | null {
+  // Quem chamou o hook: só chega aqui com agent_type presente (ver safety-check.ts::main),
+  // mas o parâmetro é opcional para não quebrar chamadas diretas em teste.
+  const who = agentType ?? "este agente";
+
   if (!isWithin(toplevel, `${root}/.claude/worktrees`)) {
     return `ERROR: worktree fora de ${root}/.claude/worktrees bloqueado pelo Vetor Safety Hook: ${toplevel}\n` +
-      "Workers só devem operar dentro de .claude/worktrees/<slug> na raiz do projeto.";
+      `${who} só deve operar dentro de .claude/worktrees/<slug> na raiz do projeto.`;
   }
 
   if (!isListedWorktree(toplevel, porcelain)) {
     return `ERROR: worktree stale bloqueado pelo Vetor Safety Hook: ${toplevel}\n` +
       "Este worktree não aparece mais em `git worktree list` — provavelmente já foi removido " +
-      "(worktree-ship ou limpeza manual). Encerre esta sessão; ela não pode mais operar aqui.";
+      `(worktree-ship ou limpeza manual). Encerre esta sessão (${who}); ela não pode mais operar aqui.`;
   }
 
   return null;

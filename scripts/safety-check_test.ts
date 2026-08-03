@@ -253,7 +253,7 @@ Deno.test("safety-check.ts (integração): worktree válido dentro de .claude/wo
   await Deno.remove(repo, { recursive: true });
 });
 
-Deno.test("safety-check.ts (integração): worktree fora de .claude/worktrees é bloqueado", async () => {
+Deno.test("safety-check.ts (integração): worktree fora de .claude/worktrees é bloqueado (com agent_type)", async () => {
   const repo = await makeRepo("main");
   const outside = `${repo}-outside-wt`;
   await git(["worktree", "add", "-q", "-b", "outside-branch", outside], repo);
@@ -262,6 +262,7 @@ Deno.test("safety-check.ts (integração): worktree fora de .claude/worktrees é
     tool_name: "Bash",
     tool_input: { command: "echo hi" },
     cwd: outside,
+    agent_type: "vetor:issue-worker",
   });
 
   assertEquals(result.code, 2);
@@ -271,7 +272,7 @@ Deno.test("safety-check.ts (integração): worktree fora de .claude/worktrees é
   await Deno.remove(outside, { recursive: true });
 });
 
-Deno.test("safety-check.ts (integração): worktree movido no disco sem atualizar o registro (stale) é bloqueado", async () => {
+Deno.test("safety-check.ts (integração): worktree movido no disco sem atualizar o registro (stale) é bloqueado (com agent_type)", async () => {
   const repo = await makeRepo("main");
   const original = `${repo}/.claude/worktrees/stale-wt`;
   const moved = `${repo}/.claude/worktrees/stale-wt-moved`;
@@ -284,12 +285,50 @@ Deno.test("safety-check.ts (integração): worktree movido no disco sem atualiza
     tool_name: "Bash",
     tool_input: { command: "echo hi" },
     cwd: moved,
+    agent_type: "vetor:issue-worker",
   });
 
   assertEquals(result.code, 2);
   assertMatch(result.stderr, /stale/i);
 
   await Deno.remove(repo, { recursive: true });
+});
+
+Deno.test("issue #114: sessão sem agent_type com cwd num worktree stale NÃO é mais bloqueada por frescor", async () => {
+  const repo = await makeRepo("main");
+  const original = `${repo}/.claude/worktrees/stale-no-agent`;
+  const moved = `${repo}/.claude/worktrees/stale-no-agent-moved`;
+  await git(["worktree", "add", "-q", "-b", "stale-no-agent-branch", original], repo);
+
+  // Move só no filesystem — git worktree list continua apontando para o path antigo.
+  await Deno.rename(original, moved);
+
+  const result = await runHook({
+    tool_name: "Bash",
+    tool_input: { command: "echo hi" },
+    cwd: moved,
+  });
+
+  assertEquals(result.code, 0, result.stderr);
+
+  await Deno.remove(repo, { recursive: true });
+});
+
+Deno.test("issue #114: sessão sem agent_type com cwd fora de .claude/worktrees NÃO é mais bloqueada por frescor", async () => {
+  const repo = await makeRepo("main");
+  const outside = `${repo}-outside-wt-no-agent`;
+  await git(["worktree", "add", "-q", "-b", "outside-no-agent-branch", outside], repo);
+
+  const result = await runHook({
+    tool_name: "Bash",
+    tool_input: { command: "echo hi" },
+    cwd: outside,
+  });
+
+  assertEquals(result.code, 0, result.stderr);
+
+  await Deno.remove(repo, { recursive: true });
+  await Deno.remove(outside, { recursive: true });
 });
 
 Deno.test("cwd contaminado: mesmo agent_id, worktree diferente na segunda chamada é bloqueado — issue #63", async () => {

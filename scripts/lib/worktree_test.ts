@@ -32,3 +32,9 @@ Deno.test("evaluateFreshness: worktree stale (ausente de `git worktree list`) é
   const message = evaluateFreshness(FRESH, ROOT, porcelainSemFresh);
   assertMatch(message ?? "", /stale/i);
 });
+
+Deno.test("evaluateFreshness: mensagem cita o agent_type real em vez de assumir genericamente 'Workers' — issue #114", () => {
+  const outside = "/repo/../other-place/wt";
+  const message = evaluateFreshness(outside, ROOT, PORCELAIN, "vetor:issue-worker");
+  assertMatch(message ?? "", /vetor:issue-worker/);
+});
