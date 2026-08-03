@@ -89,7 +89,10 @@ Deno.test("debug-scan ignora padrão existente fora do diff — issue #93", asyn
     await Deno.writeTextFile(`${repo}/app.ts`, 'console.log("existing");\n');
     await git(["add", "app.ts"], repo);
     await git(["commit", "-q", "-m", "initial"], repo);
-    await Deno.writeTextFile(`${repo}/app.ts`, 'console.log("existing");\nexport const value = 1;\n');
+    await Deno.writeTextFile(
+      `${repo}/app.ts`,
+      'console.log("existing");\nexport const value = 1;\n',
+    );
 
     const result = await runVetorChecks(repo, "debug-scan", "main");
     assertEquals(result.code, 0, result.stderr);
@@ -134,12 +137,18 @@ Deno.test("debug-scan usa origin quando a branch local está desatualizada — i
     await git(["config", "user.email", "test@example.com"], worker);
     await git(["config", "user.name", "Test"], worker);
 
-    await Deno.writeTextFile(`${source}/app.ts`, 'export const value = 1;\nconsole.log("shared");\n');
+    await Deno.writeTextFile(
+      `${source}/app.ts`,
+      'export const value = 1;\nconsole.log("shared");\n',
+    );
     await git(["add", "app.ts"], source);
     await git(["commit", "-q", "-m", "remote debug line"], source);
     await git(["push", "-q"], source);
     await git(["fetch", "-q", "origin", "main"], worker);
-    await Deno.writeTextFile(`${worker}/app.ts`, 'export const value = 1;\nconsole.log("shared");\nexport const feature = true;\n');
+    await Deno.writeTextFile(
+      `${worker}/app.ts`,
+      'export const value = 1;\nconsole.log("shared");\nexport const feature = true;\n',
+    );
 
     // SKILL.md passes origin/$DEFAULT_BRANCH, so test must use origin/main
     const result = await runVetorChecks(worker, "debug-scan", "origin/main");

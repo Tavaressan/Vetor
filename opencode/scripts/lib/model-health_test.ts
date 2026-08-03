@@ -89,9 +89,9 @@ Deno.test("recordModelHealth - processos concorrentes preservam ambas as entrada
   const moduleUrl = new URL("./model-health.ts", import.meta.url).href;
   const run = (key: string) =>
     new Deno.Command(Deno.execPath(), {
-    args: [
-      "eval",
-      `import { recordModelHealth } from ${JSON.stringify(moduleUrl)};
+      args: [
+        "eval",
+        `import { recordModelHealth } from ${JSON.stringify(moduleUrl)};
 while (!await Deno.stat(${JSON.stringify(gate)}).then(() => true).catch(() => false)) {
   await new Promise((resolve) => setTimeout(resolve, 1));
 }

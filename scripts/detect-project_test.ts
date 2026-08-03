@@ -1,8 +1,8 @@
-import { equal } from "jsr:@std/assert";
+import { equal } from "@std/assert";
 import { detectProject } from "./lib/project.ts";
 import { detectModules, renderMap } from "./detect-project.ts";
 
-Deno.test("projeto único com subdiretórios comuns gera apenas root", async () => {
+Deno.test("projeto único com subdiretórios comuns gera apenas root", () => {
   // Simula um projeto com subdiretórios comuns (src, scripts, etc)
   // que não têm runtime próprio
   const root = detectProject(".");
@@ -12,7 +12,7 @@ Deno.test("projeto único com subdiretórios comuns gera apenas root", async () 
   equal(modules, []);
 });
 
-Deno.test("monorepo com packages detecta corretamente", async () => {
+Deno.test("monorepo com packages detecta corretamente", () => {
   // Criar estrutura temporária de monorepo
   try {
     Deno.mkdirSync("test-packages/a", { recursive: true });

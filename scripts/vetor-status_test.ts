@@ -8,7 +8,8 @@ async function run(
   cwd: string,
   env?: Record<string, string>,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  const out = await new Deno.Command(cmd, { args, cwd, env, stdout: "piped", stderr: "piped" }).output();
+  const out = await new Deno.Command(cmd, { args, cwd, env, stdout: "piped", stderr: "piped" })
+    .output();
   return {
     code: out.code,
     stdout: new TextDecoder().decode(out.stdout),
@@ -50,7 +51,7 @@ async function makeLinkedWorktree(
 }
 
 Deno.test("vetor-status.sh detecta worktree sem status file (falha anômala — issue #72)", async () => {
-  const { root, worktreePath } = await makeLinkedWorktree("fix-orphan");
+  const { root, worktreePath: _worktreePath } = await makeLinkedWorktree("fix-orphan");
   try {
     // Nenhum status file criado — worktree existe mas sem rastro
     const { stdout } = await run("bash", [SCRIPT], root);

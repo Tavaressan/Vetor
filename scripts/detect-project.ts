@@ -67,7 +67,7 @@ function hasTestSuite(path: string): boolean {
 }
 
 /** Um módulo pode estar no subdiretório direto ou um nível abaixo (monorepos rasos). */
-export function detectModules(root: ProjectInfo, directory = "."): Module[] {
+export function detectModules(_root: ProjectInfo, directory = "."): Module[] {
   const modules: Module[] = [];
 
   for (const entry of Deno.readDirSync(directory)) {
@@ -92,7 +92,9 @@ export function detectModules(root: ProjectInfo, directory = "."): Module[] {
       if (subInfo.runtime !== "unknown") {
         nested = {
           name: entry.name,
-          command: hasTestSuite(`${directory}/${subPath}`) ? `cd ${subPath} && ${subInfo.testCommand}` : null,
+          command: hasTestSuite(`${directory}/${subPath}`)
+            ? `cd ${subPath} && ${subInfo.testCommand}`
+            : null,
         };
         break;
       }

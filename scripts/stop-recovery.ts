@@ -47,6 +47,7 @@ function repoRoot(): string | undefined {
     return new TextDecoder().decode(stdout).trim() || undefined;
   } catch {
     return undefined;
+  }
 }
 
 /** True se o arquivo não tem modificações pendentes no git (untracked, modified, staged). */
