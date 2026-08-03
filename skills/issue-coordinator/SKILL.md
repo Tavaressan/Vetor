@@ -62,9 +62,32 @@ Antes de qualquer outra fase, avalie o argumento recebido:
      Se já estiver mergeado (`GREEN (já mergeado via #N)`), apenas informe no relatório e não ofereça ship.
      Prossiga o restante do fluxo a partir da Fase 5/6 normalmente.
   3. Se **não houver** nenhum worktree ativo com status file: caia no fluxo padrão — trate como se
-     fosse `/coordinator backlog` (Fase 1, label default `backlog`).
+     fosse `/coordinator backlog` (Fase 1, label default `backlog`). **Antes de prosseguir**, rode
+     `gh issue list --label backlog --state open --json number,title` (como faria na Fase 1). Se
+     retornar vazio **e** rodar `gh issue list --state open --json number,title` sem filtro de label
+     retornar resultados, **avise explicitamente no chat:** "_Nenhuma issue encontrada com label
+     `backlog`, mas há <N> issues abertas sem label. Use `/coordinator <N>,<M>,...` para despachar
+     específicas, ou aplique a label `backlog` às issues que deseja coordenar, ou use
+     `/coordinator --label <label>` para listar por outro critério._" Isto evita a falsa impressão
+     de "nada a despachar" quando há trabalho pendente.
 - **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
   da Fase 1, sem passar pelo modo de retomada.
+
+### 0.4 — Nota sobre Comportamento de Fallback de Label
+
+O fluxo padrão do `/coordinator` (sem argumento, modo de retomada) usa `backlog` como label
+padrão de busca (Fase 1). **Este é um critério de conveniência, não uma restrição obrigatória.**
+
+- **Issues com label `backlog`:** entram automaticamente na fila de dispatch ao rodar `/coordinator` sem
+  argumento. Este é o caminho esperado para issues criadas pelo fluxo de planejamento.
+- **Issues abertas sem label:** não aparecem na listagem default da Fase 1. Elas podem ter sido
+  abertas por outros canais (ex.: `/retro`, criação manual, ou integração externa). O comportamento
+  atual (Fase 0, passo 3) **detecta e avisa explicitamente** quando há issues abertas sem label,
+  evitando a falsa impressão de "nada a despachar".
+- **Resgate manual de issues sem label:** use `/coordinator <N>,<M>,...` (lista de números) para
+  despachar issues específicas sem label, ou aplique a label `backlog` e retrigger o `/coordinator`.
+
+Isto garante transparência e evita que trabalho pendente passe despercebido.
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
@@ -79,6 +102,12 @@ como **lista de issues por número**; caso contrário, como **label** (fluxo pad
   ```bash
   gh issue list --label <label> --state open --json number,title,labels,body
   ```
+  **Comportamento de fallback (Fase 0, label default `backlog`):** Se o label usado for `backlog`
+  (default em modo de retomada sem worktrees) e a busca retornar vazio, rode também
+  `gh issue list --state open --json number,title` sem filtro de label. Se houver resultados,
+  avise explicitamente: "_Nenhuma issue com label `backlog`, mas há <N> issues abertas sem label.
+  Use `/coordinator <N>,<M>,...` para despachar específicas, ou aplique a label `backlog`._"
+  Isto garante que o usuário é informado de trabalho pendente mesmo quando falta a label padrão.
 
 O restante do fluxo (verificação de PR já aberto, análise de afinidade, dispatch) é **idêntico** nos
 dois modos.
