@@ -283,6 +283,17 @@ Agent({
 })
 ```
 
+⚠️ **Worker preso em Plan Mode (issue #121).** Sintoma: um `issue-worker` despachado via `Agent()`
+entra em plan mode por conta própria (heurística padrão do Claude Code para "tarefa não-trivial") e
+fica travado — sem `ExitPlanMode` disponível na sessão isolada (agente headless, sem interlocutor
+para aprovar a saída), e a escrita do plan file (fora do worktree) bloqueada pelo próprio
+`scripts/safety-check.ts`. O status file desse worker fica parado em `RUNNING` sem progresso
+(nenhuma iteração nova, nenhum commit). Recuperação: **descarte a sessão travada** e redespache como
+agente genérico no mesmo worktree, seguindo exatamente o procedimento acima (`isolation: "worktree"`
+só serve para dispatch inicial) — não use `vetor:issue-worker` de novo para esse worktree, pois o
+frontmatter do agente não impede reincidência por si só; a mitigação primária é a instrução explícita
+em `agents/issue-worker.md` e `skills/fix-loop-agent/SKILL.md` para nunca chamar `EnterPlanMode`.
+
 **Nota (Antigravity):** o `issue-worker` também é registrado para o Google Antigravity via
 `agents/issue-worker/agent.json` (`customAgentSpec`), complementando `agents/issue-worker.md`
 usado pelo Claude Code. Como ele define `tools:` explicitamente, **não** herda MCP do contexto
