@@ -87,12 +87,14 @@ function pushDestination(command: string): string | null {
 }
 
 /**
- * Só se aplica dentro de um worktree linkado (`wt.isLinked`): a raiz do repositório
- * principal não tem essa restrição, senão o próprio uso legítimo do hook lá quebraria.
+ * Só se aplica dentro de um worktree linkado (`wt.isLinked`) E com `agentType` presente
+ * (chamada por um subagente, ex.: `vetor:issue-worker`): a raiz do repositório principal
+ * — e qualquer sessão normal do usuário, mesmo que o cwd resolva para um worktree linkado —
+ * não tem essa restrição, senão o próprio uso legítimo do hook lá quebraria (issue #114).
  */
-async function checkFreshness(wt: WorktreeInfo): Promise<void> {
+async function checkFreshness(wt: WorktreeInfo, agentType: string): Promise<void> {
   const list = await run("git", ["worktree", "list", "--porcelain"], wt.root);
-  const message = evaluateFreshness(wt.toplevel, wt.root, list.stdout);
+  const message = evaluateFreshness(wt.toplevel, wt.root, list.stdout, agentType);
   if (message) blocked(message);
 }
 
@@ -221,10 +223,12 @@ async function main() {
   const cwd = input.cwd ?? Deno.cwd();
   const wt = await resolveWorktree(cwd);
 
-  // A checagem de frescor só faz sentido dentro de um worktree linkado — na raiz do
-  // repositório principal (isLinked === false) o hook segue liberando normalmente.
-  if (wt?.isLinked) {
-    await checkFreshness(wt);
+  // A checagem de frescor só faz sentido dentro de um worktree linkado E chamada por um
+  // subagente identificado (agent_type presente) — na raiz do repositório principal
+  // (isLinked === false), ou numa sessão normal do usuário cujo cwd resolva para um
+  // worktree linkado (sem agent_type), o hook segue liberando normalmente (issue #114).
+  if (wt?.isLinked && input.agent_type) {
+    await checkFreshness(wt, input.agent_type);
   }
 
   if (input.tool_name === "Edit" || input.tool_name === "Write") {
