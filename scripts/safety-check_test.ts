@@ -405,6 +405,72 @@ Deno.test("cwd contaminado: sem agent_id no payload, a checagem de binding não 
   }
 });
 
+Deno.test("issue #123: git push multi-linha para branch não-protegida não é bloqueado por menção a branch protegida em outra linha", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: {
+        command:
+          "git push -u origin bug/123-push-destination-regex\ngh pr create --title x --base master",
+      },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #123: git push direto para master continua bloqueado (sem regressão)", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git push origin master" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "protected branches");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #123: git push para master combinado com && continua bloqueado (sem regressão)", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "echo hi && git push origin master" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "protected branches");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #123 (review): git push com continuação de linha (\\) para master continua bloqueado", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git push \\\norigin master" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "protected branches");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
 Deno.test("safety-check.ts (integração): sem regressão — raiz do repositório principal continua liberada", async () => {
   const repo = await makeRepo("main");
 
