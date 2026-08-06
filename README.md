@@ -230,6 +230,7 @@ mecanismo que aplica uma política de fato — instrução em prompt o agente po
 | `SubagentStop` | `vetor:issue-worker` | `check-status.ts` | Impede o worker de encerrar sem status file em estado terminal |
 | `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor` |
 | `WorktreeCreate` | — | `prepare-worktree.ts` | Cria o worktree e prepara as dependências |
+| `Stop` | — | `stop-recovery.ts` | Compara o transcript da sessão com o estado em disco; bloqueia o encerramento e reporta (nunca corrige sozinho) quando detecta Edit/Write registrado no transcript sem correspondência em disco — sinal de sessão interrompida no meio da chamada |
 
 O `check-edit.ts` existe para poupar iterações do fix-loop: sem ele, um erro de tipo ou import quebrado
 só apareceria ao **rodar o teste**, e cada descoberta dessas queima uma das 5 iterações do worker.
