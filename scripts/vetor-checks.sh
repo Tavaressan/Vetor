@@ -25,6 +25,12 @@ case "$cmd" in
     ;;
 
   in-worktree)
+    # Contrato estável para uso EXTERNO ao plugin (issue #129): hooks/scripts de projetos
+    # consumidores podem chamar `vetor-checks.sh in-worktree` diretamente para decidir se o
+    # cwd é um worktree linkado (exit 0) ou o repositório principal (exit 1), sem stdout.
+    # Não reimplemente essa comparação com `pwd` vs `git worktree list` — os formatos de path
+    # nunca coincidem no Windows/Git Bash, o que faz a comparação ingênua concluir "worktree"
+    # mesmo estando no root.
     git_dir=$(git rev-parse --git-dir 2>/dev/null) || { echo "não é um repositório git" >&2; exit 1; }
     common_dir=$(git rev-parse --git-common-dir 2>/dev/null)
     if [ "$(cd "$git_dir" && pwd)" = "$(cd "$common_dir" && pwd)" ]; then
