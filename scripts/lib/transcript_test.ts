@@ -128,6 +128,24 @@ Deno.test("findDivergences: arquivo fora do repo mutado por processo externo (is
   assertEquals(divergences.length, 0);
 });
 
+Deno.test("findDivergences: arquivo revertido via git checkout (issue #105) não é reportado", () => {
+  // Edit registrado no transcript sem tool_result (parece trabalho perdido), mas o usuário
+  // reverteu a mudança via `git checkout` — o disco não bate com o esperado, porém o arquivo
+  // está "limpo" no git (sem modificações pendentes). isResolvedExternally simula o isGitClean
+  // de stop-recovery.ts nesse cenário: a divergência não deve ser reportada.
+  const raw = jsonl(editToolUse("t1", "/repo/a.ts", "linha nova"));
+  const { edits } = parseTranscript(raw);
+
+  const divergences = findDivergences(
+    edits,
+    () => "conteudo antigo sem a mudanca esperada",
+    "/repo",
+    () => true,
+  );
+
+  assertEquals(divergences.length, 0);
+});
+
 Deno.test("findDivergences: regressão issue #46 — edição dentro do repo não persistida continua detectada", () => {
   const raw = jsonl(editToolUse("t1", "/repo/a.ts", "linha nova"));
   const { edits } = parseTranscript(raw);
