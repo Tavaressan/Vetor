@@ -26,6 +26,10 @@ export interface Divergence {
   filePath: string;
   kind: "edit" | "write";
   reason: string;
+  /** Conteúdo esperado (mesmo valor de EditRecord.expected) — chave usada para acknowledgment
+   * por sessão (issue #137): se o mesmo filePath voltar a divergir com um `expected` diferente,
+   * é uma divergência nova, não a mesma já revisada. */
+  expected: string;
 }
 
 interface ToolUseBlock {
@@ -232,6 +236,7 @@ export function findDivergences(
         filePath: record.filePath,
         kind: record.kind,
         reason: "arquivo não encontrado em disco",
+        expected: record.expected,
       });
       continue;
     }
@@ -249,6 +254,7 @@ export function findDivergences(
         reason: record.incomplete
           ? "chamada de ferramenta sem tool_result no transcript (sessão interrompida no meio da edição)"
           : "conteúdo em disco não reflete a última edição registrada no transcript",
+        expected: record.expected,
       });
     }
   }
