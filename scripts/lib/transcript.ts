@@ -157,13 +157,20 @@ function isInsideRepo(filePath: string, repoRoot: string): boolean {
 }
 
 /**
- * True quando `filePath` pertence a um subsistema conhecido do Claude Code (ex.: `~/.claude/**`,
- * onde vivem memória, projects e configs) — mutação legítima por processo alheio à sessão
- * (issue #87), excluída **incondicionalmente**, sem depender de haver um repo git detectável
- * (issue #136: antes, sem `repoRoot`, essa exclusão inteira era ignorada).
+ * True quando `filePath` pertence ao `~/.claude/**` do usuário (onde vivem memória, projects e
+ * configs) — mutação legítima por processo alheio à sessão (issue #87), excluída
+ * **incondicionalmente**, sem depender de haver um repo git detectável (issue #136: antes, sem
+ * `repoRoot`, essa exclusão inteira era ignorada).
+ *
+ * A âncora no home do usuário é deliberada: um `.claude/` versionado dentro do repo-alvo é
+ * conteúdo do projeto e continua sendo verificado normalmente.
  */
 function isKnownSubsystemPath(filePath: string): boolean {
-  return /(^|\/)\.claude\//.test(filePath);
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE");
+  if (home === undefined) return false;
+
+  const prefix = home.replace(/\\/g, "/").replace(/\/$/, "") + "/.claude/";
+  return filePath.replace(/\\/g, "/").startsWith(prefix);
 }
 
 /** Comandos que podem remover ou renomear um arquivo. */
