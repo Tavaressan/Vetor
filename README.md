@@ -80,7 +80,7 @@ Sobre o servidor `docker`:
 | `/vetor:fix-loop <descrição>` | Loop autônomo reproduce → fix → rebuild → test (máx. 5 iterações) |
 | `/vetor:backlog [tema]` | Ideação guiada ancorada em docs do projeto → batch de issues GitHub com aprovação humana |
 | `/vetor:guardian [--cron]` | Audit + auto-fix de gaps que o pre-commit não cobre (JSON, migrations, worktrees, Dependabot) |
-| `/vetor:coordinator [label] [--dry-run]` | Despacho paralelo de issues para sub-agentes com escalação de permissões e merge serializado |
+| `/vetor:coordinator [label] [--headless]` | Despacho paralelo de issues para sub-agentes com escalação de permissões e merge serializado. `--headless` roda sem interação humana (rotinas agendadas, CI): não pergunta, não pede aprovação e não faz merge |
 | `/vetor:retro` | Avalia o uso do Vetor na sessão e propõe issues de melhoria no repositório do próprio plugin (não do projeto) |
 
 > ⚠️ A skill `worktree-session` foi **aposentada** (monolítica demais, perdia contexto). Use a composição `worktree-create` + `worktree-ship` (e `coordinator` para orquestração). O arquivo legado fica em `legacy/worktree-session/` só como referência histórica e **não é carregado** pelo plugin.

@@ -1,11 +1,11 @@
 ---
 name: issue-coordinator
-description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /coordinator [label].
+description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /coordinator [label]. Aceita --headless para execução não-interativa (rotinas/CI).
 license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge, utilizando o fluxo nativo de planejamento.
@@ -19,6 +19,7 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 /coordinator <n1>,<n2>,...
 /coordinator
 /coordinator --resume
+/coordinator [label] --headless
 ```
 
 - `[label]`: label das issues a despachar (default: `backlog`)
@@ -27,6 +28,9 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 - **sem argumento** ou **`--resume`**: modo de retomada — reconstrói o estado a partir dos
   worktrees/status files existentes e vai direto para monitoramento/ship, sem depender de label
   ou lista de issues (ver Fase 0).
+- `--headless`: execução **não-interativa**, para rotinas agendadas, CI e qualquer contexto sem
+  humano presente. Combinável com label, lista de números e `--resume`. Ver "Modo headless" na
+  Fase 0.
 
 ---
 
@@ -61,6 +65,8 @@ Antes de qualquer outra fase, avalie o argumento recebido:
      ofereça o ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>), que está GREEN?").
      Se já estiver mergeado (`GREEN (já mergeado via #N)`), apenas informe no relatório e não ofereça ship.
      Prossiga o restante do fluxo a partir da Fase 5/6 normalmente.
+     Em `--headless`: não pergunte o teto (use `N_rec`) e não ofereça ship — apenas monte a tabela
+     de status e reporte os grupos `GREEN` como prontos para ship.
   3. Se **não houver** nenhum worktree ativo com status file: caia no fluxo padrão — trate como se
      fosse `/coordinator backlog` (Fase 1, label default `backlog`). **Antes de prosseguir**, rode
      `gh issue list --label backlog --state open --json number,title` (como faria na Fase 1). Se
@@ -72,6 +78,40 @@ Antes de qualquer outra fase, avalie o argumento recebido:
      de "nada a despachar" quando há trabalho pendente.
 - **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
   da Fase 1, sem passar pelo modo de retomada.
+
+#### Modo headless
+
+A flag `--headless` (em qualquer posição do argumento) ativa a execução não-interativa. Ela existe
+porque rotinas agendadas e pipelines de CI rodam **sem humano para responder**: uma
+`AskUserQuestion` ou um `ExitPlanMode` nesse contexto não é respondido e o coordinator trava antes
+de despachar qualquer worker — planeja e não executa. É o mesmo modo de falha já documentado na
+Fase 4 para o worker preso em plan mode (issue #121), uma camada acima: sem interlocutor, todo
+gate de aprovação vira deadlock silencioso.
+
+Em `--headless`, os quatro pontos de interação humana do fluxo são substituídos por decisões
+determinísticas:
+
+| Fase | Interativo | Headless |
+|------|-----------|----------|
+| 2 — teto de workers | `AskUserQuestion` | Usa `N_rec` calculado, sem perguntar |
+| 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
+| 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
+| 5.c — circuit breaker | Pergunta se pausa | Sempre pausa: para de despachar e reporta |
+
+Além disso, em `--headless`:
+
+- **A Fase 6 (merge) não roda.** O coordinator despacha, monitora e reporta; nunca invoca
+  `worktree-ship`, `gh pr ready` ou `gh pr merge`. Entregar código à branch default sem revisão
+  humana é precisamente o que um modo não supervisionado não deve decidir sozinho — ainda mais em
+  repositórios sem required status check configurado, onde não há barreira nenhuma depois do merge.
+  Grupos em `GREEN` são reportados como prontos para ship, e o ship fica para uma sessão interativa
+  ou para uma rotina dedicada.
+- **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
+  `BLOCKED_WAITING` e aparece no relatório final. Conceder permissão sem humano anularia a razão de
+  o worker ter parado.
+- **Ausência de trabalho não é falha.** Se não houver issue elegível, ou se todo grupo candidato já
+  tiver PR aberto, encerre com um relatório de uma linha dizendo isso. Não force dispatch para
+  parecer produtivo.
 
 ### 0.4 — Nota sobre Comportamento de Fallback de Label
 
@@ -160,8 +200,11 @@ Antes de pedir aprovação do plano, pergunte ao usuário quantos workers simult
    independente da conta acima (acima disso o custo agregado e o ruído de monitoramento da Fase 5
    crescem mais rápido que o ganho de paralelismo). Se houver menos grupos do que a recomendação,
    ela cai para o número de grupos.
-2. **Pergunte via `AskUserQuestion`** (uma única pergunta para a sessão inteira, não repita a cada
-   rodada):
+2. **Em `--headless`: não pergunte.** Adote `N = N_rec` diretamente e registre no relatório final
+   qual valor foi usado e como foi calculado. Pule para o passo 3.
+
+   Fora do headless, **pergunte via `AskUserQuestion`** (uma única pergunta para a sessão inteira,
+   não repita a cada rodada):
    - `"<N_rec> (Recomendado)"` — justifique em 1 linha (nº de grupos formados, custo agregado por
      worker, teto duro de 8)
    - `"1 — serializado"` — um grupo por vez; mais lento, mais previsível, menor custo e menor ruído
@@ -181,6 +224,10 @@ dispatch. O usuário pode depois editar o config manualmente se quiser fazer uma
 no padrão.
 
 #### Obtenção de aprovação
+
+**Em `--headless`: não peça aprovação e não chame `ExitPlanMode`.** Inclua o plano de dispatch
+montado acima no relatório final (Fase 7), como registro do que foi decidido, e siga direto para a
+Fase 3. Todo o restante desta seção vale apenas no modo interativo.
 
 Obtenha aprovação do plano (incluindo o teto de workers) seguindo o mecanismo do ecossistema atual
 (planning-conventions.md §2.2):
@@ -356,7 +403,13 @@ chat, sem gravar `Status: BLOCKED_WAITING` com os blocos estruturados no arquivo
 instrua-o via `SendMessage` a gravar o `BLOCKED_WAITING` estruturado (`Blocked on` / `Options` /
 `Recommendation`) primeiro. Isso garante que o estado sobreviva a um reinício da sessão coordenadora.
 
-Se um agente estiver em `BLOCKED_WAITING`, leia o bloco `Blocked on` / `Options` /
+**Em `--headless`: não escale.** Leia o bloco `Blocked on` / `Options` / `Recommendation` do status
+file, mantenha o grupo em `BLOCKED_WAITING` e registre no relatório final o agente (`<slug>` /
+Issue `#<N>`), o motivo do bloqueio e a recomendação do próprio worker — para que o humano decida
+depois, em sessão interativa. Não conceda permissão, não escolha opção técnica e não redespache.
+Nunca mate um worker bloqueado para abrir vaga no teto `N`: o bloqueio é informação, não lixo.
+
+Fora do headless, se um agente estiver em `BLOCKED_WAITING`, leia o bloco `Blocked on` / `Options` /
 `Recommendation` do status file e escale ao usuário via `AskUserQuestion`, identificando o agente
 (`<slug>` / Issue `#<N>`) e transmitindo a recomendação do agente. As opções dependem do tipo:
 - **Permissão bloqueada** (`<comando>`): permitir esta vez / permitir para este agente
@@ -375,10 +428,18 @@ de redispatch na Fase 4.
 - Se 2 ou mais agentes falharem na mesma iteração com o status `FAILED_MAX_ITERATIONS` apresentando assinaturas de erro idênticas (ex.: falha de rede do gerenciador de pacotes, erro de linkagem em arquivo global, etc.), acione o circuit breaker.
 - Envie um comando de pausa para todos os subagentes ativos e pergunte ao usuário:
   `⚠️ Circuit Breaker acionado devido a falhas recorrentes com erro similar. Deseja pausar para investigar ou prosseguir mesmo assim?`
+- **Em `--headless`: não pergunte — sempre pause.** Pare de despachar grupos `QUEUED`, deixe os
+  workers já ativos terminarem, e vá para o relatório final destacando a assinatura de erro comum.
+  Falha recorrente com a mesma assinatura quase sempre é infra (rede, registry, disco), não código:
+  insistir sem humano só multiplica o custo pelo número de grupos restantes.
 
 ### 6 — Fase de merge (serializada)
 
 ⚠️ **Esta fase é serializada** — um merge de cada vez para evitar conflitos.
+
+⚠️ **Em `--headless` esta fase inteira é pulada.** Não invoque `worktree-ship`, `gh pr ready` nem
+`gh pr merge`. Liste os grupos `GREEN` no relatório final como prontos para ship, com a branch e o
+path do worktree (obtido via `git worktree list`), e encerre.
 
 Quando um agente atingir `GREEN`:
 
@@ -414,6 +475,16 @@ Após todos os agentes terminarem (ou timeout de 90 minutos), apresente o relat�
 Resumo: <N> merged, <M> falharam, <K> aguardando review.
 ```
 
+**Em `--headless`, o relatório é a única saída da execução** — ninguém acompanhou o processo, então
+ele precisa ser autossuficiente. Acrescente ao formato acima:
+
+- O plano de dispatch da Fase 2 (não aprovado por ninguém, apenas registrado).
+- O teto `N` usado e como foi calculado.
+- Para cada grupo `GREEN`: branch e path do worktree, marcados como **prontos para ship** — já que
+  a Fase 6 não rodou.
+- Para cada grupo `BLOCKED_WAITING`: o bloqueio e a recomendação do worker, para decisão humana.
+- Se o circuit breaker disparou: a assinatura de erro comum e quais grupos ficaram sem despachar.
+
 ---
 
 ## Hard caps
@@ -434,3 +505,6 @@ Resumo: <N> merged, <M> falharam, <K> aguardando review.
 - Fonte de verdade para status: status files (`.claude/vetor/status/`) + `gh pr list` + `gh pr checks`
 - Nunca chama `EnterWorktree` ou `ExitWorktree` por sub-agentes — cada Agent gerencia seu próprio contexto
 - Se interrompido e reiniciado, reconstrói estado com `vetor-status.sh` + `gh pr list` — não depende de estado em memória
+- Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship, nunca
+  auto-aprova permissão de worker. Se o contexto de execução exigir uma decisão que o modo headless
+  não pode tomar, o caminho correto é registrar no relatório e parar — não improvisar a decisão
