@@ -152,6 +152,16 @@ function isInsideRepo(filePath: string, repoRoot: string): boolean {
   return filePath === repoRoot || filePath.startsWith(repoRoot.replace(/\/$/, "") + "/");
 }
 
+/**
+ * True quando `filePath` pertence a um subsistema conhecido do Claude Code (ex.: `~/.claude/**`,
+ * onde vivem memória, projects e configs) — mutação legítima por processo alheio à sessão
+ * (issue #87), excluída **incondicionalmente**, sem depender de haver um repo git detectável
+ * (issue #136: antes, sem `repoRoot`, essa exclusão inteira era ignorada).
+ */
+function isKnownSubsystemPath(filePath: string): boolean {
+  return /(^|\/)\.claude\//.test(filePath);
+}
+
 /** Comandos que podem remover ou renomear um arquivo. */
 const REMOVE_COMMANDS =
   /\bgit\s+worktree\s+remove\b|\bgit\s+rm\b|\brm\b|\bmv\b|\bunlink\b|\bshred\b/;
@@ -183,9 +193,13 @@ function wasRemovedByCommand(
  * Compara cada edição pendente com o conteúdo atual em disco. `readFile` deve devolver
  * `null` quando o arquivo não existe, e nunca lançar.
  *
- * `repoRoot`, quando informado, restringe a checagem a arquivos dentro do repositório atual:
- * arquivos fora dele (ex.: `~/.claude/**`, geridos por outros subsistemas) são ignorados,
- * pois podem sofrer mutação legítima por processos alheios à sessão (issue #87).
+ * Arquivos de subsistemas conhecidos (ex.: `~/.claude/**`, geridos por outros processos) são
+ * ignorados incondicionalmente — mutação legítima alheia à sessão (issue #87).
+ *
+ * `repoRoot`, quando informado, restringe a checagem aos demais arquivos dentro do repositório
+ * atual. Quando `repoRoot` é `undefined` (sessão fora de um repo git), não há repo-alvo contra
+ * o qual verificar (o propósito original é a #46) — em vez de verificar tudo, a divergência é
+ * tratada como não verificável e ignorada em silêncio (issue #136).
  *
  * `bashCommands`, quando fornecido, permite detectar remoções/renomeações legítimas que
  * ocorreram após a edição (issue #127).
@@ -200,7 +214,13 @@ export function findDivergences(
   const divergences: Divergence[] = [];
 
   for (const record of records) {
-    if (repoRoot !== undefined && !isInsideRepo(record.filePath, repoRoot)) continue;
+    if (isKnownSubsystemPath(record.filePath)) continue;
+
+    // Sem repo git detectável não há como restringir a checagem ao repo-alvo (o propósito
+    // original da #46) — em vez de verificar tudo (bug da #136), tratamos como não verificável
+    // e ficamos em silêncio.
+    if (repoRoot === undefined) continue;
+    if (!isInsideRepo(record.filePath, repoRoot)) continue;
 
     const disk = readFile(record.filePath);
 

@@ -81,7 +81,7 @@ Deno.test("findDivergences: edição não persistida em disco é reportada", () 
   const divergences = findDivergences(edits, (path) => {
     assertEquals(path, "/repo/a.ts");
     return "conteudo antigo sem a mudanca esperada";
-  });
+  }, "/repo");
 
   assertEquals(divergences.length, 1);
   assertEquals(divergences[0].filePath, "/repo/a.ts");
@@ -103,7 +103,7 @@ Deno.test("findDivergences: arquivo ausente em disco é reportado", () => {
   const raw = jsonl(writeToolUse("t1", "/repo/novo.ts", "conteudo"), toolResult("t1"));
   const { edits } = parseTranscript(raw);
 
-  const divergences = findDivergences(edits, () => null);
+  const divergences = findDivergences(edits, () => null, "/repo");
 
   assertEquals(divergences.length, 1);
   assertEquals(divergences[0].reason, "arquivo não encontrado em disco");
@@ -158,4 +158,39 @@ Deno.test("findDivergences: regressão issue #46 — edição dentro do repo nã
 
   assertEquals(divergences.length, 1);
   assertEquals(divergences[0].filePath, "/repo/a.ts");
+});
+
+Deno.test("findDivergences: issue #136 — sem repoRoot, arquivo em ~/.claude/** continua ignorado incondicionalmente", () => {
+  // Sessão fora de repo git: repoRoot() falha e devolve undefined. Antes da #136, a guarda de
+  // exclusão de ~/.claude/** dependia de repoRoot !== undefined e se desligava por completo,
+  // fazendo até arquivos de memória (mutados legitimamente por outro subsistema) serem
+  // reportados como divergência. Isso não deve mais acontecer.
+  const raw = jsonl(
+    editToolUse("t1", "/home/user/.claude/projects/x/memory/MEMORY.md", "modified: 10:00"),
+    toolResult("t1"),
+  );
+  const { edits } = parseTranscript(raw);
+
+  const divergences = findDivergences(
+    edits,
+    () => "modified: 10:05\nconteudo mutado por outro processo",
+    undefined,
+  );
+
+  assertEquals(divergences.length, 0);
+});
+
+Deno.test("findDivergences: issue #136 — sem repoRoot, divergência fora de subsistema conhecido fica em silêncio", () => {
+  // Sem repo-alvo detectável, não há como restringir a checagem (propósito original da #46);
+  // em vez de verificar tudo, a divergência é tratada como não verificável.
+  const raw = jsonl(editToolUse("t1", "/tmp/scratch/a.ts", "linha nova"));
+  const { edits } = parseTranscript(raw);
+
+  const divergences = findDivergences(
+    edits,
+    () => "conteudo antigo sem a mudanca esperada",
+    undefined,
+  );
+
+  assertEquals(divergences.length, 0);
 });
