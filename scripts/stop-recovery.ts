@@ -6,16 +6,17 @@
 // fim da sessão, comparamos o transcript com o estado atual dos arquivos e REPORTAMOS a
 // divergência — nunca aplicamos a recuperação sozinhos: quem decide é quem está na sessão.
 //
-// Contrato do Claude Code: o payload do Stop traz `transcript_path` (arquivo .jsonl) na
-// raiz e `stop_hook_active` — true quando este hook já bloqueou a parada uma vez nesta
-// mesma invocação. Isso evita o loop infinito sem precisar do arquivo sentinela que
-// check-status.ts usa para o SubagentStop (que não tem esse campo).
+// Contrato do Claude Code: o payload do Stop traz `transcript_path` (arquivo .jsonl),
+// `session_id` e `stop_hook_active` — true quando este hook já bloqueou a parada uma vez nesta
+// mesma invocação. `stop_hook_active` evita o loop infinito dentro de uma mesma parada, mas é
+// reiniciado a cada novo turno — por isso o acknowledgment por sessão abaixo (issue #137).
 
-import { findDivergences, parseTranscript } from "./lib/transcript.ts";
+import { type Divergence, findDivergences, parseTranscript } from "./lib/transcript.ts";
 
 interface HookInput {
   transcript_path?: string;
   stop_hook_active?: boolean;
+  session_id?: string;
 }
 
 function quiet(): never {
@@ -66,6 +67,42 @@ function isGitClean(filePath: string, root: string): boolean {
   }
 }
 
+/**
+ * Acknowledgment por sessão (issue #137): divergências cuja resolução não é verificável por git
+ * (arquivo fora do repo, untracked, ou sessão sem repo) re-bloqueariam o Stop a cada turno, sem
+ * mecanismo para o agente marcar como já revisada. Persistimos, por `session_id`, o conjunto de
+ * `filePath + expected` já apresentado — se o mesmo arquivo divergir de novo com um `expected`
+ * diferente (nova edição), a chave muda e o alerta volta a acontecer.
+ */
+function ackPath(sessionId: string): string {
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
+  return `${home}/.claude/vetor/stop-recovery-ack/${sessionId}.json`;
+}
+
+function divergenceKey(d: Divergence): string {
+  return `${d.filePath}\u0000${d.expected}`;
+}
+
+function readAcked(sessionId: string): Set<string> {
+  try {
+    const raw = Deno.readTextFileSync(ackPath(sessionId));
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Nunca lança: falha ao persistir só significa que o alerta pode voltar no próximo turno. */
+function persistAcked(sessionId: string, keys: Set<string>): void {
+  try {
+    const path = ackPath(sessionId);
+    Deno.mkdirSync(path.slice(0, path.lastIndexOf("/")), { recursive: true });
+    Deno.writeTextFileSync(path, JSON.stringify([...keys]));
+  } catch {
+    // não crítico
+  }
+}
+
 async function main() {
   const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
 
@@ -87,9 +124,20 @@ async function main() {
 
   const root = repoRoot();
   const { edits: records, bashCommands } = parseTranscript(transcript);
-  const divergences = findDivergences(records, readFile, root, (path) => {
+  const allDivergences = findDivergences(records, readFile, root, (path) => {
     return root ? isGitClean(path, root) : false;
   }, bashCommands);
+
+  if (allDivergences.length === 0) quiet();
+
+  const sessionId = input.session_id;
+  let divergences = allDivergences;
+  if (sessionId) {
+    const acked = readAcked(sessionId);
+    divergences = allDivergences.filter((d) => !acked.has(divergenceKey(d)));
+    for (const d of allDivergences) acked.add(divergenceKey(d));
+    persistAcked(sessionId, acked);
+  }
 
   if (divergences.length === 0) quiet();
 
