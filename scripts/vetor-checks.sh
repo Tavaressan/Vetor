@@ -9,6 +9,9 @@
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
 #   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo
 #   sync-root                  tenta retornar o repositório principal para a branch default de forma segura
+#   worktree-audit              lista worktrees linkados (exceto o root) com idade/tamanho/uncommitted
+#   find-orphan-status [dir]   lista status files sem worktree correspondente (default: .claude/vetor/status)
+#   archive-orphan-status <path> move um status file órfão para <dir>/archive/
 #
 # Exit codes: 0 = passou; 1 = checagem falhou (a skill deve parar e mostrar a saída); 2 = uso incorreto.
 
@@ -137,8 +140,74 @@ case "$cmd" in
     echo "Root sincronizado com $DEFAULT_BRANCH (branch anterior: $current estava limpa e mesclada)."
     ;;
 
+  worktree-audit)
+    # Emite uma linha por worktree linkado (exclui o root) no formato:
+    #   <path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>
+    # "age_days" é medido a partir do timestamp do último commit do worktree (proxy de
+    # staleness — evita depender de mtime de diretório, que muda a qualquer escrita).
+    main_worktree=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    now_ts=$(date +%s)
+    path=""
+    branch=""
+    while IFS= read -r line; do
+      case "$line" in
+        "worktree "*)
+          path="${line#worktree }"
+          branch=""
+          ;;
+        "branch refs/heads/"*)
+          branch="${line#branch refs/heads/}"
+          ;;
+        "")
+          if [ -n "$path" ] && [ "$path" != "$main_worktree" ] && [ -d "$path" ]; then
+            last_commit_ts=$(git -C "$path" log -1 --format=%ct 2>/dev/null || echo "$now_ts")
+            age_days=$(( (now_ts - last_commit_ts) / 86400 ))
+            size_kb=$(du -sk "$path" 2>/dev/null | cut -f1)
+            if [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
+              uncommitted="yes"
+            else
+              uncommitted="no"
+            fi
+            echo "${path}|${branch:-detached}|${age_days}|${size_kb:-0}|${uncommitted}"
+          fi
+          path=""
+          branch=""
+          ;;
+      esac
+    done < <(git worktree list --porcelain; echo "")
+    ;;
+
+  find-orphan-status)
+    # Lista status files (`.claude/vetor/status/*.md`) cujo worktree correspondente não
+    # existe mais em `git worktree list`. Report-only — não move nem apaga nada.
+    status_dir="${2:-.claude/vetor/status}"
+    [ -d "$status_dir" ] || exit 0
+    active=$(git worktree list --porcelain | sed -n 's#^branch refs/heads/##p' | tr '/' '-')
+    for f in "$status_dir"/*.md; do
+      [ -e "$f" ] || continue
+      name=$(basename "$f" .md)
+      if ! printf '%s\n' "$active" | grep -qx "$name"; then
+        echo "$f"
+      fi
+    done
+    ;;
+
+  archive-orphan-status)
+    # Move um status file órfão para <dir>/archive/ (não apaga — recolhimento reversível).
+    target="${2:?uso: vetor-checks.sh archive-orphan-status <path-do-status-file>}"
+    [ -f "$target" ] || {
+      echo "ERRO: status file não encontrado: $target" >&2
+      exit 1
+    }
+    status_dir=$(dirname "$target")
+    archive_dir="$status_dir/archive"
+    mkdir -p "$archive_dir"
+    mv "$target" "$archive_dir/"
+    echo "Arquivado: $archive_dir/$(basename "$target")"
+    ;;
+
   *)
-    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root>" >&2
+    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>>" >&2
     exit 2
     ;;
 esac
