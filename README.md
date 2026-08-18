@@ -230,7 +230,16 @@ mecanismo que aplica uma política de fato — instrução em prompt o agente po
 | `SubagentStop` | `vetor:issue-worker` | `check-status.ts` | Impede o worker de encerrar sem status file em estado terminal |
 | `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor` |
 | `WorktreeCreate` | — | `prepare-worktree.ts` | Cria o worktree e prepara as dependências |
-| `Stop` | — | `stop-recovery.ts` | Compara o transcript da sessão com o estado em disco; bloqueia o encerramento e reporta (nunca corrige sozinho) quando detecta Edit/Write registrado no transcript sem correspondência em disco — sinal de sessão interrompida no meio da chamada |
+
+> ⚠️ O hook `Stop` (`stop-recovery.ts`) foi **aposentado** (issue #141) e o código foi para
+> `legacy/stop-recovery/`, onde **não é carregado** pelo plugin. Ele comparava o transcript da
+> sessão com o estado dos arquivos em disco e bloqueava o encerramento ao divergir. Não foi
+> retirado por bug aberto — as correções das issues #136/#137 já haviam eliminado o falso
+> positivo conhecido — mas por custo/benefício: a comparação transcript-versus-disco é frágil por
+> natureza (qualquer formatador, linter ou hook de terceiro que toque o arquivo depois do `Write`
+> produz divergência) e exigiu cinco remendos sucessivos (#87, #127, #128, #136, #137), cada um
+> estreitando o alcance sem tornar o sinal confiável, para um alerta cujo modo de falha era
+> bloquear a sessão.
 
 O `check-edit.ts` existe para poupar iterações do fix-loop: sem ele, um erro de tipo ou import quebrado
 só apareceria ao **rodar o teste**, e cada descoberta dessas queima uma das 5 iterações do worker.
@@ -596,8 +605,12 @@ skills/
 ├── issue-coordinator/SKILL.md
 ├── worktree-create/SKILL.md
 └── worktree-ship/SKILL.md
-legacy/
-└── worktree-session/SKILL.md   # aposentada — não carregada
+legacy/                          # código aposentado — mantido como referência, não carregado
+├── worktree-session/SKILL.md    # skill monolítica, substituída por worktree-create + worktree-ship
+└── stop-recovery/               # hook Stop aposentado (#141)
+    ├── stop-recovery.ts
+    ├── transcript.ts
+    └── *_test.ts
 ```
 
 ---
