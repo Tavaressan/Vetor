@@ -65,7 +65,11 @@ async function run(cmd: string, args: string[], cwd: string): Promise<void> {
 
 /** Repo git real com um arquivo `a.ts` já commitado, para testar o escape de isGitClean. */
 async function makeRepoWithFile(): Promise<{ root: string; filePath: string }> {
-  const root = (await Deno.makeTempDir()).replaceAll("\\", "/");
+  // realPath resolve o symlink de /var -> /private/var no macOS: `git rev-parse --show-toplevel`
+  // devolve o caminho real, e isInsideRepo compara com startsWith literal — sem isso o arquivo
+  // editado parece estar fora do repo, é filtrado, e o hook fica em silêncio (falha só no macOS;
+  // no CI Linux /tmp não é symlink, por isso a suíte passava lá).
+  const root = (await Deno.realPath(await Deno.makeTempDir())).replaceAll("\\", "/");
   await run("git", ["init", "-q"], root);
   await run("git", ["config", "user.email", "test@example.com"], root);
   await run("git", ["config", "user.name", "Test"], root);
