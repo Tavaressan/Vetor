@@ -5,13 +5,13 @@
 # campo para bundlar definições de subagente — só skills/hooks/mcpServers/apps (confirmado
 # na doc oficial em 2026-07-20). Este arquivo é um template de referência: para usar, copie
 # para .codex/agents/issue-worker.toml no repositório-alvo (ou ~/.codex/agents/ para uso
-# pessoal). O /vetor init ainda não automatiza essa cópia — ver README, seção
-# "Compatibilidade com Codex".
+# pessoal). O /vetor init ainda não automatiza essa cópia — ver
+# wiki/Compatibilidade-Codex.md.
 #
 # As instruções abaixo são autocontidas (não pré-carregam a skill fix-loop-agent) porque
 # skills/fix-loop-agent/SKILL.md e skills/shared/references/project-conventions.md
 # referenciam $CLAUDE_PLUGIN_ROOT, variável que o Codex não define (ele expõe $PLUGIN_ROOT).
-# Ver README para o gap completo.
+# Ver wiki/Compatibilidade-Codex.md para o gap completo.
 
 name = "issue-worker"
 description = "Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge."
