@@ -64,7 +64,9 @@ case "$cmd" in
     # Stale branch references in worktrees (issue #70).
     # Exclude script/test files that define or test the regex to avoid false positives (issue #108, #109)
     hits=$(git diff "$base" -U0 -- '*.ts' '*.sh' '*.js' '*.tsx' '*.jsx' \
-      ':!scripts/vetor-checks.sh' ':!scripts/tests/vetor-checks_test.ts' ':!skills/**/*.md' 2>/dev/null \
+      ':!scripts/vetor-checks.sh' ':!scripts/tests/vetor-checks_test.ts' ':!skills/**/*.md' \
+      ':!.opencode/scripts/vetor-checks.sh' ':!.opencode/skills/**/*.md' \
+      ':!opencode/scripts/vetor-checks.sh' ':!opencode/skills/**/*.md' 2>/dev/null \
       | grep -E '^\+' | grep -vE '^\+\+\+' \
       | grep -nE 'console\.log|var_dump|fit\(|fdescribe\(|it\.only' 2>/dev/null || true)
     if [ -n "$hits" ]; then
