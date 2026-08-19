@@ -339,6 +339,18 @@ Se `worktree-ship` falhar (CI vermelho, review required), marque na tabela e con
 
 ### 7 — Relatório final
 
+**Antes do relatório, volte ao root e sincronize.** A Fase 6 faz `cd` para dentro do worktree de
+cada grupo; sem um retorno explícito, a sessão termina com o git preso na branch de um worktree —
+possivelmente já mergeada e obsoleta.
+
+```bash
+cd "$(git worktree list | head -1 | awk '{print $1}')"   # a 1ª linha é sempre o root
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" sync-root
+```
+
+`sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se
+imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de descartar trabalho.
+
 Após todos os agentes terminarem (ou timeout de 90 minutos):
 
 ```
@@ -380,6 +392,8 @@ O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido 
 - Fonte de verdade para status: status files (`.claude/vetor/status/`) + `gh pr list` + `gh pr checks`
 - Nunca chama `EnterWorktree`/`ExitWorktree` por sub-agentes
 - Se interrompido, reconstrói estado com `vetor-status.sh` + `gh pr list` — não depende de memória
+- Ao fim de toda sessão (Fase 7), o root fica na branch principal e sincronizado — nunca preso numa
+  branch de worktree de grupo
 - Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship, nunca
   auto-aprova permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
   relatório e pare — não improvise

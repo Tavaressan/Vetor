@@ -332,13 +332,25 @@ Quando um status file atingir `GREEN`:
 3. `cd <path-do-worktree>` e rode o pipeline de entrega equivalente ao `worktree-ship` do Claude
    Code — se ele não tiver sido portado ainda para o OpenCode neste repositório, rode manualmente:
    `<comando de teste> && git push -u origin <branch> && gh pr create ... && gh pr merge --squash`.
-4. Após merge bem-sucedido, execute `bash "$VETOR_PLUGIN_ROOT/scripts/vetor-checks.sh"
+4. Após merge bem-sucedido, execute `bash .opencode/scripts/vetor-checks.sh
    safe-remove-worktree <path>` e atualize a tabela. Se a checagem apontar um worktree filho,
    pare o cleanup e alerte com o path do filho; nunca rode `git worktree remove <path>` diretamente.
 
 Se falhar (CI vermelho, review required): marque na tabela e continue com outros grupos.
 
 ### 7 — Relatório final
+
+**Antes do relatório, volte ao root e sincronize.** A Fase 6 faz `cd` para dentro do worktree de
+cada grupo; sem um retorno explícito, a sessão termina com o git preso na branch de um worktree —
+possivelmente já mergeada e obsoleta.
+
+```bash
+cd "$(git worktree list | head -1 | awk '{print $1}')"   # a 1ª linha é sempre o root
+bash .opencode/scripts/vetor-checks.sh sync-root
+```
+
+`sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se
+imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de descartar trabalho.
 
 Após todos os grupos terminarem (ou timeout de 90 minutos):
 
@@ -386,6 +398,8 @@ Fase 2 (default recomendado `maxConcurrentWorkers` de `.claude/vetor/config.json
 - Nunca lance um worker sem `--dir` apontando para um worktree válido já criado
 - Se interrompido, reconstrua o estado com `.opencode/scripts/vetor-status.sh` + `gh pr list` —
   nunca dependa de PID de processo (pode já ter terminado ou sido lançado em outra sessão)
+- Ao fim de toda sessão (Fase 7), o root fica na branch principal e sincronizado — nunca preso numa
+  branch de worktree de grupo
 - Em `--headless`: nunca aguarde resposta em chat, nunca rode a Fase 6 (merge/ship), nunca
   auto-aprove permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
   relatório e pare — não improvise
