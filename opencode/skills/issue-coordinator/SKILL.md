@@ -68,6 +68,8 @@ relativos abaixo assumem esse cwd.
   (issue #83), devolve no stdout o primeiro modelo saudável ou sai com código 1 se todos degraded
 - `.opencode/agent/issue-worker.md` — subagente/processo despachado por grupo de issues na Fase 4
 - Comandos de teste: `.claude/vetor/module-test-map.md`, ou auto-detecção a partir do CI na ausência dela
+- Procedimento de validação manual do porte contra uma instalação real do OpenCode:
+  `wiki/Compatibilidade-OpenCode.md`, seção "Validação manual do coordinator"
 - Formato do status file: ver "Status file" abaixo — embutido inline (curto o bastante para não
   justificar mais um arquivo cross-referenciado; a versão Claude Code usa
   `skills/shared/references/agent-status.template.md` via `$CLAUDE_PLUGIN_ROOT`)

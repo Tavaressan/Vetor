@@ -110,6 +110,48 @@ path do `docker-catalog.yaml` se for usar o servidor `docker`).
 segurança e o coordinator estão prontos para uso; as demais 7 skills seguem bloqueadas pela mesma
 limitação de path do Codex.
 
+## Validação manual do coordinator
+
+O `issue-coordinator` portado nunca foi executado de ponta a ponta contra uma instalação real do
+OpenCode — o ambiente usado para portá-lo é o Claude Code, sem CLI `opencode` interativo. Este é o
+procedimento para quem for validá-lo (movido de `opencode/skills/issue-coordinator/SKILL.md` na
+issue #147: é documentação de desenvolvimento, não instrução de runtime).
+
+1. Crie/escolha um repositório de teste com `.opencode/` copiado (`cp -r opencode/. <repo>/.opencode/`)
+   e ao menos 2 issues GitHub abertas com o label `backlog` (ou outro label de teste), idealmente uma
+   Lead + uma Sequential relacionada, para exercitar o agrupamento de afinidade.
+2. Rode `opencode run --agent issue-coordinator "backlog"` na raiz do repositório de teste.
+3. Confirme que:
+   - o plano é exibido no chat e o coordenador aguarda uma resposta textual afirmativa antes de
+     criar qualquer worktree;
+   - `git worktree add` roda uma vez por grupo (serializado — sem `index lock`);
+   - `opencode run --dir <worktree> --agent issue-worker "..."` é disparado como processo
+     independente por grupo, respeitando o teto de workers perguntado na Fase 2;
+   - `.claude/vetor/status/<branch>.md` é criado/atualizado pelo worker e a tabela de
+     `bash .opencode/scripts/vetor-status.sh` reflete o progresso real;
+   - interrompendo o processo coordenador (Ctrl+C) e rodando `opencode run --agent issue-coordinator
+     "--resume"` reconstrói a tabela de status sem duplicar dispatch das issues já em andamento;
+   - ao atingir `GREEN`, a Fase 6 localiza o worktree correto via `git worktree list` e completa o
+     merge.
+4. Registre desvios encontrados como issue de acompanhamento (mesmo padrão usado para o gap do Codex
+   documentado em `codex_plugin_hook_gap.md`).
+
+**Fallback de modelo/provedor (issue #84)** — a lógica de escolha em si já tem cobertura
+automatizada (`deno task test`, `opencode/scripts/resolve-model_test.ts` e
+`opencode/scripts/lib/model-health_test.ts`), sem depender de um ambiente OpenCode real. Para
+validar a integração completa (hook `event` → `model-health.json` → `resolve-model.ts` →
+`opencode run --dir --model`) contra uma instalação real:
+1. Force uma entrada `degraded` sintética: `echo '{"anthropic/claude-haiku-4-5":{"status":
+   "degraded","until":9999999999999,"lastError":"teste manual"}}' >
+   .claude/vetor/status/model-health.json` no repositório de teste.
+2. Rode `opencode run --agent issue-coordinator "backlog"` e confirme no log/chat que o comando
+   de dispatch monta `--model anthropic/claude-sonnet-4-5` (ou o próximo saudável do tier) em vez
+   do preferencial degraded.
+3. Zere `model-health.json` (ou aguarde `until` expirar) e confirme que o próximo dispatch volta a
+   escolher o preferencial original.
+4. Force **todos** os modelos do tier como `degraded` e confirme que o grupo fica `QUEUED` em vez
+   de despachar — sem processo `opencode run` para ele até uma entrada expirar.
+
 ---
 
 [← Wiki do Vetor](Home.md)
