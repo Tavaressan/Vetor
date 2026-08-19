@@ -5,7 +5,7 @@ import {
   readStatus,
   resolveWorktree,
   statusFilePath,
-} from "./status.ts";
+} from "../lib/status.ts";
 
 Deno.test("branch com barra vira nome de arquivo plano", () => {
   assertEquals(

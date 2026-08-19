@@ -1,6 +1,6 @@
 import { equal } from "@std/assert";
-import { detectProject } from "./lib/project.ts";
-import { detectModules, renderMap } from "./detect-project.ts";
+import { detectProject } from "../lib/project.ts";
+import { detectModules, renderMap } from "../detect-project.ts";
 
 Deno.test("projeto único com subdiretórios comuns gera apenas root", () => {
   // Simula um projeto com subdiretórios comuns (src, scripts, etc)

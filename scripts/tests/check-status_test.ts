@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 
-const SCRIPT = new URL("./check-status.ts", import.meta.url).pathname;
+const SCRIPT = new URL("../check-status.ts", import.meta.url).pathname;
 
 async function run(cmd: string, args: string[], cwd: string): Promise<void> {
   const { code, stderr } = await new Deno.Command(cmd, {

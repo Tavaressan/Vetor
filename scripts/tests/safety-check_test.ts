@@ -4,7 +4,7 @@
 
 import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 
-const SCRIPT = new URL("./safety-check.ts", import.meta.url).pathname.replace(
+const SCRIPT = new URL("../safety-check.ts", import.meta.url).pathname.replace(
   /^\/([A-Za-z]:)/,
   "$1",
 );
