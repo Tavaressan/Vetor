@@ -7,13 +7,17 @@
 | Iterações do fix-loop | 5 |
 | Retentativas de CI no ship | 3 |
 | Timeout global do coordinator | 90 min |
-| Workers simultâneos por rodada do coordinator | Perguntado por sessão (padrão: 5, máx: 8) |
+
+Workers simultâneos por rodada do coordinator **não** são um hard cap: o valor é perguntado por
+sessão, com `N_rec = min(nº de grupos, maxConcurrentWorkers do config, senão 5)` como default. Acima
+de ~8 o coordinator sinaliza o trade-off de custo, mas não impõe limite — ver
+[Decisões de design](Decisoes-de-Design.md).
 
 ## Custo de tokens
 
 Alavancas para manter o custo baixo no dispatch paralelo:
 
-- **Teto de workers simultâneos no `issue-coordinator`** (ver "Hard caps" acima) — cada subagente paralelo é uma instância Claude completa sem contexto compartilhado, então é a alavanca mais direta contra o custo agregado. Grupos além do teto ficam `QUEUED` e só são despachados quando um worker ativo libera vaga. É contabilidade do próprio coordinator, não um bloqueio de plataforma — o Claude Code não tem mecanismo real de limite de tokens por subagente (verificado na doc oficial em 2026-07-02).
+- **Número de workers simultâneos no `issue-coordinator`** (ver "Hard caps" acima) — cada subagente paralelo é uma instância Claude completa sem contexto compartilhado, então é a alavanca mais direta contra o custo agregado. Grupos além do valor escolhido ficam `QUEUED` e só são despachados quando um worker ativo libera vaga. É contabilidade do próprio coordinator, não um bloqueio de plataforma — o Claude Code não tem mecanismo real de limite de tokens por subagente (verificado na doc oficial em 2026-07-02).
 - **`tools` restritos no `issue-worker`** — menos ferramentas carregadas por invocação. A restrição de "nunca push/PR/merge" é de instrução/prompt; só o push para branches protegidas (`main`/`master`/`production`) é bloqueado de fato, via hook `PreToolUse`.
 - **`model: haiku` por padrão no `issue-worker`**, com escalação para `sonnet` decidida pelo coordinator conforme tipo/labels da issue (`chore`/`fix` pequenos → `haiku`; `feat`/`refactor` → `sonnet`). Se uma issue em `haiku` esgotar as iterações do fix-loop, o coordinator redespacha uma vez com `sonnet` antes de desistir.
 - **Subagentes em vez de Agent Teams** sempre que não houver necessidade real de debate entre pares — um subagente comum retorna só um resumo ao chamador; cada teammate é uma instância Claude completa e mais cara.
