@@ -1,11 +1,11 @@
 ---
 name: guardian
-description: Audit + auto-fix de gaps que o pre-commit não cobre guiado por Planejamento. JSON validity, migrations, worktrees, uncommitted work, Dependabot, saúde de containers Docker.
+description: Audit + auto-fix de gaps que o pre-commit não cobre guiado por Planejamento. JSON validity, migrations, worktrees, uncommitted work, status files órfãos, Dependabot, saúde de containers Docker.
 license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 Você é o guardião do Vetor. Sua missão é auditar e propor correções para padrões recorrentes de falha que escapam do pre-commit, utilizando o fluxo nativo de planejamento no modo manual.
@@ -94,18 +94,59 @@ Verifica se existem worktrees criados fora de `.claude/worktrees/`:
 **Finding:** worktree em `<path>` fora do diretório padrão
 **Auto-fix:** nenhum — apenas reporta para o usuário decidir.
 
-### 4 — Trabalho não commitado em worktrees
+### 4 — Auditoria de worktrees (idade, tamanho, PR, uncommitted)
 
-Para cada worktree listado por `git worktree list`:
+Responde "o que sobrou e por quê?" (issue #133) para cada worktree linkado — o cleanup do
+`worktree-ship` (passo 12) só roda no caminho feliz; toda execução que falha no CI, fica em
+revisão, é abandonada, ou cujo agente morre antes do merge, deixa o worktree órfão sem que nada
+o recolha depois.
 
 ```bash
-git -C <worktree-path> status --porcelain
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" worktree-audit
 ```
 
-**Finding:** trabalho não commitado em `<worktree-path>`
-**Auto-fix:** nenhum — apenas reporta.
+Cada linha vem no formato `<path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>`. `age_days`
+é medido a partir do timestamp do último commit do worktree (proxy de staleness). Cruze a
+`<branch>` de cada linha com o status do PR associado:
 
-### 5 — PRs Dependabot com rebase pendente
+```bash
+gh pr list --state all --json headRefName,number,state
+```
+
+Monte uma tabela de auditoria com uma linha por worktree:
+
+| Worktree | Branch | Idade | Tamanho | PR | Uncommitted |
+|---|---|---|---|---|---|
+| `<path>` | `<branch>` | `<N>d` | `<tamanho legível>` | `#<N> (OPEN\|MERGED\|CLOSED)` ou "sem PR" | ✅/⚠️ |
+
+**Finding:** worktree com idade alta (> 7 dias, sem PR aberto associado) e sem trabalho pendente —
+candidata a remoção segura.
+**Finding:** worktree com trabalho não commitado (`uncommitted=yes`) — nunca remover automaticamente.
+**Auto-fix (modo manual):** para candidatas seguras (uncommitted=no **e** PR ausente ou já
+`MERGED`/`CLOSED`), propõe no plano `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh"
+safe-remove-worktree <path>` — nunca `--force`, e nunca sobre worktree com `uncommitted=yes` ou
+branch com commits ausentes no remoto (`git log origin/<branch>..<branch>` não vazio → não propõe).
+Aplica somente após aprovação explícita do usuário no plano.
+
+### 5 — Reconciliação de status files órfãos
+
+Arquivos em `.claude/vetor/status/` sobrevivem à remoção do worktree que os gerou —
+`scripts/vetor-status.sh` já detecta e reporta esse caso como `cancelled (worktree removed)`, mas
+nada recolhe o arquivo de fato.
+
+```bash
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" find-orphan-status
+```
+
+Para cada path retornado, o worktree correspondente comprovadamente não existe mais em
+`git worktree list` — o script já faz essa checagem antes de listar.
+
+**Finding:** status file órfão em `<path>` (worktree removido)
+**Auto-fix (modo manual):** propõe `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh"
+archive-orphan-status <path>` — move o arquivo para `.claude/vetor/status/archive/` (não apaga;
+recolhimento reversível). Aplica somente após aprovação explícita do usuário no plano.
+
+### 6 — PRs Dependabot com rebase pendente
 
 Use a CLI `gh`:
 ```bash
@@ -119,7 +160,7 @@ gh pr view <N> --json mergeable,mergeStateStatus
 **Finding:** PR Dependabot #<N> com merge conflict / needs rebase
 **Auto-fix (modo manual):** Registra a proposta no plano de execução (via `gh pr comment <N> --body "@dependabot rebase"`).
 
-### 6 — Auditoria de Banco de Dados (via MCP)
+### 7 — Auditoria de Banco de Dados (via MCP)
 
 Verifique disponibilidade de um MCP de banco de dados conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure qualquer `mcp__<db>__*` na sua lista de ferramentas — o nome do servidor varia conforme a configuração). Se não houver, ignore este check.
 Se estiver disponível, use as ferramentas de query para auditar a saúde estrutural do banco. Sugestões de diagnóstico (adapte ao dialeto do banco, ex: PostgreSQL):
@@ -130,7 +171,7 @@ Se estiver disponível, use as ferramentas de query para auditar a saúde estrut
 **Finding:** <detalhes da anomalia encontrada no banco>
 **Auto-fix:** nenhum — apenas reporta para o desenvolvedor analisar.
 
-#### 6.a — Stack específico: MySQL/Postgres/PlanetScale (condicional)
+#### 7.a — Stack específico: MySQL/Postgres/PlanetScale (condicional)
 
 Detecte o stack pelo nome do servidor MCP disponível (ex.: `mcp__planetscale__*`,
 `mcp__postgres__*`, `mcp__mysql__*`) ou por config de conexão no projeto-alvo (ex.:
@@ -149,7 +190,7 @@ Se detectado, aprofunde a auditoria além do check genérico:
 **Finding:** <detalhes da anomalia específica do stack, ex.: coluna sem índice em query frequente>
 **Auto-fix:** nenhum — apenas reporta para o desenvolvedor analisar.
 
-### 7 — Auditoria de Saúde de Containers Docker (via MCP)
+### 8 — Auditoria de Saúde de Containers Docker (via MCP)
 
 Verifique disponibilidade de um MCP Docker conforme `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` (procure qualquer `mcp__docker__*` na sua lista de ferramentas — diretas ou diferidas). Se não houver, ignore este check silenciosamente.
 
@@ -173,6 +214,8 @@ Audit concluído. Mutações recomendadas abaixo.
 
 ### Auto-fixes Recomendados
 - [ ] Corrigir JSON inválido no arquivo: `<path>`
+- [ ] Remover worktree órfão (limpa, sem PR aberto): `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" safe-remove-worktree <path>`
+- [ ] Arquivar status file órfão: `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" archive-orphan-status <path>`
 - [ ] Solicitar rebase do Dependabot no PR #<N> (`gh pr comment <N> --body "@dependabot rebase"`)
 
 ### Alertas (Apenas Leitura / Ação Manual do Usuário)
@@ -204,6 +247,8 @@ Após a execução (ou se nenhum finding necessitar de correção), produza o re
 - Migrations: ✅ sequência sem buracos (ou "skipped — no migrations dir")
 - Worktrees: ✅ todos em .claude/worktrees/
 - Uncommitted work: ✅ nenhum
+- Auditoria de worktrees: ✅ <N> worktrees, <M> candidatas a remoção, <K> com trabalho pendente
+- Status órfãos: ✅ <N> status files verificados, <M> órfãos arquivados
 - Dependabot: ✅ <N> PRs abertos, nenhum com conflito
 - Docker containers: ✅ <N> containers, todos healthy/running (ou "skipped — MCP indisponível")
 
