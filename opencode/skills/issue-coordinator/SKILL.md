@@ -5,7 +5,7 @@ license: MIT
 compatibility: OpenCode
 metadata:
   author: vitortavares
-  version: "1.1.0"
+  version: "1.1.1"
   ported-from: skills/issue-coordinator/SKILL.md (Claude Code, v1.2.0; modo --headless reaplicado a partir de v1.3.0 — issue #138)
 ---
 
@@ -219,7 +219,8 @@ podendo diferir do sugerido aqui se ele estiver `degraded` no momento do dispatc
 
 Antes de pedir aprovação:
 1. Calcule `N_rec = min(número de grupos formados, maxConcurrentWorkers de .claude/vetor/config.json
-   — senão 5)`, teto duro de 8.
+   — senão 5)`. Acima de ~8 workers, sinalize na pergunta que custo agregado e ruído de monitoramento
+   crescem mais rápido que o ganho de paralelismo — é recomendação, não limite; a decisão é do usuário.
 2. **Em `--headless`: não pergunte.** Adote `N = N_rec` diretamente e registre no relatório final
    (Fase 7) qual valor foi usado e como foi calculado. Pule para "Aprovação do plano" abaixo.
 
@@ -402,9 +403,10 @@ ele precisa ser autossuficiente. Acrescente ao formato acima:
 
 - Máximo 5 iterações por worker (contabilizado pelo próprio `issue-worker`, no status file)
 - Timeout global de 90 minutos para o coordenador
-- Máximo `maxConcurrentWorkers` processos `opencode run` simultâneos por rodada (default 5,
-  `.claude/vetor/config.json`)
 - Iterações em `BLOCKED_WAITING` não contam contra o hard cap de 5
+
+O número de processos simultâneos **não é um hard cap**: é o valor `N` decidido pelo usuário na
+Fase 2 (default recomendado `maxConcurrentWorkers` de `.claude/vetor/config.json`, senão 5).
 
 ---
 
