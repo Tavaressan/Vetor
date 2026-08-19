@@ -47,17 +47,6 @@
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "deno run -A \"${CLAUDE_PLUGIN_ROOT}/scripts/stop-recovery.ts\"",
-            "timeout": 30
-          }
-        ]
-      }
-    ],
     "WorktreeCreate": [
       {
         "hooks": [

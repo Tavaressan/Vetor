@@ -1,3 +1,14 @@
+// ⚠️ LEGADO — NÃO USE. Aposentado pela issue #141; não é registrado em hooks/hooks.json
+// nem carregado pelo plugin. Mantido apenas como referência histórica.
+//
+// Este arquivo está na sua última versão em uso (pós-#136/#137), com a guarda incondicional
+// de ~/.claude/** e o acknowledgment por sessão já aplicados. A aposentadoria NÃO é correção
+// de bug ativo: é decisão de manutenção. A comparação transcript-versus-disco é frágil por
+// natureza — qualquer processo legítimo que toque o arquivo depois do Write (formatador,
+// linter, hook de outro plugin, o subsistema de memória do Claude Code) produz divergência —
+// e cada remendo (#87, #127, #136, #137) estreitou o alcance do hook sem tornar o sinal
+// confiável. Ver legacy/stop-recovery/README.md.
+
 // Recuperação de trabalho perdido a partir do transcript da sessão (hook Stop).
 //
 // Motivação (issue #46): uma sessão interrompida no meio de um Edit — falha de rede, kill,
@@ -11,7 +22,7 @@
 // mesma invocação. `stop_hook_active` evita o loop infinito dentro de uma mesma parada, mas é
 // reiniciado a cada novo turno — por isso o acknowledgment por sessão abaixo (issue #137).
 
-import { type Divergence, findDivergences, parseTranscript } from "./lib/transcript.ts";
+import { type Divergence, findDivergences, parseTranscript } from "./transcript.ts";
 
 interface HookInput {
   transcript_path?: string;

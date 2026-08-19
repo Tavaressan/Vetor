@@ -1,3 +1,14 @@
+// ⚠️ LEGADO — NÃO USE. Aposentado pela issue #141; não é registrado em hooks/hooks.json
+// nem carregado pelo plugin. Mantido apenas como referência histórica.
+//
+// Este arquivo está na sua última versão em uso (pós-#136/#137), com a guarda incondicional
+// de ~/.claude/** e o acknowledgment por sessão já aplicados. A aposentadoria NÃO é correção
+// de bug ativo: é decisão de manutenção. A comparação transcript-versus-disco é frágil por
+// natureza — qualquer processo legítimo que toque o arquivo depois do Write (formatador,
+// linter, hook de outro plugin, o subsistema de memória do Claude Code) produz divergência —
+// e cada remendo (#87, #127, #136, #137) estreitou o alcance do hook sem tornar o sinal
+// confiável. Ver legacy/stop-recovery/README.md.
+
 // Parsing do transcript de sessão para o hook Stop: detecta edições registradas no
 // transcript (.jsonl) que não têm correspondência no estado atual dos arquivos em disco —
 // sinal de sessão interrompida no meio de um Edit/Write. Só relata; nunca aplica a
