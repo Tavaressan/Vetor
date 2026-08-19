@@ -23,6 +23,52 @@ Para habilitar, adicione ao `.claude/settings.json` do projeto (ou exporte no sh
 
 **Limitação conhecida: worktrees aninhados pelo harness (issue #95).** Em um dispatch paralelo, o harness alocou o worktree do grupo #86 dentro do diretório do worktree ainda ativo do grupo #85. Ao limpar o pai, `git worktree remove` apagou recursivamente o filho, incluindo qualquer trabalho não commitado; os commits sobreviveram, mas o worktree precisou ser recriado e a entrada ficou `prunable` até `git worktree prune`. A causa provável é a alocação do harness sob `.claude/worktrees/agent-<id>` sem impedir que o diretório pai já seja outro worktree ativo; isso está fora do controle do plugin. Como mitigação, o cleanup usa `vetor-checks.sh safe-remove-worktree`, que lê `git worktree list --porcelain` e bloqueia a remoção se qualquer worktree ativo tiver path `<pai>/...`, apontando os filhos. O pai, sua branch e status são preservados até os filhos serem realocados ou removidos com segurança.
 
+**Por que os SKILL.md não carregam o "porquê".** Um SKILL.md é carregado inteiro no contexto do
+agente a cada execução: rationale, histórico de issues e exemplos didáticos são custo de token
+recorrente que compete com a instrução operacional. A convenção é manter no SKILL.md apenas o que o
+agente precisa para agir, movendo justificativa para esta página e procedimentos longos reutilizáveis
+para `skills/shared/references/`.
+
+**Teto de workers simultâneos é recomendação, não limite.** O `issue-coordinator` calcula
+`N_rec = min(nº de grupos, maxConcurrentWorkers do config, senão 5)` e o oferece como default na
+`AskUserQuestion` da Fase 2. Acima de ~8 workers o custo agregado e o ruído de monitoramento tendem a
+crescer mais rápido que o ganho de paralelismo, e o coordinator sinaliza isso — mas não impõe: o
+usuário pode escolher qualquer valor, inclusive acima de 8. Não há teto duro.
+
+**Por que `--headless` nunca faz merge.** Entregar código à branch default sem revisão humana é
+precisamente o que um modo não supervisionado não deve decidir sozinho — ainda mais em repositórios
+sem required status check, onde não há barreira nenhuma depois do merge. Em headless, todo gate de
+aprovação (`AskUserQuestion`, `ExitPlanMode`) viraria deadlock silencioso por falta de interlocutor,
+o mesmo modo de falha do worker preso em plan mode (issue #121); a Fase 6 é pulada e os grupos
+`GREEN` são apenas reportados como prontos para ship.
+
+**Por que o circuit breaker headless sempre pausa.** Falha recorrente com a mesma assinatura quase
+sempre é infraestrutura (rede, registry, disco), não código: insistir sem humano só multiplica o
+custo pelo número de grupos restantes.
+
+**Dois circuit breakers distintos.** O do `worktree-ship` (§8.a) detecta falha da *plataforma* de CI
+(billing, outage, job not started) via anotações de job e pausa sem consumir iterações de fix — o
+problema não é resolvível por código. O do `issue-coordinator` (§5.c) agrega múltiplos workers com
+falhas de código de assinatura idêntica e decide se pausa.
+
+**Revisões de código e segurança são consultivas (issue de custo).** O passo 8.5 do `worktree-ship`
+substituiu o GitHub Action `code-review@claude-code-plugins`, desativado por custar por execução
+independentemente do risco ou tamanho da mudança. Os achados nunca bloqueiam o merge: quem decide
+agir é o humano, lendo o comentário na PR.
+
+**Worker preso em plan mode (issue #121).** Um `issue-worker` despachado via `Agent()` pode entrar em
+plan mode por conta própria (heurística de "tarefa não-trivial") e travar: sem `ExitPlanMode`
+disponível na sessão isolada e com a escrita do plan file fora do worktree bloqueada pelo
+`scripts/safety-check.ts`. O status fica parado em `RUNNING`. Mitigação primária: instrução explícita
+em `agents/issue-worker.md` e `skills/fix-loop-agent/SKILL.md` para nunca chamar `EnterPlanMode`.
+Recuperação: descartar a sessão e redespachar como agente genérico no worktree existente — nunca com
+`vetor:issue-worker`, cujo frontmatter força worktree novo e ignora a omissão do parâmetro (issue #104).
+
+**Cache de arquivos tocados (issue #81).** O `fix-loop-agent` grava um cache efêmero por branch com o
+mapeamento módulo → arquivos, para que o `code-review` despachado logo depois pelo `worktree-ship`
+não precise re-derivá-lo. Formato e ciclo de vida em
+`skills/shared/references/touched-files-cache.md`; descartado no cleanup (passo 12).
+
 ---
 
 [← Wiki do Vetor](Home.md)
