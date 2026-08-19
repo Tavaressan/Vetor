@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 
-const SCRIPT = new URL("./vetor-status.sh", import.meta.url).pathname;
+const SCRIPT = new URL("../vetor-status.sh", import.meta.url).pathname;
 
 async function run(
   cmd: string,

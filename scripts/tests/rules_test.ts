@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
-import { renderRules } from "./rules.ts";
-import type { Conventions, ProjectInfo } from "./project.ts";
+import { renderRules } from "../lib/rules.ts";
+import type { Conventions, ProjectInfo } from "../lib/project.ts";
 
 const deno: ProjectInfo = {
   runtime: "deno",

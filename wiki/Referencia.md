@@ -59,6 +59,9 @@ skills/
 ├── issue-coordinator/SKILL.md
 ├── worktree-create/SKILL.md
 └── worktree-ship/SKILL.md
+scripts/                         # scripts Deno/bash dos hooks e das skills (Claude Code)
+├── lib/                         # módulos compartilhados (guard, project, rules, status, worktree)
+└── tests/                       # toda a suíte de testes, um arquivo por script/módulo testado
 legacy/                          # código aposentado — mantido como referência, não carregado
 ├── worktree-session/SKILL.md    # skill monolítica, substituída por worktree-create + worktree-ship
 └── stop-recovery/               # hook Stop aposentado (#141)

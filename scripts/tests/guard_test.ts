@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { isWithin, isWriteAllowed, normalizePath } from "./guard.ts";
+import { isWithin, isWriteAllowed, normalizePath } from "../lib/guard.ts";
 
 const WORKTREE = "/repo/.claude/worktrees/issue-42";
 const ROOT = "/repo";

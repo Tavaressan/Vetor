@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 
-const SCRIPT = new URL("./session-check.sh", import.meta.url).pathname;
+const SCRIPT = new URL("../session-check.sh", import.meta.url).pathname;
 
 Deno.test("session-check.sh avisa quando deno não está no PATH, sem tentar rodar deno", async () => {
   const output = await new Deno.Command("bash", {

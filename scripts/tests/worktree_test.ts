@@ -1,5 +1,5 @@
 import { assertEquals, assertMatch } from "@std/assert";
-import { evaluateFreshness, parseWorktreePaths } from "./worktree.ts";
+import { evaluateFreshness, parseWorktreePaths } from "../lib/worktree.ts";
 
 const ROOT = "/repo";
 const FRESH = `${ROOT}/.claude/worktrees/issue-42`;

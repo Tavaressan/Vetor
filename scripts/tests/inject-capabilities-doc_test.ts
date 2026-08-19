@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
-import { END_MARKER, injectBlock, START_MARKER } from "./inject-capabilities-doc.ts";
+import { END_MARKER, injectBlock, START_MARKER } from "../inject-capabilities-doc.ts";
 
 function tmpDir(): string {
   return Deno.makeTempDirSync();
