@@ -5,18 +5,17 @@ license: MIT
 compatibility: OpenCode
 metadata:
   author: vitortavares
-  version: "1.1.1"
-  ported-from: skills/issue-coordinator/SKILL.md (Claude Code, v1.2.0; modo --headless reaplicado a partir de v1.3.0 — issue #138)
+  version: "1.2.0"
+  ported-from: skills/issue-coordinator/SKILL.md (Claude Code, v1.4.0)
 ---
 
 Você é o coordenador de issues do Vetor para o OpenCode. Sua missão é despachar issues de um label
 GitHub para workers paralelos, cada um em seu próprio worktree e processo `opencode` isolado, e
 coordenar o ciclo completo até merge.
 
-**Esta é uma cópia auto-contida** (ver README, seção "Compatibilidade com OpenCode" —
-"Skills — não portadas" foi resolvido para este skill em particular). Ela não referencia
-`$CLAUDE_PLUGIN_ROOT` (variável que o OpenCode não define) em nenhum ponto: todos os scripts e
-referências abaixo são caminhos relativos à raiz do repositório onde `.opencode/` foi copiado
+**Esta é uma cópia auto-contida** (ver README, seção "Compatibilidade com OpenCode"). Não referencia
+`$CLAUDE_PLUGIN_ROOT` (o OpenCode não define essa variável): todos os scripts e referências abaixo
+são caminhos relativos à raiz do repositório onde `.opencode/` foi copiado
 (`cp -r opencode/. <projeto-alvo>/.opencode/` — ver README).
 
 ---
@@ -27,12 +26,10 @@ O OpenCode não tem:
 - `Agent()`/`Task` com `isolation: "worktree"` — cada worker é um **processo `opencode` inteiro e
   separado**, disparado com `opencode run --dir <worktree> --agent issue-worker "<prompt>"`
   (ver `.opencode/agent/issue-worker.md`, seção "Isolamento de worktree").
-- `SendMessage`/comunicação in-process entre coordinator e workers — como cada worker é um processo
-  do SO distinto, a única forma de saber o estado de um worker é **poll do status file** em
-  `.claude/vetor/status/<branch>.md` (mesmo mecanismo de arquivo já usado pela versão Claude Code,
-  só que aqui é a *única* fonte — não há canal de mensagens complementar).
-- `ExitPlanMode` — a aprovação do plano é feita via texto no chat (ver §2.2 de
-  `planning-conventions.md`, replicado inline abaixo em "Aprovação do plano").
+- `SendMessage`/comunicação in-process — como cada worker é um processo do SO distinto, a única
+  forma de saber seu estado é **poll do status file** (`.claude/vetor/status/<branch>.md`), sem
+  canal de mensagens complementar.
+- `ExitPlanMode` — a aprovação do plano é texto no chat (ver "Aprovação do plano", Fase 2).
 
 O restante do fluxo (agrupamento de afinidade, teto de workers, escalação de `BLOCKED_WAITING`,
 merge serializado) é conceitualmente idêntico à versão Claude Code.
@@ -53,9 +50,8 @@ opencode run --agent issue-coordinator "<label> --headless"
 - `<n1>,<n2>,...`: lista de números de issue separados por vírgula (regex `^[0-9]+(,[0-9]+)*$`)
 - sem argumento ou `--resume`: modo de retomada — reconstrói o estado a partir dos status files
   existentes (ver Fase 0)
-- `--headless`: execução **não-interativa**, para rotinas agendadas, CI e qualquer contexto sem
-  humano presente para responder no chat. Aceita a flag em qualquer posição do argumento;
-  combinável com label, lista de números e `--resume`. Ver "Modo headless" na Fase 0.
+- `--headless`: execução **não-interativa**, para rotinas agendadas e CI. Combinável com qualquer
+  um dos anteriores. Ver seção "Modo headless".
 
 Rode sempre a partir da **raiz do repositório principal** (não de dentro de um worktree) — os paths
 relativos abaixo assumem esse cwd.
@@ -64,20 +60,19 @@ relativos abaixo assumem esse cwd.
 
 ## Referências (self-contained, sem `$CLAUDE_PLUGIN_ROOT`)
 
-- `.opencode/scripts/vetor-status.sh` — tabela de monitoramento (cópia direta de
-  `scripts/vetor-status.sh`, sem alteração)
+- `.opencode/scripts/vetor-status.sh` — tabela de monitoramento (cópia direta de `scripts/vetor-status.sh`)
 - `.opencode/scripts/vetor-checks.sh` — checagens determinísticas (`default-branch`, `in-worktree`,
   `migrations`, `debug-scan`, `validate-issue-ref`; cópia direta de `scripts/vetor-checks.sh`)
 - `.opencode/scripts/resolve-model.ts` — fallback de modelo/provedor (issue #84): lê
   `modelFallback.<tier>` de `.claude/vetor/config.json` e `.claude/vetor/status/model-health.json`
-  (issue #83), devolve no stdout o primeiro modelo saudável ou sai com código 1 se todos estiverem
-  `degraded`
+  (issue #83), devolve no stdout o primeiro modelo saudável ou sai com código 1 se todos degraded
 - `.opencode/agent/issue-worker.md` — subagente/processo despachado por grupo de issues na Fase 4
-- Comandos de teste: `.claude/vetor/module-test-map.md` (cópia preenchida pelo usuário) ou
-  auto-detecção a partir do CI, na ausência dela
-- Formato do status file: ver "Status file" abaixo (versão inline — a versão Claude Code referencia
-  `skills/shared/references/agent-status.template.md` via `$CLAUDE_PLUGIN_ROOT`; aqui está embutido
-  porque é curto o bastante para não justificar mais um arquivo cross-referenciado)
+- Comandos de teste: `.claude/vetor/module-test-map.md`, ou auto-detecção a partir do CI na ausência dela
+- Procedimento de validação manual do porte contra uma instalação real do OpenCode:
+  `wiki/Compatibilidade-OpenCode.md`, seção "Validação manual do coordinator"
+- Formato do status file: ver "Status file" abaixo — embutido inline (curto o bastante para não
+  justificar mais um arquivo cross-referenciado; a versão Claude Code usa
+  `skills/shared/references/agent-status.template.md` via `$CLAUDE_PLUGIN_ROOT`)
 
 ### Status file
 
@@ -106,6 +101,30 @@ Recommendation: <opção recomendada e por quê>
 
 ---
 
+## Modo headless
+
+A flag `--headless` substitui os pontos de interação humana do fluxo — sem `AskUserQuestion`/
+`ExitPlanMode` no OpenCode, a interação normal já é texto no chat; o que muda é a ausência total de
+espera por resposta:
+
+| Fase | Interativo | Headless |
+|------|-----------|----------|
+| 2 — teto de workers | Pergunta em texto livre no chat | Usa `N_rec` calculado, sem perguntar |
+| 2 — aprovação do plano | Exibe o plano e aguarda resposta afirmativa | Não aguarda; registra o plano no relatório final |
+| 5.b — `BLOCKED_WAITING` | Apresenta ao usuário no chat e aguarda decisão | Não escala; mantém o grupo bloqueado e reporta |
+| 5.c — circuit breaker | Pergunta se deve pausar | Sempre pausa: para de despachar e reporta |
+
+Além disso, em `--headless`:
+
+- **A Fase 6 (merge) não roda.** Nunca rode `git push`, `gh pr create`, `gh pr ready` ou
+  `gh pr merge`. Grupos em `GREEN` são reportados como prontos para ship (branch + path do worktree).
+- **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
+  `BLOCKED_WAITING` e aparece no relatório final.
+- **Ausência de trabalho não é falha.** Se não houver issue elegível, encerre com um relatório de
+  uma linha. Não force dispatch para parecer produtivo.
+
+---
+
 ## Comportamento
 
 ### 0 — Detecção de modo
@@ -124,42 +143,6 @@ Avalie o argumento recebido antes de qualquer outra fase:
      `opencode run --agent issue-coordinator "backlog"`.
 - **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
   da Fase 1.
-
-#### Modo headless
-
-A flag `--headless` (em qualquer posição do argumento, combinável com label, lista de números e
-`--resume`) ativa a execução não-interativa. Ela existe porque rotinas agendadas e pipelines de CI
-rodam **sem humano para responder** no chat: uma pergunta em texto livre (Fase 2, "Pergunta sobre
-teto de workers") ou a espera por uma confirmação textual do plano (Fase 2, "Aprovação do plano")
-nesse contexto nunca é respondida, e o coordenador trava antes de despachar qualquer worker —
-planeja e não executa. É o mesmo modo de falha já corrigido na versão Claude Code (issue #134) e,
-uma camada abaixo, para o worker preso em plan mode (issue #121): sem interlocutor, todo gate de
-aprovação vira deadlock silencioso.
-
-Em `--headless`, os pontos de interação humana do fluxo são substituídos por decisões
-determinísticas:
-
-| Fase | Interativo | Headless |
-|------|-----------|----------|
-| 2 — teto de workers | Pergunta em texto livre no chat | Usa `N_rec` calculado, sem perguntar |
-| 2 — aprovação do plano | Exibe o plano e aguarda resposta afirmativa | Não aguarda; registra o plano no relatório final |
-| 5.b — `BLOCKED_WAITING` | Apresenta ao usuário no chat e aguarda decisão | Não escala; mantém o grupo bloqueado e reporta |
-| 5.c — circuit breaker | Pergunta se deve pausar | Sempre pausa: para de despachar e reporta |
-
-Além disso, em `--headless`:
-
-- **A Fase 6 (merge) não roda.** O coordenador despacha, monitora e reporta; nunca roda `git push`,
-  `gh pr create`, `gh pr ready` ou `gh pr merge`. Entregar código à branch default sem revisão
-  humana é precisamente o que um modo não supervisionado não deve decidir sozinho — ainda mais em
-  repositórios sem required status check configurado, onde não há barreira nenhuma depois do merge.
-  Grupos em `GREEN` são reportados como prontos para ship (branch + path do worktree), e o ship fica
-  para uma sessão interativa ou uma rotina dedicada.
-- **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
-  `BLOCKED_WAITING` e aparece no relatório final. Conceder permissão sem humano anularia a razão de
-  o worker ter parado.
-- **Ausência de trabalho não é falha.** Se não houver issue elegível, ou se todo grupo candidato já
-  tiver PR aberto, encerre com um relatório de uma linha dizendo isso. Não force dispatch para
-  parecer produtivo.
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
@@ -180,9 +163,8 @@ gh pr list --search "closes:#<N>" --state open --json number,title
 Se já houver PR (ou se `vetor-status.sh` reportar `GREEN (PR #N aberta)` ou `GREEN (já mergeado via #N)`):
 pule a issue, registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado (#<PR>)".
 
-**Agrupamento de afinidade** (delegação opcional ao `agy`, se disponível e houver mais de 3 issues —
-ver `.opencode/scripts` não tem equivalente ao `agy`; se o CLI estiver no `PATH` do processo
-coordenador, use o mesmo prompt da versão Claude Code):
+**Agrupamento de afinidade** (delegação opcional ao `agy`, se disponível no `PATH` e houver mais de
+3 issues; sem equivalente próprio em `.opencode/scripts`):
 ```bash
 gh issue list --label <label> --state open --json number,title,labels,body | agy -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo/provedor ideal de execução deve ser o mais barato (ajustes simples/chore) ou o mais capaz (features complexas/refactor)."
 ```
@@ -208,53 +190,49 @@ Coordenando issues com a label: <label>
 ```
 
 **Modelo/provedor sugerido**: classifique cada grupo em um `tier` — `simple` (todas as issues são
-`chore`/`fix` pequenos) ou `complex` (há `feat`/`refactor`, ou o grupo tem mais de 2 issues) — e
-mostre no plano o **primeiro item** de `modelFallback.<tier>` (`.claude/vetor/config.json`; default
-embutido em `opencode/scripts/resolve-model.ts` se a chave não existir no config) como sugestão.
-O `tier` do grupo (não um modelo fixo) é o que vale para o dispatch real na Fase 4 — a escolha final
-do modelo específico dentro do tier é sempre resolvida ali contra `model-health.json` (issue #83),
-podendo diferir do sugerido aqui se ele estiver `degraded` no momento do dispatch.
+`chore`/`fix` pequenos) ou `complex` (há `feat`/`refactor`, ou mais de 2 issues) — e mostre no plano
+o **primeiro item** de `modelFallback.<tier>` (`.claude/vetor/config.json`; default embutido em
+`resolve-model.ts` se a chave não existir) como sugestão. O `tier` (não um modelo fixo) é o que vale
+para o dispatch real na Fase 4, resolvido ali contra `model-health.json` (issue #83) — pode diferir
+do sugerido aqui se estiver `degraded` no momento do dispatch.
 
 #### Pergunta sobre teto de workers simultâneos
 
 Antes de pedir aprovação:
 1. Calcule `N_rec = min(número de grupos formados, maxConcurrentWorkers de .claude/vetor/config.json
-   — senão 5)`. Acima de ~8 workers, sinalize na pergunta que custo agregado e ruído de monitoramento
-   crescem mais rápido que o ganho de paralelismo — é recomendação, não limite; a decisão é do usuário.
-2. **Em `--headless`: não pergunte.** Adote `N = N_rec` diretamente e registre no relatório final
-   (Fase 7) qual valor foi usado e como foi calculado. Pule para "Aprovação do plano" abaixo.
+   — senão 5)`. Acima de ~8 workers, sinalize que custo agregado e ruído de monitoramento crescem
+   mais rápido que o ganho de paralelismo — é recomendação, não limite; a decisão é do usuário.
+2. **Em `--headless`: não pergunte.** Adote `N = N_rec`, registre no relatório final (Fase 7) o
+   valor e como foi calculado, e pule para "Aprovação do plano" abaixo.
 
-   Fora do headless, pergunte ao usuário no chat (texto livre — o OpenCode não tem
-   `AskUserQuestion` nativo): `"Quantos workers simultâneos usar nesta rodada? Recomendado: <N_rec>
-   (<justificativa em 1 linha>). Alternativas: 1 (serializado) ou um valor customizado."`
-3. Armazene a resposta como `N` para a Fase 4 — vale para toda a sessão de dispatch. Em modo de
-   retomada, repita esta pergunta antes de despachar qualquer grupo `QUEUED` (em `--headless`,
-   apenas recalcule `N_rec`, sem perguntar).
+   Fora do headless, pergunte ao usuário no chat (texto livre — sem `AskUserQuestion` nativo):
+   `"Quantos workers simultâneos usar nesta rodada? Recomendado: <N_rec> (<justificativa em 1
+   linha>). Alternativas: 1 (serializado) ou um valor customizado."`
+3. Armazene a resposta como `N` para a Fase 4 — vale para toda a sessão de dispatch, inclusive
+   retomada (repita a pergunta antes de despachar qualquer `QUEUED`; em `--headless`, apenas
+   recalcule `N_rec`).
 
 #### Aprovação do plano
 
-**Em `--headless`: não aguarde resposta.** Inclua o plano de dispatch montado acima no relatório
-final (Fase 7), como registro do que foi decidido, e siga direto para a Fase 3.
+**Em `--headless`: não aguarde resposta.** Inclua o plano no relatório final (Fase 7) e siga para a
+Fase 3.
 
-Fora do headless — sem `ExitPlanMode` nem `implementation_plan.md` disponíveis no OpenCode: **exiba
-o plano no chat e aguarde uma resposta textual afirmativa explícita** do usuário (ex.: "sim",
-"prosseguir") antes de despachar qualquer processo `opencode run`. Se o usuário pedir para trocar
-modelo/provedor de algum grupo ou o teto de workers, use os valores modificados na Fase 4.
+Fora do headless — sem `ExitPlanMode` nem `implementation_plan.md` no OpenCode: **exiba o plano no
+chat e aguarde resposta textual afirmativa explícita** (ex.: "sim", "prosseguir") antes de despachar
+qualquer processo `opencode run`. Trocas manuais de modelo/provedor ou teto valem na Fase 4.
 
 ### 3 — Fase de criação (serializada)
 
-Para cada grupo aprovado, derive (a criação real do worktree é feita pelo primeiro worker
-despachado, via `git worktree add` — o coordenador só decide os nomes):
+Para cada grupo aprovado:
 1. **Slug:** kebab-case da Lead Issue (máx 30 chars).
 2. **Branch:** `<type>/<issue#>-<slug>`.
 3. **Worktree path:** `.claude/worktrees/<slug>` na raiz do repositório principal — **crie você
-   mesmo** antes de disparar o processo `opencode run --dir`, já que não há harness nativo
-   equivalente ao `isolation: "worktree"` do Claude Code que faça isso implicitamente:
+   mesmo** antes de disparar o `opencode run --dir` (não há harness nativo equivalente ao
+   `isolation: "worktree"` do Claude Code):
    ```bash
    git worktree add ".claude/worktrees/<slug>" -b "<type>/<issue#>-<slug>"
    ```
-   ⚠️ Esta fase é **serializada** — rode um `git worktree add` de cada vez, para evitar
-   `git index lock` (mesmo risco documentado na versão Claude Code).
+   ⚠️ **Serializada** — rode um `git worktree add` de cada vez, para evitar `git index lock`.
 4. **Status File Path:**
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md`.
 
@@ -279,15 +257,12 @@ do grupo (Fase 2), rode:
 ```bash
 echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd)"'"}' | deno run -A .opencode/scripts/resolve-model.ts
 ```
-- **Código 0:** o stdout traz o modelo/provedor saudável a usar (`<provider/model>`) — primeiro da
-  lista `modelFallback.<tier>` (`.claude/vetor/config.json`) que não estiver `degraded` e não
-  expirado em `.claude/vetor/status/model-health.json` (escrito pelo hook `event` da issue #83). Se
-  o preferencial (primeiro da lista) estiver saudável, é ele mesmo — sem mudança de comportamento
-  na ausência de degradação.
-- **Código 1:** todos os modelos do tier estão `degraded` agora — **não despache este grupo**.
-  Mantenha-o `QUEUED`, registre no chat `⚠️ Grupo <slug> aguardando modelo saudável (todos os
-  fallbacks de "<tier>" degraded)` e tente de novo no próximo ciclo de monitoramento (Fase 5),
-  quando alguma entrada já puder ter expirado.
+- **Código 0:** stdout traz o modelo/provedor saudável a usar (`<provider/model>`) — primeiro da
+  lista `modelFallback.<tier>` que não estiver `degraded` e não expirado em `model-health.json`
+  (escrito pelo hook `event`, issue #83). Se o preferencial estiver saudável, é ele mesmo.
+- **Código 1:** todos os modelos do tier estão `degraded` — **não despache este grupo**. Mantenha-o
+  `QUEUED`, registre no chat `⚠️ Grupo <slug> aguardando modelo saudável (todos os fallbacks de
+  "<tier>" degraded)` e tente de novo no próximo ciclo de monitoramento (Fase 5).
 
 Só então monte o comando de dispatch (um processo em background por grupo, dentro do teto),
 usando o modelo resolvido:
@@ -300,8 +275,7 @@ opencode run --dir ".claude/worktrees/<slug>" --agent issue-worker --model "<pro
 ```
 
 Guarde o PID (`$!`) só como referência de debug local — a fonte de verdade do progresso é sempre o
-status file, nunca o processo do SO (ele pode ter sido lançado em outra sessão do coordenador, no
-caso de retomada).
+status file, nunca o processo do SO (pode ter sido lançado em outra sessão do coordenador).
 
 ⚠️ **Redespacho de worktree existente** (retomada, resposta a `BLOCKED_WAITING`, ou redespacho após
 `FAILED_MAX_ITERATIONS`): **não** rode `git worktree add` de novo — reaproveite o worktree existente
@@ -325,32 +299,26 @@ mais de um worktree, sinalize no chat.
 
 **5.b — Escalação de bloqueios**
 
-**Em `--headless`: não escale.** Leia o bloco `Blocked on`/`Options`/`Recommendation` do status
-file, mantenha o grupo em `BLOCKED_WAITING` e registre no relatório final (Fase 7) o agente
-(`<slug>`/Issue `#<N>`), o motivo do bloqueio e a recomendação do próprio worker — para que o humano
-decida depois, em sessão interativa. Não conceda permissão, não escolha opção técnica e não
-redespache. Nunca mate um worker bloqueado para abrir vaga no teto `N`: o bloqueio é informação, não
-lixo.
+**Em `--headless`: não escale.** Registre no relatório final (Fase 7) o agente (`<slug>`/Issue
+`#<N>`), o motivo do bloqueio e a recomendação do worker. Não conceda permissão, não escolha opção
+técnica e não redespache. Nunca mate um worker bloqueado para abrir vaga no teto `N`.
 
 Fora do headless, se um status file estiver em `BLOCKED_WAITING`: leia `Blocked on`/`Options`/
 `Recommendation` e apresente ao usuário no chat (texto — sem `AskUserQuestion` nativo), identificando
 `<slug>`/`Issue #<N>` e a recomendação do worker.
-- **Permissão bloqueada**: pergunte se deve permitir esta vez / negar / parar o worker. Como não há
-  `SendMessage`, a resposta do usuário se traduz em uma **ação do coordenador**: rode o comando
-  aprovado você mesmo dentro do worktree (`cd <worktree> && <comando>`) ou instrua o usuário a
-  responder diretamente ao processo travado, se ele ainda estiver interativo. Se o processo já
-  terminou (mais comum — `opencode run` não fica esperando input depois de escrever
-  `BLOCKED_WAITING`), redespache um novo `opencode run --dir <worktree-existente> --agent
-  issue-worker "<contexto da decisão tomada>"` sem `git worktree add` (ver nota de redespacho, Fase 4).
+- **Permissão bloqueada**: pergunte se deve permitir esta vez / negar / parar o worker. Sem
+  `SendMessage`, a resposta vira **ação do coordenador**: rode o comando aprovado você mesmo dentro
+  do worktree (`cd <worktree> && <comando>`), ou — mais comum, já que `opencode run` não fica
+  esperando input depois de escrever `BLOCKED_WAITING` — redespache um novo `opencode run --dir
+  <worktree-existente> --agent issue-worker "<contexto da decisão tomada>"` sem `git worktree add`
+  (nota de redespacho, Fase 4).
 - **Decisão técnica**: idem — registre a decisão e redespache com o contexto necessário no prompt.
 
 **5.c — Circuit Breaker**: se 2+ grupos falharem com `FAILED_MAX_ITERATIONS` e assinaturas de erro
-idênticas (`Last action`/`FAIL_ANALYSIS.md` parecidos), pare de despachar novos grupos `QUEUED` e
-pergunte ao usuário se deve investigar antes de continuar. **Em `--headless`: não pergunte — sempre
-pause.** Deixe os workers já ativos terminarem e vá direto para o relatório final (Fase 7),
-destacando a assinatura de erro comum: falha recorrente com a mesma assinatura quase sempre é infra
-(rede, registry, disco), não código — insistir sem humano só multiplica o custo pelo número de
-grupos restantes.
+idênticas (`Last action`/`FAIL_ANALYSIS.md` parecidos), pare de despachar novos `QUEUED` e pergunte
+ao usuário se deve investigar antes de continuar. **Em `--headless`: não pergunte — sempre pause.**
+Deixe os workers ativos terminarem e vá direto para o relatório final (Fase 7), destacando a
+assinatura de erro comum.
 
 ### 6 — Fase de merge (serializada)
 
@@ -414,53 +382,10 @@ Fase 2 (default recomendado `maxConcurrentWorkers` de `.claude/vetor/config.json
 
 - `git worktree add` e a fase de merge são sempre serializados — nunca em paralelo
 - Fonte de verdade: status files (`.claude/vetor/status/`) + `gh pr list` + `gh pr checks` — nunca
-  estado em memória do processo coordenador (ele pode ser reiniciado a qualquer momento)
+  estado em memória do processo coordenador (pode ser reiniciado a qualquer momento)
 - Nunca lance um worker sem `--dir` apontando para um worktree válido já criado
-- Se interrompido e reiniciado, reconstrua o estado com `.opencode/scripts/vetor-status.sh` +
-  `gh pr list` — nunca dependa de PID de processo (pode já ter terminado ou ter sido lançado em
-  outra sessão)
-- Em `--headless`: nunca aguarde resposta em chat nem faça pergunta em texto livre, nunca rode a
-  Fase 6 (merge/ship), nunca auto-aprove permissão de worker. Se o contexto de execução exigir uma
-  decisão que o modo headless não pode tomar, o caminho correto é registrar no relatório e parar —
-  não improvisar a decisão
-
-## Validação manual (procedimento sugerido, sem ambiente OpenCode real disponível neste worktree)
-
-Este coordenador não foi executado de fato dentro deste worktree — o ambiente de desenvolvimento
-usado para portá-lo é o Claude Code, sem CLI `opencode` interativo disponível para uma sessão real
-de ponta a ponta. Procedimento para quem for validar contra uma instalação real do OpenCode:
-
-1. Crie/escolha um repositório de teste com `.opencode/` copiado (`cp -r opencode/. <repo>/.opencode/`)
-   e ao menos 2 issues GitHub abertas com o label `backlog` (ou outro label de teste), idealmente uma
-   Lead + uma Sequential relacionada, para exercitar o agrupamento de afinidade.
-2. Rode `opencode run --agent issue-coordinator "backlog"` na raiz do repositório de teste.
-3. Confirme que:
-   - o plano é exibido no chat e o coordenador aguarda uma resposta textual afirmativa antes de
-     criar qualquer worktree;
-   - `git worktree add` roda uma vez por grupo (serializado — sem `index lock`);
-   - `opencode run --dir <worktree> --agent issue-worker "..."` é disparado como processo
-     independente por grupo, respeitando o teto de workers perguntado na Fase 2;
-   - `.claude/vetor/status/<branch>.md` é criado/atualizado pelo worker e a tabela de
-     `bash .opencode/scripts/vetor-status.sh` reflete o progresso real;
-   - interrompendo o processo coordenador (Ctrl+C) e rodando `opencode run --agent issue-coordinator
-     "--resume"` reconstrói a tabela de status sem duplicar dispatch das issues já em andamento;
-   - ao atingir `GREEN`, a Fase 6 localiza o worktree correto via `git worktree list` e completa o
-     merge.
-4. Registre desvios encontrados como issue de acompanhamento (mesmo padrão usado para o gap do Codex
-   documentado em `codex_plugin_hook_gap.md`).
-
-**Fallback de modelo/provedor (issue #84)** — a lógica de escolha em si já tem cobertura
-automatizada (`deno task test`, `opencode/scripts/resolve-model_test.ts` e
-`opencode/scripts/lib/model-health_test.ts`), sem depender de um ambiente OpenCode real. Para
-validar a integração completa (hook `event` → `model-health.json` → `resolve-model.ts` →
-`opencode run --dir --model`) contra uma instalação real:
-1. Force uma entrada `degraded` sintética: `echo '{"anthropic/claude-haiku-4-5":{"status":
-   "degraded","until":9999999999999,"lastError":"teste manual"}}' >
-   .claude/vetor/status/model-health.json` no repositório de teste.
-2. Rode `opencode run --agent issue-coordinator "backlog"` e confirme no log/chat que o comando
-   de dispatch monta `--model anthropic/claude-sonnet-4-5` (ou o próximo saudável do tier) em vez
-   do preferencial degraded.
-3. Zere `model-health.json` (ou aguarde `until` expirar) e confirme que o próximo dispatch volta a
-   escolher o preferencial original.
-4. Force **todos** os modelos do tier como `degraded` e confirme que o grupo fica `QUEUED` em vez
-   de despachar — sem processo `opencode run` para ele até uma entrada expirar.
+- Se interrompido, reconstrua o estado com `.opencode/scripts/vetor-status.sh` + `gh pr list` —
+  nunca dependa de PID de processo (pode já ter terminado ou sido lançado em outra sessão)
+- Em `--headless`: nunca aguarde resposta em chat, nunca rode a Fase 6 (merge/ship), nunca
+  auto-aprove permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
+  relatório e pare — não improvise
