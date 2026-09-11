@@ -230,6 +230,31 @@ prossiga para o passo 9 assim que ambas as revisões tiverem retornado. Quem dec
 lendo o comentário na PR. Se um dos despachos falhar (rate limit, erro de ferramenta), registre no
 sumário e prossiga.
 
+### 8.6 — Security review (skill nativa)
+
+A skill nativa `security-review` **não publica comentário sozinha**: seu contrato de saída é
+"a resposta final deve conter o relatório em markdown e nada mais". Quem invoca (você, executando
+o `worktree-ship`) é responsável por publicar esse relatório na PR no turno seguinte à resposta.
+
+Além disso, a skill monta o próprio contexto sozinha (git status, arquivos modificados, commits,
+diff da branch atual) — **não** passe `gh pr diff <PR-number>` como argumento; ela ignora diffs
+passados por fora e lê a branch diretamente.
+
+```
+Invoque a skill nativa `security-review` sem argumento de diff — ela lê a branch atual.
+```
+
+Ao receber a resposta final (o relatório em markdown), publique-o você mesmo:
+```bash
+gh pr comment <PR-number> --body "<relatório de security-review recebido>"
+```
+
+**Proporção do protocolo de sub-tasks:** o protocolo de sub-tasks paralelas da skill nativa (uma
+por vulnerabilidade candidata, para filtrar falso-positivo) é desenhado para diffs grandes. Para
+diffs pequenos — heurística sugerida: abaixo de ~200 linhas alteradas, já filtrados pelo
+`vetor:code-review` do §8.5 — peça à skill para analisar inline, sem abrir o protocolo completo de
+sub-tasks por vulnerabilidade. Acima desse limiar, deixe a skill decidir seu próprio protocolo.
+
 ### 9 — Verificar review
 
 ```bash
