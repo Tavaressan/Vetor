@@ -183,6 +183,24 @@ gh pr checks <PR-number> --watch
 
 Timeout: 20 minutos. Se expirar, notifique e pare.
 
+⚠️ **Nunca substitua `gh pr checks --watch` por um loop de monitoramento próprio que só checa
+existência/início de um run** (ex.: sair assim que `status` deixar de estar vazio ou virar
+`in_progress`) — isso perde silenciosamente o momento em que o CI chega a um estado terminal. O
+comando `--watch` é bloqueante por design e é exatamente esse comportamento que se quer: ele só
+retorna quando os checks atingem um estado terminal (`success`/`failure`/`cancelled`/`timed_out`).
+
+Se for necessário rodar em background (ex.: para não bloquear outra atividade), use a tool `Monitor`
+no padrão "per-occurrence com fim conhecido" — o loop só termina em estado terminal do CI, nunca na
+mera existência do run:
+
+```bash
+until gh pr checks <PR-number> --json state -q '.[].state' \
+  | grep -qvE '^(IN_PROGRESS|QUEUED|PENDING)$'; do
+  sleep 15
+done
+gh pr checks <PR-number>
+```
+
 ### 8 — Classificação de erros e loop de fix (máximo 3 iterações)
 
 Para cada falha detectada:
