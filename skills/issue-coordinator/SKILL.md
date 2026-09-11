@@ -102,12 +102,26 @@ Se o argumento casar `^[0-9]+(,[0-9]+)*$`, trate-o como **lista por número**; c
   gh issue list --label <label> --state open --json number,title,labels,body
   ```
 
+**Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label traz de volta,
+na mesma leva, issues abertas manualmente/via integração externa e issues geradas por `/retro` ou
+`/vetor:backlog-ideator` (label `ai-generated`), sem distinção. Antes de montar o agrupamento por
+afinidade, particione o resultado usando o campo `labels` já retornado:
+
+- **Pedidas pelo usuário** (candidatas primárias): issues **sem** a label `ai-generated`.
+- **Recomendadas pelo agente**: issues **com** a label `ai-generated`.
+
+Monte o plano de dispatch priorizando o grupo "pedidas pelo usuário". Só inclua issues do grupo
+"recomendadas pelo agente" quando o primeiro grupo estiver **vazio** no filtro aplicado — ou,
+opcionalmente, como itens extras claramente sinalizados como "recomendação do agente" no plano
+apresentado para aprovação (Fase 2), nunca misturados sem essa marcação.
+
 **Fallback de label.** Se o label for `backlog` (default) e a busca retornar vazio, rode também
-`gh issue list --state open --json number,title` sem filtro. Se houver resultados, avise:
+`gh issue list --state open --json number,title,labels` sem filtro. Se houver resultados, avise:
 "_Nenhuma issue com label `backlog`, mas há &lt;N&gt; issues abertas sem label. Use
 `/coordinator <N>,<M>,...` para despachar específicas, ou aplique a label `backlog`._" Isso evita a
 falsa impressão de "nada a despachar" quando há trabalho pendente. Issues sem label podem vir de
-`/retro`, criação manual ou integração externa.
+`/retro`, criação manual ou integração externa. Se o resultado combinar os dois grupos acima (pedidas
+pelo usuário e recomendadas pelo agente), aplique a mesma priorização antes de sugerir o dispatch.
 
 Para cada issue, verifique se já há PR aberto:
 ```bash
@@ -175,6 +189,11 @@ Coordenando issues com a label: <label>
 Se houver mais de uma onda, explique **por que** cada grupo da onda `O_2+` depende de um grupo de
 onda anterior (cite a issue/menção que fundamentou a heurística). Se todos os grupos couberem em
 `O_1`, omita a coluna de justificativa — é o caso comum, sem dependências detectadas.
+
+Se o plano incluir issues do grupo "recomendadas pelo agente" (Fase 1) — porque não havia issues
+pedidas pelo usuário pendentes, ou como itens extras opcionais —, sinalize cada uma delas na coluna
+"Ação" (ex.: "Despachar (recomendação do agente)") para que a aprovação distinga claramente as duas
+origens.
 
 #### Teto de workers simultâneos
 
