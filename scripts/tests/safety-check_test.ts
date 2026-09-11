@@ -41,12 +41,14 @@ async function makeLinkedWorktree(
 
 async function runHook(
   input: Record<string, unknown>,
+  env?: Record<string, string>,
 ): Promise<{ code: number; stderr: string }> {
   const command = new Deno.Command("deno", {
     args: ["run", "-A", SCRIPT],
     stdin: "piped",
     stdout: "piped",
     stderr: "piped",
+    env,
   });
   const child = command.spawn();
   const writer = child.stdin.getWriter();
@@ -142,6 +144,27 @@ Deno.test("issue-worker escrevendo fora do próprio worktree (outro diretório) 
     assertStringIncludes(stderr, "escrita fora do worktree bloqueada");
   } finally {
     await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("escrevendo em ~/.claude/projects/ (memória do Claude Code) com cwd num worktree não é bloqueado — issue #155", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  const fakeHome = await Deno.realPath(await Deno.makeTempDir());
+  try {
+    const { code, stderr } = await runHook(
+      {
+        tool_name: "Edit",
+        tool_input: { file_path: `${fakeHome}/.claude/projects/-repo-slug/memory/MEMORY.md` },
+        cwd: worktreePath,
+        agent_type: "vetor:issue-worker",
+      },
+      { HOME: fakeHome, USERPROFILE: fakeHome },
+    );
+
+    assertEquals(code, 0, stderr);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+    await Deno.remove(fakeHome, { recursive: true });
   }
 });
 

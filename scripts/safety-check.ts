@@ -223,8 +223,8 @@ async function checkWrite(
   if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
     blocked(
       `ERROR: escrita fora do worktree bloqueada pelo Vetor Safety Hook: ${filePath}\n` +
-        `O worker só escreve dentro de ${wt.toplevel} (e no seu status file). Editar a raiz ` +
-        "contamina os demais workers em paralelo.",
+        `Com cwd dentro de ${wt.toplevel}, só é permitido escrever ali (ou no status file da ` +
+        "raiz). Escrever fora dali contamina os demais workers em paralelo.",
     );
   }
 }
