@@ -5,8 +5,8 @@ license: MIT
 compatibility: OpenCode
 metadata:
   author: vitortavares
-  version: "1.2.0"
-  ported-from: skills/issue-coordinator/SKILL.md (Claude Code, v1.4.0)
+  version: "1.3.0"
+  ported-from: skills/issue-coordinator/SKILL.md (Claude Code, v1.5.0)
 ---
 
 Você é o coordenador de issues do Vetor para o OpenCode. Sua missão é despachar issues de um label
@@ -172,6 +172,23 @@ gh issue list --label <label> --state open --json number,title,labels,body | agy
 Sem `agy` ou com 3 ou menos issues, agrupe inline: título/labels/descrição correlatos → mesma Lead
 Issue + Sequential Issues, resolvidas sequencialmente pelo mesmo worker no mesmo worktree.
 
+**Ondas de despacho (DAG Waves).** Grupos paralelos podem depender causalmente uns dos outros (ex.:
+grupo B usa uma entidade/migration criada pelo grupo A). Despachar B a partir do branch default
+antes do merge de A causa branch skew: o worktree de B nunca vê as mudanças de A. Antes de montar o
+plano da Fase 2, organize os grupos em **ondas topológicas** (`O_1, O_2, ..., O_k`):
+
+1. Aplique heurísticas **best-effort** (não há grafo formal de dependências no GitHub): menção
+   explícita de um grupo a outro no título/corpo ("depende de #12", "após #12"), labels de ordem
+   (`blocked-by`, `depends-on`), ou mesmo módulo com evidência de que um grupo consome algo que o
+   outro propõe criar pela primeira vez.
+2. Monte um DAG de grupos (`A → B` quando B depende de A). Ciclo aparente ou heurística ambígua →
+   trate como não-dependente; não bloqueie o dispatch por inferência de baixa confiança.
+3. Ordene topologicamente: `O_1` = grupos sem dependência pendente; `O_2` = dependentes só de `O_1`;
+   e assim por diante.
+4. **Fallback** (caso comum): sem dependência detectável, todos os grupos formam `O_1` — comportamento
+   idêntico ao dispatch paralelo atual.
+5. O usuário pode corrigir manualmente o agrupamento em ondas no plano da Fase 2 antes de aprovar.
+
 ### 2 — Apresentar plano de dispatch e obter aprovação
 
 Monte o plano estruturado:
@@ -183,11 +200,15 @@ Coordenando issues com a label: <label>
 
 ## Ações Propostas
 
-| Grupo (Slug) | Lead/Sequential Issues | Modelo/Provedor Sugerido | Ação |
-|---|---|---|---|
-| <slug-1> | #<N1> (Lead), #<M1> | <provider/model> | Despachar |
-| <slug-2> | #<N3> (Lead) | <provider/model> | Despachar |
+| Onda | Grupo (Slug) | Lead/Sequential Issues | Modelo/Provedor Sugerido | Ação |
+|---|---|---|---|---|
+| O_1 | <slug-1> | #<N1> (Lead), #<M1> | <provider/model> | Despachar |
+| O_1 | <slug-2> | #<N3> (Lead) | <provider/model> | Despachar |
+| O_2 | <slug-3> | #<N4> (Lead) | <provider/model> | Aguardar O_1 |
 ```
+
+Se houver mais de uma onda, explique por que cada grupo de `O_2+` depende de um grupo de onda
+anterior. Se tudo couber em `O_1`, é o caso comum — sem dependência detectada.
 
 **Modelo/provedor sugerido**: classifique cada grupo em um `tier` — `simple` (todas as issues são
 `chore`/`fix` pequenos) ou `complex` (há `feat`/`refactor`, ou mais de 2 issues) — e mostre no plano
@@ -236,16 +257,26 @@ Para cada grupo aprovado:
 4. **Status File Path:**
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md`.
 
-### 4 — Fase de desenvolvimento (processos paralelos, com teto de concorrência)
+### 4 — Fase de desenvolvimento (processos paralelos, com teto de concorrência e ondas)
 
 Cada worker é um processo `opencode` do SO — não há tool `task` in-process nem `Agent()`. Respeite o
-teto `N` da Fase 2:
+teto `N` da Fase 2 e as ondas da Fase 1:
 
-- Ordene os grupos por prioridade (ordem das issues no label).
-- Despache apenas os primeiros `N` grupos. Os demais ficam `QUEUED` na tabela de monitoramento — não
-  consomem processo nem tokens até serem despachados.
-- Sempre que um worker atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING` sem resposta
-  pendente, despache o próximo grupo `QUEUED`, mantendo o número de workers ativos no teto.
+- Ordene os grupos por prioridade (ordem das issues no label) **dentro de cada onda**.
+- Despache até `N` grupos, **estritamente dentro da onda corrente** (`O_i`). Grupos de `O_{i+1}` ou
+  posterior nunca são despachados enquanto houver grupo de `O_i` ainda não mergeado — mesmo com vaga
+  no teto `N`. Ficam `QUEUED (aguardando O_i)` na tabela de monitoramento.
+- Dentro da onda corrente: quando um worker atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou
+  `BLOCKED_WAITING` sem resposta pendente, despache o próximo grupo `QUEUED` da mesma onda, mantendo
+  o número de workers ativos no teto.
+- **Transição de onda:** só inicie `O_{i+1}` depois que (a) todos os grupos de `O_i` chegarem a
+  `GREEN` e passarem pela Fase 6 (merge), e (b) o branch default estiver sincronizado com esses
+  merges (`git fetch && git log origin/<default> -1` antes do primeiro `git worktree add` de
+  `O_{i+1}`). Um grupo de `O_i` em `FAILED_MAX_ITERATIONS`/`BLOCKED_WAITING` sem resolução bloqueia a
+  transição — reporte como pendência em vez de avançar a onda.
+- Se um worker de onda posterior reportar erro por dependência ausente de um grupo anterior ainda não
+  mergeado, é sinal de dependência não detectada pela heurística da Fase 1: pause o grupo, registre
+  no relatório e corrija o agrupamento em ondas na próxima sessão.
 
 ⚠️ **Checagem de duplicidade** (antes de despachar cada grupo): rode
 `bash .opencode/scripts/vetor-status.sh` e cruze as issues do grupo candidato contra as issues já
@@ -291,7 +322,9 @@ file (ex.: a cada 1-2 minutos, ou sob demanda quando o usuário pedir "status"):
 ```bash
 bash .opencode/scripts/vetor-status.sh
 ```
-Reproduza a tabela no chat, acrescentando as linhas dos grupos `QUEUED`.
+Reproduza a tabela no chat, acrescentando as linhas dos grupos `QUEUED` e a coluna `Onda` (Fase 1) —
+o script não conhece o DAG, essa coluna vem do plano da Fase 2. Grupos de onda posterior aparecem
+como `QUEUED (aguardando O_i)`.
 
 ⚠️ **Duplicidade entre workers**: extraia `Issue #<M>` de cada `Iteration:` de todos os status files
 ativos (`RUNNING`, `BLOCKED_WAITING`, `GREEN` não mergeado) e cruze-os. Se a mesma issue aparecer em
