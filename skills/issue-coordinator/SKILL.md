@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.4.0"
+  version: "1.5.0"
 ---
 
 Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge, utilizando o fluxo nativo de planejamento.
@@ -128,6 +128,32 @@ Inline (ou com 3 ou menos issues):
 - Defina uma **Lead Issue** (a principal ou mais antiga), que dá nome ao worktree/branch.
 - As demais viram **Sequential Issues**, resolvidas em sequência pelo mesmo agente no mesmo worktree.
 
+#### Ondas de despacho (DAG Waves)
+
+Grupos que rodam **em paralelo** podem depender causalmente uns dos outros (ex.: grupo B usa uma
+entidade/migration/classe que só existe depois do merge do grupo A). Despachar B a partir do branch
+default ANTES do merge de A causa branch skew: o worktree de B nunca verá as mudanças de A, exigindo
+conciliação manual depois. Para evitar isso, organize os grupos em **ondas topológicas** (`O_1, O_2,
+..., O_k`) antes de montar o plano da Fase 2:
+
+1. Para cada par de grupos, verifique **heurísticas best-effort** de dependência (não há grafo formal
+   de dependências no GitHub — esta detecção é sempre uma inferência, nunca um fato garantido):
+   - Título/corpo de uma issue do grupo B menciona explicitamente outro grupo/issue do grupo A (ex.:
+     "depende de #12", "após #12", "usa a entidade criada em #12").
+   - Labels indicando ordem (ex.: `blocked-by`, `depends-on`) ou convenção do time.
+   - Mesmo módulo/diretório, mas com evidência de ordem de criação de arquivo (ex.: B referencia uma
+     classe, tabela ou migration que a descrição de A propõe criar pela primeira vez).
+2. Construa um DAG (grafo acíclico dirigido) de grupos: aresta `A → B` quando B depende de A. Se
+   houver ciclo aparente (heurística ambígua), trate como **não-dependente** e avise no plano — não
+   bloqueie o dispatch por uma inferência de baixa confiança.
+3. Derive as ondas por ordenação topológica: `O_1` contém todos os grupos sem dependência pendente;
+   `O_2` os que dependem só de grupos em `O_1`; e assim por diante.
+4. **Fallback:** se nenhuma dependência for detectável entre os grupos (caso mais comum), cada grupo
+   forma sua própria onda e todas as ondas colapsam em uma só (`O_1`) — comportamento idêntico ao
+   dispatch paralelo atual, sem mudança de comportamento observável.
+5. O usuário pode **corrigir manualmente** o agrupamento em ondas no plano da Fase 2 antes de aprovar
+   — a heurística é um ponto de partida, não uma decisão final.
+
 ### 2 — Apresentar plano de dispatch e obter aprovação
 
 Monte o plano (conteúdo mínimo em `planning-conventions.md` §2.1):
@@ -139,11 +165,16 @@ Coordenando issues com a label: <label>
 
 ## Ações Propostas
 
-| Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo Sugerido | Ação |
-|-------------------------|------------------------|-----------------|------|
-| <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | Despachar |
-| <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar |
+| Onda | Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo Sugerido | Ação |
+|------|-------------------------|------------------------|-----------------|------|
+| O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | Despachar |
+| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar |
+| O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet>  | Aguardar O_1 |
 ```
+
+Se houver mais de uma onda, explique **por que** cada grupo da onda `O_2+` depende de um grupo de
+onda anterior (cite a issue/menção que fundamentou a heurística). Se todos os grupos couberem em
+`O_1`, omita a coluna de justificativa — é o caso comum, sem dependências detectadas.
 
 #### Teto de workers simultâneos
 
@@ -192,14 +223,27 @@ e o do arquivo de status. **Nunca** infira que o worktree está em `.claude/work
 qualquer convenção derivada do slug: obtenha o path real via `git worktree list` (correlacionando
 pela branch) ou pelo retorno do `Agent()`.
 
-### 4 — Fase de desenvolvimento (paralela, com teto de concorrência)
+### 4 — Fase de desenvolvimento (paralela, com teto de concorrência e ondas)
 
-- Ordene os grupos por prioridade (ex.: ordem das issues no label).
-- Despache apenas os primeiros `N` grupos. Os demais ficam `QUEUED` na tabela (Fase 5.a) — não
-  consomem subagente nem tokens.
-- Quando um worker ativo atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou for cancelado, despache o
-  próximo `QUEUED`, mantendo os ativos no teto.
+- Ordene os grupos por prioridade (ex.: ordem das issues no label) **dentro de cada onda** (Fase 1).
+- Despache em paralelo até `N` grupos, **estritamente dentro da onda corrente** (`O_i`). Grupos de
+  `O_{i+1}` ou posterior nunca são despachados enquanto houver grupo de `O_i` ainda não mergeado —
+  mesmo que haja vagas no teto `N`. Eles ficam `QUEUED (aguardando O_i)` na tabela (Fase 5.a).
+- Dentro da onda corrente: quando um worker ativo atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou for
+  cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
+- **Transição de onda.** Só inicie o dispatch de `O_{i+1}` depois que:
+  1. Todos os grupos de `O_i` tiverem chegado a `GREEN` e passado pela Fase 6 (merge) — um grupo de
+     `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING` sem resolução bloqueia a transição; trate
+     como pendência a reportar, não avance a onda para não repetir o branch skew que motivou esta
+     seção.
+  2. O branch default (`$DEFAULT_BRANCH`) estiver sincronizado com esses merges — confirme com
+     `git fetch && git log origin/<default> -1` antes do primeiro dispatch de `O_{i+1}`, garantindo
+     que os novos worktrees (Fase 3) partam de um commit que já contém as mudanças de `O_i`.
+- Se, apesar da heurística da Fase 1, um worker de uma onda posterior reportar erro de compilação por
+  dependência ausente de um grupo anterior ainda não mergeado, isso é sinal de dependência não
+  detectada: pause o grupo, registre no relatório e corrija o agrupamento em ondas para a próxima
+  sessão.
 
 ⚠️ **Checagem de duplicidade (antes de cada dispatch).** Rode
 `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"` e cruze as issues do grupo candidato contra as
@@ -243,9 +287,12 @@ Agent({
 })
 ```
 
-⚠️ **Colisão de migrations paralelas.** Workers paralelos que tocam módulos com versionamento
-sequencial de arquivos (ex.: Flyway `V<N>__*.sql`) podem gerar colisões invisíveis ao git. A rede de
-segurança é o merge serializado (Fase 6) somado à checagem 2.b do `worktree-ship`.
+⚠️ **Colisão de migrations paralelas.** Workers paralelos **dentro da mesma onda** que tocam módulos
+com versionamento sequencial de arquivos (ex.: Flyway `V<N>__*.sql`) podem gerar colisões invisíveis
+ao git. A rede de segurança é o merge serializado (Fase 6) somado à checagem 2.b do `worktree-ship`.
+Já a colisão **entre ondas** (grupo de `O_2` sem visibilidade das migrations de `O_1`) é o problema
+que as Ondas de Despacho (Fase 1) previnem estruturalmente, ao só liberar `O_2` depois do merge e
+sincronismo do branch default com `O_1`.
 
 **Nota (Antigravity):** o `issue-worker` também é registrado via `agents/issue-worker/agent.json`
 (`customAgentSpec`). Como define `tools:` explicitamente, **não** herda MCP do contexto pai — se um
@@ -275,7 +322,11 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-status.sh"
 
 O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
 manualmente → `cancelled (worktree removed)`; não recrie) e com `gh pr list --state all`, e imprime
-a tabela. Reproduza-a no chat acrescentando os grupos `QUEUED`.
+a tabela. Reproduza-a no chat acrescentando os grupos `QUEUED`, e adicione a coluna `Onda` (Fase 1)
+a cada linha — o script não conhece o DAG, então essa coluna vem do plano da Fase 2 mantido em
+memória pelo coordinator. Grupos `QUEUED` de uma onda posterior aparecem como
+`QUEUED (aguardando O_i)` para deixar explícita a razão de não terem sido despachados mesmo havendo
+vaga no teto `N`.
 
 ⚠️ **Fallback de leitura.** Se o status file no path absoluto não existir ou estiver desatualizado
 para um worktree ativo, leia `<path-do-worktree>/.claude/vetor-status.md` (path via
