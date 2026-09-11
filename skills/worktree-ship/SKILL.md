@@ -26,6 +26,9 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
   e o `module-test-map` conforme descrito lá. Use `$DEFAULT_BRANCH` em todos os comandos abaixo.
+  **A resolução do `module-test-map.md`/`config.json` no passo 4 sempre usa o root do repositório
+  (`vetor-checks.sh repo-root`), nunca o `cwd` do worktree** — arquivos ignorados pelo `.gitignore`
+  do projeto-alvo (ex.: `.claude/`) não são materializados em worktrees (issue #160).
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — delegação opcional ao `agy`
   (resumo de logs de CI §1, corpo do PR §4). Se a chamada ao `agy` for **negada pelo classificador de
   permissão**, não retente: a negação é política, não transiente — siga com o caminho nativo.
@@ -95,13 +98,14 @@ versionadas: no-op. Mesma convenção Flyway do `guardian` §2.
 git diff "origin/$DEFAULT_BRANCH" --name-only
 ```
 
-Mapeie os arquivos alterados aos módulos usando a tabela do module-test-map.
+Mapeie os arquivos alterados aos módulos usando a tabela do module-test-map, resolvido a partir do
+root do repositório (`vetor-checks.sh repo-root`), não do `cwd` do worktree.
 
 ### 4 — Testes locais
 
-Para cada módulo alterado, execute o comando headless correspondente do `module-test-map.md`.
-Quando o comando for `sem suíte de testes`, registre `skipped (no test suite)` no sumário; esse
-estado não bloqueia o ship.
+Para cada módulo alterado, execute o comando headless correspondente do `module-test-map.md`
+resolvido no passo 3. Quando o comando for `sem suíte de testes`, registre `skipped (no test
+suite)` no sumário; esse estado não bloqueia o ship.
 
 **Regra sandbox:**
 - Tente docker uma vez (se aplicável ao módulo)
