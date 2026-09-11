@@ -106,6 +106,15 @@ async function checkFreshness(wt: WorktreeInfo, agentType: string): Promise<void
   if (message) blocked(message);
 }
 
+/**
+ * Casa `git push`/`gh pr (create|ready|merge)` apenas no início do comando ou logo após um
+ * separador de shell (`&&`, `||`, `;`, `|`) — nunca em qualquer posição da string. Sem isso,
+ * o mesmo texto aparecendo como conteúdo dentro de um heredoc (ou de qualquer outra string, ex.
+ * um `grep`/`echo` cujo argumento cita "git push") era tratado como se fosse o comando em si
+ * (issue #161, mesma classe de falha do match ingênuo da #4/#123).
+ */
+const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|ready|merge))/;
+
 function checkBash(command: string, wt: WorktreeInfo | null): void {
   const dest = pushDestination(command);
   if (dest && PROTECTED_BRANCHES.includes(dest)) {
@@ -114,7 +123,8 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
     );
   }
 
-  if (!/git push|gh pr (create|ready|merge)/.test(command)) return;
+  const gateMatch = command.match(WORKER_GATE_COMMAND_RE);
+  if (!gateMatch) return;
   if (!wt?.isLinked) return;
 
   const status = readStatus(statusFilePath(wt.root, wt.branch));
@@ -126,6 +136,7 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
       `ERROR: worker não-GREEN (Status: ${
         status || "desconhecido"
       }) — push/PR bloqueado pelo Vetor Safety Hook.\n` +
+        `Trecho do comando que casou o gate: "${gateMatch[0].trim()}"\n` +
         "Registre BLOCKED_WAITING no status file se precisar de intervenção; o worktree-ship faz a entrega após GREEN.",
     );
   }

@@ -527,6 +527,77 @@ Deno.test("issue #123 (review): git push com continuação de linha (\\) para ma
   }
 });
 
+Deno.test("issue #161: heredoc contendo o texto 'git push'/'gh pr create' como conteúdo não dispara o gate de worker não-GREEN", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("worker-a");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/worker-a.md`,
+    "Status: RUNNING\nIteration: 1/5 (Issue #1)\n",
+  );
+  try {
+    // O comando real é só um `python3 <<EOF ... EOF` escrevendo um arquivo — "git push"/"gh pr
+    // create" aparecem apenas como conteúdo textual dentro do heredoc, não como comando.
+    const command = [
+      "python3 <<'EOF'",
+      "with open('notes.txt', 'w') as f:",
+      "    f.write('lembrete: nunca faça git push ou gh pr create manualmente')",
+      "EOF",
+    ].join("\n");
+
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command },
+      cwd: worktreePath,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("issue #161: git push real após && continua bloqueado por worker não-GREEN (sem regressão)", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("worker-a");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/worker-a.md`,
+    "Status: RUNNING\nIteration: 1/5 (Issue #1)\n",
+  );
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "echo done && git push -u origin worker-a" },
+      cwd: worktreePath,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "worker não-GREEN");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("issue #161: gh pr create no início do comando continua bloqueado por worker não-GREEN (sem regressão)", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("worker-a");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/worker-a.md`,
+    "Status: RUNNING\nIteration: 1/5 (Issue #1)\n",
+  );
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "gh pr create --title x --base main" },
+      cwd: worktreePath,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "worker não-GREEN");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("safety-check.ts (integração): sem regressão — raiz do repositório principal continua liberada", async () => {
   const repo = await makeRepo("main");
 
