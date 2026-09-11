@@ -62,6 +62,21 @@ Sincronizar antes dos testes evita descobrir divergências só no merge final. S
 aqui, resolva-o já seguindo `conflict-resolution.md`. Não prossiga com testes contra base
 desatualizada.
 
+Se houve conflito resolvido com commit, valide que o commit de resolução é de fato um merge commit
+de 2 pais antes de prosseguir — um commit de 1 pai indica que `MERGE_HEAD` foi perdido (ex.: `git
+stash` rodado no meio do conflito) e o GitHub vai recalcular o merge do zero, reportando
+`CONFLICTING` mesmo com a árvore correta:
+
+```bash
+[ "$(git log -1 --format='%P' HEAD | wc -w)" -eq 2 ] || {
+  echo "ALERTA: commit de resolução de conflito não tem 2 pais — MERGE_HEAD foi perdido." >&2
+  exit 1
+}
+```
+
+Se falhar, siga a recuperação descrita em `conflict-resolution.md` §5 (refaça o merge com `git merge
+-s ours` para registrar o segundo pai sem alterar a árvore já resolvida) antes de seguir.
+
 ### 2.b — Colisão de versão de migration (condicional)
 
 Logo após o merge do passo 2, **antes dos testes locais**:
@@ -150,6 +165,17 @@ gh pr create \
 ```
 
 ### 7 — Monitorar CI
+
+Antes do loop de CI, cheque cedo se o GitHub considera o PR mergeável — evita descobrir um
+`CONFLICTING` só no timeout do CI (ex.: causado por `MERGE_HEAD` perdido no passo 2):
+
+```bash
+gh pr view <PR-number> --json mergeable,mergeStateStatus
+```
+
+Se `mergeable` == `CONFLICTING` (ou `mergeStateStatus` == `DIRTY`), **não prossiga para o CI**: volte
+ao passo 2 e refaça a sincronização/merge seguindo `conflict-resolution.md` (incluindo a checagem de
+2 pais do §2 acima) antes de repetir este passo.
 
 ```bash
 gh pr checks <PR-number> --watch
