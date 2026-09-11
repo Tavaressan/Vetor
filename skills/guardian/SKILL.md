@@ -28,7 +28,10 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
   auditar a listagem de migrations (§2) e rascunhar o relatório final. Você valida o rascunho antes
   de apresentá-lo.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — detecção de MCPs (§7, §8).
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — detecção de MCPs (§7, §8). Se
+  a auditoria exigir consultar comportamento de uma ferramenta/lib/framework/API externa (ex.:
+  semântica de uma flag do Docker, driver de banco), o MCP Context7 é **obrigatório quando
+  disponível** (ver "Documentação de ferramentas/libs (Context7)").
 
 ---
 

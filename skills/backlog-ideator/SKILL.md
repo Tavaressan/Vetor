@@ -31,6 +31,9 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
   resumir documentação extensa (§1) e rascunhar corpos de issue (§6). Você sempre revisa e ancora o
   rascunho antes de criar.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — MCP de observabilidade (§2.a).
+  Se a ideação exigir pesquisar comportamento de uma ferramenta/lib/framework/API externa antes de
+  propor uma issue, o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de
+  ferramentas/libs (Context7)").
 
 ---
 
