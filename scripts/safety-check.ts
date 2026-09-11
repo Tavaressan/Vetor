@@ -27,7 +27,11 @@
 //                 ativo na mesma sessão. `isLinked` sozinho não pega esse caso. Aqui
 //                 correlacionamos `agent_id` (estável por instância de subagente, diferente
 //                 de `agent_type`) com o worktree resolvido na primeira chamada; uma mudança
-//                 de worktree para o mesmo agent_id é bloqueada.
+//                 de worktree para o mesmo agent_id é bloqueada. Só se aplica quando
+//                 `agent_type` está presente no payload (dispatch nativo, com
+//                 `subagent_type`/`isolation: "worktree"`) — sem isso, `agent_id` não tem
+//                 garantia de unicidade por worktree e a correlação gera falso positivo no
+//                 redispatch via `cd` explícito (ver issue #151).
 
 import { isWriteAllowed } from "./lib/guard.ts";
 import { run } from "./lib/project.ts";
@@ -132,6 +136,11 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
  * correlacionar, então não se aplica — não é regressão, é a mesma cobertura de antes.
  * Na primeira chamada de um `agent_id`, grava o worktree resolvido; em chamadas seguintes,
  * uma mudança de worktree para o MESMO agent_id indica cwd contaminado — bloqueia.
+ *
+ * Chamada apenas quando `agentType` está presente (ver call site) — sem dispatch nativo
+ * (`subagent_type`/`isolation: "worktree"`), o harness não garante `agent_id` único por
+ * worktree/instância, e correlacionar geraria falso positivo no redispatch via `cd` explícito
+ * a um worktree já existente (issue #151).
  */
 function checkAgentBinding(root: string, agentId: string | undefined, toplevel: string): void {
   if (!agentId) return;
@@ -202,7 +211,14 @@ async function checkWrite(
     return;
   }
 
-  checkAgentBinding(wt.root, agentId, wt.toplevel);
+  // Issue #151: só correlaciona agent_id -> worktree quando `agentType` está presente, ou seja,
+  // quando o dispatch identifica a instância de subagente (mesmo requisito de checkFreshness).
+  // Sem isso, o redispatch de um worker cujo worktree já existe (issue-coordinator/SKILL.md
+  // Fase 4: `cd` explícito, sem `subagent_type`/`isolation: "worktree"` nativos) não tem garantia
+  // de `agent_id` único por worktree — o harness pode reciclar o mesmo `agent_id` entre
+  // instâncias legitimamente distintas, e tratar isso como contaminação bloqueava escritas
+  // válidas (regressão da #63).
+  if (agentType) checkAgentBinding(wt.root, agentId, wt.toplevel);
 
   if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
     blocked(

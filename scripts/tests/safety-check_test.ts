@@ -380,6 +380,39 @@ Deno.test("cwd contaminado: mesmo agent_id e mesmo worktree em chamadas repetida
   }
 });
 
+Deno.test("cwd contaminado: redispatch via cd explícito (sem subagent_type/agent_type) não é bloqueado por agent_id reciclado — issue #151", async () => {
+  // Reprodução do padrão descrito na issue #151: o issue-coordinator redespacha um worker cujo
+  // worktree já existe usando um Agent() genérico, sem `subagent_type` (logo sem `agent_type` no
+  // payload do hook) e com um `cd` explícito para o worktree — ver issue-coordinator/SKILL.md
+  // Fase 4. Nesse modo, o harness não garante `agent_id` único por worktree/instância (ao
+  // contrário do dispatch nativo com `isolation: "worktree"`), então o mesmo `agent_id` pode
+  // legitimamente aparecer associado a worktrees diferentes ao longo da sessão — não deve ser
+  // tratado como contaminação.
+  const { root, worktreePath: worktreeA } = await makeLinkedWorktree("worker-a");
+  const worktreeB = `${root}/.claude/worktrees/worker-b`;
+  await git(["worktree", "add", "-q", "-b", "worker-b", worktreeB], root);
+  try {
+    const first = await runHook({
+      tool_name: "Edit",
+      tool_input: { file_path: `${worktreeA}/README.md` },
+      cwd: worktreeA,
+      agent_id: "agent-recycled",
+    });
+    assertEquals(first.code, 0, first.stderr);
+
+    const second = await runHook({
+      tool_name: "Edit",
+      tool_input: { file_path: `${worktreeB}/README.md` },
+      cwd: worktreeB,
+      agent_id: "agent-recycled",
+    });
+
+    assertEquals(second.code, 0, second.stderr);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("cwd contaminado: sem agent_id no payload, a checagem de binding não se aplica (sem regressão)", async () => {
   const { root, worktreePath: worktreeA } = await makeLinkedWorktree("worker-a");
   const worktreeB = `${root}/.claude/worktrees/worker-b`;
