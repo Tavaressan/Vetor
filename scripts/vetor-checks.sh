@@ -7,7 +7,8 @@
 #   migrations                 exit 1 se há versões de migration duplicadas (convenção Flyway)
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
-#   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo
+#   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo;
+#                               exit 1 se, após o remove, sobrar diretório residual em disco (#157)
 #   sync-root                  tenta retornar o repositório principal para a branch default de forma segura
 #   worktree-audit              lista worktrees linkados (exceto o root) com idade/tamanho/uncommitted
 #   find-orphan-status [dir]   lista status files sem worktree correspondente (default: .claude/vetor/status)
@@ -112,6 +113,30 @@ case "$cmd" in
     fi
 
     git worktree remove "$target"
+    remove_status=$?
+
+    # git worktree remove DESREGISTRA o worktree e só então tenta apagar o diretório. No
+    # Windows, artefatos de build (build/, .gradle/, node_modules/) costumam estourar o limite
+    # de 260 caracteres e a exclusão falha com "Filename too long", deixando um diretório órfão
+    # que nenhuma outra checagem detecta (issue #157).
+    if [ -d "$target" ]; then
+      case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*)
+          # Contorna o limite de path do Windows com o prefixo \\?\, que aceita paths > 260 chars.
+          win_path=$(cygpath -w "$target" 2>/dev/null) || win_path=""
+          if [ -n "$win_path" ]; then
+            cmd //c rd /s /q "\\\\?\\$win_path" 2>/dev/null
+          fi
+          ;;
+      esac
+    fi
+
+    if [ -d "$target" ]; then
+      echo "ERRO: git worktree remove desregistrou '$target' do git, mas o diretório permanece em disco (possível 'Filename too long' no Windows). Remova manualmente antes de prosseguir." >&2
+      exit 1
+    fi
+
+    [ "$remove_status" -eq 0 ] || exit 1
     ;;
 
   sync-root)

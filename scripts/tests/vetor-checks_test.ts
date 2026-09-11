@@ -62,6 +62,34 @@ Deno.test("safe-remove-worktree bloqueia remover pai que contém worktree filho"
   }
 });
 
+Deno.test("safe-remove-worktree reporta diretório residual quando git worktree remove falha parcialmente", async () => {
+  // Reproduz issue #157: git worktree remove DESREGISTRA o worktree e só então tenta apagar
+  // o diretório. Se a exclusão falhar (no Windows, tipicamente por "Filename too long"; aqui
+  // simulado com um subdiretório sem permissão de leitura/escrita), sobra um diretório órfão
+  // que nenhuma outra checagem detecta. O comportamento esperado é sair não-zero citando o path.
+  const repo = await makeRepo();
+  const worktree = `${repo}/wt`;
+  const lockedDir = `${worktree}/locked`;
+
+  try {
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "wt", worktree], repo);
+    await Deno.mkdir(`${lockedDir}/sub`, { recursive: true });
+    await Deno.writeTextFile(`${lockedDir}/sub/file.txt`, "x");
+    await Deno.chmod(lockedDir, 0o000);
+
+    const result = await runVetorChecks(repo, "safe-remove-worktree", worktree);
+
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, worktree);
+    // O worktree já foi desregistrado do git, mas o diretório residual precisa ser sinalizado.
+    await Deno.stat(worktree);
+  } finally {
+    await Deno.chmod(lockedDir, 0o755).catch(() => {});
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
 Deno.test("validate-issue-ref rejeita valores não-numéricos", async () => {
   const result = await runVetorChecks(Deno.cwd(), "validate-issue-ref", "016-bdd");
   assertEquals(result.code, 1);
