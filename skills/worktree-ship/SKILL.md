@@ -211,22 +211,49 @@ Havendo módulo alterado, execute as duas revisões:
      description: "Code review: PR #<PR-number>",
      prompt: "PR #<PR-number>, branch <branch>, base $DEFAULT_BRANCH.",
      subagent_type: "vetor:code-review",
-     model: "sonnet",
-     run_in_background: false
+     model: "sonnet"
    })
    ```
-   O subagente é somente leitura sobre o código e publica os achados como comentário na PR.
+   O harness **sempre** despacha subagentes em background — não existe modo síncrono, e o retorno
+   imediato é apenas a confirmação de que o agente foi lançado, nunca o resultado da revisão.
+   **Bloqueante-leve:** antes de prosseguir para o passo 9, aguarde a notificação de conclusão deste
+   subagente (ele publica os achados como comentário na PR ao terminar). Os achados continuam
+   **consultivos** — não bloqueiam o merge por si só —, mas aguardar garante que eles cheguem a
+   tempo de virar decisão (ou commit corretivo) antes do merge, em vez de serem descobertos depois.
 
 2. **Security review** (segurança da aplicação — OWASP: injeção, XSS, segredos expostos): verifique
    se a skill nativa `security-review` está disponível nesta sessão. **Se não estiver, pule
-   silenciosamente.** Se estiver, invoque-a sobre `gh pr diff <PR-number>` e publique:
-   ```bash
-   gh pr comment <PR-number> --body "<achados de security-review em markdown>"
-   ```
+   silenciosamente.** Se estiver, invoque-a conforme §8.6 abaixo.
 
 **Nunca pare o pipeline por causa dos achados** — mesmo com itens `blocker` ou vulnerabilidades,
-prossiga para o passo 9. Quem decide agir é o humano, lendo o comentário na PR. Se um dos despachos
-falhar (rate limit, erro de ferramenta), registre no sumário e prossiga.
+prossiga para o passo 9 assim que ambas as revisões tiverem retornado. Quem decide agir é o humano,
+lendo o comentário na PR. Se um dos despachos falhar (rate limit, erro de ferramenta), registre no
+sumário e prossiga.
+
+### 8.6 — Security review (skill nativa)
+
+A skill nativa `security-review` **não publica comentário sozinha**: seu contrato de saída é
+"a resposta final deve conter o relatório em markdown e nada mais". Quem invoca (você, executando
+o `worktree-ship`) é responsável por publicar esse relatório na PR no turno seguinte à resposta.
+
+Além disso, a skill monta o próprio contexto sozinha (git status, arquivos modificados, commits,
+diff da branch atual) — **não** passe `gh pr diff <PR-number>` como argumento; ela ignora diffs
+passados por fora e lê a branch diretamente.
+
+```
+Invoque a skill nativa `security-review` sem argumento de diff — ela lê a branch atual.
+```
+
+Ao receber a resposta final (o relatório em markdown), publique-o você mesmo:
+```bash
+gh pr comment <PR-number> --body "<relatório de security-review recebido>"
+```
+
+**Proporção do protocolo de sub-tasks:** o protocolo de sub-tasks paralelas da skill nativa (uma
+por vulnerabilidade candidata, para filtrar falso-positivo) é desenhado para diffs grandes. Para
+diffs pequenos — heurística sugerida: abaixo de ~200 linhas alteradas, já filtrados pelo
+`vetor:code-review` do §8.5 — peça à skill para analisar inline, sem abrir o protocolo completo de
+sub-tasks por vulnerabilidade. Acima desse limiar, deixe a skill decidir seu próprio protocolo.
 
 ### 9 — Verificar review
 
