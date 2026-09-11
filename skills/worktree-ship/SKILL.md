@@ -281,9 +281,18 @@ rm -f .claude/vetor/status/<branch>.md
 rm -f .claude/vetor/status/<branch>-touched-files.json
 ```
 
-Se a checagem falhar, **pare o cleanup**: ela encontrou um worktree ativo dentro do path alvo e
-removê-lo apagaria também o filho. Mostre os paths e preserve worktree pai, branch e arquivos de
-status/cache até os filhos serem realocados.
+Se a checagem falhar, **pare o cleanup** e não prossiga com `git branch -d`/remoção dos arquivos de
+status/cache — há dois motivos distintos de falha:
+
+- **Worktree filho ativo dentro do path alvo**: mostre os paths e preserve worktree pai, branch e
+  arquivos de status/cache até os filhos serem realocados.
+- **Diretório residual em disco após `git worktree remove`** (issue #157): o `git worktree remove`
+  desregistrou o worktree do git (não aparece mais em `git worktree list`) mas falhou ao apagar o
+  diretório — no Windows, tipicamente por `Filename too long` (artefatos como `build/`, `.gradle/`,
+  `node_modules/` estouram o limite de 260 caracteres). `safe-remove-worktree` já tenta uma remoção
+  com prefixo de path longo nesse caso; se mesmo assim restar, ela sai não-zero citando o path
+  residual. Reporte o path ao operador para remoção manual — não tente forçar via `rm -rf` por conta
+  própria, o diretório pode conter uncommitted work relevante para inspeção.
 
 Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
 branch, status file e cache de arquivos tocados).

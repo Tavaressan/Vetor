@@ -89,6 +89,23 @@ git worktree list
 **Finding:** worktree em `<path>` fora do diretório padrão
 **Auto-fix:** nenhum — apenas reporta para o usuário decidir.
 
+### 3.b — Diretórios residuais em `.claude/worktrees/` (issue #157)
+
+`git worktree remove` DESREGISTRA o worktree do git e só então tenta apagar o diretório. Quando essa
+exclusão falha parcialmente (no Windows, tipicamente `Filename too long` por artefatos de build como
+`build/`, `.gradle/`, `node_modules/`), sobra um diretório que o `git worktree list` não conhece mais
+e nenhuma outra checagem detecta.
+
+```bash
+comm -23 <(find .claude/worktrees -mindepth 1 -maxdepth 1 -type d | sort) \
+  <(git worktree list --porcelain | grep '^worktree ' | sed 's/^worktree //' | sort)
+```
+
+**Finding:** diretório em `<path>` presente em `.claude/worktrees/` mas ausente de `git worktree
+list` — resíduo de remoção parcial.
+**Auto-fix:** nenhum — apenas reporta. Pode conter uncommitted work relevante; a remoção exige
+inspeção manual do operador antes de apagar.
+
 ### 4 — Auditoria de worktrees (idade, tamanho, PR, uncommitted)
 
 Responde "o que sobrou e por quê?" — o cleanup do `worktree-ship` (passo 12) só roda no caminho
