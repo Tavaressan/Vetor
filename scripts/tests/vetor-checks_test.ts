@@ -90,6 +90,34 @@ Deno.test("safe-remove-worktree reporta diretório residual quando git worktree 
   }
 });
 
+Deno.test("safe-remove-worktree nunca força exclusão quando git worktree remove recusa (uncommitted work) — achado do code review da PR #169", async () => {
+  // git worktree remove recusa remover um worktree com mudanças não commitadas (sem --force).
+  // Nesse caso remove_status != 0 e o worktree segue REGISTRADO — o fallback de diretório
+  // residual não pode rodar aqui, ou apagaria dados sem o git saber (achado real da PR #169).
+  const repo = await makeRepo();
+  const worktree = `${repo}/wt-dirty`;
+
+  try {
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "wt-dirty", worktree], repo);
+    await Deno.writeTextFile(`${worktree}/uncommitted.txt`, "trabalho em andamento");
+
+    const result = await runVetorChecks(repo, "safe-remove-worktree", worktree);
+
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, worktree);
+    // Nunca deve alegar que desregistrou quando o git recusou a remoção inteira.
+    assertEquals(result.stderr.includes("desregistrou"), false);
+    // O diretório e o arquivo não commitado devem sobreviver intactos.
+    await Deno.stat(worktree);
+    await Deno.stat(`${worktree}/uncommitted.txt`);
+    const list = await git(["worktree", "list"], repo);
+    assertStringIncludes(list, "wt-dirty");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
 Deno.test("validate-issue-ref rejeita valores não-numéricos", async () => {
   const result = await runVetorChecks(Deno.cwd(), "validate-issue-ref", "016-bdd");
   assertEquals(result.code, 1);

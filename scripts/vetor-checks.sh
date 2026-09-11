@@ -119,7 +119,14 @@ case "$cmd" in
     # Windows, artefatos de build (build/, .gradle/, node_modules/) costumam estourar o limite
     # de 260 caracteres e a exclusão falha com "Filename too long", deixando um diretório órfão
     # que nenhuma outra checagem detecta (issue #157).
-    if [ -d "$target" ]; then
+    #
+    # O fallback abaixo só pode rodar quando remove_status -eq 0: nesse caso o git já
+    # desregistrou o worktree e o diretório em disco é resíduo seguro de remover. Se
+    # remove_status != 0, o git recusou a remoção inteira (ex.: worktree sujo, sem --force) —
+    # o worktree segue registrado e o diretório pode conter trabalho não commitado; forçar a
+    # exclusão nesse caso apagaria dados e deixaria metadata do git órfã (achado do code review
+    # da PR #169).
+    if [ "$remove_status" -eq 0 ] && [ -d "$target" ]; then
       case "$(uname -s 2>/dev/null)" in
         MINGW*|MSYS*|CYGWIN*)
           # Contorna o limite de path do Windows com o prefixo \\?\, que aceita paths > 260 chars.
@@ -131,12 +138,15 @@ case "$cmd" in
       esac
     fi
 
+    if [ "$remove_status" -ne 0 ]; then
+      echo "ERRO: git worktree remove recusou remover '$target' (worktree ainda registrado — possível uncommitted work). Resolva manualmente (git worktree remove --force, se apropriado) antes de prosseguir." >&2
+      exit 1
+    fi
+
     if [ -d "$target" ]; then
       echo "ERRO: git worktree remove desregistrou '$target' do git, mas o diretório permanece em disco (possível 'Filename too long' no Windows). Remova manualmente antes de prosseguir." >&2
       exit 1
     fi
-
-    [ "$remove_status" -eq 0 ] || exit 1
     ;;
 
   sync-root)
