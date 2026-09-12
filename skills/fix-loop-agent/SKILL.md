@@ -1,6 +1,6 @@
 ---
 name: fix-loop-agent
-description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (máximo 5 iterações). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do worktree-ship.
+description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (orçamento sugerido de 5 iterações, não enforced — ver issue #156). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do worktree-ship.
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -87,9 +87,15 @@ derive-o: `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` (ro
 
 Se bloqueado por permissão ou decisão técnica, mude `Status` para `BLOCKED_WAITING` preenchendo os
 blocos `Blocked on` / `Options` / `Recommendation` — o coordinator escala ao usuário a partir deles.
-Iterações em `BLOCKED_WAITING` **não contam** contra o hard cap de 5.
+Iterações em `BLOCKED_WAITING` **não contam** contra o orçamento de 5.
 
-### 3 — Loop principal (máximo N=5 iterações)
+⚠️ **O limite de 5 é um orçamento sugerido, não um hard cap enforced (issue #156):** nenhum hook
+interrompe a sessão automaticamente ao ultrapassá-lo. A responsabilidade de parar é sua — nunca
+decida sozinho "mais uma tentativa" ao chegar na 5ª iteração sem verde. Vá direto para o §4 (Handover
+de Falha) ou, se identificar que falta uma decisão que só o coordinator/usuário pode tomar, registre
+`BLOCKED_WAITING` em vez de continuar por conta própria.
+
+### 3 — Loop principal (orçamento de N=5 iterações)
 
 Para cada iteração `i` de 1 a 5:
 
@@ -143,6 +149,9 @@ Se **vermelho**:
 6. Continue para a próxima iteração
 
 ### 4 — Após N=5 falhas (Handover de Falha)
+
+**Pare aqui — não inicie uma 6ª iteração.** Mesmo que o próximo fix pareça óbvio ou quase certo, o
+orçamento estourado deve virar handover, não mais uma tentativa por conta própria (issue #156).
 
 1. Atualize o status file com `Status: FAILED_MAX_ITERATIONS`.
 2. Crie `FAIL_ANALYSIS.md` no root do worktree:

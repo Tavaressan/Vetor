@@ -412,11 +412,14 @@ ele precisa ser autossuficiente. Acrescente ao formato acima:
 
 ---
 
-## Hard caps
+## Orçamentos e hard caps
 
-- Máximo 5 iterações por worker (contabilizado pelo próprio `issue-worker`, no status file)
-- Timeout global de 90 minutos para o coordenador
-- Iterações em `BLOCKED_WAITING` não contam contra o hard cap de 5
+- 5 iterações por worker é **orçamento sugerido**, não hard cap enforced (contabilizado pelo próprio
+  `issue-worker` no status file, sem checagem automática — issue #156). Ao atingir a 5ª iteração sem
+  verde, o worker deve registrar `BLOCKED_WAITING` ou `FAILED_MAX_ITERATIONS`, nunca decidir sozinho
+  continuar.
+- Timeout global de 90 minutos para o coordenador (este sim, hard cap real)
+- Iterações em `BLOCKED_WAITING` não contam contra o orçamento de 5
 
 O número de processos simultâneos **não é um hard cap**: é o valor `N` decidido pelo usuário na
 Fase 2 (default recomendado `maxConcurrentWorkers` de `.claude/vetor/config.json`, senão 5).

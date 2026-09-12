@@ -112,6 +112,42 @@ Deno.test("vetor-status.sh lista worktree com status file e worktree sem status 
   }
 });
 
+Deno.test("vetor-status.sh destaca Iteration acima do orçamento de 5 — issue #156", async () => {
+  const { root } = await makeLinkedWorktree("fix-overshot");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-overshot.md`,
+      "Status: RUNNING\nIteration: 8/5 (Issue #10)\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "fix-overshot");
+    assertStringIncludes(stdout, "⚠️ 8/5");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh não destaca Iteration dentro do orçamento de 5", async () => {
+  const { root } = await makeLinkedWorktree("fix-ok");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-ok.md`,
+      "Status: RUNNING\nIteration: 3/5 (Issue #10)\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "3/5");
+    assertEquals(stdout.includes("⚠️ 3/5"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("vetor-status.sh anota status GREEN com PR aberta ou mergeada via gh pr list", async () => {
   const root = await makeRepo("main");
   const mockBinDir = await createMockGh("fix-open=42=OPEN\nfix-merged=99=MERGED");
