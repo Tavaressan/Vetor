@@ -156,6 +156,18 @@ for N in ${ARG//,/ }; do gh issue view "$N" --json number,title,labels,body; don
 gh issue list --label <label> --state open --json number,title,labels,body
 ```
 
+**Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label traz de volta,
+na mesma leva, issues abertas manualmente/via integração externa e issues geradas por `/retro` ou
+`/vetor:backlog-ideator` (label `ai-generated`), sem distinção. Antes do agrupamento de afinidade,
+particione o resultado usando o campo `labels`:
+
+- **Pedidas pelo usuário** (candidatas primárias): issues **sem** a label `ai-generated`.
+- **Recomendadas pelo agente**: issues **com** a label `ai-generated`.
+
+Priorize o grupo "pedidas pelo usuário" no plano de dispatch. Só inclua "recomendadas pelo agente"
+quando o primeiro grupo estiver **vazio**, ou como itens extras claramente sinalizados como
+"recomendação do agente" no plano da Fase 2.
+
 Para cada issue candidata, verifique se já há PR aberto ou se a branch correspondente já foi entregue:
 ```bash
 gh pr list --search "closes:#<N>" --state open --json number,title
@@ -206,6 +218,10 @@ Coordenando issues com a label: <label>
 | O_1 | <slug-2> | #<N3> (Lead) | <provider/model> | Despachar |
 | O_2 | <slug-3> | #<N4> (Lead) | <provider/model> | Aguardar O_1 |
 ```
+
+Se o plano incluir issues "recomendadas pelo agente" (Fase 1) — por ausência de issues pedidas pelo
+usuário pendentes, ou como itens extras opcionais —, sinalize cada uma na coluna "Ação" (ex.:
+"Despachar (recomendação do agente)") para distinguir a origem na aprovação.
 
 Se houver mais de uma onda, explique por que cada grupo de `O_2+` depende de um grupo de onda
 anterior. Se tudo couber em `O_1`, é o caso comum — sem dependência detectada.
