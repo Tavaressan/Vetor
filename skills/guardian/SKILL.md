@@ -196,6 +196,33 @@ identifique quais **não** estão `running`/`healthy` (ex.: `exited`, `restartin
 **Auto-fix:** nenhum — apenas reporta. Este check não valida especificidades de stack, apenas o
 estado do container.
 
+### 9 — Risco arquitetural: deleção com high fan-in
+
+Detecta arquivos que estão sendo deletados (marcados como deletados no git staging ou no diff) mas têm
+alto fan-in — muitas outras partes do código dependem deles. Isso representa um risco arquitetural
+significativo pois múltiplos componentes podem quebrar com a deleção.
+
+```bash
+# Detectar arquivos deletados no diff ou staged
+git diff --name-only --diff-filter=D HEAD
+git diff --name-only --diff-filter=D --cached
+
+# Para cada arquivo deletado, contar referências (fan-in via grep)
+for file in <arquivos-deletados>; do
+  basename="${file##*/}"
+  nameonly="${basename%.*}"
+  # grep recursivo excluindo diretórios óbvios
+  count=$(grep -r "$nameonly" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+    -not -path "./.claude/worktrees/*" -not -path "./node_modules/*" -not -path "./.next/*" \
+    2>/dev/null | wc -l)
+  # Se fan-in > 5, reporá
+done
+```
+
+**Finding:** arquivo `<path>` marcado para deleção mas tem fan-in alto (<N> referências encontradas)
+**Auto-fix (modo manual):** propõe criar uma issue no GitHub para revisar impacto (`gh issue create --title "Deletar $file pode quebrar dependências" --body "Fan-in: $count referências encontradas"`)
+**Auto-fix (modo --cron):** apenas reporta, **nunca cria issue** — modo cron é read-only
+
 ---
 
 ## Relatório e Fluxo de Planejamento (Modo Manual)
