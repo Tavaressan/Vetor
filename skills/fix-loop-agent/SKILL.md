@@ -1,6 +1,6 @@
 ---
 name: fix-loop-agent
-description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (máximo 5 iterações). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do worktree-ship.
+description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (orçamento sugerido de 5 iterações, não enforced — ver issue #156). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do worktree-ship.
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -41,7 +41,10 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 ## Referências
 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
-  e o `module-test-map` antes de prosseguir.
+  e o `module-test-map` antes de prosseguir. **A resolução do `module-test-map.md`/`config.json`
+  sempre usa o root do repositório (`vetor-checks.sh repo-root`), nunca o `cwd`** — dentro de um
+  worktree, arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: `.claude/`) não existem
+  localmente (issue #160).
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md` — path, estados e blocos
   obrigatórios do status file.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/touched-files-cache.md` — formato do cache gravado no §1.
@@ -72,8 +75,10 @@ Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.
 git diff "$DEFAULT_BRANCH" --name-only
 ```
 
-Mapeie ao módulo usando a tabela do module-test-map. Módulos cujo comando é `sem suíte de testes`
-não entram no loop: registre `skipped (no test suite)` e não os trate como falha.
+Mapeie ao módulo usando a tabela do module-test-map, resolvido a partir do root do repositório
+(ver `project-conventions.md`), não do `cwd` do worktree. Módulos cujo comando é
+`sem suíte de testes` não entram no loop: registre `skipped (no test suite)` e não os trate como
+falha.
 
 Depois de resolver os módulos, grave o cache de arquivos tocados conforme
 `touched-files-cache.md` — ele é consumido pelo `code-review` na mesma branch.
@@ -87,9 +92,15 @@ derive-o: `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` (ro
 
 Se bloqueado por permissão ou decisão técnica, mude `Status` para `BLOCKED_WAITING` preenchendo os
 blocos `Blocked on` / `Options` / `Recommendation` — o coordinator escala ao usuário a partir deles.
-Iterações em `BLOCKED_WAITING` **não contam** contra o hard cap de 5.
+Iterações em `BLOCKED_WAITING` **não contam** contra o orçamento de 5.
 
-### 3 — Loop principal (máximo N=5 iterações)
+⚠️ **O limite de 5 é um orçamento sugerido, não um hard cap enforced (issue #156):** nenhum hook
+interrompe a sessão automaticamente ao ultrapassá-lo. A responsabilidade de parar é sua — nunca
+decida sozinho "mais uma tentativa" ao chegar na 5ª iteração sem verde. Vá direto para o §4 (Handover
+de Falha) ou, se identificar que falta uma decisão que só o coordinator/usuário pode tomar, registre
+`BLOCKED_WAITING` em vez de continuar por conta própria.
+
+### 3 — Loop principal (orçamento de N=5 iterações)
 
 Para cada iteração `i` de 1 a 5:
 
@@ -143,6 +154,9 @@ Se **vermelho**:
 6. Continue para a próxima iteração
 
 ### 4 — Após N=5 falhas (Handover de Falha)
+
+**Pare aqui — não inicie uma 6ª iteração.** Mesmo que o próximo fix pareça óbvio ou quase certo, o
+orçamento estourado deve virar handover, não mais uma tentativa por conta própria (issue #156).
 
 1. Atualize o status file com `Status: FAILED_MAX_ITERATIONS`.
 2. Crie `FAIL_ANALYSIS.md` no root do worktree:

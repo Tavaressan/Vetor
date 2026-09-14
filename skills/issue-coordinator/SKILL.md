@@ -40,7 +40,13 @@ Este coordenador compõe os primitivos do plugin:
 - `/vetor:worktree-ship` — pipeline de entrega (test → PR → CI → merge), Fase 6
 
 Os comandos de teste vêm de `.claude/vetor/module-test-map.md` ou, na ausência dela, de
-auto-detecção a partir do CI — cada primitivo já consome essa referência.
+auto-detecção a partir do CI — cada primitivo já consome essa referência, sempre resolvendo o
+arquivo a partir do root do repositório (`vetor-checks.sh repo-root`), nunca do `cwd` do worktree
+(issue #160), pois arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: uma entrada
+`.claude/`) não são materializados em worktrees linkados. Se `git check-ignore -q .claude` indicar
+que `.claude/` está ignorado no projeto-alvo, você pode opcionalmente injetar os comandos de teste
+já resolvidos diretamente no prompt de cada worker despachado, como reforço redundante — a fonte de
+verdade continua sendo a resolução via root em `project-conventions.md`.
 Regras de economia de tokens e delegação ao `agy`:
 `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` e
 `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md`.
@@ -444,12 +450,17 @@ Resumo: <N> merged, <M> falharam, <K> aguardando review.
 
 ---
 
-## Hard caps
+## Orçamentos e hard caps
 
-- **fix-loop-agent:** máximo 5 iterações por agente
+- **fix-loop-agent:** 5 iterações é **orçamento sugerido**, não hard cap enforced — nada no hook
+  interrompe o agente automaticamente (issue #156). Ao atingir a 5ª iteração sem verde, o agente
+  deve registrar `BLOCKED_WAITING` (não decidir sozinho continuar) e escalar ao coordinator via os
+  blocos `Blocked on`/`Options`/`Recommendation` do status file, em vez de estourar para 6+.
 - **worktree-ship:** máximo 3 tentativas de fix de CI
-- **Coordinator:** timeout global de 90 minutos
+- **Coordinator:** timeout global de 90 minutos (este sim, hard cap real)
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
+- `vetor-status.sh` destaca com `⚠️` na tabela qualquer `Iteration: N/5` com `N` acima do orçamento —
+  sinal de que o agente não escalou como deveria; trate como candidato a redispatch/intervenção.
 
 O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido pelo usuário na Fase 2
 (default recomendado `maxConcurrentWorkers` de `.claude/vetor/config.json`, senão 5).

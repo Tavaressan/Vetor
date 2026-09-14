@@ -357,3 +357,49 @@ Deno.test("archive-orphan-status move o status file para o diretório archive/",
     await Deno.remove(repo, { recursive: true });
   }
 });
+
+Deno.test("repo-root imprime o path do repositório principal quando executado de dentro de um worktree linkado — issue #160", async () => {
+  const repo = await Deno.realPath(await Deno.makeTempDir());
+  const linked = `${repo}/linked`;
+
+  try {
+    await git(["init", "-q", "-b", "main"], repo);
+    await git(["config", "user.email", "test@example.com"], repo);
+    await git(["config", "user.name", "Test"], repo);
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "feat/x", linked], repo);
+
+    const output = await new Deno.Command("bash", {
+      args: [SCRIPT, "repo-root"],
+      cwd: linked,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+
+    assertEquals(output.code, 0);
+    assertEquals(stdout, repo);
+  } finally {
+    await git(["worktree", "remove", "-f", linked], repo);
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("repo-root imprime o próprio path quando executado do root do repositório — issue #160", async () => {
+  const repo = await makeRepo();
+
+  try {
+    const output = await new Deno.Command("bash", {
+      args: [SCRIPT, "repo-root"],
+      cwd: repo,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+
+    assertEquals(output.code, 0);
+    assertEquals(stdout, repo);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
