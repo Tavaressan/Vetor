@@ -55,6 +55,8 @@ a ausência total do arquivo um sinal detectável de falha anômala.
   capturar evidência. Se o erro envolver comportamento de uma ferramenta/lib/framework/API externa,
   o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de ferramentas/libs
   (Context7)") antes de aplicar o fix.
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/frontend-design-enforcement.md` — se a `<descrição>`
+  indicar UI/design de frontend, invoque a skill `frontend-design` antes de aplicar o fix (§3.b).
 
 ---
 

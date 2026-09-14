@@ -3,7 +3,7 @@ name: issue-worker
 description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge — isso é responsabilidade do worktree-ship. Despachado pelo issue-coordinator, um por issue, em paralelo.
 # tools é allowlist explícita — EnterPlanMode/ExitPlanMode ficam deliberadamente de fora (issue #121):
 # o worker roda headless, sem interlocutor disponível para aprovar a saída do plan mode.
-tools: Bash, Read, Write, Edit, Grep, Glob
+tools: Bash, Read, Write, Edit, Grep, Glob, Skill
 model: haiku
 skills: fix-loop-agent
 isolation: worktree
@@ -40,6 +40,8 @@ ou BLOCKED_WAITING) é uma falha silenciosa que o coordinator não consegue dete
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se a issue exigir pesquisar
   comportamento de uma ferramenta, biblioteca, framework, SDK ou API externa, o MCP Context7 é
   **obrigatório quando disponível** (ver seção "Documentação de ferramentas/libs (Context7)").
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/frontend-design-enforcement.md` — se a issue tratar
+  de UI/design de frontend, invoque a skill `frontend-design` antes de implementar.
 
 ## O que fazer
 
