@@ -3,6 +3,11 @@
 #
 # Uso: vetor-checks.sh <subcomando> [args]
 #   default-branch             imprime a branch default do repositório (nunca assume master)
+#   repo-root                  imprime o path absoluto do repositório principal (root), mesmo
+#                               quando executado de dentro de um worktree linkado (issue #160) —
+#                               use para resolver arquivos como .claude/vetor/module-test-map.md
+#                               e .claude/vetor/config.json, que não são materializados em
+#                               worktrees quando .claude/ está no .gitignore do projeto-alvo
 #   in-worktree                exit 0 se o cwd é um worktree linkado; exit 1 se é o root
 #   migrations                 exit 1 se há versões de migration duplicadas (convenção Flyway)
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
@@ -26,6 +31,12 @@ case "$cmd" in
     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
     echo "$DEFAULT_BRANCH"
+    ;;
+
+  repo-root)
+    root=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    [ -z "$root" ] && { echo "não é um repositório git" >&2; exit 1; }
+    echo "$root"
     ;;
 
   in-worktree)
@@ -244,7 +255,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>>" >&2
+    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>>" >&2
     exit 2
     ;;
 esac

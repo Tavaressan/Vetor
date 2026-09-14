@@ -41,7 +41,10 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 ## Referências
 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
-  e o `module-test-map` antes de prosseguir.
+  e o `module-test-map` antes de prosseguir. **A resolução do `module-test-map.md`/`config.json`
+  sempre usa o root do repositório (`vetor-checks.sh repo-root`), nunca o `cwd`** — dentro de um
+  worktree, arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: `.claude/`) não existem
+  localmente (issue #160).
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md` — path, estados e blocos
   obrigatórios do status file.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/touched-files-cache.md` — formato do cache gravado no §1.
@@ -72,8 +75,10 @@ Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.
 git diff "$DEFAULT_BRANCH" --name-only
 ```
 
-Mapeie ao módulo usando a tabela do module-test-map. Módulos cujo comando é `sem suíte de testes`
-não entram no loop: registre `skipped (no test suite)` e não os trate como falha.
+Mapeie ao módulo usando a tabela do module-test-map, resolvido a partir do root do repositório
+(ver `project-conventions.md`), não do `cwd` do worktree. Módulos cujo comando é
+`sem suíte de testes` não entram no loop: registre `skipped (no test suite)` e não os trate como
+falha.
 
 Depois de resolver os módulos, grave o cache de arquivos tocados conforme
 `touched-files-cache.md` — ele é consumido pelo `code-review` na mesma branch.

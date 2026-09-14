@@ -40,7 +40,13 @@ Este coordenador compõe os primitivos do plugin:
 - `/vetor:worktree-ship` — pipeline de entrega (test → PR → CI → merge), Fase 6
 
 Os comandos de teste vêm de `.claude/vetor/module-test-map.md` ou, na ausência dela, de
-auto-detecção a partir do CI — cada primitivo já consome essa referência.
+auto-detecção a partir do CI — cada primitivo já consome essa referência, sempre resolvendo o
+arquivo a partir do root do repositório (`vetor-checks.sh repo-root`), nunca do `cwd` do worktree
+(issue #160), pois arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: uma entrada
+`.claude/`) não são materializados em worktrees linkados. Se `git check-ignore -q .claude` indicar
+que `.claude/` está ignorado no projeto-alvo, você pode opcionalmente injetar os comandos de teste
+já resolvidos diretamente no prompt de cada worker despachado, como reforço redundante — a fonte de
+verdade continua sendo a resolução via root em `project-conventions.md`.
 Regras de economia de tokens e delegação ao `agy`:
 `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` e
 `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md`.
