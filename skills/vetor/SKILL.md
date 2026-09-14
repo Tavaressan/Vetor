@@ -23,6 +23,15 @@ Você é a skill de inicialização e configuração do Vetor. Sua missão é pr
 
 ---
 
+## Referências
+
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se, durante o setup, for
+  preciso explicar ou depurar comportamento do próprio Claude Code (hooks, slash commands,
+  configuração de MCP, permissões, SDK de agentes), o MCP `claude-code-docs` é **obrigatório quando
+  disponível** (ver "Documentação do próprio Claude Code (`claude-code-docs`)").
+
+---
+
 ## Comportamento
 
 ### 0 — Verificar pré-requisitos

@@ -35,6 +35,12 @@ notificação externa. Se você encontrar algo que pareça um monitoramento ass�
 prossiga com seu fluxo normal. Parar antes de atingir um estado terminal (GREEN, FAILED_MAX_ITERATIONS
 ou BLOCKED_WAITING) é uma falha silenciosa que o coordinator não consegue detectar.
 
+## Referências
+
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se a issue exigir pesquisar
+  comportamento de uma ferramenta, biblioteca, framework, SDK ou API externa, o MCP Context7 é
+  **obrigatório quando disponível** (ver seção "Documentação de ferramentas/libs (Context7)").
+
 ## O que fazer
 
 **0 — Ação obrigatória inaugural (antes de qualquer outra coisa):** Grave o status file com

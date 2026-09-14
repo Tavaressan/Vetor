@@ -52,7 +52,9 @@ a ausência total do arquivo um sinal detectável de falha anômala.
   erro dos testes com `agy`. **A decisão e a aplicação do fix são sempre suas, nunca do Gemini.**
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se a `<descrição>` indicar bug
   visual/frontend e o MCP de browser estiver disponível, use-o antes do §3.a para reproduzir o bug e
-  capturar evidência.
+  capturar evidência. Se o erro envolver comportamento de uma ferramenta/lib/framework/API externa,
+  o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de ferramentas/libs
+  (Context7)") antes de aplicar o fix.
 
 ---
 
