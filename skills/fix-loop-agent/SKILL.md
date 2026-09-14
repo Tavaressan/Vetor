@@ -57,6 +57,9 @@ a ausência total do arquivo um sinal detectável de falha anômala.
   (Context7)") antes de aplicar o fix.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/frontend-design-enforcement.md` — se a `<descrição>`
   indicar UI/design de frontend, invoque a skill `frontend-design` antes de aplicar o fix (§3.b).
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md` — disciplina completa de TDD
+  (bom teste, seams, anti-padrões, mocking) consumida pelo passo TDD de §3.b — não replique o texto
+  aqui.
 
 ---
 
