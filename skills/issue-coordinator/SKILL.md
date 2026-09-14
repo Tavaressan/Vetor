@@ -40,7 +40,13 @@ Este coordenador compõe os primitivos do plugin:
 - `/vetor:worktree-ship` — pipeline de entrega (test → PR → CI → merge), Fase 6
 
 Os comandos de teste vêm de `.claude/vetor/module-test-map.md` ou, na ausência dela, de
-auto-detecção a partir do CI — cada primitivo já consome essa referência.
+auto-detecção a partir do CI — cada primitivo já consome essa referência, sempre resolvendo o
+arquivo a partir do root do repositório (`vetor-checks.sh repo-root`), nunca do `cwd` do worktree
+(issue #160), pois arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: uma entrada
+`.claude/`) não são materializados em worktrees linkados. Se `git check-ignore -q .claude` indicar
+que `.claude/` está ignorado no projeto-alvo, você pode opcionalmente injetar os comandos de teste
+já resolvidos diretamente no prompt de cada worker despachado, como reforço redundante — a fonte de
+verdade continua sendo a resolução via root em `project-conventions.md`.
 Regras de economia de tokens e delegação ao `agy`:
 `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` e
 `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md`.
@@ -102,12 +108,26 @@ Se o argumento casar `^[0-9]+(,[0-9]+)*$`, trate-o como **lista por número**; c
   gh issue list --label <label> --state open --json number,title,labels,body
   ```
 
+**Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label traz de volta,
+na mesma leva, issues abertas manualmente/via integração externa e issues geradas por `/retro` ou
+`/vetor:backlog-ideator` (label `ai-generated`), sem distinção. Antes de montar o agrupamento por
+afinidade, particione o resultado usando o campo `labels` já retornado:
+
+- **Pedidas pelo usuário** (candidatas primárias): issues **sem** a label `ai-generated`.
+- **Recomendadas pelo agente**: issues **com** a label `ai-generated`.
+
+Monte o plano de dispatch priorizando o grupo "pedidas pelo usuário". Só inclua issues do grupo
+"recomendadas pelo agente" quando o primeiro grupo estiver **vazio** no filtro aplicado — ou,
+opcionalmente, como itens extras claramente sinalizados como "recomendação do agente" no plano
+apresentado para aprovação (Fase 2), nunca misturados sem essa marcação.
+
 **Fallback de label.** Se o label for `backlog` (default) e a busca retornar vazio, rode também
-`gh issue list --state open --json number,title` sem filtro. Se houver resultados, avise:
+`gh issue list --state open --json number,title,labels` sem filtro. Se houver resultados, avise:
 "_Nenhuma issue com label `backlog`, mas há &lt;N&gt; issues abertas sem label. Use
 `/coordinator <N>,<M>,...` para despachar específicas, ou aplique a label `backlog`._" Isso evita a
 falsa impressão de "nada a despachar" quando há trabalho pendente. Issues sem label podem vir de
-`/retro`, criação manual ou integração externa.
+`/retro`, criação manual ou integração externa. Se o resultado combinar os dois grupos acima (pedidas
+pelo usuário e recomendadas pelo agente), aplique a mesma priorização antes de sugerir o dispatch.
 
 Para cada issue, verifique se já há PR aberto:
 ```bash
@@ -175,6 +195,11 @@ Coordenando issues com a label: <label>
 Se houver mais de uma onda, explique **por que** cada grupo da onda `O_2+` depende de um grupo de
 onda anterior (cite a issue/menção que fundamentou a heurística). Se todos os grupos couberem em
 `O_1`, omita a coluna de justificativa — é o caso comum, sem dependências detectadas.
+
+Se o plano incluir issues do grupo "recomendadas pelo agente" (Fase 1) — porque não havia issues
+pedidas pelo usuário pendentes, ou como itens extras opcionais —, sinalize cada uma delas na coluna
+"Ação" (ex.: "Despachar (recomendação do agente)") para que a aprovação distinga claramente as duas
+origens.
 
 #### Teto de workers simultâneos
 
@@ -425,12 +450,17 @@ Resumo: <N> merged, <M> falharam, <K> aguardando review.
 
 ---
 
-## Hard caps
+## Orçamentos e hard caps
 
-- **fix-loop-agent:** máximo 5 iterações por agente
+- **fix-loop-agent:** 5 iterações é **orçamento sugerido**, não hard cap enforced — nada no hook
+  interrompe o agente automaticamente (issue #156). Ao atingir a 5ª iteração sem verde, o agente
+  deve registrar `BLOCKED_WAITING` (não decidir sozinho continuar) e escalar ao coordinator via os
+  blocos `Blocked on`/`Options`/`Recommendation` do status file, em vez de estourar para 6+.
 - **worktree-ship:** máximo 3 tentativas de fix de CI
-- **Coordinator:** timeout global de 90 minutos
+- **Coordinator:** timeout global de 90 minutos (este sim, hard cap real)
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
+- `vetor-status.sh` destaca com `⚠️` na tabela qualquer `Iteration: N/5` com `N` acima do orçamento —
+  sinal de que o agente não escalou como deveria; trate como candidato a redispatch/intervenção.
 
 O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido pelo usuário na Fase 2
 (default recomendado `maxConcurrentWorkers` de `.claude/vetor/config.json`, senão 5).

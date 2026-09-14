@@ -53,6 +53,14 @@ for f in "$STATUS_DIR"/*.md; do
   status=$(sed -n 's/^Status: *//p' "$f" | head -1 | tr -d '\r')
   iter=$(sed -n 's/^Iteration: *//p' "$f" | head -1 | tr -d '\r')
   last=$(sed -n 's/^Last action: *//p' "$f" | head -1 | tr -d '\r')
+
+  # Issue #156: o orçamento de 5 iterações não é enforced por hook — destaca na tabela quando o
+  # agente estourou (N > 5), sinal de que deveria ter registrado BLOCKED_WAITING/FAILED_MAX_ITERATIONS
+  # em vez de continuar sozinho.
+  iter_n=$(printf '%s' "$iter" | sed -n 's#^\([0-9][0-9]*\)/.*#\1#p')
+  if [ -n "$iter_n" ] && [ "$iter_n" -gt 5 ]; then
+    iter="⚠️ ${iter}"
+  fi
   if printf '%s\n' "$active" | grep -qx "$name"; then
     wt="ativo"
   else
