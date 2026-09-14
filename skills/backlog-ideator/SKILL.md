@@ -86,7 +86,7 @@ diretórios de um framework de feature (ex.: `_reversa_forward/`) — feature-id
 Qualquer evidência ao vivo é âncora válida — não se limita a Sentry/Datadog. Exemplos: saída de
 `gh run view`/`gh api`, logs de produção, um comando que reproduz um comportamento real. Se observar
 uma dessas durante a sessão (não precisa buscar ativamente), use-a para propor issue `fix` ou
-`chore`, citando o comando/fonte exato.
+`chore`. **Para issues `fix`, é obrigatório citar o comando/fonte exato que reproduz o problema.**
 
 Se houver MCP de observabilidade disponível (`mcp__sentry__*`, `mcp__datadog__*` — ver
 `mcp-availability.md`), use-o para obter os erros não resolvidos mais frequentes em produção e
