@@ -151,14 +151,27 @@ Atualize o status file com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
 1. Leia a saída de erro (opcionalmente condensada com `agy` — ver `delegate-to-gemini.md` §1).
-2. **TDD**: se for a primeira iteração (`i=1`) e os testes ainda não falharem para o bug relatado,
-   escreva um teste de reprodução simples que quebre. Só altere o código do produto após o teste
-   estar vermelho.
-3. **KISS/YAGNI**: aplique a menor alteração atômica que faz o teste passar — sem refatoração
+2. **Hipóteses**: a partir do erro lido, liste 2-3 hipóteses candidatas (não 3-5 — o Vetor já opera
+   sob orçamento agressivo de iterações) para a causa raiz e escolha a de maior probabilidade antes
+   de escrever o teste de reprodução do passo 3. Registre a escolha no campo `Last action` do status
+   file, formato: `Last action: hipótese escolhida: <descrição curta> (descartadas: <outras
+   hipóteses>)`. Se esta não é a primeira iteração e o teste continua vermelho com a **mesma
+   assinatura de erro** da iteração anterior, não repita a hipótese já aplicada — promova a próxima
+   hipótese da lista anterior ou reformule com base no novo resultado. Aplica-se a toda iteração
+   vermelha, não só a primeira; se o erro tiver causa óbvia (uma hipótese clara), o passo é rápido —
+   não gere hesitação artificial nem rodada de perguntas (o loop é headless, nunca pergunta ao
+   usuário).
+3. **TDD** (ver `tdd-conventions.md` para a disciplina completa — bom teste, seams, anti-padrões,
+   mocking): se for a primeira iteração (`i=1`) e os testes ainda não falharem para o bug relatado,
+   escreva um teste de reprodução simples que quebre cobrindo a hipótese escolhida no passo 2 — uma
+   fatia por vez (vertical slice), nunca todos os cenários de uma vez. Refactor não é parte deste
+   ciclo: achados de arquitetura/refatoração ficam para o `code-review`, despachado depois pelo
+   `worktree-ship`. Só altere o código do produto após o teste estar vermelho.
+4. **KISS/YAGNI**: aplique a menor alteração atômica que faz o teste passar — sem refatoração
    especulativa fora de escopo.
-4. Commit: `fix: <descrição curta do fix>`
-5. Atualize o status file
-6. Continue para a próxima iteração
+5. Commit: `fix: <descrição curta do fix>`
+6. Atualize o status file
+7. Continue para a próxima iteração
 
 ### 4 — Após N=5 falhas (Handover de Falha)
 
@@ -181,6 +194,10 @@ O agente de correção automática falhou após 5 iterações.
 ```
 <erro bruto ou resumo do erro obtido na última iteração>
 ```
+
+## Hipóteses Consideradas
+1. Iteração 1: <hipótese escolhida> — <refutada | ainda não avaliada>
+2. Iteração 2: <hipótese escolhida> — <refutada | ainda não avaliada>
 
 ## Fixes Tentados (Commits locais)
 1. <fix commit 1>
