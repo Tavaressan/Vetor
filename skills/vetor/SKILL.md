@@ -138,6 +138,7 @@ Próximos passos recomendados:
 1. Abra e revise o arquivo `.claude/vetor/module-test-map.md` para garantir que os comandos de teste headless e os mapeamentos de pasta de seu projeto estejam 100% corretos.
 2. Revise e **commite** `.claude/rules/vetor/`. Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — uma rule não commitada não chega até eles.
 3. (Opcional) Crie a pasta `.claude/vetor/docs/` e adicione guias de arquitetura, padrões do projeto e gaps em markdown. O comando `/vetor:backlog` lerá automaticamente estes arquivos para propor issues altamente contextualizadas.
+4. (Opcional) Rode `/stack-practices` para gerar regras de melhores práticas da stack detectada (via Context7).
 ```
 
 Se o script pulou algum arquivo por já existir, diga qual — e que só `--force` o sobrescreve. Reporte
