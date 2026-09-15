@@ -41,10 +41,10 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    - **Arquitetura**: acoplamento novo, duplicação evitável, abstrações desnecessárias (YAGNI).
      Use estes limiares como heurística objetiva (não regra rígida) para reconhecer os casos mais
      comuns — a decisão de severidade continua sendo seu julgamento sobre o diff real:
-     - Função/método com mais de ~30 linhas de corpo.
-     - Lógica duplicada (quase idêntica) em 2 ou mais lugares do diff.
-     - Uso de `any` em TypeScript onde um tipo concreto seria viável.
-     - Componente com 3 ou mais props que poderia ser decomposto ou simplificado.
+     - **Long Method**: Função/método com mais de ~30 linhas de corpo.
+     - **Duplicate Code**: Lógica duplicada (quase idêntica) em 2 ou mais lugares do diff.
+     - **Primitive Obsession**: Uso de `any` em TypeScript onde um tipo concreto seria viável.
+     - **Data Clumps**: Componente com 3 ou mais props que poderia ser decomposto ou simplificado.
      - Código assíncrono (`async`/`await`, Promise) sem tratamento de erro.
    Não aponte nitpicks de estilo puro (formatação, nomes) a menos que prejudiquem a legibilidade.
 3. Para cada achado, atribua:
