@@ -50,6 +50,9 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    | blocker    | alta      | `path:42`     | <descrição objetiva> |
 
    Sem achados: **Nenhum problema relevante encontrado.**
+
+   ---
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 5. Finalize reportando ao chamador (`worktree-ship`) se houve algum achado `blocker`, sem impedir o
    fluxo — a decisão de agir sobre o achado é sempre humana.
