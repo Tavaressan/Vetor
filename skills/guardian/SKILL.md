@@ -213,7 +213,7 @@ for file in <arquivos-deletados>; do
   nameonly="${basename%.*}"
   # grep recursivo excluindo diretórios óbvios
   count=$(grep -r "$nameonly" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
-    -not -path "./.claude/worktrees/*" -not -path "./node_modules/*" -not -path "./.next/*" \
+    --exclude-dir=worktrees --exclude-dir=node_modules --exclude-dir=.next \
     2>/dev/null | wc -l)
   # Se fan-in > 5, reporá
 done
