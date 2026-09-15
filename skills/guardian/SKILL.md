@@ -223,6 +223,19 @@ done
 **Auto-fix (modo manual):** propõe criar uma issue no GitHub para revisar impacto (`gh issue create --title "Deletar $file pode quebrar dependências" --body "Fan-in: $count referências encontradas"`)
 **Auto-fix (modo --cron):** apenas reporta, **nunca cria issue** — modo cron é read-only
 
+### Staleness de regras de melhores práticas (`/stack-practices`)
+
+Sinalização leve, sem virar check numerado — reaproveita o padrão read-only já usado pelos checks
+acima. Se `.claude/rules/vetor/best-practices/*.md` existir, leia a data no cabeçalho de proveniência
+(linha `> Gerado por /stack-practices ... via Context7 em <data>`) de cada arquivo. Para os que
+tiverem mais de 90 dias:
+
+**Finding:** regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere
+`/stack-practices --refresh`
+**Auto-fix:** nenhum — só sinaliza. A refresh consulta o Context7 de novo, o que exige julgamento
+sobre qual versão da lib está em uso agora; não é uma mutação mecânica que o guardian deva aplicar
+sozinho.
+
 ---
 
 ## Relatório e Fluxo de Planejamento (Modo Manual)
@@ -248,6 +261,7 @@ Audit concluído. Mutações recomendadas abaixo.
 - [Aviso] Trabalho não commitado no worktree: `<worktree-path>`
 - [Aviso] Worktree localizado fora do padrão: `<path>`
 - [Aviso] Container Docker fora de healthy/running: `<nome>` (`<status>`)
+- [Aviso] Regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere `/stack-practices --refresh`
 
 ## Instruções de Aprovação
 Clique no botão **Proceed** no seu editor para autorizar o Guardian a aplicar os auto-fixes recomendados.
