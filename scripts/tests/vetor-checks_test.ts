@@ -1,6 +1,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { fileURLToPath } from "node:url";
 
-const SCRIPT = new URL("../vetor-checks.sh", import.meta.url).pathname;
+const SCRIPT = fileURLToPath(new URL("../vetor-checks.sh", import.meta.url));
 
 async function runVetorChecks(
   cwd: string,
