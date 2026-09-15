@@ -60,8 +60,8 @@ Next: Reading issue scope
 
 1. Leia a issue e entenda o escopo.
 2. Siga estritamente as regras de desenvolvimento do arquivo de referência `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` (§3):
-   - **TDD (§3.2)**: Escreva um teste de reprodução simples que falhe (vermelho) antes de alterar o código do produto.
-   - **KISS/YAGNI (§3.2)**: Implemente apenas o código estritamente necessário para fazer o teste passar. Evite refatorações fora do escopo da issue.
+   - **TDD**: Escreva um teste de reprodução simples que falhe (vermelho) antes de alterar o código do produto — disciplina completa em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md`.
+   - **KISS/YAGNI (§3)**: Implemente apenas o código estritamente necessário para fazer o teste passar. Evite refatorações fora do escopo da issue.
 3. Implemente a mudança no worktree indicado, com commits incrementais e mensagens `conventional commits`.
 4. Siga as instruções da skill `fix-loop-agent` (pré-carregada acima) para o loop de reproduce →
    fix → rebuild → test até verde.

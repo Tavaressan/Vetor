@@ -3,6 +3,25 @@
 Procedimento compartilhado, usado pelo `worktree-ship` (passos 2 e 10) quando `git merge` da branch
 default deixa arquivos conflitantes.
 
+## Princípio geral — Resolver por intenção
+
+Antes de aceitar ou descartar código em conflito, sempre **inspecione a intenção de cada lado** usando
+`git log` e `git show`:
+
+1. **Seu lado (current branch):** `git log --oneline -5` (últimos 5 commits) para entender o contexto
+   local, depois `git show <hash>` para ver a mudança específica que criou o conflito.
+
+2. **Lado remoto (default branch):** `git show origin/$DEFAULT_BRANCH:<filepath>` para ver a versão
+   resolvida no default, depois `git log origin/$DEFAULT_BRANCH --oneline -5` para entender a
+   intenção remota.
+
+3. **Decida pela lógica de negócio:** a mensagem de commit, o conteúdo exato e o contexto histórico
+   juntos revelam qual versão respeita melhor as regras do produto e do projeto.
+
+Isso é **resolução consciente por intenção**, não mecanicamente por padrão sintático — distingue-se
+do safety-valve de orçamento esgotado (§5.3), que é um fallback quando a inspeção honesta não
+resolve a ambiguidade.
+
 ## 1 — Identificar os conflitos
 
 ```bash
