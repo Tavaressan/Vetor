@@ -610,3 +610,132 @@ Deno.test("safety-check.ts (integração): sem regressão — raiz do repositór
   assertEquals(result.code, 0, result.stderr);
   await Deno.remove(repo, { recursive: true });
 });
+
+Deno.test("issue #184: git reset --hard é bloqueado incondicionalmente, mesmo fora de um worktree", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git reset --hard HEAD~1" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: git clean -f* é bloqueado incondicionalmente", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "echo antes && git clean -fdx" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: git branch -D é bloqueado incondicionalmente", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git branch -D feature/old" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: git checkout . é bloqueado incondicionalmente", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git checkout ." },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: git checkout .github (não é 'git checkout .' literal) não é bloqueado — sem falso positivo", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git checkout .github" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: heredoc/echo contendo o texto 'git reset --hard' como conteúdo não dispara o bloqueio (sem falso positivo de ancoragem)", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const command = [
+      "python3 <<'EOF'",
+      "with open('notes.txt', 'w') as f:",
+      "    f.write('lembrete: nunca faça git reset --hard ou git clean -fdx manualmente')",
+      "EOF",
+    ].join("\n");
+
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: comandos git não-destrutivos equivalentes continuam liberados (sem regressão)", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const resetSoft = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git reset --soft HEAD~1" },
+      cwd: repo,
+    });
+    assertEquals(resetSoft.code, 0, resetSoft.stderr);
+
+    const checkoutBranch = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git checkout feature/some-branch" },
+      cwd: repo,
+    });
+    assertEquals(checkoutBranch.code, 0, checkoutBranch.stderr);
+
+    const branchDelete = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git branch -d feature/merged" },
+      cwd: repo,
+    });
+    assertEquals(branchDelete.code, 0, branchDelete.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});

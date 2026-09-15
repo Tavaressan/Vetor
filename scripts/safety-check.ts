@@ -115,7 +115,35 @@ async function checkFreshness(wt: WorktreeInfo, agentType: string): Promise<void
  */
 const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|ready|merge))/;
 
+/**
+ * Comandos git destrutivos que descartam trabalho local sem chance de recuperação — bloqueados
+ * incondicionalmente, independente de worktree/status file (ao contrário do WORKER_GATE_COMMAND_RE
+ * acima, que só se aplica a workers não-GREEN). Mesma ancoragem: só casa no início do comando ou
+ * logo após um separador de shell, nunca em qualquer posição da string — senão o mesmo texto
+ * aparecendo como conteúdo dentro de um heredoc/echo seria tratado como se fosse o comando em si
+ * (mesma classe de falso positivo das issues #123/#161). `git checkout \.` exige que o ponto seja
+ * o argumento inteiro (fim do comando ou espaço em seguida) para não casar `git checkout .github`
+ * (issue #184).
+ */
+const DESTRUCTIVE_GIT_COMMAND_RE =
+  /(?:^|&&|\|\||;|\|)\s*(git reset --hard\S*|git clean -f\S*|git branch -D\S*|git checkout \.(?=\s|$))/;
+
+function checkDestructiveGit(command: string): void {
+  const match = command.match(DESTRUCTIVE_GIT_COMMAND_RE);
+  if (!match) return;
+
+  blocked(
+    `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: "${
+      match[1].trim()
+    }"\n` +
+      "git reset --hard / git clean -f* / git branch -D / git checkout . descartam trabalho " +
+      "local sem chance de recuperação — não são permitidos em nenhum contexto.",
+  );
+}
+
 function checkBash(command: string, wt: WorktreeInfo | null): void {
+  checkDestructiveGit(command);
+
   const dest = pushDestination(command);
   if (dest && PROTECTED_BRANCHES.includes(dest)) {
     blocked(
