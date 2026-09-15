@@ -5,25 +5,14 @@
 // declarada, é achar o punhado de libs estruturais que merecem uma rule de melhores práticas —
 // uma rule por dependência transitiva/utilitária inflaria o contexto sem ganho.
 
+import { exists, readJson } from "./project.ts";
+
 export type Ecosystem = "npm" | "deno" | "python" | "rust";
 
 export interface StructuralDependency {
   name: string;
   version: string;
   ecosystem: Ecosystem;
-}
-
-function exists(path: string): boolean {
-  try {
-    Deno.statSync(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function readJson(path: string): unknown {
-  return JSON.parse(Deno.readTextFileSync(path).replace(/^﻿/, ""));
 }
 
 function readTextSafe(path: string): string | null {
@@ -156,10 +145,35 @@ function scanTomlForAllowlist(
   return out;
 }
 
+/**
+ * PEP 621 (`[project]` `dependencies = ["django>=4.2.0", "fastapi", ...]`) — formato padrão de
+ * pip/setuptools/hatch/Poetry 2.x, não coberto por `scanTomlForAllowlist` (que só reconhece o
+ * formato clássico do Poetry 1.x, `[tool.poetry.dependencies]` com `lib = "versão"`).
+ */
+function scanPep621Dependencies(text: string, seen: Set<string>): StructuralDependency[] {
+  const out: StructuralDependency[] = [];
+  const arrayMatch = text.match(/(?:^|\n)\s*dependencies\s*=\s*\[([^\]]*)\]/);
+  if (!arrayMatch) return out;
+
+  const entries = arrayMatch[1].match(/"([^"]+)"|'([^']+)'/g) ?? [];
+  for (const raw of entries) {
+    const spec = raw.slice(1, -1);
+    const name = spec.match(/^([A-Za-z0-9_.-]+)/)?.[1]?.toLowerCase();
+    if (!name || !STRUCTURAL_ALLOWLIST.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    const version = spec.match(/[><=~!]=?\s*([0-9][^,;\s]*)/)?.[1] ?? "unknown";
+    out.push({ name, version, ecosystem: "python" });
+  }
+  return out;
+}
+
 function detectFromPyprojectToml(dir: string, seen: Set<string>): StructuralDependency[] {
   const text = readTextSafe(`${dir}/pyproject.toml`);
   if (text === null) return [];
-  return scanTomlForAllowlist(text, "python", seen);
+  return [
+    ...scanTomlForAllowlist(text, "python", seen),
+    ...scanPep621Dependencies(text, seen),
+  ];
 }
 
 function detectFromCargoToml(dir: string, seen: Set<string>): StructuralDependency[] {

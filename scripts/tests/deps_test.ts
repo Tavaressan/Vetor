@@ -99,6 +99,23 @@ Deno.test("pyproject.toml: dependência estrutural (Django) é detectada", () =>
   }
 });
 
+Deno.test("pyproject.toml: dependência estrutural em formato PEP 621 (dependencies = [...]) é detectada", () => {
+  const dir = tempDir();
+  try {
+    Deno.writeTextFileSync(
+      `${dir}/pyproject.toml`,
+      '[project]\nname = "app"\ndependencies = [\n  "fastapi>=0.110.0",\n  "requests",\n]\n',
+    );
+
+    const deps = detectStructuralDeps(dir);
+
+    assertEquals(deps.some((d) => d.name === "fastapi" && d.version === "0.110.0"), true);
+    assertEquals(deps.some((d) => d.name === "requests"), false);
+  } finally {
+    cleanup(dir);
+  }
+});
+
 Deno.test("Cargo.toml: dependência estrutural (Actix Web) é detectada", () => {
   const dir = tempDir();
   try {
