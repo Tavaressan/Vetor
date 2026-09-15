@@ -3,11 +3,9 @@
 // o exit code — 0 libera, 2 bloqueia (contrato descrito no topo de safety-check.ts).
 
 import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
+import { fileURLToPath } from "node:url";
 
-const SCRIPT = new URL("../safety-check.ts", import.meta.url).pathname.replace(
-  /^\/([A-Za-z]:)/,
-  "$1",
-);
+const SCRIPT = fileURLToPath(new URL("../safety-check.ts", import.meta.url));
 
 async function git(args: string[], cwd: string): Promise<string> {
   const out = await new Deno.Command("git", { args, cwd, stdout: "piped", stderr: "piped" })
