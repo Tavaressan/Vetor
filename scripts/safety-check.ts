@@ -115,7 +115,41 @@ async function checkFreshness(wt: WorktreeInfo, agentType: string): Promise<void
  */
 const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|ready|merge))/;
 
+/**
+ * Comandos git destrutivos que descartam trabalho local sem chance de recuperação — bloqueados
+ * incondicionalmente, independente de worktree/status file (ao contrário do WORKER_GATE_COMMAND_RE
+ * acima, que só se aplica a workers não-GREEN). Mesma ancoragem: só casa no início do comando ou
+ * logo após um separador de shell, nunca em qualquer posição da string — senão o mesmo texto
+ * aparecendo como conteúdo dentro de um heredoc/echo seria tratado como se fosse o comando em si
+ * (mesma classe de falso positivo das issues #123/#161). `git checkout \.` exige que o ponto seja
+ * o argumento inteiro (fim do comando ou espaço em seguida) para não casar `git checkout .github`
+ * (issue #184). `-[a-z]*f[a-z]*` casa `-f` em qualquer posição dentro do flag combinado de
+ * `git clean` (ex.: `-xdf`, `-df`, não só `-fdx`) — a própria issue #184 cita `-xdf` como exemplo
+ * que precisa ser bloqueado; achado do code-review da PR #200.
+ */
+const DESTRUCTIVE_GIT_COMMAND_RE =
+  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$))/;
+
+function checkDestructiveGit(command: string): void {
+  // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes do
+  // match, senão `git reset \` seguido de `--hard` em nova linha escaparia do regex (mesma razão
+  // documentada em pushDestination acima; achado do code-review da PR #200).
+  const joined = command.replace(/\\\r?\n/g, " ");
+  const match = joined.match(DESTRUCTIVE_GIT_COMMAND_RE);
+  if (!match) return;
+
+  blocked(
+    `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: "${
+      match[1].trim()
+    }"\n` +
+      "git reset --hard / git clean -f* / git branch -D / git checkout . descartam trabalho " +
+      "local sem chance de recuperação — não são permitidos em nenhum contexto.",
+  );
+}
+
 function checkBash(command: string, wt: WorktreeInfo | null): void {
+  checkDestructiveGit(command);
+
   const dest = pushDestination(command);
   if (dest && PROTECTED_BRANCHES.includes(dest)) {
     blocked(
