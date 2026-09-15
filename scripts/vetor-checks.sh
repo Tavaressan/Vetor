@@ -34,7 +34,9 @@ case "$cmd" in
     ;;
 
   repo-root)
-    root=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    root=""
+    [ -n "$common_dir" ] && root=$(dirname "$common_dir")
     [ -z "$root" ] && { echo "não é um repositório git" >&2; exit 1; }
     echo "$root"
     ;;
@@ -163,7 +165,9 @@ case "$cmd" in
   sync-root)
     # Tenta retornar a raiz do repo para a branch default se a branch atual estiver limpa
     # e sem commits locais pendentes vs remote (ou sem remote tracker caso já deletada).
-    ROOT=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    ROOT=""
+    [ -n "$common_dir" ] && ROOT=$(dirname "$common_dir")
     [ -z "$ROOT" ] && exit 0
     cd "$ROOT" || exit 0
     
@@ -193,7 +197,9 @@ case "$cmd" in
     #   <path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>
     # "age_days" é medido a partir do timestamp do último commit do worktree (proxy de
     # staleness — evita depender de mtime de diretório, que muda a qualquer escrita).
-    main_worktree=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    main_worktree=""
+    [ -n "$common_dir" ] && main_worktree=$(dirname "$common_dir")
     now_ts=$(date +%s)
     path=""
     branch=""
