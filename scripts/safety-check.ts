@@ -123,13 +123,19 @@ const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|r
  * aparecendo como conteúdo dentro de um heredoc/echo seria tratado como se fosse o comando em si
  * (mesma classe de falso positivo das issues #123/#161). `git checkout \.` exige que o ponto seja
  * o argumento inteiro (fim do comando ou espaço em seguida) para não casar `git checkout .github`
- * (issue #184).
+ * (issue #184). `-[a-z]*f[a-z]*` casa `-f` em qualquer posição dentro do flag combinado de
+ * `git clean` (ex.: `-xdf`, `-df`, não só `-fdx`) — a própria issue #184 cita `-xdf` como exemplo
+ * que precisa ser bloqueado; achado do code-review da PR #200.
  */
 const DESTRUCTIVE_GIT_COMMAND_RE =
-  /(?:^|&&|\|\||;|\|)\s*(git reset --hard\S*|git clean -f\S*|git branch -D\S*|git checkout \.(?=\s|$))/;
+  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$))/;
 
 function checkDestructiveGit(command: string): void {
-  const match = command.match(DESTRUCTIVE_GIT_COMMAND_RE);
+  // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes do
+  // match, senão `git reset \` seguido de `--hard` em nova linha escaparia do regex (mesma razão
+  // documentada em pushDestination acima; achado do code-review da PR #200).
+  const joined = command.replace(/\\\r?\n/g, " ");
+  const match = joined.match(DESTRUCTIVE_GIT_COMMAND_RE);
   if (!match) return;
 
   blocked(

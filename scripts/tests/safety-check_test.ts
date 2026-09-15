@@ -641,6 +641,39 @@ Deno.test("issue #184: git clean -f* é bloqueado incondicionalmente", async () 
   }
 });
 
+Deno.test("issue #184 (review PR #200): git clean -xdf/-df (flag -f em qualquer posição do combinado) é bloqueado", async () => {
+  const repo = await makeRepo("main");
+  try {
+    for (const command of ["git clean -xdf", "git clean -df"]) {
+      const result = await runHook({
+        tool_name: "Bash",
+        tool_input: { command },
+        cwd: repo,
+      });
+      assertEquals(result.code, 2, `esperava bloqueio para "${command}"`);
+      assertStringIncludes(result.stderr, "comando git destrutivo");
+    }
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184 (review PR #200): git reset --hard com continuação de linha (\\) continua bloqueado", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git reset \\\n  --hard HEAD~1" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
 Deno.test("issue #184: git branch -D é bloqueado incondicionalmente", async () => {
   const repo = await makeRepo("main");
   try {
