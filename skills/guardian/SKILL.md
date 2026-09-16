@@ -32,6 +32,8 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
   a auditoria exigir consultar comportamento de uma ferramenta/lib/framework/API externa (ex.:
   semântica de uma flag do Docker, driver de banco), o MCP Context7 é **obrigatório quando
   disponível** (ver "Documentação de ferramentas/libs (Context7)").
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` — vocabulário de
+  "fan-in"/"deletion test" usado pelo Check 9.
 
 ---
 
@@ -200,7 +202,10 @@ estado do container.
 
 Detecta arquivos que estão sendo deletados (marcados como deletados no git staging ou no diff) mas têm
 alto fan-in — muitas outras partes do código dependem deles. Isso representa um risco arquitetural
-significativo pois múltiplos componentes podem quebrar com a deleção.
+significativo pois múltiplos módulos podem quebrar com a deleção. Vocabulário de "fan-in"/"deletion
+test" definido em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` §Princípios
+(compartilhado com `architecture-review`, survey mais profundo e qualitativo — este check é só a
+heurística barata de contagem).
 
 ```bash
 # Detectar arquivos deletados no diff ou staged
