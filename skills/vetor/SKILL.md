@@ -67,8 +67,8 @@ existe é preservado (o JSON de saída informa o que foi criado e o que foi pula
 O script grava:
 - `.claude/vetor/module-test-map.md` — comandos de teste por módulo;
 - `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados, preservando
-  o `maxConcurrentWorkers` (default 5). O `prepare-worktree.ts` lê isso para saber como preparar
-  cada worktree;
+  o `maxConcurrentWorkers` (default 5) e o bloco `knowledge` (`enabled`/`provider`), se já existir. O
+  `prepare-worktree.ts` lê isso para saber como preparar cada worktree;
 - `.claude/rules/vetor/<runtime>.md` — convenções do projeto (comando de teste, formatador, lint,
   estilo de import), com frontmatter `paths` para entrarem em contexto **apenas** quando o agente lê
   um arquivo daquele tipo. Só há rules para projetos Deno e Node; nos demais runtimes o script não
@@ -79,6 +79,12 @@ arquivos de config). O que não foi detectado não vira regra.
 
 Se o runtime sair como `unknown`, avise o usuário de que o `module-test-map.md` precisa de ajuste
 manual — as skills de teste dependem dele.
+
+O JSON de saída inclui um campo `knowledge` (`{"status": ..., "label": ...}`) com o estado do
+**Knowledge Provider** — ver `$CLAUDE_PLUGIN_ROOT/skills/shared/references/knowledge-provider-contract.md`.
+Ausência do bloco `knowledge` em `config.json` (ou de `config.json` inteiro) nunca é erro: o default é
+`✓ Filesystem`, sempre funcional sem configuração adicional. Só vira `○ Disabled` com
+`knowledge.enabled: false` explícito, e `✓ Obsidian` com `knowledge.provider: "obsidian"` explícito.
 
 ### 2.b — Inserir/atualizar resumo de capacidades em CLAUDE.md/AGENTS.md
 
@@ -115,7 +121,7 @@ Após a criação/validação dos arquivos, exiba uma mensagem informativa clara
 
 Runtime detectado: <runtime> (<testCommand>)
 
-Runtime detectado: <runtime> (<testCommand>)
+Knowledge: <label do campo `knowledge` no JSON de saída — ex.: "✓ Filesystem", "✓ Obsidian" ou "○ Disabled">
 
 Arquivos configurados:
 - [x] .claude/vetor/module-test-map.md (Mapeamento de testes por módulo)
