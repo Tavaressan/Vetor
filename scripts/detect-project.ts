@@ -7,6 +7,7 @@
 
 import { detectConventions, detectProject, type ProjectInfo, readJson } from "./lib/project.ts";
 import { renderRules, RULES_DIR } from "./lib/rules.ts";
+import { detectKnowledgeState } from "./lib/knowledge.ts";
 
 const TARGET_DIR = ".claude/vetor";
 const MAP_FILE = `${TARGET_DIR}/module-test-map.md`;
@@ -148,8 +149,8 @@ Todo \`find\`/\`grep\` executado pelas skills deve excluir:
 `;
 }
 
-function writeConfig(info: ProjectInfo): void {
-  // Preserva chaves já existentes (ex.: maxConcurrentWorkers).
+export function writeConfig(info: ProjectInfo): Record<string, unknown> {
+  // Preserva chaves já existentes (ex.: maxConcurrentWorkers, knowledge).
   let config: Record<string, unknown> = {};
   if (exists(CONFIG_FILE)) {
     try {
@@ -165,6 +166,7 @@ function writeConfig(info: ProjectInfo): void {
   config.testCommand = info.testCommand;
 
   Deno.writeTextFileSync(CONFIG_FILE, JSON.stringify(config, null, 2) + "\n");
+  return config;
 }
 
 /** Mesmo contrato do map: arquivo existente é preservado sem --force. */
@@ -201,8 +203,9 @@ function main() {
   const modules = detectModules(root);
 
   if (!mapSkipped) Deno.writeTextFileSync(MAP_FILE, renderMap(root, modules));
-  writeConfig(root);
+  const config = writeConfig(root);
   const rules = writeRules(root, force);
+  const knowledge = detectKnowledgeState(config);
 
   console.log(JSON.stringify({
     status: mapSkipped ? "skipped" : mapExisted ? "overwritten" : "created",
@@ -212,6 +215,7 @@ function main() {
     modules: modules.map((m) => m.name),
     path: MAP_FILE,
     rules,
+    knowledge,
   }));
 }
 

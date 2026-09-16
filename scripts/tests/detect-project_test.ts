@@ -1,6 +1,7 @@
-import { equal } from "@std/assert";
+import { assertEquals, equal } from "@std/assert";
 import { detectProject } from "../lib/project.ts";
-import { detectModules, renderMap } from "../detect-project.ts";
+import { detectModules, renderMap, writeConfig } from "../detect-project.ts";
+import { detectKnowledgeState, FilesystemKnowledgeProvider } from "../lib/knowledge.ts";
 
 Deno.test("projeto único com subdiretórios comuns gera apenas root", () => {
   // Simula um projeto com subdiretórios comuns (src, scripts, etc)
@@ -66,6 +67,54 @@ Deno.test("módulo com arquivo de teste mantém o comando", () => {
 
     equal(modules, [{ name: "scripts", command: "cd scripts && deno test -A" }]);
   } finally {
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
+// --- Issue #224: writeConfig preserva `knowledge` e FilesystemKnowledgeProvider
+// continua funcionando independentemente do que estiver (ou não) em config.json ---
+
+Deno.test("writeConfig preserva knowledge.enabled: false; FilesystemKnowledgeProvider segue funcionando", async () => {
+  const directory = Deno.makeTempDirSync();
+  const originalCwd = Deno.cwd();
+  try {
+    Deno.mkdirSync(`${directory}/.claude/vetor`, { recursive: true });
+    Deno.writeTextFileSync(
+      `${directory}/.claude/vetor/config.json`,
+      JSON.stringify({ knowledge: { enabled: false } }),
+    );
+
+    Deno.chdir(directory);
+    const config = writeConfig(detectProject("."));
+
+    // Critério de aceite: knowledge.enabled: false sobrevive à escrita de runtime/testCommand.
+    assertEquals((config.knowledge as { enabled: boolean }).enabled, false);
+    assertEquals(detectKnowledgeState(config), { status: "disabled", label: "○ Disabled" });
+
+    // Critério de aceite: com knowledge desabilitado no config, o provider filesystem
+    // continua funcionando sem erro — ele nunca lê config.json.
+    const provider = new FilesystemKnowledgeProvider(`${directory}/docs`);
+    await provider.create("doc.md", "conteúdo");
+    assertEquals(await provider.read("doc.md"), "conteúdo");
+  } finally {
+    Deno.chdir(originalCwd);
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
+Deno.test("writeConfig sem config.json prévio: knowledge ausente -> Filesystem", () => {
+  const directory = Deno.makeTempDirSync();
+  const originalCwd = Deno.cwd();
+  try {
+    Deno.mkdirSync(`${directory}/.claude/vetor`, { recursive: true });
+
+    Deno.chdir(directory);
+    const config = writeConfig(detectProject("."));
+
+    assertEquals(config.knowledge, undefined);
+    assertEquals(detectKnowledgeState(config), { status: "filesystem", label: "✓ Filesystem" });
+  } finally {
+    Deno.chdir(originalCwd);
     Deno.removeSync(directory, { recursive: true });
   }
 });
