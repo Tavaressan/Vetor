@@ -31,6 +31,9 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
   resumir documentação extensa (§1) e rascunhar corpos de issue (§6). Você sempre revisa e ancora o
   rascunho antes de criar.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — MCP de observabilidade (§2.a).
+  Se a ideação exigir pesquisar comportamento de uma ferramenta/lib/framework/API externa antes de
+  propor uma issue, o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de
+  ferramentas/libs (Context7)").
 
 ---
 
@@ -69,6 +72,24 @@ arquivos principais e limite-se a listas de tópicos/buscas pontuais nos demais.
 leia nativamente. Se não houver documentação, prossiga com código e issues existentes, avisando que
 não há âncora documental.
 
+### 1.a — Glossário de domínio (`CONTEXT.md`, lazy e opcional)
+
+Se `.claude/vetor/docs/CONTEXT.md` existir, ele já é lido pelo item 1 de §1 acima (qualquer `.md` em
+`.claude/vetor/docs/`). Este glossário é **puro**: nunca contém spec ou decisão de implementação,
+apenas terminologia de domínio.
+
+Durante a sessão, se um termo do domínio for usado de forma ambígua ou entrar em conflito com o que
+já está registrado em `CONTEXT.md`, resolva a definição (apurando fato antes de perguntar — regra
+de §2.b) e escreva/atualize o arquivo com o formato:
+
+```
+**<Termo>**: <definição de 1-2 frases>
+_Avoid_: <sinônimos banidos, se houver>
+```
+
+**Nunca crie o arquivo preventivamente** — só na primeira vez em que um termo é de fato resolvido
+durante a sessão.
+
 ### 2 — Levantar issues existentes
 
 ```bash
@@ -83,17 +104,42 @@ diretórios de um framework de feature (ex.: `_reversa_forward/`) — feature-id
 Qualquer evidência ao vivo é âncora válida — não se limita a Sentry/Datadog. Exemplos: saída de
 `gh run view`/`gh api`, logs de produção, um comando que reproduz um comportamento real. Se observar
 uma dessas durante a sessão (não precisa buscar ativamente), use-a para propor issue `fix` ou
-`chore`, citando o comando/fonte exato.
+`chore`. **Para issues `fix`, é obrigatório citar o comando/fonte exato que reproduz o problema.**
 
 Se houver MCP de observabilidade disponível (`mcp__sentry__*`, `mcp__datadog__*` — ver
 `mcp-availability.md`), use-o para obter os erros não resolvidos mais frequentes em produção e
 ancore issues `fix` neles, incluindo stacktraces. Sem MCP, prossiga normalmente.
 
-### 2.b — Questionamento direcionado (KISS & YAGNI)
+### 2.b — Investigação estruturada (grilling)
 
 Seguindo `planning-conventions.md` §3.1: se houver ambiguidades críticas sobre os objetivos do
-backlog ou limites arquiteturais não resolvidas pela seção 1, formule **exatamente um bloco com até
-3 perguntas** no chat e aguarde a resposta antes da Fase 3.
+backlog ou limites arquiteturais não resolvidas pela seção 1, entreviste o usuário em **rodadas**
+até essas ambiguidades se esgotarem — em vez de um bloco fixo de perguntas.
+
+**Fato vs. decisão.** Antes de transformar qualquer ambiguidade em pergunta, tente apurá-la sozinho:
+`gh issue list`, grep no código-alvo, ou releitura de `docs/`/`.claude/vetor/docs/` (já cobertos por
+§1/§2). Qualquer ambiguidade resolvível dessa forma **nunca** vira pergunta ao usuário — apure e
+prossiga. Só entra em rodada o que exige julgamento do usuário (prioridade, escopo, trade-off).
+
+**Frontier.** Mantenha internamente (não precisa expor a árvore ao usuário) a lista de ambiguidades
+levantadas em §1/§2.a ainda não resolvidas. Cada rodada contém apenas as perguntas cuja resposta
+**não** depende de outra pergunta ainda em aberto na mesma rodada. Uma pergunta que depende da
+resposta de outra vai para a rodada seguinte, nunca entra junto. Não há teto fixo de perguntas por
+rodada — a rodada contém toda a frontier atual (pode ser 1 pergunta, pode ser 6).
+
+**Formato de rodada:**
+```
+❓ **Q1** - **<título da decisão>**: <pergunta, com opções se aplicável>
+➡️ <resposta recomendada pelo agente>
+---
+❓ **Q2** - **<título da decisão>**: <pergunta, com opções se aplicável>
+➡️ <resposta recomendada pelo agente>
+```
+
+**Critério de parada.** Repita rodadas até a frontier esvaziar — isto é, nenhuma ambiguidade nova
+surge das respostas da última rodada. Não pare por contagem de perguntas respondidas. Se a análise
+de §1/§2.a não levantar nenhuma ambiguidade crítica, pule direto para a Fase 3 sem gerar uma rodada
+vazia.
 
 ### 3 — Gerar propostas
 

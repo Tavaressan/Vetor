@@ -1,11 +1,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { fileURLToPath } from "node:url";
 
-// No Windows, .pathname devolve "/C:/..." — bash não resolve esse formato (exit 127,
-// "No such file or directory"). Remove a barra líder antes da letra de unidade.
-const SCRIPT = new URL("../session-check.sh", import.meta.url).pathname.replace(
-  /^\/([A-Za-z]:)/,
-  "$1",
-);
+const SCRIPT = fileURLToPath(new URL("../session-check.sh", import.meta.url));
 
 /**
  * No Windows, `clearEnv: true` + `PATH` em formato POSIX (necessário para o script enxergar

@@ -38,7 +38,9 @@ Recommendation: <opção recomendada e por quê>
 **`FAILED_MAX_ITERATIONS`**: além de atualizar o status, crie `FAIL_ANALYSIS.md` no root do
 worktree com o handover de falha (ver `fix-loop-agent` §4).
 
-Iterações em `BLOCKED_WAITING` não contam contra o hard cap de 5 do fix-loop.
+Iterações em `BLOCKED_WAITING` não contam contra o orçamento de 5 do fix-loop (sugerido, não
+enforced pelo hook — issue #156: ao atingi-lo, registre `BLOCKED_WAITING` ou
+`FAILED_MAX_ITERATIONS`, nunca decida sozinho continuar).
 
 ## Efeitos colaterais externos (fora do controle de versão)
 

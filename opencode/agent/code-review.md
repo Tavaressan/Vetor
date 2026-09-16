@@ -28,8 +28,11 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    - **Bugs**: lógica incorreta, edge cases não tratados, condições de corrida.
    - **Segurança**: injeção (SQL/comando/XSS), segredos expostos, validação de fronteira ausente.
    - **Correção**: o diff cumpre o que a issue/PR descreve, sem efeitos colaterais não intencionais.
-   - **Arquitetura**: acoplamento novo, duplicação evitável, abstrações desnecessárias (YAGNI). Não
-     aponte nitpicks de estilo puro (formatação, nomes) a menos que prejudiquem a legibilidade.
+   - **Arquitetura**: acoplamento novo, duplicação evitável, abstrações desnecessárias (YAGNI). Use
+     os code smells de Fowler como vocabulário — **Long Method** (função/método > ~30 linhas),
+     **Duplicate Code** (lógica repetida), **Primitive Obsession** (tipos genéricos onde concretos
+     seriam viáveis), **Data Clumps** (parâmetros/props que poderiam ser agrupados). Não aponte
+     nitpicks de estilo puro (formatação, nomes) a menos que prejudiquem a legibilidade.
 3. Para cada achado, atribua:
    - **Severidade**: `blocker` (bug/segurança real) | `warning` (risco a validar) | `nit` (sugestão
      menor).
@@ -47,6 +50,9 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    | blocker    | alta      | `path:42`     | <descrição objetiva> |
 
    Sem achados: **Nenhum problema relevante encontrado.**
+
+   ---
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 5. Finalize reportando ao chamador (`worktree-ship`) se houve algum achado `blocker`, sem impedir o
    fluxo — a decisão de agir sobre o achado é sempre humana.

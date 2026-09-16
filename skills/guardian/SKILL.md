@@ -28,7 +28,10 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
   auditar a listagem de migrations (§2) e rascunhar o relatório final. Você valida o rascunho antes
   de apresentá-lo.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — detecção de MCPs (§7, §8).
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — detecção de MCPs (§7, §8). Se
+  a auditoria exigir consultar comportamento de uma ferramenta/lib/framework/API externa (ex.:
+  semântica de uma flag do Docker, driver de banco), o MCP Context7 é **obrigatório quando
+  disponível** (ver "Documentação de ferramentas/libs (Context7)").
 
 ---
 
@@ -88,6 +91,23 @@ git worktree list
 
 **Finding:** worktree em `<path>` fora do diretório padrão
 **Auto-fix:** nenhum — apenas reporta para o usuário decidir.
+
+### 3.b — Diretórios residuais em `.claude/worktrees/` (issue #157)
+
+`git worktree remove` DESREGISTRA o worktree do git e só então tenta apagar o diretório. Quando essa
+exclusão falha parcialmente (no Windows, tipicamente `Filename too long` por artefatos de build como
+`build/`, `.gradle/`, `node_modules/`), sobra um diretório que o `git worktree list` não conhece mais
+e nenhuma outra checagem detecta.
+
+```bash
+comm -23 <(find .claude/worktrees -mindepth 1 -maxdepth 1 -type d | sort) \
+  <(git worktree list --porcelain | grep '^worktree ' | sed 's/^worktree //' | sort)
+```
+
+**Finding:** diretório em `<path>` presente em `.claude/worktrees/` mas ausente de `git worktree
+list` — resíduo de remoção parcial.
+**Auto-fix:** nenhum — apenas reporta. Pode conter uncommitted work relevante; a remoção exige
+inspeção manual do operador antes de apagar.
 
 ### 4 — Auditoria de worktrees (idade, tamanho, PR, uncommitted)
 
@@ -176,6 +196,46 @@ identifique quais **não** estão `running`/`healthy` (ex.: `exited`, `restartin
 **Auto-fix:** nenhum — apenas reporta. Este check não valida especificidades de stack, apenas o
 estado do container.
 
+### 9 — Risco arquitetural: deleção com high fan-in
+
+Detecta arquivos que estão sendo deletados (marcados como deletados no git staging ou no diff) mas têm
+alto fan-in — muitas outras partes do código dependem deles. Isso representa um risco arquitetural
+significativo pois múltiplos componentes podem quebrar com a deleção.
+
+```bash
+# Detectar arquivos deletados no diff ou staged
+git diff --name-only --diff-filter=D HEAD
+git diff --name-only --diff-filter=D --cached
+
+# Para cada arquivo deletado, contar referências (fan-in via grep)
+for file in <arquivos-deletados>; do
+  basename="${file##*/}"
+  nameonly="${basename%.*}"
+  # grep recursivo excluindo diretórios óbvios
+  count=$(grep -r "$nameonly" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+    --exclude-dir=worktrees --exclude-dir=node_modules --exclude-dir=.next \
+    2>/dev/null | wc -l)
+  # Se fan-in > 5, reporá
+done
+```
+
+**Finding:** arquivo `<path>` marcado para deleção mas tem fan-in alto (<N> referências encontradas)
+**Auto-fix (modo manual):** propõe criar uma issue no GitHub para revisar impacto (`gh issue create --title "Deletar $file pode quebrar dependências" --body "Fan-in: $count referências encontradas"`)
+**Auto-fix (modo --cron):** apenas reporta, **nunca cria issue** — modo cron é read-only
+
+### Staleness de regras de melhores práticas (`/stack-practices`)
+
+Sinalização leve, sem virar check numerado — reaproveita o padrão read-only já usado pelos checks
+acima. Se `.claude/rules/vetor/best-practices/*.md` existir, leia a data no cabeçalho de proveniência
+(linha `> Gerado por /stack-practices ... via Context7 em <data>`) de cada arquivo. Para os que
+tiverem mais de 90 dias:
+
+**Finding:** regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere
+`/stack-practices --refresh`
+**Auto-fix:** nenhum — só sinaliza. A refresh consulta o Context7 de novo, o que exige julgamento
+sobre qual versão da lib está em uso agora; não é uma mutação mecânica que o guardian deva aplicar
+sozinho.
+
 ---
 
 ## Relatório e Fluxo de Planejamento (Modo Manual)
@@ -201,6 +261,7 @@ Audit concluído. Mutações recomendadas abaixo.
 - [Aviso] Trabalho não commitado no worktree: `<worktree-path>`
 - [Aviso] Worktree localizado fora do padrão: `<path>`
 - [Aviso] Container Docker fora de healthy/running: `<nome>` (`<status>`)
+- [Aviso] Regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere `/stack-practices --refresh`
 
 ## Instruções de Aprovação
 Clique no botão **Proceed** no seu editor para autorizar o Guardian a aplicar os auto-fixes recomendados.
