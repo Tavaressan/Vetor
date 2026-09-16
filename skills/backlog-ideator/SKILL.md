@@ -116,6 +116,7 @@ Proponha de **3 a 8 issues** no formato:
 
 **Tipo:** feat | fix | chore | refactor | test
 **Módulo:** <um dos módulos do projeto, derivado dos paths do repo ou do module-test-map>
+**Seam de Teste:** <interface pública que será testada — prefira seam já existente; use o seam mais alto possível (idealmente 1 seam por issue)>
 **Âncora (documental | empírica):** <referência ao trecho de documentação (§1) OU à evidência ao vivo (§2.a) — cite o comando/fonte exato se empírica>
 
 **Descrição:**
@@ -130,6 +131,11 @@ Proponha de **3 a 8 issues** no formato:
 
 Cada proposta deve estar ancorada em entidade, dívida técnica ou gap confirmado; ter critério de
 aceite verificável; e ser atômica o suficiente para caber em um PR.
+
+**Seam de Teste**: derive-o da mesma âncora já usada para o resto da proposta (§1/§2.a) — proponha
+com base no `module-test-map.md` e na interface pública já conhecida do módulo, sem pesquisa dedicada
+nova. A confirmação do campo acontece no checkpoint de aprovação já existente (§5) — não gera rodada
+de esclarecimento nova.
 
 ### 4 — Verificar duplicatas
 
@@ -163,6 +169,7 @@ Gere ou atualize `implementation_plan.md` (com `request_feedback: true` e `user_
 ## Issues Propostas
 
 ### 1. ✅ <título> — <tipo> — <módulo>
+- **Seam de Teste:** <seam>
 - **Descrição:** <descrição>
 - **Critério de Aceite:** <critério>
 - **Âncora:** <âncora>
@@ -211,6 +218,7 @@ O corpo pode ser rascunhado com `agy` (ver `delegate-to-gemini.md`); revise e an
   ## Contexto
   Âncora: <referência à documentação>
   Módulo: <módulo>
+  Seam de Teste: <seam>
 
   ---
   🤖 Gerado por `/backlog` — [Claude Code](https://claude.ai/code)

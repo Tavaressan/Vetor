@@ -71,8 +71,13 @@ function extractApplyPatchPaths(command: string | string[] | undefined): string[
   return [...patchText.matchAll(APPLY_PATCH_PATH_RE)].map((match) => match[1].trim());
 }
 
+// Windows: paths absolutos do patch vêm como "C:\..." ou "C:/...", nunca com barra líder —
+// sem reconhecer a letra de unidade como absoluto, o path era tratado como relativo e
+// prefixado com cwd, mascarando um alvo fora do worktree como se estivesse dentro dele.
+const ABSOLUTE_PATH_RE = /^\/|^[A-Za-z]:[\\/]/;
+
 function resolveAgainstCwd(path: string, cwd: string): string {
-  return path.startsWith("/") ? path : `${cwd}/${path}`;
+  return ABSOLUTE_PATH_RE.test(path) ? path : `${cwd}/${path}`;
 }
 
 function blocked(message: string): never {
