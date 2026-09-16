@@ -29,9 +29,11 @@ sinaliza explicitamente o que ainda não está implementado.
 
 - `<tema>`: opcional — o assunto a especificar (ex.: "sistema de autenticação", "melhorar fluxo de
   checkout", "API de notificações").
-- Se omitido, use o contexto descoberto no passo 1 para propor um tema; se nada relevante for
-  encontrado, pergunte objetivamente ao usuário qual tema especificar (uma pergunta direta, não uma
-  entrevista).
+- Se omitido, rode o passo 1 **sem filtro de palavra-chave** (visão geral do projeto — categorias 1
+  a 5 e 7), proponha um tema a partir do que foi encontrado e confirme com o usuário antes de seguir
+  para o passo 2. Se nada relevante for encontrado, pergunte objetivamente ao usuário qual tema
+  especificar (uma pergunta direta, não uma entrevista). Só depois de o tema estar definido — por
+  argumento ou por confirmação — aplique o filtro por palavra-chave da categoria 6.
 
 ---
 
@@ -66,9 +68,15 @@ deverá substituir a fonte de busca do passo 1 sem alterar os passos seguintes.
 
 ### 1 — Context Discovery (filesystem)
 
-Antes de gerar qualquer rascunho, procure contexto relevante para `<tema>` no projeto, **nesta ordem
-de prioridade**. Em toda busca por arquivo (`find`/`grep`), exclua sempre
+Antes de gerar qualquer rascunho, procure contexto no projeto **nesta ordem de prioridade**. Em toda
+busca por arquivo (`find`/`grep`), exclua sempre
 `.claude/worktrees/*`, `node_modules/`, `target/`, `build/`, `dist/`, `.venv/`, `__pycache__/`.
+
+Se `<tema>` já foi informado (ou já foi confirmado com o usuário — ver Sintaxe), use-o para filtrar
+a categoria 6 e para julgar a relevância do conteúdo lido nas demais. **Se `<tema>` ainda não existe**
+(invocação sem argumento, primeira passada), rode as categorias 1 a 5 e 7 **sem filtro** — como
+levantamento geral do projeto — para propor um tema; a categoria 6 (código por palavra-chave) só se
+aplica depois que o tema estiver definido.
 
 1. **Documentação existente do Vetor:** `.claude/vetor/docs/**/*.md`
 2. **README:** `README.md` na raiz do projeto
@@ -76,7 +84,7 @@ de prioridade**. Em toda busca por arquivo (`find`/`grep`), exclua sempre
    trate de arquitetura
 4. **ADRs:** `docs/adr/**`, `docs/decisions/**`, ou arquivos que casem com `*ADR*.md`
 5. **Specs existentes:** `docs/specs/**/*.md` — evita duplicar uma Spec já criada para o mesmo tema
-6. **Código relevante:** busque por palavras-chave do tema nos módulos indicados por
+6. **Código relevante:** busque por palavras-chave do tema (já definido) nos módulos indicados por
    `.claude/vetor/module-test-map.md` (se existir)
 7. **Configuração do Vetor:** `.claude/vetor/config.json`, `.claude/vetor/module-test-map.md`,
    `.claude/rules/vetor/*.md`
@@ -90,7 +98,10 @@ via `agy`, ver Referências) em vez de reproduzi-lo inteiro.
 
 ### 2 — Reportar o contexto encontrado
 
-**Antes de redigir qualquer rascunho de Spec**, apresente o resultado da descoberta:
+**Antes de redigir qualquer rascunho de Spec**, apresente o resultado da descoberta. Quando o tema
+ainda não estiver confirmado (levantamento geral do passo 1), use `"(tema a confirmar — ver
+proposta abaixo)"` no lugar de `<tema>` e liste a proposta de tema logo após o relatório, para
+confirmação do usuário antes do passo 3.
 
 ```
 ## Contexto encontrado para "<tema>"
