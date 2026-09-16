@@ -127,6 +127,26 @@ Deno.test("link é idempotente — aplicar duas vezes não duplica a referência
   }
 });
 
+Deno.test("link não trata substring de outro nome como referência já presente", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await provider.create("ab.md", "# AB");
+    await provider.create("b.md", "# B");
+    await provider.create("source.md", "# Source");
+
+    // Link para "ab.md" não deve "satisfazer" um link futuro para "b.md" só porque
+    // a string "b.md" aparece como substring de "ab.md" no conteúdo.
+    await provider.link("source.md", "ab.md");
+    await provider.link("source.md", "b.md");
+
+    const content = await provider.read("source.md");
+    assertEquals(content.includes("- Relacionado: ab.md"), true);
+    assertEquals(content.includes("- Relacionado: b.md"), true);
+  } finally {
+    cleanup(dir);
+  }
+});
+
 Deno.test("link lança erro se source ou target não existirem", async () => {
   const { dir, provider } = tempProvider();
   try {
@@ -186,6 +206,32 @@ Deno.test("paths absolutos são rejeitados", async () => {
   const { dir, provider } = tempProvider();
   try {
     await assertRejects(() => provider.read("/etc/passwd"));
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("exists e list também rejeitam path inválido, não apenas retornam false/vazio", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await assertRejects(() => provider.exists!("../outside.md"));
+    await assertRejects(() => provider.list("../outside"));
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("search ignora entradas binárias ilegíveis como texto, sem lançar", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await provider.create("readable.md", "contém termo-alvo");
+    // Bytes inválidos como UTF-8 simulam uma entrada binária (ex.: imagem num vault).
+    Deno.writeFileSync(`${dir}/binary.bin`, new Uint8Array([0xff, 0xfe, 0x00, 0xff]));
+
+    const results = await provider.search("termo-alvo");
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].path, "readable.md");
   } finally {
     cleanup(dir);
   }

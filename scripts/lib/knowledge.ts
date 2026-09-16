@@ -120,12 +120,23 @@ export class FilesystemKnowledgeProvider implements KnowledgeProvider {
     const needle = query.toLowerCase();
     const results: KnowledgeSearchResult[] = [];
     for (const path of await this.list()) {
-      const content = Deno.readTextFileSync(`${this.rootDir}/${path}`);
+      let content: string;
+      try {
+        // Entradas binárias (ex.: imagens em um vault) não são conteúdo pesquisável,
+        // mas não podem quebrar a busca — apenas o match por path continua valendo.
+        content = Deno.readTextFileSync(`${this.rootDir}/${path}`);
+      } catch {
+        content = "";
+      }
       if (path.toLowerCase().includes(needle) || content.toLowerCase().includes(needle)) {
         results.push({ path, excerpt: content.slice(0, 200) });
       }
     }
     return results;
+  }
+
+  private linkLine(target: string): string {
+    return `- Relacionado: ${target}`;
   }
 
   // deno-lint-ignore require-await
@@ -138,9 +149,12 @@ export class FilesystemKnowledgeProvider implements KnowledgeProvider {
       );
     }
     const content = Deno.readTextFileSync(sourceFull);
-    if (content.includes(target)) return; // idempotente: referência já presente
+    const line = this.linkLine(target);
+    // Idempotente: compara a linha renderizada, não uma substring solta — evita falso
+    // positivo (ex.: já existir "b.md" ao linkar "ab.md") e falso negativo.
+    if (content.split(/\r?\n/).some((l) => l.trim() === line)) return;
     const separator = content.endsWith("\n") || content === "" ? "" : "\n";
-    Deno.writeTextFileSync(sourceFull, `${content}${separator}\n- Relacionado: ${target}\n`);
+    Deno.writeTextFileSync(sourceFull, `${content}${separator}\n${line}\n`);
   }
 
   // deno-lint-ignore require-await

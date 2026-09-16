@@ -19,7 +19,7 @@ forma idêntica independentemente do provider configurado.
 | `read` | `read(path: string): Promise<string>` | Lê o conteúdo bruto de uma entrada. **Lança** se o path não existir. |
 | `create` | `create(path: string, content: string): Promise<void>` | Cria uma nova entrada. **Lança** se o path já existir — nunca sobrescreve silenciosamente. |
 | `update` | `update(path: string, content: string): Promise<void>` | Sobrescreve o conteúdo de uma entrada existente. **Lança** se o path não existir. |
-| `list` | `list(path?: string): Promise<string[]>` | Lista os paths das entradas sob `path` (raiz do provider quando omitido). Path sem entradas → array vazio. |
+| `list` | `list(path?: string): Promise<string[]>` | Lista os paths das entradas sob `path` (raiz do provider quando omitido). Diretório inexistente ou vazio → array vazio. Path **inválido** (ver "Semântica de path") lança, exatamente como as demais operações. |
 | `link` | `link(source: string, target: string): Promise<void>` | Cria uma referência semântica de `source` para `target`. **Idempotente**: aplicar duas vezes não duplica a referência. **Lança** se `source` ou `target` não existirem. |
 
 ## Operações opcionais
@@ -28,7 +28,7 @@ forma idêntica independentemente do provider configurado.
 |----------|-----------|----------|
 | `delete` | `delete(path: string): Promise<void>` | Remove uma entrada. Lança se não existir. |
 | `move` | `move(source: string, target: string): Promise<void>` | Move/renomeia uma entrada preservando o conteúdo. Lança se `source` não existir ou `target` já existir. |
-| `exists` | `exists(path: string): Promise<boolean>` | Nunca lança — retorna `false` para path inexistente. |
+| `exists` | `exists(path: string): Promise<boolean>` | Retorna `false` para um path **válido** e inexistente. **Lança** para um path inválido (ver "Semântica de path" abaixo) — inválido não é o mesmo que inexistente. |
 
 Uma implementação pode omitir as operações opcionais; uma Skill que dependa de uma delas deve
 verificar `typeof provider.delete === "function"` (etc.) antes de chamá-la, em vez de assumir que
