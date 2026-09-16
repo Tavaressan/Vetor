@@ -1,6 +1,29 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { fileURLToPath } from "node:url";
 
-const SCRIPT = new URL("../vetor-checks.sh", import.meta.url).pathname;
+const SCRIPT = fileURLToPath(new URL("../vetor-checks.sh", import.meta.url));
+
+// git sempre reporta paths com "/" (mesmo no Windows) em `git worktree list`. Os paths
+// construídos aqui a partir de Deno.makeTempDir()/Deno.realPath() vêm no separador nativo
+// (`\` no Windows) — normaliza antes de comparar com a saída de subprocessos git/bash.
+function toPosix(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+/**
+ * `vetor-checks.sh safe-remove-worktree` resolve paths via `cd "$path" && pwd -P` dentro do
+ * bash — no Windows, o fstab do Git Bash pode mapear TEMP para um alias tipo `/tmp/...`,
+ * diferente do path nativo devolvido por Deno.realPath. Resolve pela mesma via do script
+ * para a comparação bater independente de como o Git Bash local está configurado.
+ */
+async function bashRealPath(path: string): Promise<string> {
+  const out = await new Deno.Command("bash", {
+    args: ["-c", 'cd "$1" && pwd -P', "bash", path],
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return new TextDecoder().decode(out.stdout).trim();
+}
 
 async function runVetorChecks(
   cwd: string,
@@ -54,9 +77,65 @@ Deno.test("safe-remove-worktree bloqueia remover pai que contém worktree filho"
 
     assertEquals(result.code, 1);
     assertStringIncludes(result.stderr, "cleanup bloqueado");
-    assertStringIncludes(result.stderr, child);
+    assertStringIncludes(result.stderr, await bashRealPath(child));
     await Deno.stat(parent);
     await Deno.stat(child);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("safe-remove-worktree reporta diretório residual quando git worktree remove falha parcialmente", async () => {
+  // Reproduz issue #157: git worktree remove DESREGISTRA o worktree e só então tenta apagar
+  // o diretório. Se a exclusão falhar (no Windows, tipicamente por "Filename too long"; aqui
+  // simulado com um subdiretório sem permissão de leitura/escrita), sobra um diretório órfão
+  // que nenhuma outra checagem detecta. O comportamento esperado é sair não-zero citando o path.
+  const repo = await makeRepo();
+  const worktree = `${repo}/wt`;
+  const lockedDir = `${worktree}/locked`;
+
+  try {
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "wt", worktree], repo);
+    await Deno.mkdir(`${lockedDir}/sub`, { recursive: true });
+    await Deno.writeTextFile(`${lockedDir}/sub/file.txt`, "x");
+    await Deno.chmod(lockedDir, 0o000);
+
+    const result = await runVetorChecks(repo, "safe-remove-worktree", worktree);
+
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, await bashRealPath(worktree));
+    // O worktree já foi desregistrado do git, mas o diretório residual precisa ser sinalizado.
+    await Deno.stat(worktree);
+  } finally {
+    await Deno.chmod(lockedDir, 0o755).catch(() => {});
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("safe-remove-worktree nunca força exclusão quando git worktree remove recusa (uncommitted work) — achado do code review da PR #169", async () => {
+  // git worktree remove recusa remover um worktree com mudanças não commitadas (sem --force).
+  // Nesse caso remove_status != 0 e o worktree segue REGISTRADO — o fallback de diretório
+  // residual não pode rodar aqui, ou apagaria dados sem o git saber (achado real da PR #169).
+  const repo = await makeRepo();
+  const worktree = `${repo}/wt-dirty`;
+
+  try {
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "wt-dirty", worktree], repo);
+    await Deno.writeTextFile(`${worktree}/uncommitted.txt`, "trabalho em andamento");
+
+    const result = await runVetorChecks(repo, "safe-remove-worktree", worktree);
+
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, await bashRealPath(worktree));
+    // Nunca deve alegar que desregistrou quando o git recusou a remoção inteira.
+    assertEquals(result.stderr.includes("desregistrou"), false);
+    // O diretório e o arquivo não commitado devem sobreviver intactos.
+    await Deno.stat(worktree);
+    await Deno.stat(`${worktree}/uncommitted.txt`);
+    const list = await git(["worktree", "list"], repo);
+    assertStringIncludes(list, "wt-dirty");
   } finally {
     await Deno.remove(repo, { recursive: true });
   }
@@ -201,10 +280,10 @@ Deno.test("worktree-audit lista worktree linkado com uncommitted=yes e exclui o 
     const stdout = new TextDecoder().decode(output.stdout);
 
     assertEquals(output.code, 0);
-    assertStringIncludes(stdout, `${linked}|feat/x|`);
+    assertStringIncludes(stdout, `${toPosix(linked)}|feat/x|`);
     assertStringIncludes(stdout, "|yes");
     // O root (repo) não deve aparecer na listagem.
-    const rootLine = stdout.split("\n").find((l) => l.startsWith(`${repo}|`));
+    const rootLine = stdout.split("\n").find((l) => l.startsWith(`${toPosix(repo)}|`));
     assertEquals(rootLine, undefined);
   } finally {
     await git(["worktree", "remove", "-f", linked], repo);
@@ -297,6 +376,52 @@ Deno.test("archive-orphan-status move o status file para o diretório archive/",
       missing = true;
     }
     assertEquals(missing, true);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("repo-root imprime o path do repositório principal quando executado de dentro de um worktree linkado — issue #160", async () => {
+  const repo = await Deno.realPath(await Deno.makeTempDir());
+  const linked = `${repo}/linked`;
+
+  try {
+    await git(["init", "-q", "-b", "main"], repo);
+    await git(["config", "user.email", "test@example.com"], repo);
+    await git(["config", "user.name", "Test"], repo);
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "feat/x", linked], repo);
+
+    const output = await new Deno.Command("bash", {
+      args: [SCRIPT, "repo-root"],
+      cwd: linked,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+
+    assertEquals(output.code, 0);
+    assertEquals(stdout, toPosix(repo));
+  } finally {
+    await git(["worktree", "remove", "-f", linked], repo);
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("repo-root imprime o próprio path quando executado do root do repositório — issue #160", async () => {
+  const repo = await makeRepo();
+
+  try {
+    const output = await new Deno.Command("bash", {
+      args: [SCRIPT, "repo-root"],
+      cwd: repo,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+
+    assertEquals(output.code, 0);
+    assertEquals(stdout, toPosix(repo));
   } finally {
     await Deno.remove(repo, { recursive: true });
   }

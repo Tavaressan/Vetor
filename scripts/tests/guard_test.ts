@@ -43,3 +43,31 @@ Deno.test("exceção de status não permite outros arquivos ou subdiretórios", 
 Deno.test("escape por .. é bloqueado", () => {
   assertEquals(isWriteAllowed(`${WORKTREE}/../../../src/a.ts`, WORKTREE, ROOT), false);
 });
+
+// Issue #155: ~/.claude/projects/<slug>/memory/ é o diretório de memória do Claude Code — fica
+// fora de qualquer worktree por construção (não é o repositório), então não tem como contaminar
+// workers paralelos, a própria justificativa do guard (ver topo do arquivo).
+const HOME = "/Users/dev";
+
+Deno.test("escrita em ~/.claude/projects/ é permitida (memória do Claude Code)", () => {
+  assertEquals(
+    isWriteAllowed(
+      `${HOME}/.claude/projects/-repo-slug/memory/MEMORY.md`,
+      WORKTREE,
+      ROOT,
+      HOME,
+    ),
+    true,
+  );
+});
+
+Deno.test("escrita fora de ~/.claude/projects/ continua bloqueada mesmo com HOME informado", () => {
+  assertEquals(isWriteAllowed(`${HOME}/other/file.md`, WORKTREE, ROOT, HOME), false);
+});
+
+Deno.test("sem HOME resolvido, a exceção de ~/.claude/projects/ não se aplica", () => {
+  assertEquals(
+    isWriteAllowed(`${HOME}/.claude/projects/-repo-slug/memory/MEMORY.md`, WORKTREE, ROOT, ""),
+    false,
+  );
+});

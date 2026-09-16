@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.3.1"
+  version: "1.4.1"
 ---
 
 Você é o guardião do Vetor. Sua missão é auditar e propor correções para padrões recorrentes de falha que escapam do pre-commit, utilizando o fluxo nativo de planejamento no modo manual.
@@ -28,7 +28,14 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
   auditar a listagem de migrations (§2) e rascunhar o relatório final. Você valida o rascunho antes
   de apresentá-lo.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — detecção de MCPs (§7, §8).
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — detecção de MCPs (§7, §8). Se
+  a auditoria exigir consultar comportamento de uma ferramenta/lib/framework/API externa (ex.:
+  semântica de uma flag do Docker, driver de banco), o MCP Context7 é **obrigatório quando
+  disponível** (ver "Documentação de ferramentas/libs (Context7)").
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` — vocabulário de
+  "fan-in"/"deletion test" usado pelo Check 9.
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolução do
+  `module-test-map.md` a partir do repo-root, consumida pelo Check 9 (§9).
 
 ---
 
@@ -88,6 +95,23 @@ git worktree list
 
 **Finding:** worktree em `<path>` fora do diretório padrão
 **Auto-fix:** nenhum — apenas reporta para o usuário decidir.
+
+### 3.b — Diretórios residuais em `.claude/worktrees/` (issue #157)
+
+`git worktree remove` DESREGISTRA o worktree do git e só então tenta apagar o diretório. Quando essa
+exclusão falha parcialmente (no Windows, tipicamente `Filename too long` por artefatos de build como
+`build/`, `.gradle/`, `node_modules/`), sobra um diretório que o `git worktree list` não conhece mais
+e nenhuma outra checagem detecta.
+
+```bash
+comm -23 <(find .claude/worktrees -mindepth 1 -maxdepth 1 -type d | sort) \
+  <(git worktree list --porcelain | grep '^worktree ' | sed 's/^worktree //' | sort)
+```
+
+**Finding:** diretório em `<path>` presente em `.claude/worktrees/` mas ausente de `git worktree
+list` — resíduo de remoção parcial.
+**Auto-fix:** nenhum — apenas reporta. Pode conter uncommitted work relevante; a remoção exige
+inspeção manual do operador antes de apagar.
 
 ### 4 — Auditoria de worktrees (idade, tamanho, PR, uncommitted)
 
@@ -176,6 +200,51 @@ identifique quais **não** estão `running`/`healthy` (ex.: `exited`, `restartin
 **Auto-fix:** nenhum — apenas reporta. Este check não valida especificidades de stack, apenas o
 estado do container.
 
+### 9 — Risco arquitetural (deletion test)
+
+Sinal contínuo de dívida arquitetural, não reativo a uma deleção pontual: mede o fan-in (quantos
+outros arquivos importam) dos módulos **tocados nos últimos 7 dias**, como proxy do "deletion test"
+(Feathers/Pocock) — um módulo bem desenhado pode ser deletado e refeito sem espalhar mudança.
+Read-only e barato (nunca cria/aplica fix de código). Vocabulário de "fan-in"/"deletion test" definido
+em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` §Princípios
+(compartilhado com `architecture-review`, survey mais profundo e qualitativo — este check é só a
+heurística barata de contagem).
+
+```bash
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" architectural-risk
+```
+
+O script resolve os módulos tocados via `git log --since="7 days ago" --name-only`, mapeados pela
+tabela "Detecção de módulo por arquivos alterados" do `module-test-map.md` (mesma resolução usada
+por `fix-loop-agent` — sempre a partir do repo-root, nunca do `cwd`, ver `project-conventions.md`).
+Para cada módulo tocado, mede fan-in via `grep -rlE "(import|require).*['\"].*<módulo>"` (heurística
+textual, sem AST). Emite uma linha por módulo: `<módulo>|<fan-in>|<candidate:yes/no>` —
+`candidate=yes` quando fan-in > 10 (heurística ajustável, **não** é hard cap — mesmo espírito das
+heurísticas de `code-review`). Nenhum módulo tocado nos últimos 7 dias → sem saída, reporte
+"skipped (nenhum módulo tocado nos últimos 7 dias)".
+
+**Finding:** módulo `<nome>` com fan-in alto (`<N>` arquivos importam diretamente) — candidato a
+revisão de design (deletion test: dificilmente removível/refazível sem espalhar mudança).
+**Auto-fix (modo manual):** propõe no plano "Criar issue de revisão de design para `<módulo>`"
+(label `ai-generated`) — só executa `gh issue create` após aprovação explícita, igual aos demais
+auto-fixes do guardian. A issue criada é delegada ao fluxo humano existente
+(`backlog-ideator`/`issue-coordinator`), nunca refatorada pelo guardian.
+**Auto-fix (modo --cron):** apenas reporta via `SendMessage` (segue a regra global da seção "Modo
+cron" abaixo) — **nunca** propõe `implementation_plan.md` nem cria issue.
+
+### Staleness de regras de melhores práticas (`/stack-practices`)
+
+Sinalização leve, sem virar check numerado — reaproveita o padrão read-only já usado pelos checks
+acima. Se `.claude/rules/vetor/best-practices/*.md` existir, leia a data no cabeçalho de proveniência
+(linha `> Gerado por /stack-practices ... via Context7 em <data>`) de cada arquivo. Para os que
+tiverem mais de 90 dias:
+
+**Finding:** regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere
+`/stack-practices --refresh`
+**Auto-fix:** nenhum — só sinaliza. A refresh consulta o Context7 de novo, o que exige julgamento
+sobre qual versão da lib está em uso agora; não é uma mutação mecânica que o guardian deva aplicar
+sozinho.
+
 ---
 
 ## Relatório e Fluxo de Planejamento (Modo Manual)
@@ -195,12 +264,14 @@ Audit concluído. Mutações recomendadas abaixo.
 - [ ] Remover worktree órfão (limpa, sem PR aberto): `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" safe-remove-worktree <path>`
 - [ ] Arquivar status file órfão: `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" archive-orphan-status <path>`
 - [ ] Solicitar rebase do Dependabot no PR #<N> (`gh pr comment <N> --body "@dependabot rebase"`)
+- [ ] Criar issue de revisão de design para `<módulo>` (label `ai-generated`, fan-in alto — deletion test)
 
 ### Alertas (Apenas Leitura / Ação Manual do Usuário)
 - [Aviso] Sequência de migrations com buracos ou timestamps incorretos
 - [Aviso] Trabalho não commitado no worktree: `<worktree-path>`
 - [Aviso] Worktree localizado fora do padrão: `<path>`
 - [Aviso] Container Docker fora de healthy/running: `<nome>` (`<status>`)
+- [Aviso] Regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere `/stack-practices --refresh`
 
 ## Instruções de Aprovação
 Clique no botão **Proceed** no seu editor para autorizar o Guardian a aplicar os auto-fixes recomendados.
@@ -228,6 +299,8 @@ Após a execução (ou se nenhum finding necessitar correção), produza o relat
 - Status órfãos: ✅ <N> status files verificados, <M> órfãos arquivados
 - Dependabot: ✅ <N> PRs abertos, nenhum com conflito
 - Docker containers: ✅ <N> containers, todos healthy/running (ou "skipped — MCP indisponível")
+- Risco arquitetural: ✅ <N> módulos tocados analisados, <M> candidatos (ou "skipped — nenhum módulo
+  tocado nos últimos 7 dias")
 
 ### Skipped
 - <checks não executados e por quê>

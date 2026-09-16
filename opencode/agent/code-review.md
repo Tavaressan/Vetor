@@ -28,8 +28,15 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    - **Bugs**: lógica incorreta, edge cases não tratados, condições de corrida.
    - **Segurança**: injeção (SQL/comando/XSS), segredos expostos, validação de fronteira ausente.
    - **Correção**: o diff cumpre o que a issue/PR descreve, sem efeitos colaterais não intencionais.
-   - **Arquitetura**: acoplamento novo, duplicação evitável, abstrações desnecessárias (YAGNI). Não
-     aponte nitpicks de estilo puro (formatação, nomes) a menos que prejudiquem a legibilidade.
+   - **Arquitetura**: acoplamento novo, duplicação evitável, abstrações desnecessárias (YAGNI).
+     Nomeie os achados com code smells de Fowler quando aplicável (prefixo `[Smell]` opcional):
+     **Duplicated Code** (2+ lógica duplicada), **Primitive Obsession** (`any`/tipos genéricos),
+     **Data Clumps**/**Feature Envy** (3+ props), **Mysterious Name** (identificador sem intenção
+     clara), **Shotgun Surgery** (3+ arquivos por mudança única), **Divergent Change** (arquivo
+     alterado por 2+ razões), **Speculative Generality** (abstração sem uso), **Message Chains**
+     (3+ acessos), **Middle Man** (delegação pura), **Repeated Switches** (switch 2+ vezes),
+     **Refused Bequest** (herança sobrescrita). Não aponte nitpicks de estilo puro (formatação,
+     nomes) a menos que prejudiquem a legibilidade.
 3. Para cada achado, atribua:
    - **Severidade**: `blocker` (bug/segurança real) | `warning` (risco a validar) | `nit` (sugestão
      menor).
@@ -38,15 +45,19 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    ```bash
    gh pr comment <PR-number> --body "<achados em markdown>"
    ```
-   Formato do corpo:
+   Formato do corpo (coluna "Achado" pode ter prefixo opcional `[Smell]` para smells de Fowler):
    ```markdown
    ## Code Review (Vetor)
 
    | Severidade | Confiança | Arquivo:Linha | Achado               |
    | ---------- | --------- | ------------- | -------------------- |
-   | blocker    | alta      | `path:42`     | <descrição objetiva> |
+   | blocker    | alta      | `path:42`     | [Data Clumps] <descrição objetiva> |
+   | warning    | média     | `path:10`     | <descrição de outro achado> |
 
    Sem achados: **Nenhum problema relevante encontrado.**
+
+   ---
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 5. Finalize reportando ao chamador (`worktree-ship`) se houve algum achado `blocker`, sem impedir o
    fluxo — a decisão de agir sobre o achado é sempre humana.
