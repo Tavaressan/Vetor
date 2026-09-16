@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.0.1"
+  version: "1.0.2"
 ---
 
 Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem fundamentadas, ancoradas na documentação existente do projeto, e criá-las em batch após aprovação do usuário.
@@ -34,6 +34,8 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
   Se a ideação exigir pesquisar comportamento de uma ferramenta/lib/framework/API externa antes de
   propor uma issue, o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de
   ferramentas/libs (Context7)").
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/grilling-conventions.md` — mecanismo de rodadas
+  (§1.a e §2.b), consumido também por `architecture-review`. Não replique o formato aqui.
 
 ---
 
@@ -74,21 +76,8 @@ não há âncora documental.
 
 ### 1.a — Glossário de domínio (`CONTEXT.md`, lazy e opcional)
 
-Se `.claude/vetor/docs/CONTEXT.md` existir, ele já é lido pelo item 1 de §1 acima (qualquer `.md` em
-`.claude/vetor/docs/`). Este glossário é **puro**: nunca contém spec ou decisão de implementação,
-apenas terminologia de domínio.
-
-Durante a sessão, se um termo do domínio for usado de forma ambígua ou entrar em conflito com o que
-já está registrado em `CONTEXT.md`, resolva a definição (apurando fato antes de perguntar — regra
-de §2.b) e escreva/atualize o arquivo com o formato:
-
-```
-**<Termo>**: <definição de 1-2 frases>
-_Avoid_: <sinônimos banidos, se houver>
-```
-
-**Nunca crie o arquivo preventivamente** — só na primeira vez em que um termo é de fato resolvido
-durante a sessão.
+Ver `grilling-conventions.md` §5 — mecanismo idêntico, não replicado aqui. Se `.claude/vetor/docs/CONTEXT.md`
+existir, ele já é lido pelo item 1 de §1 acima (qualquer `.md` em `.claude/vetor/docs/`).
 
 ### 2 — Levantar issues existentes
 
@@ -112,34 +101,11 @@ ancore issues `fix` neles, incluindo stacktraces. Sem MCP, prossiga normalmente.
 
 ### 2.b — Investigação estruturada (grilling)
 
-Seguindo `planning-conventions.md` §3.1: se houver ambiguidades críticas sobre os objetivos do
-backlog ou limites arquiteturais não resolvidas pela seção 1, entreviste o usuário em **rodadas**
-até essas ambiguidades se esgotarem — em vez de um bloco fixo de perguntas.
-
-**Fato vs. decisão.** Antes de transformar qualquer ambiguidade em pergunta, tente apurá-la sozinho:
-`gh issue list`, grep no código-alvo, ou releitura de `docs/`/`.claude/vetor/docs/` (já cobertos por
-§1/§2). Qualquer ambiguidade resolvível dessa forma **nunca** vira pergunta ao usuário — apure e
-prossiga. Só entra em rodada o que exige julgamento do usuário (prioridade, escopo, trade-off).
-
-**Frontier.** Mantenha internamente (não precisa expor a árvore ao usuário) a lista de ambiguidades
-levantadas em §1/§2.a ainda não resolvidas. Cada rodada contém apenas as perguntas cuja resposta
-**não** depende de outra pergunta ainda em aberto na mesma rodada. Uma pergunta que depende da
-resposta de outra vai para a rodada seguinte, nunca entra junto. Não há teto fixo de perguntas por
-rodada — a rodada contém toda a frontier atual (pode ser 1 pergunta, pode ser 6).
-
-**Formato de rodada:**
-```
-❓ **Q1** - **<título da decisão>**: <pergunta, com opções se aplicável>
-➡️ <resposta recomendada pelo agente>
----
-❓ **Q2** - **<título da decisão>**: <pergunta, com opções se aplicável>
-➡️ <resposta recomendada pelo agente>
-```
-
-**Critério de parada.** Repita rodadas até a frontier esvaziar — isto é, nenhuma ambiguidade nova
-surge das respostas da última rodada. Não pare por contagem de perguntas respondidas. Se a análise
-de §1/§2.a não levantar nenhuma ambiguidade crítica, pule direto para a Fase 3 sem gerar uma rodada
-vazia.
+Mecanismo completo em `grilling-conventions.md` (fato vs. decisão, frontier, formato de rodada,
+critério de parada) — não replicado aqui. As "ambiguidades" desta fase são as levantadas em §1/§2.a
+sobre objetivos do backlog ou limites arquiteturais; a apuração de fato usa `gh issue list`, grep no
+código-alvo ou releitura de `docs/`/`.claude/vetor/docs/` (já cobertos por §1/§2). Se §1/§2.a não
+levantar nenhuma ambiguidade crítica, pule direto para a Fase 3 sem gerar uma rodada vazia.
 
 ### 3 — Gerar propostas
 

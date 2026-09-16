@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.4.0"
+  version: "1.4.1"
 ---
 
 Você é o guardião do Vetor. Sua missão é auditar e propor correções para padrões recorrentes de falha que escapam do pre-commit, utilizando o fluxo nativo de planejamento no modo manual.
@@ -32,6 +32,8 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
   a auditoria exigir consultar comportamento de uma ferramenta/lib/framework/API externa (ex.:
   semântica de uma flag do Docker, driver de banco), o MCP Context7 é **obrigatório quando
   disponível** (ver "Documentação de ferramentas/libs (Context7)").
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` — vocabulário de
+  "fan-in"/"deletion test" usado pelo Check 9.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolução do
   `module-test-map.md` a partir do repo-root, consumida pelo Check 9 (§9).
 
@@ -203,7 +205,10 @@ estado do container.
 Sinal contínuo de dívida arquitetural, não reativo a uma deleção pontual: mede o fan-in (quantos
 outros arquivos importam) dos módulos **tocados nos últimos 7 dias**, como proxy do "deletion test"
 (Feathers/Pocock) — um módulo bem desenhado pode ser deletado e refeito sem espalhar mudança.
-Read-only e barato (nunca cria/aplica fix de código).
+Read-only e barato (nunca cria/aplica fix de código). Vocabulário de "fan-in"/"deletion test" definido
+em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` §Princípios
+(compartilhado com `architecture-review`, survey mais profundo e qualitativo — este check é só a
+heurística barata de contagem).
 
 ```bash
 bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" architectural-risk
