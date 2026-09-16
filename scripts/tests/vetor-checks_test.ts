@@ -3,6 +3,28 @@ import { fileURLToPath } from "node:url";
 
 const SCRIPT = fileURLToPath(new URL("../vetor-checks.sh", import.meta.url));
 
+// git sempre reporta paths com "/" (mesmo no Windows) em `git worktree list`. Os paths
+// construídos aqui a partir de Deno.makeTempDir()/Deno.realPath() vêm no separador nativo
+// (`\` no Windows) — normaliza antes de comparar com a saída de subprocessos git/bash.
+function toPosix(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+/**
+ * `vetor-checks.sh safe-remove-worktree` resolve paths via `cd "$path" && pwd -P` dentro do
+ * bash — no Windows, o fstab do Git Bash pode mapear TEMP para um alias tipo `/tmp/...`,
+ * diferente do path nativo devolvido por Deno.realPath. Resolve pela mesma via do script
+ * para a comparação bater independente de como o Git Bash local está configurado.
+ */
+async function bashRealPath(path: string): Promise<string> {
+  const out = await new Deno.Command("bash", {
+    args: ["-c", 'cd "$1" && pwd -P', "bash", path],
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return new TextDecoder().decode(out.stdout).trim();
+}
+
 async function runVetorChecks(
   cwd: string,
   ...args: string[]
@@ -55,7 +77,7 @@ Deno.test("safe-remove-worktree bloqueia remover pai que contém worktree filho"
 
     assertEquals(result.code, 1);
     assertStringIncludes(result.stderr, "cleanup bloqueado");
-    assertStringIncludes(result.stderr, child);
+    assertStringIncludes(result.stderr, await bashRealPath(child));
     await Deno.stat(parent);
     await Deno.stat(child);
   } finally {
@@ -82,7 +104,7 @@ Deno.test("safe-remove-worktree reporta diretório residual quando git worktree 
     const result = await runVetorChecks(repo, "safe-remove-worktree", worktree);
 
     assertEquals(result.code, 1);
-    assertStringIncludes(result.stderr, worktree);
+    assertStringIncludes(result.stderr, await bashRealPath(worktree));
     // O worktree já foi desregistrado do git, mas o diretório residual precisa ser sinalizado.
     await Deno.stat(worktree);
   } finally {
@@ -106,7 +128,7 @@ Deno.test("safe-remove-worktree nunca força exclusão quando git worktree remov
     const result = await runVetorChecks(repo, "safe-remove-worktree", worktree);
 
     assertEquals(result.code, 1);
-    assertStringIncludes(result.stderr, worktree);
+    assertStringIncludes(result.stderr, await bashRealPath(worktree));
     // Nunca deve alegar que desregistrou quando o git recusou a remoção inteira.
     assertEquals(result.stderr.includes("desregistrou"), false);
     // O diretório e o arquivo não commitado devem sobreviver intactos.
@@ -258,10 +280,10 @@ Deno.test("worktree-audit lista worktree linkado com uncommitted=yes e exclui o 
     const stdout = new TextDecoder().decode(output.stdout);
 
     assertEquals(output.code, 0);
-    assertStringIncludes(stdout, `${linked}|feat/x|`);
+    assertStringIncludes(stdout, `${toPosix(linked)}|feat/x|`);
     assertStringIncludes(stdout, "|yes");
     // O root (repo) não deve aparecer na listagem.
-    const rootLine = stdout.split("\n").find((l) => l.startsWith(`${repo}|`));
+    const rootLine = stdout.split("\n").find((l) => l.startsWith(`${toPosix(repo)}|`));
     assertEquals(rootLine, undefined);
   } finally {
     await git(["worktree", "remove", "-f", linked], repo);
@@ -379,7 +401,7 @@ Deno.test("repo-root imprime o path do repositório principal quando executado d
     const stdout = new TextDecoder().decode(output.stdout).trim();
 
     assertEquals(output.code, 0);
-    assertEquals(stdout, repo);
+    assertEquals(stdout, toPosix(repo));
   } finally {
     await git(["worktree", "remove", "-f", linked], repo);
     await Deno.remove(repo, { recursive: true });
@@ -399,7 +421,7 @@ Deno.test("repo-root imprime o próprio path quando executado do root do reposit
     const stdout = new TextDecoder().decode(output.stdout).trim();
 
     assertEquals(output.code, 0);
-    assertEquals(stdout, repo);
+    assertEquals(stdout, toPosix(repo));
   } finally {
     await Deno.remove(repo, { recursive: true });
   }
