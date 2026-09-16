@@ -27,7 +27,11 @@
 //                 ativo na mesma sessão. `isLinked` sozinho não pega esse caso. Aqui
 //                 correlacionamos `agent_id` (estável por instância de subagente, diferente
 //                 de `agent_type`) com o worktree resolvido na primeira chamada; uma mudança
-//                 de worktree para o mesmo agent_id é bloqueada.
+//                 de worktree para o mesmo agent_id é bloqueada. Só se aplica quando
+//                 `agent_type` está presente no payload (dispatch nativo, com
+//                 `subagent_type`/`isolation: "worktree"`) — sem isso, `agent_id` não tem
+//                 garantia de unicidade por worktree e a correlação gera falso positivo no
+//                 redispatch via `cd` explícito (ver issue #151).
 
 import { isWriteAllowed } from "./lib/guard.ts";
 import { run } from "./lib/project.ts";
@@ -67,8 +71,13 @@ function extractApplyPatchPaths(command: string | string[] | undefined): string[
   return [...patchText.matchAll(APPLY_PATCH_PATH_RE)].map((match) => match[1].trim());
 }
 
+// Windows: paths absolutos do patch vêm como "C:\..." ou "C:/...", nunca com barra líder —
+// sem reconhecer a letra de unidade como absoluto, o path era tratado como relativo e
+// prefixado com cwd, mascarando um alvo fora do worktree como se estivesse dentro dele.
+const ABSOLUTE_PATH_RE = /^\/|^[A-Za-z]:[\\/]/;
+
 function resolveAgainstCwd(path: string, cwd: string): string {
-  return path.startsWith("/") ? path : `${cwd}/${path}`;
+  return ABSOLUTE_PATH_RE.test(path) ? path : `${cwd}/${path}`;
 }
 
 function blocked(message: string): never {
@@ -102,7 +111,50 @@ async function checkFreshness(wt: WorktreeInfo, agentType: string): Promise<void
   if (message) blocked(message);
 }
 
+/**
+ * Casa `git push`/`gh pr (create|ready|merge)` apenas no início do comando ou logo após um
+ * separador de shell (`&&`, `||`, `;`, `|`) — nunca em qualquer posição da string. Sem isso,
+ * o mesmo texto aparecendo como conteúdo dentro de um heredoc (ou de qualquer outra string, ex.
+ * um `grep`/`echo` cujo argumento cita "git push") era tratado como se fosse o comando em si
+ * (issue #161, mesma classe de falha do match ingênuo da #4/#123).
+ */
+const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|ready|merge))/;
+
+/**
+ * Comandos git destrutivos que descartam trabalho local sem chance de recuperação — bloqueados
+ * incondicionalmente, independente de worktree/status file (ao contrário do WORKER_GATE_COMMAND_RE
+ * acima, que só se aplica a workers não-GREEN). Mesma ancoragem: só casa no início do comando ou
+ * logo após um separador de shell, nunca em qualquer posição da string — senão o mesmo texto
+ * aparecendo como conteúdo dentro de um heredoc/echo seria tratado como se fosse o comando em si
+ * (mesma classe de falso positivo das issues #123/#161). `git checkout \.` exige que o ponto seja
+ * o argumento inteiro (fim do comando ou espaço em seguida) para não casar `git checkout .github`
+ * (issue #184). `-[a-z]*f[a-z]*` casa `-f` em qualquer posição dentro do flag combinado de
+ * `git clean` (ex.: `-xdf`, `-df`, não só `-fdx`) — a própria issue #184 cita `-xdf` como exemplo
+ * que precisa ser bloqueado; achado do code-review da PR #200.
+ */
+const DESTRUCTIVE_GIT_COMMAND_RE =
+  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$))/;
+
+function checkDestructiveGit(command: string): void {
+  // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes do
+  // match, senão `git reset \` seguido de `--hard` em nova linha escaparia do regex (mesma razão
+  // documentada em pushDestination acima; achado do code-review da PR #200).
+  const joined = command.replace(/\\\r?\n/g, " ");
+  const match = joined.match(DESTRUCTIVE_GIT_COMMAND_RE);
+  if (!match) return;
+
+  blocked(
+    `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: "${
+      match[1].trim()
+    }"\n` +
+      "git reset --hard / git clean -f* / git branch -D / git checkout . descartam trabalho " +
+      "local sem chance de recuperação — não são permitidos em nenhum contexto.",
+  );
+}
+
 function checkBash(command: string, wt: WorktreeInfo | null): void {
+  checkDestructiveGit(command);
+
   const dest = pushDestination(command);
   if (dest && PROTECTED_BRANCHES.includes(dest)) {
     blocked(
@@ -110,7 +162,8 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
     );
   }
 
-  if (!/git push|gh pr (create|ready|merge)/.test(command)) return;
+  const gateMatch = command.match(WORKER_GATE_COMMAND_RE);
+  if (!gateMatch) return;
   if (!wt?.isLinked) return;
 
   const status = readStatus(statusFilePath(wt.root, wt.branch));
@@ -122,6 +175,7 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
       `ERROR: worker não-GREEN (Status: ${
         status || "desconhecido"
       }) — push/PR bloqueado pelo Vetor Safety Hook.\n` +
+        `Trecho do comando que casou o gate: "${gateMatch[0].trim()}"\n` +
         "Registre BLOCKED_WAITING no status file se precisar de intervenção; o worktree-ship faz a entrega após GREEN.",
     );
   }
@@ -132,6 +186,11 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
  * correlacionar, então não se aplica — não é regressão, é a mesma cobertura de antes.
  * Na primeira chamada de um `agent_id`, grava o worktree resolvido; em chamadas seguintes,
  * uma mudança de worktree para o MESMO agent_id indica cwd contaminado — bloqueia.
+ *
+ * Chamada apenas quando `agentType` está presente (ver call site) — sem dispatch nativo
+ * (`subagent_type`/`isolation: "worktree"`), o harness não garante `agent_id` único por
+ * worktree/instância, e correlacionar geraria falso positivo no redispatch via `cd` explícito
+ * a um worktree já existente (issue #151).
  */
 function checkAgentBinding(root: string, agentId: string | undefined, toplevel: string): void {
   if (!agentId) return;
@@ -202,13 +261,20 @@ async function checkWrite(
     return;
   }
 
-  checkAgentBinding(wt.root, agentId, wt.toplevel);
+  // Issue #151: só correlaciona agent_id -> worktree quando `agentType` está presente, ou seja,
+  // quando o dispatch identifica a instância de subagente (mesmo requisito de checkFreshness).
+  // Sem isso, o redispatch de um worker cujo worktree já existe (issue-coordinator/SKILL.md
+  // Fase 4: `cd` explícito, sem `subagent_type`/`isolation: "worktree"` nativos) não tem garantia
+  // de `agent_id` único por worktree — o harness pode reciclar o mesmo `agent_id` entre
+  // instâncias legitimamente distintas, e tratar isso como contaminação bloqueava escritas
+  // válidas (regressão da #63).
+  if (agentType) checkAgentBinding(wt.root, agentId, wt.toplevel);
 
   if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
     blocked(
       `ERROR: escrita fora do worktree bloqueada pelo Vetor Safety Hook: ${filePath}\n` +
-        `O worker só escreve dentro de ${wt.toplevel} (e no seu status file). Editar a raiz ` +
-        "contamina os demais workers em paralelo.",
+        `Com cwd dentro de ${wt.toplevel}, só é permitido escrever ali (ou no status file da ` +
+        "raiz). Escrever fora dali contamina os demais workers em paralelo.",
     );
   }
 }

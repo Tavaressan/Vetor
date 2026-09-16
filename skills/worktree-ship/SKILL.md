@@ -26,6 +26,9 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
   e o `module-test-map` conforme descrito lá. Use `$DEFAULT_BRANCH` em todos os comandos abaixo.
+  **A resolução do `module-test-map.md`/`config.json` no passo 4 sempre usa o root do repositório
+  (`vetor-checks.sh repo-root`), nunca o `cwd` do worktree** — arquivos ignorados pelo `.gitignore`
+  do projeto-alvo (ex.: `.claude/`) não são materializados em worktrees (issue #160).
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — delegação opcional ao `agy`
   (resumo de logs de CI §1, corpo do PR §4). Se a chamada ao `agy` for **negada pelo classificador de
   permissão**, não retente: a negação é política, não transiente — siga com o caminho nativo.
@@ -62,6 +65,21 @@ Sincronizar antes dos testes evita descobrir divergências só no merge final. S
 aqui, resolva-o já seguindo `conflict-resolution.md`. Não prossiga com testes contra base
 desatualizada.
 
+Se houve conflito resolvido com commit, valide que o commit de resolução é de fato um merge commit
+de 2 pais antes de prosseguir — um commit de 1 pai indica que `MERGE_HEAD` foi perdido (ex.: `git
+stash` rodado no meio do conflito) e o GitHub vai recalcular o merge do zero, reportando
+`CONFLICTING` mesmo com a árvore correta:
+
+```bash
+[ "$(git log -1 --format='%P' HEAD | wc -w)" -eq 2 ] || {
+  echo "ALERTA: commit de resolução de conflito não tem 2 pais — MERGE_HEAD foi perdido." >&2
+  exit 1
+}
+```
+
+Se falhar, siga a recuperação descrita em `conflict-resolution.md` §5 (refaça o merge com `git merge
+-s ours` para registrar o segundo pai sem alterar a árvore já resolvida) antes de seguir.
+
 ### 2.b — Colisão de versão de migration (condicional)
 
 Logo após o merge do passo 2, **antes dos testes locais**:
@@ -80,13 +98,14 @@ versionadas: no-op. Mesma convenção Flyway do `guardian` §2.
 git diff "origin/$DEFAULT_BRANCH" --name-only
 ```
 
-Mapeie os arquivos alterados aos módulos usando a tabela do module-test-map.
+Mapeie os arquivos alterados aos módulos usando a tabela do module-test-map, resolvido a partir do
+root do repositório (`vetor-checks.sh repo-root`), não do `cwd` do worktree.
 
 ### 4 — Testes locais
 
-Para cada módulo alterado, execute o comando headless correspondente do `module-test-map.md`.
-Quando o comando for `sem suíte de testes`, registre `skipped (no test suite)` no sumário; esse
-estado não bloqueia o ship.
+Para cada módulo alterado, execute o comando headless correspondente do `module-test-map.md`
+resolvido no passo 3. Quando o comando for `sem suíte de testes`, registre `skipped (no test
+suite)` no sumário; esse estado não bloqueia o ship.
 
 **Regra sandbox:**
 - Tente docker uma vez (se aplicável ao módulo)
@@ -151,11 +170,40 @@ gh pr create \
 
 ### 7 — Monitorar CI
 
+Antes do loop de CI, cheque cedo se o GitHub considera o PR mergeável — evita descobrir um
+`CONFLICTING` só no timeout do CI (ex.: causado por `MERGE_HEAD` perdido no passo 2):
+
+```bash
+gh pr view <PR-number> --json mergeable,mergeStateStatus
+```
+
+Se `mergeable` == `CONFLICTING` (ou `mergeStateStatus` == `DIRTY`), **não prossiga para o CI**: volte
+ao passo 2 e refaça a sincronização/merge seguindo `conflict-resolution.md` (incluindo a checagem de
+2 pais do §2 acima) antes de repetir este passo.
+
 ```bash
 gh pr checks <PR-number> --watch
 ```
 
 Timeout: 20 minutos. Se expirar, notifique e pare.
+
+⚠️ **Nunca substitua `gh pr checks --watch` por um loop de monitoramento próprio que só checa
+existência/início de um run** (ex.: sair assim que `status` deixar de estar vazio ou virar
+`in_progress`) — isso perde silenciosamente o momento em que o CI chega a um estado terminal. O
+comando `--watch` é bloqueante por design e é exatamente esse comportamento que se quer: ele só
+retorna quando os checks atingem um estado terminal (`success`/`failure`/`cancelled`/`timed_out`).
+
+Se for necessário rodar em background (ex.: para não bloquear outra atividade), use a tool `Monitor`
+no padrão "per-occurrence com fim conhecido" — o loop só termina em estado terminal do CI, nunca na
+mera existência do run:
+
+```bash
+until gh pr checks <PR-number> --json state -q '.[].state' \
+  | grep -qvE '^(IN_PROGRESS|QUEUED|PENDING)$'; do
+  sleep 15
+done
+gh pr checks <PR-number>
+```
 
 ### 8 — Classificação de erros e loop de fix (máximo 3 iterações)
 
@@ -211,22 +259,49 @@ Havendo módulo alterado, execute as duas revisões:
      description: "Code review: PR #<PR-number>",
      prompt: "PR #<PR-number>, branch <branch>, base $DEFAULT_BRANCH.",
      subagent_type: "vetor:code-review",
-     model: "sonnet",
-     run_in_background: false
+     model: "sonnet"
    })
    ```
-   O subagente é somente leitura sobre o código e publica os achados como comentário na PR.
+   O harness **sempre** despacha subagentes em background — não existe modo síncrono, e o retorno
+   imediato é apenas a confirmação de que o agente foi lançado, nunca o resultado da revisão.
+   **Bloqueante-leve:** antes de prosseguir para o passo 9, aguarde a notificação de conclusão deste
+   subagente (ele publica os achados como comentário na PR ao terminar). Os achados continuam
+   **consultivos** — não bloqueiam o merge por si só —, mas aguardar garante que eles cheguem a
+   tempo de virar decisão (ou commit corretivo) antes do merge, em vez de serem descobertos depois.
 
 2. **Security review** (segurança da aplicação — OWASP: injeção, XSS, segredos expostos): verifique
    se a skill nativa `security-review` está disponível nesta sessão. **Se não estiver, pule
-   silenciosamente.** Se estiver, invoque-a sobre `gh pr diff <PR-number>` e publique:
-   ```bash
-   gh pr comment <PR-number> --body "<achados de security-review em markdown>"
-   ```
+   silenciosamente.** Se estiver, invoque-a conforme §8.6 abaixo.
 
 **Nunca pare o pipeline por causa dos achados** — mesmo com itens `blocker` ou vulnerabilidades,
-prossiga para o passo 9. Quem decide agir é o humano, lendo o comentário na PR. Se um dos despachos
-falhar (rate limit, erro de ferramenta), registre no sumário e prossiga.
+prossiga para o passo 9 assim que ambas as revisões tiverem retornado. Quem decide agir é o humano,
+lendo o comentário na PR. Se um dos despachos falhar (rate limit, erro de ferramenta), registre no
+sumário e prossiga.
+
+### 8.6 — Security review (skill nativa)
+
+A skill nativa `security-review` **não publica comentário sozinha**: seu contrato de saída é
+"a resposta final deve conter o relatório em markdown e nada mais". Quem invoca (você, executando
+o `worktree-ship`) é responsável por publicar esse relatório na PR no turno seguinte à resposta.
+
+Além disso, a skill monta o próprio contexto sozinha (git status, arquivos modificados, commits,
+diff da branch atual) — **não** passe `gh pr diff <PR-number>` como argumento; ela ignora diffs
+passados por fora e lê a branch diretamente.
+
+```
+Invoque a skill nativa `security-review` sem argumento de diff — ela lê a branch atual.
+```
+
+Ao receber a resposta final (o relatório em markdown), publique-o você mesmo:
+```bash
+gh pr comment <PR-number> --body "<relatório de security-review recebido>"
+```
+
+**Proporção do protocolo de sub-tasks:** o protocolo de sub-tasks paralelas da skill nativa (uma
+por vulnerabilidade candidata, para filtrar falso-positivo) é desenhado para diffs grandes. Para
+diffs pequenos — heurística sugerida: abaixo de ~200 linhas alteradas, já filtrados pelo
+`vetor:code-review` do §8.5 — peça à skill para analisar inline, sem abrir o protocolo completo de
+sub-tasks por vulnerabilidade. Acima desse limiar, deixe a skill decidir seu próprio protocolo.
 
 ### 9 — Verificar review
 
@@ -281,9 +356,18 @@ rm -f .claude/vetor/status/<branch>.md
 rm -f .claude/vetor/status/<branch>-touched-files.json
 ```
 
-Se a checagem falhar, **pare o cleanup**: ela encontrou um worktree ativo dentro do path alvo e
-removê-lo apagaria também o filho. Mostre os paths e preserve worktree pai, branch e arquivos de
-status/cache até os filhos serem realocados.
+Se a checagem falhar, **pare o cleanup** e não prossiga com `git branch -d`/remoção dos arquivos de
+status/cache — há dois motivos distintos de falha:
+
+- **Worktree filho ativo dentro do path alvo**: mostre os paths e preserve worktree pai, branch e
+  arquivos de status/cache até os filhos serem realocados.
+- **Diretório residual em disco após `git worktree remove`** (issue #157): o `git worktree remove`
+  desregistrou o worktree do git (não aparece mais em `git worktree list`) mas falhou ao apagar o
+  diretório — no Windows, tipicamente por `Filename too long` (artefatos como `build/`, `.gradle/`,
+  `node_modules/` estouram o limite de 260 caracteres). `safe-remove-worktree` já tenta uma remoção
+  com prefixo de path longo nesse caso; se mesmo assim restar, ela sai não-zero citando o path
+  residual. Reporte o path ao operador para remoção manual — não tente forçar via `rm -rf` por conta
+  própria, o diretório pode conter uncommitted work relevante para inspeção.
 
 Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
 branch, status file e cache de arquivos tocados).

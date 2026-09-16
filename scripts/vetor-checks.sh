@@ -3,15 +3,25 @@
 #
 # Uso: vetor-checks.sh <subcomando> [args]
 #   default-branch             imprime a branch default do repositório (nunca assume master)
+#   repo-root                  imprime o path absoluto do repositório principal (root), mesmo
+#                               quando executado de dentro de um worktree linkado (issue #160) —
+#                               use para resolver arquivos como .claude/vetor/module-test-map.md
+#                               e .claude/vetor/config.json, que não são materializados em
+#                               worktrees quando .claude/ está no .gitignore do projeto-alvo
 #   in-worktree                exit 0 se o cwd é um worktree linkado; exit 1 se é o root
 #   migrations                 exit 1 se há versões de migration duplicadas (convenção Flyway)
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
-#   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo
+#   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo;
+#                               exit 1 se, após o remove, sobrar diretório residual em disco (#157)
 #   sync-root                  tenta retornar o repositório principal para a branch default de forma segura
 #   worktree-audit              lista worktrees linkados (exceto o root) com idade/tamanho/uncommitted
 #   find-orphan-status [dir]   lista status files sem worktree correspondente (default: .claude/vetor/status)
 #   archive-orphan-status <path> move um status file órfão para <dir>/archive/
+#   architectural-risk [map] [days]  fan-in (deletion test) dos módulos tocados nos últimos <days>
+#                               dias (default 7), resolvidos via module-test-map.md (default
+#                               .claude/vetor/module-test-map.md). Uma linha por módulo tocado:
+#                               <módulo>|<fan-in>|<candidate:yes/no> (candidate se fan-in > 10)
 #
 # Exit codes: 0 = passou; 1 = checagem falhou (a skill deve parar e mostrar a saída); 2 = uso incorreto.
 
@@ -25,6 +35,14 @@ case "$cmd" in
     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
     echo "$DEFAULT_BRANCH"
+    ;;
+
+  repo-root)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    root=""
+    [ -n "$common_dir" ] && root=$(dirname "$common_dir")
+    [ -z "$root" ] && { echo "não é um repositório git" >&2; exit 1; }
+    echo "$root"
     ;;
 
   in-worktree)
@@ -112,12 +130,48 @@ case "$cmd" in
     fi
 
     git worktree remove "$target"
+    remove_status=$?
+
+    # git worktree remove DESREGISTRA o worktree e só então tenta apagar o diretório. No
+    # Windows, artefatos de build (build/, .gradle/, node_modules/) costumam estourar o limite
+    # de 260 caracteres e a exclusão falha com "Filename too long", deixando um diretório órfão
+    # que nenhuma outra checagem detecta (issue #157).
+    #
+    # O fallback abaixo só pode rodar quando remove_status -eq 0: nesse caso o git já
+    # desregistrou o worktree e o diretório em disco é resíduo seguro de remover. Se
+    # remove_status != 0, o git recusou a remoção inteira (ex.: worktree sujo, sem --force) —
+    # o worktree segue registrado e o diretório pode conter trabalho não commitado; forçar a
+    # exclusão nesse caso apagaria dados e deixaria metadata do git órfã (achado do code review
+    # da PR #169).
+    if [ "$remove_status" -eq 0 ] && [ -d "$target" ]; then
+      case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*)
+          # Contorna o limite de path do Windows com o prefixo \\?\, que aceita paths > 260 chars.
+          win_path=$(cygpath -w "$target" 2>/dev/null) || win_path=""
+          if [ -n "$win_path" ]; then
+            cmd //c rd /s /q "\\\\?\\$win_path" 2>/dev/null
+          fi
+          ;;
+      esac
+    fi
+
+    if [ "$remove_status" -ne 0 ]; then
+      echo "ERRO: git worktree remove recusou remover '$target' (worktree ainda registrado — possível uncommitted work). Resolva manualmente (git worktree remove --force, se apropriado) antes de prosseguir." >&2
+      exit 1
+    fi
+
+    if [ -d "$target" ]; then
+      echo "ERRO: git worktree remove desregistrou '$target' do git, mas o diretório permanece em disco (possível 'Filename too long' no Windows). Remova manualmente antes de prosseguir." >&2
+      exit 1
+    fi
     ;;
 
   sync-root)
     # Tenta retornar a raiz do repo para a branch default se a branch atual estiver limpa
     # e sem commits locais pendentes vs remote (ou sem remote tracker caso já deletada).
-    ROOT=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    ROOT=""
+    [ -n "$common_dir" ] && ROOT=$(dirname "$common_dir")
     [ -z "$ROOT" ] && exit 0
     cd "$ROOT" || exit 0
     
@@ -147,7 +201,9 @@ case "$cmd" in
     #   <path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>
     # "age_days" é medido a partir do timestamp do último commit do worktree (proxy de
     # staleness — evita depender de mtime de diretório, que muda a qualquer escrita).
-    main_worktree=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    main_worktree=""
+    [ -n "$common_dir" ] && main_worktree=$(dirname "$common_dir")
     now_ts=$(date +%s)
     path=""
     branch=""
@@ -208,8 +264,74 @@ case "$cmd" in
     echo "Arquivado: $archive_dir/$(basename "$target")"
     ;;
 
+  architectural-risk)
+    # Deletion test (issue #181/#198): fan-in dos módulos tocados nos últimos <days> dias, via
+    # heurística textual de import/require — read-only, barato, cron-compatível. Módulo com
+    # fan-in > 10 é candidato a revisão de design (threshold ajustável, não hard cap).
+    map="${2:-.claude/vetor/module-test-map.md}"
+    days="${3:-7}"
+    [ -f "$map" ] || exit 0
+
+    # Extrai a tabela "Prefixo do path | Módulo" do module-test-map.md.
+    prefixes=()
+    mod_names=()
+    while IFS='|' read -r _ prefix mod _; do
+      prefix=$(printf '%s' "$prefix" | sed -E 's/^[[:space:]]*`?//; s/`?[[:space:]]*$//')
+      mod=$(printf '%s' "$mod" | sed -E 's/^[[:space:]]*`?//; s/`?[[:space:]]*$//')
+      [ -z "$prefix" ] && continue
+      case "$prefix" in
+        Prefixo*|---*) continue ;;
+      esac
+      prefixes+=("$prefix")
+      mod_names+=("$mod")
+    done < <(sed -n '/Prefixo do path/,/^$/p' "$map")
+
+    [ "${#prefixes[@]}" -eq 0 ] && exit 0
+
+    touched_files=$(git log --since="${days} days ago" --name-only --pretty=format: 2>/dev/null \
+      | sort -u | grep -v '^$')
+    [ -z "$touched_files" ] && exit 0
+
+    touched_modules=()
+    while IFS= read -r file; do
+      for i in "${!prefixes[@]}"; do
+        prefix="${prefixes[$i]}"
+        # "./" é o catch-all de repositório de módulo único (ex.: module-test-map.md
+        # auto-gerado) — não é um prefixo literal de `git log --name-only`, que nunca
+        # antepõe "./" aos paths.
+        if [ "$prefix" = "./" ]; then
+          matched=1
+        else
+          case "$file" in
+            "$prefix"*) matched=1 ;;
+            *) matched=0 ;;
+          esac
+        fi
+        if [ "$matched" -eq 1 ]; then
+          touched_modules+=("${mod_names[$i]}")
+          break
+        fi
+      done
+    done <<< "$touched_files"
+    [ "${#touched_modules[@]}" -eq 0 ] && exit 0
+
+    unique_modules=$(printf '%s\n' "${touched_modules[@]}" | sort -u | grep -v '^$')
+    [ -z "$unique_modules" ] && exit 0
+
+    while IFS= read -r module; do
+      count=$(grep -rlE "(import|require).*['\"].*${module}" . \
+        --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" \
+        --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=worktrees \
+        --exclude-dir=target --exclude-dir=.next --exclude-dir=__pycache__ --exclude-dir=.venv \
+        2>/dev/null | wc -l)
+      candidate="no"
+      [ "$count" -gt 10 ] && candidate="yes"
+      echo "${module}|${count}|${candidate}"
+    done <<< "$unique_modules"
+    ;;
+
   *)
-    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>>" >&2
+    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]>" >&2
     exit 2
     ;;
 esac

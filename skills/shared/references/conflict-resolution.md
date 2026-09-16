@@ -3,6 +3,25 @@
 Procedimento compartilhado, usado pelo `worktree-ship` (passos 2 e 10) quando `git merge` da branch
 default deixa arquivos conflitantes.
 
+## Princípio geral — Resolver por intenção
+
+Antes de aceitar ou descartar código em conflito, sempre **inspecione a intenção de cada lado** usando
+`git log` e `git show`:
+
+1. **Seu lado (current branch):** `git log --oneline -5` (últimos 5 commits) para entender o contexto
+   local, depois `git show <hash>` para ver a mudança específica que criou o conflito.
+
+2. **Lado remoto (default branch):** `git show origin/$DEFAULT_BRANCH:<filepath>` para ver a versão
+   resolvida no default, depois `git log origin/$DEFAULT_BRANCH --oneline -5` para entender a
+   intenção remota.
+
+3. **Decida pela lógica de negócio:** a mensagem de commit, o conteúdo exato e o contexto histórico
+   juntos revelam qual versão respeita melhor as regras do produto e do projeto.
+
+Isso é **resolução consciente por intenção**, não mecanicamente por padrão sintático — distingue-se
+do safety-valve de orçamento esgotado (§5.3), que é um fallback quando a inspeção honesta não
+resolve a ambiguidade.
+
 ## 1 — Identificar os conflitos
 
 ```bash
@@ -57,3 +76,19 @@ remova os marcadores.
 2. **Verde:** commite (`merge branch '$DEFAULT_BRANCH' and resolve conflicts`), `git push origin <branch>`.
 3. **Vermelho:** chame o `fix-loop-agent` localmente. Se as iterações estourarem sem verde, aborte o
    merge, preserve o worktree e alerte o usuário.
+
+⚠️ **Nunca rode `git stash` (ou `git checkout` para outro branch) enquanto um merge está em conflito
+e ainda não commitado.** Qualquer comando que descarte `MERGE_HEAD` faz o `git commit` seguinte virar
+um commit comum de 1 pai — mesmo com a árvore correta, o GitHub recalcula o merge do zero (a partir
+do merge-base real) e reporta `mergeable: CONFLICTING`/`mergeStateStatus: DIRTY`, mesmo já resolvido
+localmente. Para inspecionar o conteúdo de outro branch sem alterar o estado do merge em andamento,
+use:
+
+```bash
+git show "origin/$DEFAULT_BRANCH:<path>"
+```
+
+Se `MERGE_HEAD` já foi perdido por engano, refaça o merge do zero (`git merge --abort` se ainda
+houver estado parcial recuperável, ou `git merge -s ours "origin/$DEFAULT_BRANCH" -m "merge branch
+'$DEFAULT_BRANCH' and resolve conflicts"` para registrar o segundo pai sem alterar a árvore já
+resolvida) antes de prosseguir para o passo 2 do `worktree-ship`.
