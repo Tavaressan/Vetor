@@ -3,11 +3,17 @@
 #
 # Uso: vetor-checks.sh <subcomando> [args]
 #   default-branch             imprime a branch default do repositório (nunca assume master)
+#   repo-root                  imprime o path absoluto do repositório principal (root), mesmo
+#                               quando executado de dentro de um worktree linkado (issue #160) —
+#                               use para resolver arquivos como .claude/vetor/module-test-map.md
+#                               e .claude/vetor/config.json, que não são materializados em
+#                               worktrees quando .claude/ está no .gitignore do projeto-alvo
 #   in-worktree                exit 0 se o cwd é um worktree linkado; exit 1 se é o root
 #   migrations                 exit 1 se há versões de migration duplicadas (convenção Flyway)
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
-#   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo
+#   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo;
+#                               exit 1 se, após o remove, sobrar diretório residual em disco (#157)
 #   sync-root                  tenta retornar o repositório principal para a branch default de forma segura
 #   worktree-audit              lista worktrees linkados (exceto o root) com idade/tamanho/uncommitted
 #   find-orphan-status [dir]   lista status files sem worktree correspondente (default: .claude/vetor/status)
@@ -25,6 +31,14 @@ case "$cmd" in
     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
     echo "$DEFAULT_BRANCH"
+    ;;
+
+  repo-root)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    root=""
+    [ -n "$common_dir" ] && root=$(dirname "$common_dir")
+    [ -z "$root" ] && { echo "não é um repositório git" >&2; exit 1; }
+    echo "$root"
     ;;
 
   in-worktree)
@@ -112,12 +126,48 @@ case "$cmd" in
     fi
 
     git worktree remove "$target"
+    remove_status=$?
+
+    # git worktree remove DESREGISTRA o worktree e só então tenta apagar o diretório. No
+    # Windows, artefatos de build (build/, .gradle/, node_modules/) costumam estourar o limite
+    # de 260 caracteres e a exclusão falha com "Filename too long", deixando um diretório órfão
+    # que nenhuma outra checagem detecta (issue #157).
+    #
+    # O fallback abaixo só pode rodar quando remove_status -eq 0: nesse caso o git já
+    # desregistrou o worktree e o diretório em disco é resíduo seguro de remover. Se
+    # remove_status != 0, o git recusou a remoção inteira (ex.: worktree sujo, sem --force) —
+    # o worktree segue registrado e o diretório pode conter trabalho não commitado; forçar a
+    # exclusão nesse caso apagaria dados e deixaria metadata do git órfã (achado do code review
+    # da PR #169).
+    if [ "$remove_status" -eq 0 ] && [ -d "$target" ]; then
+      case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*)
+          # Contorna o limite de path do Windows com o prefixo \\?\, que aceita paths > 260 chars.
+          win_path=$(cygpath -w "$target" 2>/dev/null) || win_path=""
+          if [ -n "$win_path" ]; then
+            cmd //c rd /s /q "\\\\?\\$win_path" 2>/dev/null
+          fi
+          ;;
+      esac
+    fi
+
+    if [ "$remove_status" -ne 0 ]; then
+      echo "ERRO: git worktree remove recusou remover '$target' (worktree ainda registrado — possível uncommitted work). Resolva manualmente (git worktree remove --force, se apropriado) antes de prosseguir." >&2
+      exit 1
+    fi
+
+    if [ -d "$target" ]; then
+      echo "ERRO: git worktree remove desregistrou '$target' do git, mas o diretório permanece em disco (possível 'Filename too long' no Windows). Remova manualmente antes de prosseguir." >&2
+      exit 1
+    fi
     ;;
 
   sync-root)
     # Tenta retornar a raiz do repo para a branch default se a branch atual estiver limpa
     # e sem commits locais pendentes vs remote (ou sem remote tracker caso já deletada).
-    ROOT=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    ROOT=""
+    [ -n "$common_dir" ] && ROOT=$(dirname "$common_dir")
     [ -z "$ROOT" ] && exit 0
     cd "$ROOT" || exit 0
     
@@ -147,7 +197,9 @@ case "$cmd" in
     #   <path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>
     # "age_days" é medido a partir do timestamp do último commit do worktree (proxy de
     # staleness — evita depender de mtime de diretório, que muda a qualquer escrita).
-    main_worktree=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    main_worktree=""
+    [ -n "$common_dir" ] && main_worktree=$(dirname "$common_dir")
     now_ts=$(date +%s)
     path=""
     branch=""
@@ -209,7 +261,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "uso: vetor-checks.sh <default-branch|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>>" >&2
+    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>>" >&2
     exit 2
     ;;
 esac

@@ -31,15 +31,34 @@ export function isWithin(child: string, parent: string): boolean {
 }
 
 /**
- * `worktree` é o cwd do agente; `root`, a raiz do repositório principal.
+ * `worktree` é o cwd do agente; `root`, a raiz do repositório principal; `home` (opcional,
+ * default `$HOME`/`$USERPROFILE`) é a home do usuário, usada para liberar o diretório de
+ * memória do Claude Code (issue #155) — fica fora de qualquer worktree por construção, sem
+ * risco de contaminar workers paralelos (a mesma justificativa do guard).
  * Fora de um worktree linkado o guard não se aplica — quem chama decide isso.
  */
-export function isWriteAllowed(target: string, worktree: string, root: string): boolean {
+export function isWriteAllowed(
+  target: string,
+  worktree: string,
+  root: string,
+  home: string | undefined = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE"),
+): boolean {
   if (isWithin(target, worktree)) return true;
 
   const statusDir = normalizePath(`${root}/.claude/vetor/status`);
   const normalizedTarget = normalizePath(target);
   const fileName = normalizedTarget.slice(statusDir.length + 1);
-  return normalizedTarget.startsWith(`${statusDir}/`) && !fileName.includes("/") &&
-    fileName.endsWith(".md");
+  if (
+    normalizedTarget.startsWith(`${statusDir}/`) && !fileName.includes("/") &&
+    fileName.endsWith(".md")
+  ) {
+    return true;
+  }
+
+  if (home) {
+    const claudeProjectsDir = normalizePath(`${home}/.claude/projects`);
+    if (isWithin(target, claudeProjectsDir)) return true;
+  }
+
+  return false;
 }

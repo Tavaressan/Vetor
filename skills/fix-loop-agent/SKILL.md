@@ -1,6 +1,6 @@
 ---
 name: fix-loop-agent
-description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (máximo 5 iterações). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do worktree-ship.
+description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (orçamento sugerido de 5 iterações, não enforced — ver issue #156). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do worktree-ship.
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -41,7 +41,10 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 ## Referências
 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
-  e o `module-test-map` antes de prosseguir.
+  e o `module-test-map` antes de prosseguir. **A resolução do `module-test-map.md`/`config.json`
+  sempre usa o root do repositório (`vetor-checks.sh repo-root`), nunca o `cwd`** — dentro de um
+  worktree, arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: `.claude/`) não existem
+  localmente (issue #160).
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md` — path, estados e blocos
   obrigatórios do status file.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/touched-files-cache.md` — formato do cache gravado no §1.
@@ -49,7 +52,14 @@ a ausência total do arquivo um sinal detectável de falha anômala.
   erro dos testes com `agy`. **A decisão e a aplicação do fix são sempre suas, nunca do Gemini.**
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se a `<descrição>` indicar bug
   visual/frontend e o MCP de browser estiver disponível, use-o antes do §3.a para reproduzir o bug e
-  capturar evidência.
+  capturar evidência. Se o erro envolver comportamento de uma ferramenta/lib/framework/API externa,
+  o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de ferramentas/libs
+  (Context7)") antes de aplicar o fix.
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/frontend-design-enforcement.md` — se a `<descrição>`
+  indicar UI/design de frontend, invoque a skill `frontend-design` antes de aplicar o fix (§3.b).
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md` — disciplina completa de TDD
+  (bom teste, seams, anti-padrões, mocking) consumida pelo passo TDD de §3.b — não replique o texto
+  aqui.
 
 ---
 
@@ -72,8 +82,10 @@ Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.
 git diff "$DEFAULT_BRANCH" --name-only
 ```
 
-Mapeie ao módulo usando a tabela do module-test-map. Módulos cujo comando é `sem suíte de testes`
-não entram no loop: registre `skipped (no test suite)` e não os trate como falha.
+Mapeie ao módulo usando a tabela do module-test-map, resolvido a partir do root do repositório
+(ver `project-conventions.md`), não do `cwd` do worktree. Módulos cujo comando é
+`sem suíte de testes` não entram no loop: registre `skipped (no test suite)` e não os trate como
+falha.
 
 Depois de resolver os módulos, grave o cache de arquivos tocados conforme
 `touched-files-cache.md` — ele é consumido pelo `code-review` na mesma branch.
@@ -87,9 +99,15 @@ derive-o: `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` (ro
 
 Se bloqueado por permissão ou decisão técnica, mude `Status` para `BLOCKED_WAITING` preenchendo os
 blocos `Blocked on` / `Options` / `Recommendation` — o coordinator escala ao usuário a partir deles.
-Iterações em `BLOCKED_WAITING` **não contam** contra o hard cap de 5.
+Iterações em `BLOCKED_WAITING` **não contam** contra o orçamento de 5.
 
-### 3 — Loop principal (máximo N=5 iterações)
+⚠️ **O limite de 5 é um orçamento sugerido, não um hard cap enforced (issue #156):** nenhum hook
+interrompe a sessão automaticamente ao ultrapassá-lo. A responsabilidade de parar é sua — nunca
+decida sozinho "mais uma tentativa" ao chegar na 5ª iteração sem verde. Vá direto para o §4 (Handover
+de Falha) ou, se identificar que falta uma decisão que só o coordinator/usuário pode tomar, registre
+`BLOCKED_WAITING` em vez de continuar por conta própria.
+
+### 3 — Loop principal (orçamento de N=5 iterações)
 
 Para cada iteração `i` de 1 a 5:
 
@@ -133,16 +151,32 @@ Atualize o status file com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
 1. Leia a saída de erro (opcionalmente condensada com `agy` — ver `delegate-to-gemini.md` §1).
-2. **TDD**: se for a primeira iteração (`i=1`) e os testes ainda não falharem para o bug relatado,
-   escreva um teste de reprodução simples que quebre. Só altere o código do produto após o teste
-   estar vermelho.
-3. **KISS/YAGNI**: aplique a menor alteração atômica que faz o teste passar — sem refatoração
+2. **Hipóteses**: a partir do erro lido, liste 2-3 hipóteses candidatas (não 3-5 — o Vetor já opera
+   sob orçamento agressivo de iterações) para a causa raiz e escolha a de maior probabilidade antes
+   de escrever o teste de reprodução do passo 3. Registre a escolha no campo `Last action` do status
+   file, formato: `Last action: hipótese escolhida: <descrição curta> (descartadas: <outras
+   hipóteses>)`. Se esta não é a primeira iteração e o teste continua vermelho com a **mesma
+   assinatura de erro** da iteração anterior, não repita a hipótese já aplicada — promova a próxima
+   hipótese da lista anterior ou reformule com base no novo resultado. Aplica-se a toda iteração
+   vermelha, não só a primeira; se o erro tiver causa óbvia (uma hipótese clara), o passo é rápido —
+   não gere hesitação artificial nem rodada de perguntas (o loop é headless, nunca pergunta ao
+   usuário).
+3. **TDD** (ver `tdd-conventions.md` para a disciplina completa — bom teste, seams, anti-padrões,
+   mocking): se for a primeira iteração (`i=1`) e os testes ainda não falharem para o bug relatado,
+   escreva um teste de reprodução simples que quebre cobrindo a hipótese escolhida no passo 2 — uma
+   fatia por vez (vertical slice), nunca todos os cenários de uma vez. Refactor não é parte deste
+   ciclo: achados de arquitetura/refatoração ficam para o `code-review`, despachado depois pelo
+   `worktree-ship`. Só altere o código do produto após o teste estar vermelho.
+4. **KISS/YAGNI**: aplique a menor alteração atômica que faz o teste passar — sem refatoração
    especulativa fora de escopo.
-4. Commit: `fix: <descrição curta do fix>`
-5. Atualize o status file
-6. Continue para a próxima iteração
+5. Commit: `fix: <descrição curta do fix>`
+6. Atualize o status file
+7. Continue para a próxima iteração
 
 ### 4 — Após N=5 falhas (Handover de Falha)
+
+**Pare aqui — não inicie uma 6ª iteração.** Mesmo que o próximo fix pareça óbvio ou quase certo, o
+orçamento estourado deve virar handover, não mais uma tentativa por conta própria (issue #156).
 
 1. Atualize o status file com `Status: FAILED_MAX_ITERATIONS`.
 2. Crie `FAIL_ANALYSIS.md` no root do worktree:
@@ -160,6 +194,10 @@ O agente de correção automática falhou após 5 iterações.
 ```
 <erro bruto ou resumo do erro obtido na última iteração>
 ```
+
+## Hipóteses Consideradas
+1. Iteração 1: <hipótese escolhida> — <refutada | ainda não avaliada>
+2. Iteração 2: <hipótese escolhida> — <refutada | ainda não avaliada>
 
 ## Fixes Tentados (Commits locais)
 1. <fix commit 1>
