@@ -48,6 +48,7 @@ export const CAPABILITIES_BODY = `## Vetor (plugin instalado)
 Automação de ciclo de desenvolvimento (issues → worktrees → fix loop → PR). Skills e agentes:
 
 - \`/vetor\` — inicializa/atualiza a configuração do Vetor neste projeto.
+- \`/vetor:spec\` (\`spec\`) — descobre contexto do projeto e rascunha uma Spec a partir de um tema.
 - \`/vetor:backlog\` (\`backlog-ideator\`) — propõe issues a partir de gaps do código/docs.
 - \`/vetor:coordinator\` (\`issue-coordinator\`) — orquestra workers para issues do backlog.
 - \`/vetor:worktree-create\` (\`worktree-create\`) — cria um worktree isolado para uma issue.

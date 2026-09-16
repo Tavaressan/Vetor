@@ -20,6 +20,7 @@ Depois, rode **`/vetor`** no projeto-alvo: ele detecta o runtime, gera o mapeame
 | Comando | O que faz |
 |---------|----------|
 | `/vetor [--force]` | Porta de entrada — inicializa e configura o Vetor no projeto-alvo |
+| `/vetor:spec [tema]` | Descobre contexto do projeto (filesystem) e rascunha uma Spec estruturada a partir de um tema |
 | `/vetor:backlog [tema]` | Ideação guiada por docs do projeto → batch de issues GitHub com aprovação humana |
 | `/vetor:coordinator [label] [--headless]` | Despacho paralelo de issues para sub-agentes isolados, com merge serializado |
 | `/vetor:worktree-create <type> <slug> [issue#]` | Cria worktree isolado, headless |
