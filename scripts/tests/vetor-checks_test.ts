@@ -1,6 +1,33 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 
-const SCRIPT = new URL("../vetor-checks.sh", import.meta.url).pathname;
+// No Windows, .pathname devolve "/C:/..." — bash não resolve esse formato (exit 127,
+// "No such file or directory"). Remove a barra líder antes da letra de unidade.
+const SCRIPT = new URL("../vetor-checks.sh", import.meta.url).pathname.replace(
+  /^\/([A-Za-z]:)/,
+  "$1",
+);
+
+// git sempre reporta paths com "/" (mesmo no Windows) em `git worktree list`. Os paths
+// construídos aqui a partir de Deno.makeTempDir()/Deno.realPath() vêm no separador nativo
+// (`\` no Windows) — normaliza antes de comparar com a saída de subprocessos git/bash.
+function toPosix(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+/**
+ * `vetor-checks.sh safe-remove-worktree` resolve paths via `cd "$path" && pwd -P` dentro do
+ * bash — no Windows, o fstab do Git Bash pode mapear TEMP para um alias tipo `/tmp/...`,
+ * diferente do path nativo devolvido por Deno.realPath. Resolve pela mesma via do script
+ * para a comparação bater independente de como o Git Bash local está configurado.
+ */
+async function bashRealPath(path: string): Promise<string> {
+  const out = await new Deno.Command("bash", {
+    args: ["-c", 'cd "$1" && pwd -P', "bash", path],
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return new TextDecoder().decode(out.stdout).trim();
+}
 
 async function runVetorChecks(
   cwd: string,
@@ -54,7 +81,7 @@ Deno.test("safe-remove-worktree bloqueia remover pai que contém worktree filho"
 
     assertEquals(result.code, 1);
     assertStringIncludes(result.stderr, "cleanup bloqueado");
-    assertStringIncludes(result.stderr, child);
+    assertStringIncludes(result.stderr, await bashRealPath(child));
     await Deno.stat(parent);
     await Deno.stat(child);
   } finally {
@@ -201,10 +228,10 @@ Deno.test("worktree-audit lista worktree linkado com uncommitted=yes e exclui o 
     const stdout = new TextDecoder().decode(output.stdout);
 
     assertEquals(output.code, 0);
-    assertStringIncludes(stdout, `${linked}|feat/x|`);
+    assertStringIncludes(stdout, `${toPosix(linked)}|feat/x|`);
     assertStringIncludes(stdout, "|yes");
     // O root (repo) não deve aparecer na listagem.
-    const rootLine = stdout.split("\n").find((l) => l.startsWith(`${repo}|`));
+    const rootLine = stdout.split("\n").find((l) => l.startsWith(`${toPosix(repo)}|`));
     assertEquals(rootLine, undefined);
   } finally {
     await git(["worktree", "remove", "-f", linked], repo);

@@ -1,6 +1,11 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 
-const SCRIPT = new URL("../vetor-status.sh", import.meta.url).pathname;
+// No Windows, .pathname devolve "/C:/..." — bash não resolve esse formato (exit 127,
+// "No such file or directory"). Remove a barra líder antes da letra de unidade.
+const SCRIPT = new URL("../vetor-status.sh", import.meta.url).pathname.replace(
+  /^\/([A-Za-z]:)/,
+  "$1",
+);
 
 async function run(
   cmd: string,

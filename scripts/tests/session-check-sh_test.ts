@@ -1,9 +1,36 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 
-const SCRIPT = new URL("../session-check.sh", import.meta.url).pathname;
+// No Windows, .pathname devolve "/C:/..." — bash não resolve esse formato (exit 127,
+// "No such file or directory"). Remove a barra líder antes da letra de unidade.
+const SCRIPT = new URL("../session-check.sh", import.meta.url).pathname.replace(
+  /^\/([A-Za-z]:)/,
+  "$1",
+);
+
+/**
+ * No Windows, `clearEnv: true` + `PATH` em formato POSIX (necessário para o script enxergar
+ * um PATH sem deno) impede o próprio Deno.Command de localizar "bash" via busca nativa —
+ * falha com "Failed to spawn 'bash': entity not found". Resolve o caminho absoluto nativo
+ * (fora do ambiente controlado) uma vez, para spawnar bash sem depender de busca em PATH.
+ */
+async function resolveBashCommand(): Promise<string> {
+  if (Deno.build.os !== "windows") return "bash";
+
+  const posix = await new Deno.Command("bash", {
+    args: ["-c", "command -v bash"],
+    stdout: "piped",
+  }).output();
+  const posixPath = new TextDecoder().decode(posix.stdout).trim();
+
+  const win = await new Deno.Command("cygpath", { args: ["-w", posixPath], stdout: "piped" })
+    .output();
+  return new TextDecoder().decode(win.stdout).trim();
+}
+
+const BASH = await resolveBashCommand();
 
 Deno.test("session-check.sh avisa quando deno não está no PATH, sem tentar rodar deno", async () => {
-  const output = await new Deno.Command("bash", {
+  const output = await new Deno.Command(BASH, {
     args: [SCRIPT],
     env: { "PATH": "/usr/bin:/bin" },
     clearEnv: true,
@@ -38,7 +65,7 @@ Deno.test("session-check.sh delega ao session-check.ts quando deno está no PATH
   const denoBin = new TextDecoder().decode(denoPath.stdout).trim();
   const denoDir = denoBin.slice(0, denoBin.lastIndexOf("/"));
 
-  const output = await new Deno.Command("bash", {
+  const output = await new Deno.Command(BASH, {
     args: [SCRIPT],
     env: { "PATH": `${denoDir}:/usr/bin:/bin` },
     clearEnv: true,
