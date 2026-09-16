@@ -22,7 +22,7 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 /coordinator [label] --headless
 ```
 
-- `[label]`: label das issues a despachar (default: `backlog`)
+- `[label]`: label das issues a despachar (sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado)
 - `<n1>,<n2>,...`: lista de números de issue (ex.: `/coordinator 12,14,17`). Casa `^[0-9]+(,[0-9]+)*$`.
 - **sem argumento** ou **`--resume`**: modo de retomada — reconstrói o estado a partir dos
   worktrees/status files existentes (Fase 0).
@@ -84,30 +84,32 @@ Além disso, em `--headless`:
      já estiver mergeado, apenas informe. Prossiga a partir da Fase 5/6.
      Em `--headless`: não pergunte o teto (use `N_rec`) e não ofereça ship — apenas reporte os
      grupos `GREEN` como prontos.
-  3. Se **não houver** worktree ativo com status file: caia no fluxo padrão, como
-     `/coordinator backlog` (Fase 1).
+  3. Se **não houver** worktree ativo com status file: caia no fluxo padrão (Fase 1), descobrindo
+     dinamicamente labels ou usando `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado.
 - **Lista de números** ou **label explícito**: siga o fluxo padrão a partir da Fase 1.
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
 Se o argumento casar `^[0-9]+(,[0-9]+)*$`, trate-o como **lista por número**; caso contrário, como
-**label**. O restante do fluxo é idêntico nos dois modos.
+**label**. Se **nenhum argumento** for passado:
+- Verifique se `.claude/vetor/config.json` declara `defaultDispatchLabel`
+  - Se sim: use esse label (filtro explícito)
+  - Se não: descubra todas as issues abertas (sem filtro de label)
+
+O restante do fluxo é idêntico nos três modos (número, label, descoberta dinâmica).
 
 - **Lista por número:**
   ```bash
   for N in ${ARG//,/ }; do gh issue view "$N" --json number,title,labels,body; done
   ```
-- **Label:**
+- **Label ou defaultDispatchLabel:**
   ```bash
   gh issue list --label <label> --state open --json number,title,labels,body
   ```
-
-**Fallback de label.** Se o label for `backlog` (default) e a busca retornar vazio, rode também
-`gh issue list --state open --json number,title` sem filtro. Se houver resultados, avise:
-"_Nenhuma issue com label `backlog`, mas há &lt;N&gt; issues abertas sem label. Use
-`/coordinator <N>,<M>,...` para despachar específicas, ou aplique a label `backlog`._" Isso evita a
-falsa impressão de "nada a despachar" quando há trabalho pendente. Issues sem label podem vir de
-`/retro`, criação manual ou integração externa.
+- **Descoberta dinâmica (sem argumento, sem defaultDispatchLabel):**
+  ```bash
+  gh issue list --state open --json number,title,labels,body
+  ```
 
 Para cada issue, verifique se já há PR aberto:
 ```bash
@@ -135,7 +137,7 @@ Monte o plano (conteúdo mínimo em `planning-conventions.md` §2.1):
 ```markdown
 # Plano de Execução Vetor — Coordinator
 
-Coordenando issues com a label: <label>
+Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 
 ## Ações Propostas
 
