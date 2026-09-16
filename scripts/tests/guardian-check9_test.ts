@@ -1,104 +1,119 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
+import { fileURLToPath } from "node:url";
 
-// Mock para simular a detecção de arquivos deletados e contagem de fan-in
-interface DeletedFileAnalysis {
-  filePath: string;
-  fanIn: number;
-  isHighRisk: boolean; // true se fan-in > 5
+// Exercita o snippet real documentado em skills/guardian/SKILL.md (Check 9), via o
+// subcomando `architectural-risk` de vetor-checks.sh — não uma reimplementação em memória
+// (issue #198, gap 6: o teste anterior testava uma função mock local que nunca rodava o
+// snippet bash e por isso não pegou o bug de sintaxe corrigido no PR #197).
+
+const SCRIPT = fileURLToPath(new URL("../vetor-checks.sh", import.meta.url));
+
+async function git(args: string[], cwd: string): Promise<string> {
+  const output = await new Deno.Command("git", { args, cwd, stdout: "piped", stderr: "piped" })
+    .output();
+  if (!output.success) {
+    throw new Error(`git ${args.join(" ")} falhou: ${new TextDecoder().decode(output.stderr)}`);
+  }
+  return new TextDecoder().decode(output.stdout).trim();
 }
 
-/**
- * Analisa arquivos deletados para detectar risco arquitetural via fan-in
- */
-function analyzeDeletedFiles(
-  deletedFiles: string[],
-  fanInCounts: Record<string, number>,
-): DeletedFileAnalysis[] {
-  const threshold = 5; // fan-in threshold para risco alto
-  return deletedFiles.map((file) => ({
-    filePath: file,
-    fanIn: fanInCounts[file] ?? 0,
-    isHighRisk: (fanInCounts[file] ?? 0) > threshold,
-  }));
+async function runArchitecturalRisk(
+  cwd: string,
+  map = ".claude/vetor/module-test-map.md",
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const output = await new Deno.Command("bash", {
+    args: [SCRIPT, "architectural-risk", map],
+    cwd,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return {
+    code: output.success ? 0 : 1,
+    stdout: new TextDecoder().decode(output.stdout),
+    stderr: new TextDecoder().decode(output.stderr),
+  };
 }
 
-/**
- * Valida se Check 9 detecta corretamente arquivos com alto fan-in
- */
-Deno.test("Check 9: detecta arquivo deletado com alto fan-in", () => {
-  const deletedFiles = ["lib/core/auth.ts"];
-  const fanInCounts = {
-    "lib/core/auth.ts": 8, // 8 referências — alto risco
-  };
+async function makeRepoWithModuleMap(mapBody: string): Promise<string> {
+  const repo = await Deno.realPath(await Deno.makeTempDir());
+  await git(["init", "-q", "-b", "main"], repo);
+  await git(["config", "user.email", "test@example.com"], repo);
+  await git(["config", "user.name", "Test"], repo);
+  await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
+  await Deno.writeTextFile(`${repo}/.claude/vetor/module-test-map.md`, mapBody);
+  await git(["add", "."], repo);
+  await git(["commit", "-q", "-m", "init"], repo);
+  return repo;
+}
 
-  const result = analyzeDeletedFiles(deletedFiles, fanInCounts);
+const MODULE_MAP = `# Module Test Map
 
-  assertEquals(result.length, 1);
-  assertEquals(result[0].filePath, "lib/core/auth.ts");
-  assertEquals(result[0].fanIn, 8);
-  assertEquals(result[0].isHighRisk, true); // threshold é 5, 8 > 5
+## Detecção de módulo por arquivos alterados
+
+| Prefixo do path | Módulo |
+|-----------------|--------|
+| \`lib/core/\` | \`core\` |
+| \`lib/utils/\` | \`utils\` |
+`;
+
+Deno.test("architectural-risk: módulo tocado nos últimos 7 dias com fan-in > 10 é candidato", async () => {
+  const repo = await makeRepoWithModuleMap(MODULE_MAP);
+  try {
+    await Deno.mkdir(`${repo}/lib/core`, { recursive: true });
+    await Deno.writeTextFile(`${repo}/lib/core/auth.ts`, "export const auth = 1;\n");
+    await git(["add", "."], repo);
+    await git(["commit", "-q", "-m", "toca modulo core"], repo);
+
+    // 12 arquivos importando o módulo "core" — acima do threshold de 10 (issue #181 item 4).
+    await Deno.mkdir(`${repo}/consumers`, { recursive: true });
+    for (let i = 0; i < 12; i++) {
+      await Deno.writeTextFile(
+        `${repo}/consumers/c${i}.ts`,
+        `import { auth } from "../lib/core/auth";\n`,
+      );
+    }
+    await git(["add", "."], repo);
+    await git(["commit", "-q", "-m", "consumidores"], repo);
+
+    const { code, stdout } = await runArchitecturalRisk(repo);
+    assertEquals(code, 0);
+    assertStringIncludes(stdout, "core|12|yes");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
-Deno.test("Check 9: não marca como risco se fan-in é baixo", () => {
-  const deletedFiles = ["lib/utils/deprecated-helper.ts"];
-  const fanInCounts = {
-    "lib/utils/deprecated-helper.ts": 2, // 2 referências — baixo risco
-  };
+Deno.test("architectural-risk: módulo tocado com fan-in <= 10 não é candidato", async () => {
+  const repo = await makeRepoWithModuleMap(MODULE_MAP);
+  try {
+    await Deno.mkdir(`${repo}/lib/utils`, { recursive: true });
+    await Deno.writeTextFile(`${repo}/lib/utils/helper.ts`, "export const helper = 1;\n");
+    await git(["add", "."], repo);
+    await git(["commit", "-q", "-m", "toca modulo utils"], repo);
 
-  const result = analyzeDeletedFiles(deletedFiles, fanInCounts);
+    await Deno.mkdir(`${repo}/consumers`, { recursive: true });
+    await Deno.writeTextFile(
+      `${repo}/consumers/c0.ts`,
+      `import { helper } from "../lib/utils/helper";\n`,
+    );
+    await git(["add", "."], repo);
+    await git(["commit", "-q", "-m", "um consumidor"], repo);
 
-  assertEquals(result.length, 1);
-  assertEquals(result[0].filePath, "lib/utils/deprecated-helper.ts");
-  assertEquals(result[0].fanIn, 2);
-  assertEquals(result[0].isHighRisk, false); // threshold é 5, 2 < 5
+    const { code, stdout } = await runArchitecturalRisk(repo);
+    assertEquals(code, 0);
+    assertStringIncludes(stdout, "utils|1|no");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
-Deno.test("Check 9: threshold de 5 é exato", () => {
-  const deletedFiles = [
-    "exact-threshold.ts",
-    "above-threshold.ts",
-    "below-threshold.ts",
-  ];
-  const fanInCounts = {
-    "exact-threshold.ts": 5, // exatamente no threshold
-    "above-threshold.ts": 6, // acima do threshold
-    "below-threshold.ts": 4, // abaixo do threshold
-  };
-
-  const result = analyzeDeletedFiles(deletedFiles, fanInCounts);
-
-  assertEquals(result[0].isHighRisk, false); // 5 é não > 5
-  assertEquals(result[1].isHighRisk, true); // 6 > 5
-  assertEquals(result[2].isHighRisk, false); // 4 < 5
-});
-
-Deno.test("Check 9: detecta múltiplos arquivos deletados", () => {
-  const deletedFiles = [
-    "lib/high-risk.ts",
-    "lib/low-risk.ts",
-    "lib/medium-risk.ts",
-  ];
-  const fanInCounts = {
-    "lib/high-risk.ts": 12,
-    "lib/low-risk.ts": 1,
-    "lib/medium-risk.ts": 5,
-  };
-
-  const result = analyzeDeletedFiles(deletedFiles, fanInCounts);
-
-  assertEquals(result.length, 3);
-  assertEquals(result.filter((r) => r.isHighRisk).length, 1); // apenas 1 é alto risco
-  assertEquals(result[0].isHighRisk, true);
-  assertEquals(result[1].isHighRisk, false);
-  assertEquals(result[2].isHighRisk, false);
-});
-
-Deno.test("Check 9: arquivo sem referências não é risco", () => {
-  const deletedFiles = ["lib/orphaned.ts"];
-  const fanInCounts = {}; // nenhuma referência
-
-  const result = analyzeDeletedFiles(deletedFiles, fanInCounts);
-
-  assertEquals(result[0].fanIn, 0);
-  assertEquals(result[0].isHighRisk, false);
+Deno.test("architectural-risk: nenhum módulo tocado nos últimos 7 dias reporta vazio (skipped)", async () => {
+  const repo = await makeRepoWithModuleMap(MODULE_MAP);
+  try {
+    const { code, stdout } = await runArchitecturalRisk(repo);
+    assertEquals(code, 0);
+    assertEquals(stdout.trim(), "");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });

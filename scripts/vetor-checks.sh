@@ -18,6 +18,10 @@
 #   worktree-audit              lista worktrees linkados (exceto o root) com idade/tamanho/uncommitted
 #   find-orphan-status [dir]   lista status files sem worktree correspondente (default: .claude/vetor/status)
 #   archive-orphan-status <path> move um status file órfão para <dir>/archive/
+#   architectural-risk [map] [days]  fan-in (deletion test) dos módulos tocados nos últimos <days>
+#                               dias (default 7), resolvidos via module-test-map.md (default
+#                               .claude/vetor/module-test-map.md). Uma linha por módulo tocado:
+#                               <módulo>|<fan-in>|<candidate:yes/no> (candidate se fan-in > 10)
 #
 # Exit codes: 0 = passou; 1 = checagem falhou (a skill deve parar e mostrar a saída); 2 = uso incorreto.
 
@@ -260,8 +264,74 @@ case "$cmd" in
     echo "Arquivado: $archive_dir/$(basename "$target")"
     ;;
 
+  architectural-risk)
+    # Deletion test (issue #181/#198): fan-in dos módulos tocados nos últimos <days> dias, via
+    # heurística textual de import/require — read-only, barato, cron-compatível. Módulo com
+    # fan-in > 10 é candidato a revisão de design (threshold ajustável, não hard cap).
+    map="${2:-.claude/vetor/module-test-map.md}"
+    days="${3:-7}"
+    [ -f "$map" ] || exit 0
+
+    # Extrai a tabela "Prefixo do path | Módulo" do module-test-map.md.
+    prefixes=()
+    mod_names=()
+    while IFS='|' read -r _ prefix mod _; do
+      prefix=$(printf '%s' "$prefix" | sed -E 's/^[[:space:]]*`?//; s/`?[[:space:]]*$//')
+      mod=$(printf '%s' "$mod" | sed -E 's/^[[:space:]]*`?//; s/`?[[:space:]]*$//')
+      [ -z "$prefix" ] && continue
+      case "$prefix" in
+        Prefixo*|---*) continue ;;
+      esac
+      prefixes+=("$prefix")
+      mod_names+=("$mod")
+    done < <(sed -n '/Prefixo do path/,/^$/p' "$map")
+
+    [ "${#prefixes[@]}" -eq 0 ] && exit 0
+
+    touched_files=$(git log --since="${days} days ago" --name-only --pretty=format: 2>/dev/null \
+      | sort -u | grep -v '^$')
+    [ -z "$touched_files" ] && exit 0
+
+    touched_modules=()
+    while IFS= read -r file; do
+      for i in "${!prefixes[@]}"; do
+        prefix="${prefixes[$i]}"
+        # "./" é o catch-all de repositório de módulo único (ex.: module-test-map.md
+        # auto-gerado) — não é um prefixo literal de `git log --name-only`, que nunca
+        # antepõe "./" aos paths.
+        if [ "$prefix" = "./" ]; then
+          matched=1
+        else
+          case "$file" in
+            "$prefix"*) matched=1 ;;
+            *) matched=0 ;;
+          esac
+        fi
+        if [ "$matched" -eq 1 ]; then
+          touched_modules+=("${mod_names[$i]}")
+          break
+        fi
+      done
+    done <<< "$touched_files"
+    [ "${#touched_modules[@]}" -eq 0 ] && exit 0
+
+    unique_modules=$(printf '%s\n' "${touched_modules[@]}" | sort -u | grep -v '^$')
+    [ -z "$unique_modules" ] && exit 0
+
+    while IFS= read -r module; do
+      count=$(grep -rlE "(import|require).*['\"].*${module}" . \
+        --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" \
+        --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=worktrees \
+        --exclude-dir=target --exclude-dir=.next --exclude-dir=__pycache__ --exclude-dir=.venv \
+        2>/dev/null | wc -l)
+      candidate="no"
+      [ "$count" -gt 10 ] && candidate="yes"
+      echo "${module}|${count}|${candidate}"
+    done <<< "$unique_modules"
+    ;;
+
   *)
-    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>>" >&2
+    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]>" >&2
     exit 2
     ;;
 esac
