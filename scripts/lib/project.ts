@@ -18,7 +18,7 @@ export interface ProjectInfo {
   needsInstall: boolean;
 }
 
-function exists(path: string): boolean {
+export function exists(path: string): boolean {
   try {
     Deno.statSync(path);
     return true;

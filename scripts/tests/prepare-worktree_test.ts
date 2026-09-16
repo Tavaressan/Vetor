@@ -1,8 +1,9 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { prepareDeps } from "../prepare-worktree.ts";
 import { prepareFailedMarkerPath } from "../lib/status.ts";
+import { fileURLToPath } from "node:url";
 
-const SCRIPT = new URL("../prepare-worktree.ts", import.meta.url).pathname;
+const SCRIPT = fileURLToPath(new URL("../prepare-worktree.ts", import.meta.url));
 
 async function git(args: string[], cwd: string): Promise<{ code: number; stdout: string }> {
   const { code, stdout } = await new Deno.Command("git", {

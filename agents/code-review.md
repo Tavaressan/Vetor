@@ -40,12 +40,28 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    - **Correção**: o diff cumpre o que a issue/PR descreve, sem efeitos colaterais não intencionais.
    - **Arquitetura**: acoplamento novo, duplicação evitável, abstrações desnecessárias (YAGNI).
      Use estes limiares como heurística objetiva (não regra rígida) para reconhecer os casos mais
-     comuns — a decisão de severidade continua sendo seu julgamento sobre o diff real:
+     comuns — a decisão de severidade continua sendo seu julgamento sobre o diff real. Nomeie os
+     achados com code smells de Fowler quando aplicável (prefixo `[Smell]` opcional no comentário da
+     PR, ex.: `[Data Clumps] Componente recebe 4 props relacionadas...`):
      - Função/método com mais de ~30 linhas de corpo.
-     - Lógica duplicada (quase idêntica) em 2 ou mais lugares do diff.
-     - Uso de `any` em TypeScript onde um tipo concreto seria viável.
-     - Componente com 3 ou mais props que poderia ser decomposto ou simplificado.
+     - **Duplicated Code**: Lógica duplicada (quase idêntica) em 2 ou mais lugares do diff.
+     - **Primitive Obsession**: Uso de `any` em TypeScript onde um tipo concreto seria viável.
+     - **Data Clumps** ou **Feature Envy**: Componente com 3 ou mais props — Data Clumps quando os
+       props viajam juntos, Feature Envy quando manipula mais dados de outro módulo que do próprio.
      - Código assíncrono (`async`/`await`, Promise) sem tratamento de erro.
+     - **Mysterious Name**: Identificador (função/variável/componente) cujo nome não revela intenção
+       nem é autoexplicativo no contexto do diff.
+     - **Shotgun Surgery**: Diff exige alterar 3+ arquivos não relacionados por hierarquia/módulo para
+       uma mudança conceitualmente única.
+     - **Divergent Change**: Mesmo arquivo/módulo alterado no diff por 2+ razões não relacionadas.
+     - **Speculative Generality**: Abstração (interface, parâmetro opcional, hook de extensão) sem
+       uso real no diff além do caso atual (1 único call-site).
+     - **Message Chains**: Encadeamento de 3+ acessos (`a.b.c.d`) no diff.
+     - **Middle Man**: Classe/módulo cujos métodos só delegam para outro objeto, sem lógica própria.
+     - **Repeated Switches**: Mesma condição `switch`/`if-else` sobre o mesmo valor aparece 2+ vezes
+       no diff (candidato a polimorfismo).
+     - **Refused Bequest**: Subclasse/componente que herda/estende mas ignora ou sobrescreve a maior
+       parte do comportamento herdado.
    Não aponte nitpicks de estilo puro (formatação, nomes) a menos que prejudiquem a legibilidade.
 3. Para cada achado, atribua:
    - **Severidade**: `blocker` (bug/segurança real) | `warning` (risco a validar) | `nit` (sugestão menor).
@@ -55,15 +71,19 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    ```bash
    gh pr comment <PR-number> --body "<achados em markdown>"
    ```
-   Formato do corpo:
+   Formato do corpo (coluna "Achado" pode ter prefixo opcional `[Smell]` para smells de Fowler):
    ```markdown
    ## Code Review (Vetor)
 
    | Severidade | Confiança | Arquivo:Linha | Achado |
    |------------|-----------|----------------|--------|
-   | blocker    | alta      | `path:42`      | <descrição objetiva> |
+   | blocker    | alta      | `path:42`      | [Data Clumps] <descrição objetiva> |
+   | warning    | média     | `path:10`      | <descrição de outro achado> |
 
    Sem achados: **Nenhum problema relevante encontrado.**
+
+   ---
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 5. Finalize reportando ao chamador (`worktree-ship`) se houve algum achado `blocker`, sem impedir o
    fluxo — a decisão de agir sobre o achado é sempre humana.

@@ -3,11 +3,9 @@
 // o exit code — 0 libera, 2 bloqueia (contrato descrito no topo de safety-check.ts).
 
 import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
+import { fileURLToPath } from "node:url";
 
-const SCRIPT = new URL("../safety-check.ts", import.meta.url).pathname.replace(
-  /^\/([A-Za-z]:)/,
-  "$1",
-);
+const SCRIPT = fileURLToPath(new URL("../safety-check.ts", import.meta.url));
 
 async function git(args: string[], cwd: string): Promise<string> {
   const out = await new Deno.Command("git", { args, cwd, stdout: "piped", stderr: "piped" })
@@ -41,12 +39,14 @@ async function makeLinkedWorktree(
 
 async function runHook(
   input: Record<string, unknown>,
+  env?: Record<string, string>,
 ): Promise<{ code: number; stderr: string }> {
   const command = new Deno.Command("deno", {
     args: ["run", "-A", SCRIPT],
     stdin: "piped",
     stdout: "piped",
     stderr: "piped",
+    env,
   });
   const child = command.spawn();
   const writer = child.stdin.getWriter();
@@ -142,6 +142,27 @@ Deno.test("issue-worker escrevendo fora do próprio worktree (outro diretório) 
     assertStringIncludes(stderr, "escrita fora do worktree bloqueada");
   } finally {
     await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("escrevendo em ~/.claude/projects/ (memória do Claude Code) com cwd num worktree não é bloqueado — issue #155", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  const fakeHome = await Deno.realPath(await Deno.makeTempDir());
+  try {
+    const { code, stderr } = await runHook(
+      {
+        tool_name: "Edit",
+        tool_input: { file_path: `${fakeHome}/.claude/projects/-repo-slug/memory/MEMORY.md` },
+        cwd: worktreePath,
+        agent_type: "vetor:issue-worker",
+      },
+      { HOME: fakeHome, USERPROFILE: fakeHome },
+    );
+
+    assertEquals(code, 0, stderr);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+    await Deno.remove(fakeHome, { recursive: true });
   }
 });
 
@@ -380,6 +401,39 @@ Deno.test("cwd contaminado: mesmo agent_id e mesmo worktree em chamadas repetida
   }
 });
 
+Deno.test("cwd contaminado: redispatch via cd explícito (sem subagent_type/agent_type) não é bloqueado por agent_id reciclado — issue #151", async () => {
+  // Reprodução do padrão descrito na issue #151: o issue-coordinator redespacha um worker cujo
+  // worktree já existe usando um Agent() genérico, sem `subagent_type` (logo sem `agent_type` no
+  // payload do hook) e com um `cd` explícito para o worktree — ver issue-coordinator/SKILL.md
+  // Fase 4. Nesse modo, o harness não garante `agent_id` único por worktree/instância (ao
+  // contrário do dispatch nativo com `isolation: "worktree"`), então o mesmo `agent_id` pode
+  // legitimamente aparecer associado a worktrees diferentes ao longo da sessão — não deve ser
+  // tratado como contaminação.
+  const { root, worktreePath: worktreeA } = await makeLinkedWorktree("worker-a");
+  const worktreeB = `${root}/.claude/worktrees/worker-b`;
+  await git(["worktree", "add", "-q", "-b", "worker-b", worktreeB], root);
+  try {
+    const first = await runHook({
+      tool_name: "Edit",
+      tool_input: { file_path: `${worktreeA}/README.md` },
+      cwd: worktreeA,
+      agent_id: "agent-recycled",
+    });
+    assertEquals(first.code, 0, first.stderr);
+
+    const second = await runHook({
+      tool_name: "Edit",
+      tool_input: { file_path: `${worktreeB}/README.md` },
+      cwd: worktreeB,
+      agent_id: "agent-recycled",
+    });
+
+    assertEquals(second.code, 0, second.stderr);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("cwd contaminado: sem agent_id no payload, a checagem de binding não se aplica (sem regressão)", async () => {
   const { root, worktreePath: worktreeA } = await makeLinkedWorktree("worker-a");
   const worktreeB = `${root}/.claude/worktrees/worker-b`;
@@ -471,6 +525,77 @@ Deno.test("issue #123 (review): git push com continuação de linha (\\) para ma
   }
 });
 
+Deno.test("issue #161: heredoc contendo o texto 'git push'/'gh pr create' como conteúdo não dispara o gate de worker não-GREEN", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("worker-a");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/worker-a.md`,
+    "Status: RUNNING\nIteration: 1/5 (Issue #1)\n",
+  );
+  try {
+    // O comando real é só um `python3 <<EOF ... EOF` escrevendo um arquivo — "git push"/"gh pr
+    // create" aparecem apenas como conteúdo textual dentro do heredoc, não como comando.
+    const command = [
+      "python3 <<'EOF'",
+      "with open('notes.txt', 'w') as f:",
+      "    f.write('lembrete: nunca faça git push ou gh pr create manualmente')",
+      "EOF",
+    ].join("\n");
+
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command },
+      cwd: worktreePath,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("issue #161: git push real após && continua bloqueado por worker não-GREEN (sem regressão)", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("worker-a");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/worker-a.md`,
+    "Status: RUNNING\nIteration: 1/5 (Issue #1)\n",
+  );
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "echo done && git push -u origin worker-a" },
+      cwd: worktreePath,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "worker não-GREEN");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("issue #161: gh pr create no início do comando continua bloqueado por worker não-GREEN (sem regressão)", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("worker-a");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/worker-a.md`,
+    "Status: RUNNING\nIteration: 1/5 (Issue #1)\n",
+  );
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "gh pr create --title x --base main" },
+      cwd: worktreePath,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "worker não-GREEN");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("safety-check.ts (integração): sem regressão — raiz do repositório principal continua liberada", async () => {
   const repo = await makeRepo("main");
 
@@ -482,4 +607,166 @@ Deno.test("safety-check.ts (integração): sem regressão — raiz do repositór
 
   assertEquals(result.code, 0, result.stderr);
   await Deno.remove(repo, { recursive: true });
+});
+
+Deno.test("issue #184: git reset --hard é bloqueado incondicionalmente, mesmo fora de um worktree", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git reset --hard HEAD~1" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: git clean -f* é bloqueado incondicionalmente", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "echo antes && git clean -fdx" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184 (review PR #200): git clean -xdf/-df (flag -f em qualquer posição do combinado) é bloqueado", async () => {
+  const repo = await makeRepo("main");
+  try {
+    for (const command of ["git clean -xdf", "git clean -df"]) {
+      const result = await runHook({
+        tool_name: "Bash",
+        tool_input: { command },
+        cwd: repo,
+      });
+      assertEquals(result.code, 2, `esperava bloqueio para "${command}"`);
+      assertStringIncludes(result.stderr, "comando git destrutivo");
+    }
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184 (review PR #200): git reset --hard com continuação de linha (\\) continua bloqueado", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git reset \\\n  --hard HEAD~1" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: git branch -D é bloqueado incondicionalmente", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git branch -D feature/old" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: git checkout . é bloqueado incondicionalmente", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git checkout ." },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "comando git destrutivo");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: git checkout .github (não é 'git checkout .' literal) não é bloqueado — sem falso positivo", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git checkout .github" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: heredoc/echo contendo o texto 'git reset --hard' como conteúdo não dispara o bloqueio (sem falso positivo de ancoragem)", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const command = [
+      "python3 <<'EOF'",
+      "with open('notes.txt', 'w') as f:",
+      "    f.write('lembrete: nunca faça git reset --hard ou git clean -fdx manualmente')",
+      "EOF",
+    ].join("\n");
+
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #184: comandos git não-destrutivos equivalentes continuam liberados (sem regressão)", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const resetSoft = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git reset --soft HEAD~1" },
+      cwd: repo,
+    });
+    assertEquals(resetSoft.code, 0, resetSoft.stderr);
+
+    const checkoutBranch = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git checkout feature/some-branch" },
+      cwd: repo,
+    });
+    assertEquals(checkoutBranch.code, 0, checkoutBranch.stderr);
+
+    const branchDelete = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git branch -d feature/merged" },
+      cwd: repo,
+    });
+    assertEquals(branchDelete.code, 0, branchDelete.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
