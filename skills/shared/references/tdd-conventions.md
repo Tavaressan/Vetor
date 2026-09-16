@@ -25,12 +25,19 @@ O mattpocock exige confirmar o *seam* (ponto de encaixe do teste, i.e. qual inte
 testar) com o usuário antes de escrever o teste. `issue-worker` e `fix-loop-agent` rodam headless,
 sem interlocutor disponível para essa confirmação síncrona.
 
-**Adaptação**: o seam é inferido automaticamente a partir da interface pública já mapeada no módulo
-(`module-test-map.md` — comando headless e módulo associado ao path alterado). Se o seam correto for
-ambíguo (ex.: módulo sem interface pública clara, ou o path alterado não mapeia para nenhum módulo
-conhecido), o worker registra `Status: BLOCKED_WAITING` (mecanismo já existente em
-`agent-status.template.md`) em vez de inventar uma interação síncrona nova — reaproveita a escalação
-que o `issue-coordinator` já sabe tratar.
+**Adaptação — campo da issue primeiro**: antes de inferir, verifique se a issue original já declara
+o seam (`gh issue view <N>` — bloco `## Contexto`, campo `Seam de Teste:`, preenchido pelo
+`backlog-ideator` e confirmado pelo usuário no checkpoint de aprovação da criação da issue). Se
+presente, use-o diretamente — não infira do zero. Isso cobre issues criadas pelo `/backlog`, cuja
+confirmação síncrona já aconteceu enquanto havia humano no loop, antes da implementação headless.
+
+**Fallback — inferência automática**: se o campo estiver ausente (issue criada manualmente, por
+versão anterior do `backlog-ideator`, ou fora dele), infira o seam automaticamente a partir da
+interface pública já mapeada no módulo (`module-test-map.md` — comando headless e módulo associado
+ao path alterado). Se o seam correto for ambíguo (ex.: módulo sem interface pública clara, ou o path
+alterado não mapeia para nenhum módulo conhecido), o worker registra `Status: BLOCKED_WAITING`
+(mecanismo já existente em `agent-status.template.md`) em vez de inventar uma interação síncrona
+nova — reaproveita a escalação que o `issue-coordinator` já sabe tratar.
 
 ## 3. Três anti-padrões nomeados
 
