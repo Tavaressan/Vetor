@@ -1,6 +1,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { fileURLToPath } from "node:url";
 
-const SCRIPT = new URL("../vetor-status.sh", import.meta.url).pathname;
+const SCRIPT = fileURLToPath(new URL("../vetor-status.sh", import.meta.url));
 
 async function run(
   cmd: string,
@@ -107,6 +108,42 @@ Deno.test("vetor-status.sh lista worktree com status file e worktree sem status 
     assertStringIncludes(stdout, "fix-orphan");
     // O alerta deve ser para o orphan
     assertStringIncludes(stdout, "ALERTA");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh destaca Iteration acima do orçamento de 5 — issue #156", async () => {
+  const { root } = await makeLinkedWorktree("fix-overshot");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-overshot.md`,
+      "Status: RUNNING\nIteration: 8/5 (Issue #10)\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "fix-overshot");
+    assertStringIncludes(stdout, "⚠️ 8/5");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh não destaca Iteration dentro do orçamento de 5", async () => {
+  const { root } = await makeLinkedWorktree("fix-ok");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-ok.md`,
+      "Status: RUNNING\nIteration: 3/5 (Issue #10)\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "3/5");
+    assertEquals(stdout.includes("⚠️ 3/5"), false);
   } finally {
     await Deno.remove(root, { recursive: true });
   }

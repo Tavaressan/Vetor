@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.0.1"
+  version: "1.0.2"
 ---
 
 Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem fundamentadas, ancoradas na documentação existente do projeto, e criá-las em batch após aprovação do usuário.
@@ -31,6 +31,11 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
   resumir documentação extensa (§1) e rascunhar corpos de issue (§6). Você sempre revisa e ancora o
   rascunho antes de criar.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — MCP de observabilidade (§2.a).
+  Se a ideação exigir pesquisar comportamento de uma ferramenta/lib/framework/API externa antes de
+  propor uma issue, o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de
+  ferramentas/libs (Context7)").
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/grilling-conventions.md` — mecanismo de rodadas
+  (§1.a e §2.b), consumido também por `architecture-review`. Não replique o formato aqui.
 
 ---
 
@@ -69,6 +74,11 @@ arquivos principais e limite-se a listas de tópicos/buscas pontuais nos demais.
 leia nativamente. Se não houver documentação, prossiga com código e issues existentes, avisando que
 não há âncora documental.
 
+### 1.a — Glossário de domínio (`CONTEXT.md`, lazy e opcional)
+
+Ver `grilling-conventions.md` §5 — mecanismo idêntico, não replicado aqui. Se `.claude/vetor/docs/CONTEXT.md`
+existir, ele já é lido pelo item 1 de §1 acima (qualquer `.md` em `.claude/vetor/docs/`).
+
 ### 2 — Levantar issues existentes
 
 ```bash
@@ -83,17 +93,19 @@ diretórios de um framework de feature (ex.: `_reversa_forward/`) — feature-id
 Qualquer evidência ao vivo é âncora válida — não se limita a Sentry/Datadog. Exemplos: saída de
 `gh run view`/`gh api`, logs de produção, um comando que reproduz um comportamento real. Se observar
 uma dessas durante a sessão (não precisa buscar ativamente), use-a para propor issue `fix` ou
-`chore`, citando o comando/fonte exato.
+`chore`. **Para issues `fix`, é obrigatório citar o comando/fonte exato que reproduz o problema.**
 
 Se houver MCP de observabilidade disponível (`mcp__sentry__*`, `mcp__datadog__*` — ver
 `mcp-availability.md`), use-o para obter os erros não resolvidos mais frequentes em produção e
 ancore issues `fix` neles, incluindo stacktraces. Sem MCP, prossiga normalmente.
 
-### 2.b — Questionamento direcionado (KISS & YAGNI)
+### 2.b — Investigação estruturada (grilling)
 
-Seguindo `planning-conventions.md` §3.1: se houver ambiguidades críticas sobre os objetivos do
-backlog ou limites arquiteturais não resolvidas pela seção 1, formule **exatamente um bloco com até
-3 perguntas** no chat e aguarde a resposta antes da Fase 3.
+Mecanismo completo em `grilling-conventions.md` (fato vs. decisão, frontier, formato de rodada,
+critério de parada) — não replicado aqui. As "ambiguidades" desta fase são as levantadas em §1/§2.a
+sobre objetivos do backlog ou limites arquiteturais; a apuração de fato usa `gh issue list`, grep no
+código-alvo ou releitura de `docs/`/`.claude/vetor/docs/` (já cobertos por §1/§2). Se §1/§2.a não
+levantar nenhuma ambiguidade crítica, pule direto para a Fase 3 sem gerar uma rodada vazia.
 
 ### 3 — Gerar propostas
 
@@ -104,6 +116,7 @@ Proponha de **3 a 8 issues** no formato:
 
 **Tipo:** feat | fix | chore | refactor | test
 **Módulo:** <um dos módulos do projeto, derivado dos paths do repo ou do module-test-map>
+**Seam de Teste:** <interface pública que será testada — prefira seam já existente; use o seam mais alto possível (idealmente 1 seam por issue)>
 **Âncora (documental | empírica):** <referência ao trecho de documentação (§1) OU à evidência ao vivo (§2.a) — cite o comando/fonte exato se empírica>
 
 **Descrição:**
@@ -118,6 +131,11 @@ Proponha de **3 a 8 issues** no formato:
 
 Cada proposta deve estar ancorada em entidade, dívida técnica ou gap confirmado; ter critério de
 aceite verificável; e ser atômica o suficiente para caber em um PR.
+
+**Seam de Teste**: derive-o da mesma âncora já usada para o resto da proposta (§1/§2.a) — proponha
+com base no `module-test-map.md` e na interface pública já conhecida do módulo, sem pesquisa dedicada
+nova. A confirmação do campo acontece no checkpoint de aprovação já existente (§5) — não gera rodada
+de esclarecimento nova.
 
 ### 4 — Verificar duplicatas
 
@@ -151,6 +169,7 @@ Gere ou atualize `implementation_plan.md` (com `request_feedback: true` e `user_
 ## Issues Propostas
 
 ### 1. ✅ <título> — <tipo> — <módulo>
+- **Seam de Teste:** <seam>
 - **Descrição:** <descrição>
 - **Critério de Aceite:** <critério>
 - **Âncora:** <âncora>
@@ -199,6 +218,7 @@ O corpo pode ser rascunhado com `agy` (ver `delegate-to-gemini.md`); revise e an
   ## Contexto
   Âncora: <referência à documentação>
   Módulo: <módulo>
+  Seam de Teste: <seam>
 
   ---
   🤖 Gerado por `/backlog` — [Claude Code](https://claude.ai/code)

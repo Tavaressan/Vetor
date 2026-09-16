@@ -31,6 +31,18 @@ Invocação manual, tipicamente ao final de uma sessão que usou uma ou mais ski
 
 ---
 
+## Referências
+
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — ao avaliar um achado sobre
+  hooks, slash commands, configuração de MCP, permissões ou SDK de agentes do próprio Claude Code, o
+  MCP `claude-code-docs` é **obrigatório quando disponível** (ver "Documentação do próprio Claude
+  Code (`claude-code-docs`)") antes de afirmar o comportamento esperado da plataforma. Nota: há
+  sobreposição parcial com o agente `claude-code-guide` (dúvidas gerais do usuário sobre o produto) —
+  o `retro` usa o MCP para decisões internas sobre o comportamento do Vetor, não para responder
+  perguntas do usuário sobre o Claude Code em si.
+
+---
+
 ## Comportamento
 
 ### 1 — Levantar o que aconteceu nesta sessão

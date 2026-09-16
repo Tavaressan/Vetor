@@ -69,8 +69,9 @@ e do `fix-loop-agent` (não replique estes parágrafos nas skills):
 * **Regra das 3 perguntas**: só pergunte quando houver ambiguidade crítica de arquitetura/escopo,
   e nunca mais de 3 perguntas objetivas num único turno. Se o prompt/requisitos já bastam,
   prossiga sem perguntar (YAGNI — não pergunte sobre cenários futuros).
-* **TDD antes do fix**: escreva primeiro um teste de reprodução que falhe (vermelho), cobrindo só
-  o bug em questão, antes de tocar no código de produto.
+* **TDD antes do fix**: red antes de green — escreva primeiro um teste de reprodução que falhe,
+  cobrindo só o bug em questão, antes de tocar no código de produto. Disciplina completa (bom teste,
+  seams, anti-padrões, mocking) em `tdd-conventions.md` — não replique o texto aqui.
 * **KISS/YAGNI no código**: a menor alteração que faz o teste passar; sem refatoração oportunista
   em arquivos adjacentes nem abstrações "para o futuro".
 * **Reuso antes de reinventar**: rotinas complexas (detecção de testes, checagens de git) já podem
