@@ -207,6 +207,12 @@ export interface KnowledgeState {
 export interface KnowledgeConfig {
   enabled?: boolean;
   provider?: string;
+  /** Path absoluto para a raiz do Vault do Obsidian (obrigatório quando `provider: "obsidian"`). */
+  vault?: string;
+  /** Subpasta opcional dentro do Vault que representa o projeto atual. */
+  project?: string;
+  /** Nomes de subdiretórios do Vault, configuráveis por projeto (ex.: `{ specs: "Specs" }`). */
+  paths?: Record<string, string>;
 }
 
 export interface VetorConfigWithKnowledge {
@@ -230,4 +236,222 @@ export function detectKnowledgeState(
     return { status: "obsidian", label: "✓ Obsidian" };
   }
   return { status: "filesystem", label: "✓ Filesystem" };
+}
+
+// --- ObsidianKnowledgeProvider (issue #225) ---
+//
+// SEGURANÇA — conteúdo do Vault é dado não confiável: qualquer texto lido de uma entrada do
+// Vault (via `read`/`search`) é retornado como dado bruto para quem chamou o provider. Ele
+// NUNCA deve ser interpretado como instrução para um agente — mesmo que o conteúdo contenha
+// algo formatado como comando/prompt (possível prompt injection plantada em um documento do
+// Vault). Skills que consomem este provider devem tratar o retorno de `read`/`search` como
+// texto a ser exibido/citado, nunca como diretiva a seguir.
+//
+// O provider nunca acopla a um SDK de MCP específico: ele recebe um `ObsidianMcpClient` já
+// pronto para uso (injetado por quem o instancia) e permanece agnóstico de qual MCP de Obsidian
+// está por trás dele — inclusive útil para testes com um cliente simulado/mockado.
+
+/**
+ * Abstração mínima sobre um MCP de Obsidian. Qualquer MCP compatível com estas operações pode
+ * ser injetado em `ObsidianKnowledgeProvider` — o provider nunca importa um SDK específico.
+ * Implementações devem lançar `ObsidianUnavailableError` quando a conexão com o Obsidian falhar
+ * (indisponibilidade), para que o provider distinga isso de um erro de contrato (ex.: "já
+ * existe"), que deve propagar normalmente em vez de acionar o fallback.
+ */
+export interface ObsidianMcpClient {
+  search(query: string): Promise<KnowledgeSearchResult[]>;
+  read(path: string): Promise<string>;
+  create(path: string, content: string): Promise<void>;
+  update(path: string, content: string): Promise<void>;
+  list(path?: string): Promise<string[]>;
+}
+
+/** Sinaliza que o MCP de Obsidian está indisponível (conexão/timeout), não um erro de contrato. */
+export class ObsidianUnavailableError extends Error {
+  constructor(message = "MCP de Obsidian indisponível") {
+    super(message);
+    this.name = "ObsidianUnavailableError";
+  }
+}
+
+export interface ObsidianVaultConfig {
+  /** Path absoluto para a raiz do Vault no filesystem — usado pelo fallback e pela validação de path. */
+  vault: string;
+  /** Subpasta opcional dentro do Vault que representa este projeto. */
+  project?: string;
+  /** Nomes de subdiretórios do Vault, configuráveis — nunca hardcoded (ex.: `{ specs: "Specs" }`). */
+  paths?: Record<string, string>;
+}
+
+function tryRealPathSync(path: string): string | undefined {
+  try {
+    return Deno.realPathSync(path);
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) return undefined;
+    throw err;
+  }
+}
+
+/**
+ * Garante que `relativePath`, resolvido contra `vaultRoot`, não escapa da raiz do Vault através
+ * de um symlink — mesmo quando o path final ainda não existe (ex.: `create` sob um diretório
+ * cujo pai é um link simbólico). Caminha para cima até achar o ancestral existente mais próximo:
+ * como o conteúdo do Vault é dado não confiável, um symlink plantado nele não pode ser seguido
+ * para fora da raiz configurada.
+ */
+function assertNoSymlinkEscape(vaultRoot: string, relativePath: string): void {
+  const vaultReal = tryRealPathSync(vaultRoot);
+  if (vaultReal === undefined) return; // vault ainda não existe (ex.: primeira escrita) — nada a validar
+  const vaultRealNormalized = toPosix(vaultReal);
+
+  let current = `${vaultRoot}/${relativePath}`;
+  while (true) {
+    const real = tryRealPathSync(current);
+    if (real !== undefined) {
+      const realNormalized = toPosix(real);
+      if (
+        realNormalized !== vaultRealNormalized &&
+        !realNormalized.startsWith(`${vaultRealNormalized}/`)
+      ) {
+        throw new Error(
+          `ObsidianKnowledgeProvider: path escapa do vault via symlink: "${relativePath}"`,
+        );
+      }
+      return;
+    }
+    const parentEnd = Math.max(current.lastIndexOf("/"), current.lastIndexOf("\\"));
+    if (parentEnd <= 0 || current.slice(0, parentEnd) === current) return;
+    current = current.slice(0, parentEnd);
+  }
+}
+
+/**
+ * Implementação do `KnowledgeProvider` que consome um MCP de Obsidian (injetado via
+ * `ObsidianMcpClient`), com fallback explícito para `FilesystemKnowledgeProvider` — apontando
+ * para a mesma raiz do Vault no filesystem — quando o MCP não está configurado ou reporta
+ * indisponibilidade (`ObsidianUnavailableError`). Nunca finge sucesso: uma operação só é
+ * considerada bem-sucedida quando o client ou o fallback efetivamente a completam; quando o
+ * fallback é usado, `warning` fica preenchido com o motivo.
+ */
+export class ObsidianKnowledgeProvider implements KnowledgeProvider {
+  private readonly fallback: FilesystemKnowledgeProvider;
+  private readonly vaultRoot: string;
+  /** Nomes de subdiretórios do Vault configurados — Skills os usam para montar paths, em vez de hardcodar. */
+  readonly paths: Readonly<Record<string, string>>;
+  /** Motivo do fallback na última operação, ou `undefined` se ela foi atendida pelo MCP. */
+  warning: string | undefined;
+
+  constructor(
+    private readonly client: ObsidianMcpClient | undefined,
+    config: ObsidianVaultConfig,
+    private readonly warn: (message: string) => void = (message) => console.warn(message),
+  ) {
+    if (!config.vault || config.vault.trim() === "") {
+      throw new Error("ObsidianKnowledgeProvider: config.knowledge.vault é obrigatório");
+    }
+    this.vaultRoot = config.project ? `${config.vault}/${config.project}` : config.vault;
+    this.paths = Object.freeze({ ...(config.paths ?? {}) });
+    this.fallback = new FilesystemKnowledgeProvider(this.vaultRoot);
+  }
+
+  private assertSafeVaultPath(path: string): void {
+    assertSafeRelativePath(path);
+    assertNoSymlinkEscape(this.vaultRoot, path);
+  }
+
+  private reportFallback(message: string): void {
+    this.warning = message;
+    this.warn(message);
+  }
+
+  private async withFallback<T>(
+    op: string,
+    run: (client: ObsidianMcpClient) => Promise<T>,
+    runFallback: () => Promise<T>,
+  ): Promise<T> {
+    if (!this.client) {
+      this.reportFallback(
+        `ObsidianKnowledgeProvider: nenhum MCP de Obsidian configurado — usando ` +
+          `FilesystemKnowledgeProvider como fallback ("${op}").`,
+      );
+      return runFallback();
+    }
+    try {
+      const result = await run(this.client);
+      this.warning = undefined;
+      return result;
+    } catch (err) {
+      if (err instanceof ObsidianUnavailableError) {
+        this.reportFallback(
+          `ObsidianKnowledgeProvider: MCP de Obsidian indisponível (${err.message}) — usando ` +
+            `FilesystemKnowledgeProvider como fallback ("${op}").`,
+        );
+        return runFallback();
+      }
+      throw err;
+    }
+  }
+
+  search(query: string): Promise<KnowledgeSearchResult[]> {
+    return this.withFallback(
+      "search",
+      (client) => client.search(query),
+      () => this.fallback.search(query),
+    );
+  }
+
+  // As assinaturas abaixo usam `async` mesmo sem `await` direto para que a validação de path
+  // (síncrona) vire rejeição de Promise, e não um throw síncrono — consistente com o restante
+  // do contrato, onde toda operação inválida se manifesta como Promise rejeitada.
+
+  // deno-lint-ignore require-await
+  async read(path: string): Promise<string> {
+    this.assertSafeVaultPath(path);
+    return this.withFallback(
+      "read",
+      (client) => client.read(path),
+      () => this.fallback.read(path),
+    );
+  }
+
+  // deno-lint-ignore require-await
+  async create(path: string, content: string): Promise<void> {
+    this.assertSafeVaultPath(path);
+    return this.withFallback(
+      "create",
+      (client) => client.create(path, content),
+      () => this.fallback.create(path, content),
+    );
+  }
+
+  // deno-lint-ignore require-await
+  async update(path: string, content: string): Promise<void> {
+    this.assertSafeVaultPath(path);
+    return this.withFallback(
+      "update",
+      (client) => client.update(path, content),
+      () => this.fallback.update(path, content),
+    );
+  }
+
+  // deno-lint-ignore require-await
+  async list(path = ""): Promise<string[]> {
+    if (path) this.assertSafeVaultPath(path);
+    return this.withFallback(
+      "list",
+      (client) => client.list(path || undefined),
+      () => this.fallback.list(path),
+    );
+  }
+
+  async link(source: string, target: string): Promise<void> {
+    this.assertSafeVaultPath(source);
+    this.assertSafeVaultPath(target);
+    const content = await this.read(source);
+    await this.read(target); // apenas para validar existência — contrato exige que target também exista
+    const line = `- Relacionado: ${target}`;
+    if (content.split(/\r?\n/).some((l) => l.trim() === line)) return;
+    const separator = content.endsWith("\n") || content === "" ? "" : "\n";
+    await this.update(source, `${content}${separator}\n${line}\n`);
+  }
 }
