@@ -50,12 +50,24 @@ export function gateFor(score: number, thresholds: Thresholds = DEFAULT_THRESHOL
   return "INCOMPLETE";
 }
 
+/**
+ * Um gap acionável (#222, #203 §9) — nunca uma mensagem genérica tipo "Spec precisa ser
+ * melhorada". `location` é o anchor legível por humano no texto da Spec (ex.: "RF-03",
+ * "Non-Goals"), não um seletor ou path — o mesmo texto que apareceria citado numa revisão manual.
+ */
+export interface Gap {
+  location: string;
+  problem: string;
+  impact: string;
+  suggestedAction: string;
+}
+
 /** Resultado de um dimension checker (spec-quality-checkers.ts) — `fraction` é o quanto da
  * dimensão foi satisfeita (0-1), independente do peso; a ponderação é feita só em
  * `computeQuality`. */
 export interface DimensionResult {
   fraction: number;
-  gaps: string[];
+  gaps: Gap[];
   strengths: string[];
 }
 
@@ -64,7 +76,7 @@ export interface DimensionScore {
   score: number;
   /** Peso máximo da dimensão (DIMENSION_WEIGHTS). */
   max: number;
-  gaps: string[];
+  gaps: Gap[];
   strengths: string[];
 }
 
@@ -73,16 +85,11 @@ export interface QualityResult {
   gate: Gate;
   dimensions: Record<Dimension, DimensionScore>;
   strengths: string[];
-  gaps: string[];
+  gaps: Gap[];
+  /** `suggestedAction` de cada gap, deduplicado — dimensões diferentes podem coincidentemente
+   * sugerir o mesmo texto de ação (ex.: duas seções vazias com a mesma orientação de preenchê-las
+   * de novo), e repetir a mesma linha na saída não agrega informação nova ao usuário. */
   suggestions: string[];
-}
-
-/** Converte um gap textual numa sugestão acionável mínima. Feedback estruturado por gap
- * (location/problem/impact/suggested_action) é escopo de #222 — aqui a sugestão é derivada
- * diretamente do texto do gap, satisfazendo a estrutura Strengths/Gaps/Suggestions exigida por
- * #220 mesmo sem os checkers completos de #221. */
-function suggestionFor(gap: string): string {
-  return `Resolver: ${gap}`;
 }
 
 /**
@@ -96,7 +103,7 @@ export function computeQuality(
 ): QualityResult {
   const dimensions = {} as Record<Dimension, DimensionScore>;
   const strengths: string[] = [];
-  const gaps: string[] = [];
+  const gaps: Gap[] = [];
   let total = 0;
 
   for (const dim of Object.keys(DIMENSION_WEIGHTS) as Dimension[]) {
@@ -118,6 +125,6 @@ export function computeQuality(
     dimensions,
     strengths,
     gaps,
-    suggestions: gaps.map(suggestionFor),
+    suggestions: [...new Set(gaps.map((g) => g.suggestedAction))],
   };
 }

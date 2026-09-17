@@ -1,10 +1,15 @@
-// CLI de `/vetor:spec-validate` (#220) — valida a qualidade de uma Spec já persistida (path em
-// disco) contra o Quality Model (spec-quality.ts) usando os dimension checkers de
-// spec-quality-checkers.ts, e imprime um Quality Report em markdown (Score/Status/Strengths/
-// Gaps/Suggestions).
+// CLI de `/vetor:spec-validate` (#220-#222) — valida a qualidade de uma Spec já persistida (path
+// em disco) contra o Quality Model (spec-quality.ts) usando os dimension checkers de
+// spec-quality-checkers.ts, imprime um Quality Report em Markdown (spec-quality-report.ts) e
+// mantém o histórico de refinamento (spec-quality-persistence.ts) separado do arquivo da Spec.
 //
 // Uso:
-//   deno run -A scripts/spec-validate.ts <path> [--config <path>]
+//   deno run -A scripts/spec-validate.ts <path> [--config <path>] [--history <path>]
+//
+// `--history`: opcional — sobrescreve onde o estado de validação é persistido (default:
+// derivado do path da Spec via `validationPathFor`, ver spec-quality-persistence.ts). Existe
+// principalmente para os testes de integração deste CLI não escreverem em
+// `.claude/vetor/specs/` durante a suíte.
 //
 // Mesmo padrão de scripts/knowledge-doc.ts: uma SKILL.md é prosa interpretada por um agente e não
 // pode importar módulos TypeScript diretamente — este wrapper expõe scripts/lib/spec-quality*.ts
@@ -19,6 +24,12 @@ import {
   checkTestability,
 } from "./lib/spec-quality-checkers.ts";
 import { computeQuality, type QualityResult, resolveThresholds } from "./lib/spec-quality.ts";
+import { appendValidation, renderQualityReport } from "./lib/spec-quality-report.ts";
+import {
+  loadValidationState,
+  saveValidationState,
+  validationPathFor,
+} from "./lib/spec-quality-persistence.ts";
 
 function flagValue(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -47,49 +58,10 @@ export function validateSpecText(text: string, config?: unknown): QualityResult 
   );
 }
 
-function list(items: string[], emptyLabel: string): string {
-  return items.length > 0 ? items.map((i) => `- ${i}`).join("\n") : `- ${emptyLabel}`;
-}
-
-export function renderReport(specPath: string, result: QualityResult): string {
-  const dimensionRows =
-    (Object.entries(result.dimensions) as [string, { score: number; max: number }][])
-      .map(([dim, d]) => `| ${dim} | ${d.score}/${d.max} |`)
-      .join("\n");
-
-  return [
-    "# Spec Quality Report",
-    "",
-    `Spec: ${specPath}`,
-    "",
-    `Score: ${result.score}/100`,
-    `Status: ${result.gate}`,
-    "",
-    "## Dimensions",
-    "",
-    "| Dimension | Score |",
-    "|---|---:|",
-    dimensionRows,
-    "",
-    "## Strengths",
-    "",
-    list(result.strengths, "Nenhum ponto forte identificado."),
-    "",
-    "## Gaps",
-    "",
-    list(result.gaps, "Nenhum gap identificado."),
-    "",
-    "## Suggestions",
-    "",
-    list(result.suggestions, "Nenhuma sugestão identificada."),
-    "",
-  ].join("\n");
-}
-
 async function main() {
   const [specPath, ...rest] = Deno.args;
   if (!specPath) {
-    console.error("Uso: spec-validate.ts <path> [--config <path>]");
+    console.error("Uso: spec-validate.ts <path> [--config <path>] [--history <path>]");
     Deno.exit(1);
   }
 
@@ -103,9 +75,31 @@ async function main() {
   }
 
   const configPath = flagValue(rest, "--config") ?? ".claude/vetor/config.json";
+  const historyPath = flagValue(rest, "--history") ?? validationPathFor(specPath);
+
   const config = await readConfig(configPath);
   const result = validateSpecText(text, config);
-  console.log(renderReport(specPath, result));
+
+  const existingState = await loadValidationState(historyPath);
+  const { history, capReached } = appendValidation(existingState?.history ?? [], {
+    timestamp: new Date().toISOString(),
+    score: result.score,
+    gate: result.gate,
+  });
+
+  if (!capReached) {
+    await saveValidationState(historyPath, { specPath, history });
+  }
+
+  console.log(renderQualityReport(specPath, result, { history }));
+
+  if (capReached) {
+    console.log(
+      `\nLimite de ${history.length - 1} ciclos de refinamento automático já foi atingido para ` +
+        "esta Spec — revisão manual necessária antes de validar novamente (#203 §10). O histórico " +
+        "acima não inclui esta tentativa.",
+    );
+  }
 }
 
 if (import.meta.main) {

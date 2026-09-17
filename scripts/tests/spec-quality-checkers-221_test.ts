@@ -52,7 +52,10 @@ Deno.test("checkCompleteness: requisito Must sem Acceptance Criteria gera gap (#
 Usuário autentica.
 `);
   const result = checkCompleteness(parseSpec(spec));
-  assertEquals(result.gaps.some((g) => g.includes("RF-01") && /Acceptance Criteria/.test(g)), true);
+  assertEquals(
+    result.gaps.some((g) => g.location === "RF-01" && /Acceptance Criteria/.test(g.problem)),
+    true,
+  );
 });
 
 Deno.test("checkCompleteness: requisito Must com Acceptance Criteria não gera esse gap", () => {
@@ -69,7 +72,7 @@ Usuário autentica.
 - [ ] Login válido retorna sessão.
 `);
   const result = checkCompleteness(parseSpec(spec));
-  assertEquals(result.gaps.some((g) => g.includes("RF-01")), false);
+  assertEquals(result.gaps.some((g) => g.location === "RF-01"), false);
 });
 
 Deno.test("checkCompleteness: requisito Should sem Acceptance Criteria não é penalizado", () => {
@@ -82,7 +85,7 @@ Deno.test("checkCompleteness: requisito Should sem Acceptance Criteria não é p
 Usuário encerra sessão.
 `);
   const result = checkCompleteness(parseSpec(spec));
-  assertEquals(result.gaps.some((g) => g.includes("RF-01")), false);
+  assertEquals(result.gaps.some((g) => g.location === "RF-01"), false);
 });
 
 Deno.test('checkTestability: termo vago sem métrica ("resposta rápida") gera gap', () => {
@@ -99,7 +102,10 @@ O sistema deve ter resposta rápida.
 - [ ] Resposta rápida em qualquer condição.
 `);
   const result = checkTestability(parseSpec(spec));
-  assertEquals(result.gaps.some((g) => /RNF-01/.test(g) && /rápid/i.test(g)), true);
+  assertEquals(
+    result.gaps.some((g) => /RNF-01/.test(g.location) && /rápid/i.test(g.problem)),
+    true,
+  );
 });
 
 Deno.test('checkTestability: termo vago com métrica mensurável ("até 500ms no P95") não gera gap de vague term', () => {
@@ -116,7 +122,7 @@ O sistema deve ter resposta rápida, em até 500ms no percentil P95.
 - [ ] Resposta em até 500ms no P95.
 `);
   const result = checkTestability(parseSpec(spec));
-  assertEquals(result.gaps.some((g) => /rápid/i.test(g)), false);
+  assertEquals(result.gaps.some((g) => /rápid/i.test(g.problem)), false);
 });
 
 Deno.test("checkTestability: presença de termo vago não invalida a spec automaticamente (fraction > 0)", () => {
@@ -150,7 +156,7 @@ Deno.test('checkClarity: "⚠️ ABERTO" explícito não conta como gap (unknown
 - [ ] ⚠️ ABERTO: definir critério de aceite.
 `);
   const result = checkClarity(parseSpec(spec));
-  assertEquals(result.gaps.some((g) => g.includes("RF-01")), false);
+  assertEquals(result.gaps.some((g) => g.location === "RF-01"), false);
 });
 
 Deno.test('checkClarity: "TBD"/"a definir" sem ⚠️ ABERTO é omissão escondida (unknown and hidden) -> gap', () => {
@@ -167,7 +173,7 @@ Comportamento a definir (TBD).
 - [ ] Critério a definir.
 `);
   const result = checkClarity(parseSpec(spec));
-  assertEquals(result.gaps.some((g) => g.includes("RF-01")), true);
+  assertEquals(result.gaps.some((g) => g.location === "RF-01"), true);
 });
 
 Deno.test("checkEdgeCases: avaliação contextual não exige todas as categorias — categoria única relevante já soma", () => {

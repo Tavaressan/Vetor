@@ -15,12 +15,12 @@ sozinho se a Spec "está boa o bastante": o Quality Gate é um mecanismo de deci
 resultado (refinar, seguir para implementação) é sempre o usuário ou a skill chamadora.
 
 O Quality Model, o Quality Gate, a estrutura de saída (Score/Status/Strengths/Gaps/Suggestions —
-#220) e os dimension checkers heurísticos (#221: Must sem Acceptance Criteria, termos vagos sem
+#220), os dimension checkers heurísticos (#221: Must sem Acceptance Criteria, termos vagos sem
 métrica mensurável, `⚠️ ABERTO` explícito vs. omissão silenciosa, Non-Goals ausente, Edge Cases
-contextuais) já estão completos e operacionais. Feedback estruturado por gap (`location`/`problem`/
-`impact`/`suggested_action`), o Quality Report em Markdown persistido separado da Spec e o
-refinamento iterativo com limite de 3 ciclos são escopo de #222. Metadados de rastreabilidade por
-requisito e Decision Log são escopo de #223.
+contextuais), o feedback estruturado por gap (`location`/`problem`/`impact`/`suggestedAction`), o
+Quality Report em Markdown persistido separado da Spec e o refinamento iterativo com limite de 3
+ciclos (#222) já estão completos e operacionais. Metadados de rastreabilidade por requisito e
+Decision Log são escopo de #223.
 
 ---
 
@@ -57,19 +57,22 @@ vez de invocação direta pelo usuário.
 ### 1 — Rodar o Quality Model
 
 ```bash
-deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/spec-validate.ts" <path> [--config <path-do-config>]
+deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/spec-validate.ts" <path> [--config <path-do-config>] [--history <path>]
 ```
 
 - `<path>`: obrigatório — path para a Spec em markdown.
 - `--config`: opcional — path para `.claude/vetor/config.json` (default), de onde os thresholds do
   Quality Gate são lidos (ver passo 3). Path inexistente/config sem a chave usam os thresholds
   default.
+- `--history`: opcional — sobrescreve onde o histórico de validação é persistido (default:
+  derivado do path da Spec, ver passo 5). Use só em cenário de teste/automação; em uso normal,
+  deixe o CLI derivar o path sozinho.
 
 O CLI lê a Spec, faz o parsing heurístico (`spec-parser.ts`), roda os 5 dimension checkers
 (`spec-quality-checkers.ts`) e agrega o resultado no Quality Model (`spec-quality.ts`), imprimindo
-o Quality Report em Markdown na saída padrão. Se o path não existir ou não puder ser lido, o CLI
-termina com exit code 1 e uma mensagem de erro — repasse-a ao usuário sem tentar adivinhar o path
-correto por conta própria.
+o Quality Report em Markdown na saída padrão (`spec-quality-report.ts`). Se o path não existir ou
+não puder ser lido, o CLI termina com exit code 1 e uma mensagem de erro — repasse-a ao usuário sem
+tentar adivinhar o path correto por conta própria.
 
 ### 2 — Quality Model
 
@@ -113,7 +116,9 @@ ausência de `specValidate` no config é um erro, é o caso comum (default aplic
 
 ### 4 — Apresentar o resultado
 
-Reproduza o Quality Report emitido pelo CLI ao usuário — não resuma nem edite os números. O relato
+Reproduza o Quality Report emitido pelo CLI ao usuário — não resuma nem edite os números nem os
+gaps. Cada gap listado já vem estruturado (`location`/`problem`/`impact`/`suggestedAction`, #203
+§9) — nunca substitua esse detalhe por uma frase genérica tipo "a Spec precisa melhorar". O relato
 sempre inclui, no mínimo:
 
 ```
@@ -124,15 +129,31 @@ Status: <READY|NEEDS_REFINEMENT|INCOMPLETE>
 ...
 
 ## Gaps
-...
+- **<location>**: <problem>
+  - Impact: <impact>
+  - Suggested action: <suggestedAction>
 
 ## Suggestions
 ...
 ```
 
-Se `Status` for `NEEDS_REFINEMENT` ou `INCOMPLETE`, informe ao usuário que a Spec pode ser refinada
-a partir dos `Gaps`/`Suggestions` listados — mas não refine a Spec por conta própria nesta versão da
-skill (refinamento iterativo com limite de ciclos é escopo de #222); apenas relate.
+### 5 — Refinamento iterativo (limite de 3 ciclos)
+
+Quando `Status` for `NEEDS_REFINEMENT` ou `INCOMPLETE`, o ciclo `validate → gaps → refine →
+validate` (#203 §10) pode se repetir **no máximo 3 vezes** (`MAX_REFINEMENT_CYCLES` em
+`spec-quality-report.ts`) além da validação inicial:
+
+1. Rode o passo 1. Se `Status` for `READY`, pare — não há necessidade de refinar.
+2. Caso contrário, aplique **uma** correção objetiva a partir de um `Gap` do relatório (edite a
+   Spec você mesmo ou peça ao usuário, conforme o contexto de quem chamou esta skill).
+3. Rode o passo 1 de novo, **sempre com o mesmo `<path>`** (o CLI deriva o mesmo arquivo de
+   histórico automaticamente a partir do path da Spec — não passe `--history` em uso normal).
+4. O Quality Report da segunda chamada em diante inclui `## Refinement History` com a evolução do
+   score (ex.: `54 → 71 → 84`). Repita os passos 2-3 até `READY` ou até o CLI imprimir a mensagem de
+   limite de ciclos atingido.
+5. Se o CLI sinalizar que o limite foi atingido, **pare** — não invente uma 5ª validação. Informe ao
+   usuário que a Spec precisa de revisão manual; esta skill nunca decide sozinha refinar além do
+   limite.
 
 ---
 
@@ -141,8 +162,16 @@ skill (refinamento iterativo com limite de ciclos é escopo de #222); apenas rel
 - Nunca decida sozinho que uma Spec `NEEDS_REFINEMENT`/`INCOMPLETE` pode seguir para implementação
   mesmo assim — o Quality Gate é informativo para quem decide (usuário ou skill chamadora), não uma
   trava automática nesta versão.
-- Nunca edite a Spec original a partir desta skill — validação é somente leitura; qualquer edição é
-  responsabilidade de quem chamou (`/vetor:spec` ou o usuário diretamente).
-- Nunca invente um score ou gate fora do que o CLI (`scripts/spec-validate.ts`) reportou.
+- Nunca edite a Spec original a partir desta skill fora do ciclo de refinamento explícito do passo
+  5 — validação é somente leitura por padrão; qualquer edição fora desse ciclo é responsabilidade
+  de quem chamou (`/vetor:spec` ou o usuário diretamente).
+- Nunca invente um score, gate ou gap fora do que o CLI (`scripts/spec-validate.ts`) reportou.
+- Nunca substitua o `problem`/`impact`/`suggestedAction` de um gap por uma frase genérica — o
+  Handoff #203 §9 proíbe explicitamente saída tipo "Spec precisa ser melhorada" sem especificar
+  location/problem/impact/ação.
 - Nunca trate a ausência de `specValidate.thresholds` no config como erro — é o caso default,
   silenciosamente resolvido para `{ ready: 80, needsRefinement: 60 }`.
+- Nunca ultrapasse `MAX_REFINEMENT_CYCLES` (3) ciclos de refinamento automático — ao atingir o
+  limite, pare e escale para revisão manual em vez de insistir em mais uma tentativa.
+- Nunca escreva o Quality Report dentro do arquivo da Spec — ele é sempre persistido separado
+  (`scripts/lib/spec-quality-persistence.ts`), nunca misturado ao conteúdo da Spec.

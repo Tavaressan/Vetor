@@ -100,7 +100,7 @@ Deno.test("checkScope: Goals e Non-Goals presentes -> fraction 1", () => {
 Deno.test("checkScope: Non-Goals vazia gera gap mencionando Non-Goals", () => {
   const result = checkScope(parseSpec(EMPTY_SPEC));
   assertEquals(result.fraction < 1, true);
-  assertEquals(result.gaps.some((g: string) => g.includes("Non-Goals")), true);
+  assertEquals(result.gaps.some((g) => g.location === "Non-Goals"), true);
 });
 
 Deno.test("checkEdgeCases: seção presente e não vazia -> fraction 1", () => {

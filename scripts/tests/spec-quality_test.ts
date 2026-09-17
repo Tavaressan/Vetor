@@ -8,16 +8,31 @@ import {
   type Dimension,
   DIMENSION_WEIGHTS,
   type DimensionResult,
+  type Gap,
   gateFor,
   resolveThresholds,
 } from "../lib/spec-quality.ts";
+
+function gap(overrides: Partial<Gap> = {}): Gap {
+  return {
+    location: "RF-01",
+    problem: "faltou",
+    impact: "impacto",
+    suggestedAction: "corrigir",
+    ...overrides,
+  };
+}
 
 function full(): DimensionResult {
   return { fraction: 1, gaps: [], strengths: ["ok"] };
 }
 
-function empty(): DimensionResult {
-  return { fraction: 0, gaps: ["faltou"], strengths: [] };
+function empty(dimension = "dim"): DimensionResult {
+  return {
+    fraction: 0,
+    gaps: [gap({ location: dimension, suggestedAction: `corrigir ${dimension}` })],
+    strengths: [],
+  };
 }
 
 Deno.test("DIMENSION_WEIGHTS soma 100 e cobre as 5 dimensões do Quality Model (#203 §2)", () => {
@@ -76,17 +91,40 @@ Deno.test("computeQuality com todas as dimensões plenas soma 100/100 e READY", 
 
 Deno.test("computeQuality com todas as dimensões vazias soma 0/100 e INCOMPLETE, gaps agregados", () => {
   const result = computeQuality({
-    completeness: empty(),
-    testability: empty(),
-    clarity: empty(),
-    scope: empty(),
-    edgeCases: empty(),
+    completeness: empty("completeness"),
+    testability: empty("testability"),
+    clarity: empty("clarity"),
+    scope: empty("scope"),
+    edgeCases: empty("edgeCases"),
   });
   assertEquals(result.score, 0);
   assertEquals(result.gate, "INCOMPLETE");
   assertEquals(result.gaps.length, 5);
   assertEquals(result.strengths.length, 0);
   assertEquals(result.suggestions.length, 5);
+});
+
+Deno.test("computeQuality deduplica suggestions repetidas entre dimensões (#222)", () => {
+  const result = computeQuality({
+    completeness: empty("completeness"),
+    testability: empty("testability"),
+    clarity: full(),
+    scope: full(),
+    edgeCases: full(),
+  });
+  // As duas dimensões vazias usam suggestedAction distintos ("corrigir completeness" /
+  // "corrigir testability") — sem duplicata aqui; o teste garante que suggestions repetidas
+  // (mesmo texto de suggestedAction em gaps diferentes) colapsam para uma única entrada.
+  assertEquals(result.suggestions.length, 2);
+
+  const duplicated = computeQuality({
+    completeness: { fraction: 0, gaps: [gap({ suggestedAction: "mesma ação" })], strengths: [] },
+    testability: { fraction: 0, gaps: [gap({ suggestedAction: "mesma ação" })], strengths: [] },
+    clarity: full(),
+    scope: full(),
+    edgeCases: full(),
+  });
+  assertEquals(duplicated.suggestions.length, 1);
 });
 
 Deno.test("computeQuality pondera fração parcial por dimensão", () => {

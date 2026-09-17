@@ -1,14 +1,16 @@
 // Dimension checkers do Quality Model de `/vetor:spec-validate`. Cada checker recebe um
 // `ParsedSpec` (spec-parser.ts) e devolve um `DimensionResult` (spec-quality.ts): fração 0-1
-// satisfeita, gaps e strengths.
+// satisfeita, gaps estruturados (`Gap`) e strengths.
 //
-// #220 entregou a versão estrutural (presença/não-vacuidade de seção). #221 adiciona os
+// #220 entregou a versão estrutural (presença/não-vacuidade de seção). #221 adicionou os
 // heurísticos de linguagem descritos em #203 §4-§8: Must sem Acceptance Criteria (Completeness),
 // termos vagos sem métrica mensurável (Testability), "⚠️ ABERTO" explícito vs. omissão silenciosa
-// (Clarity) e categorias contextuais de Edge Cases — sem exigir todas em toda Spec.
+// (Clarity) e categorias contextuais de Edge Cases — sem exigir todas em toda Spec. #222 troca os
+// gaps de texto livre por `Gap` estruturado (location/problem/impact/suggestedAction, #203 §9) —
+// nunca uma saída genérica tipo "Spec precisa ser melhorada".
 
 import type { ParsedRequirement, ParsedSpec } from "./spec-parser.ts";
-import type { DimensionResult } from "./spec-quality.ts";
+import type { DimensionResult, Gap } from "./spec-quality.ts";
 
 const OPEN_MARKER = "⚠️ ABERTO";
 
@@ -20,19 +22,55 @@ function isBlank(body: string | undefined): boolean {
   return !body || body.trim().length === 0;
 }
 
+/** Gap de seção ausente/vazia — reaproveitado por Completeness e Scope, cada um com sua própria
+ * `impact`/`suggestedAction` (a mesma seção pode ser sinal de mais de uma dimensão). */
+function missingSectionGap(heading: string, impact: string, suggestedAction: string): Gap {
+  return {
+    location: heading,
+    problem: `Seção "${heading}" está ausente ou vazia.`,
+    impact,
+    suggestedAction,
+  };
+}
+
 /** Seções cuja presença/não-vacuidade é exigida por Completeness (#203 §4). `Non-Goals` também é
  * checado por `checkScope` (§7) — a mesma seção pode ser sinal de mais de uma dimensão. */
-const COMPLETENESS_SECTIONS = ["Context", "Goals", "Non-Goals", "Edge Cases", "Open Questions"];
+const COMPLETENESS_SECTIONS: Record<string, { impact: string; suggestedAction: string }> = {
+  "Context": {
+    impact: "Sem contexto, não fica claro por que a Spec existe nem o que motivou o requisito.",
+    suggestedAction: 'Preencha "Context" com o problema e a motivação por trás desta Spec.',
+  },
+  "Goals": {
+    impact:
+      "Sem objetivos declarados, não há critério para avaliar se a implementação atende ao propósito da Spec.",
+    suggestedAction: 'Preencha "Goals" com o que esta Spec deve alcançar.',
+  },
+  "Non-Goals": {
+    impact:
+      "Sem Non-Goals, o escopo da implementação pode se expandir silenciosamente durante o desenvolvimento.",
+    suggestedAction: 'Preencha "Non-Goals" com o que esta Spec deliberadamente não cobre.',
+  },
+  "Edge Cases": {
+    impact:
+      "Sem Edge Cases, comportamentos de erro/limite ficam indefinidos até serem descobertos em produção.",
+    suggestedAction: 'Preencha "Edge Cases" com os cenários de borda relevantes ao domínio.',
+  },
+  "Open Questions": {
+    impact: "Decisões pendentes não registradas podem ser esquecidas antes da implementação.",
+    suggestedAction:
+      'Preencha "Open Questions" com toda pergunta ainda sem resposta (ou registre que não há nenhuma).',
+  },
+};
 
 export function checkCompleteness(parsed: ParsedSpec): DimensionResult {
-  const gaps: string[] = [];
+  const gaps: Gap[] = [];
   const strengths: string[] = [];
   let satisfied = 0;
-  let total = COMPLETENESS_SECTIONS.length + 1; // + 1 = existência de ao menos um RF
+  let total = Object.keys(COMPLETENESS_SECTIONS).length + 1; // + 1 = existência de ao menos um RF
 
-  for (const heading of COMPLETENESS_SECTIONS) {
+  for (const [heading, { impact, suggestedAction }] of Object.entries(COMPLETENESS_SECTIONS)) {
     if (isBlank(parsed.sections.get(heading))) {
-      gaps.push(`Seção "${heading}" está ausente ou vazia.`);
+      gaps.push(missingSectionGap(heading, impact, suggestedAction));
     } else {
       satisfied++;
       strengths.push(`Seção "${heading}" preenchida.`);
@@ -43,7 +81,12 @@ export function checkCompleteness(parsed: ParsedSpec): DimensionResult {
     satisfied++;
     strengths.push("Ao menos um Functional Requirement (RF-) está declarado.");
   } else {
-    gaps.push("Nenhum Functional Requirement (RF-) encontrado.");
+    gaps.push({
+      location: "Functional Requirements",
+      problem: "Nenhum Functional Requirement (RF-) encontrado.",
+      impact: "Não há requisito verificável para orientar a implementação.",
+      suggestedAction: "Adicione ao menos um RF- com Priority e Acceptance Criteria.",
+    });
   }
 
   // #221: todo requisito Must sem Acceptance Criteria é um gap de Completeness (#203 §4) — só
@@ -57,7 +100,13 @@ export function checkCompleteness(parsed: ParsedSpec): DimensionResult {
       strengths.push("Todo requisito Must possui Acceptance Criteria.");
     } else {
       for (const r of mustWithoutAC) {
-        gaps.push(`${r.id} é Must mas não possui Acceptance Criteria.`);
+        gaps.push({
+          location: r.id,
+          problem: `${r.id} é Must mas não possui Acceptance Criteria.`,
+          impact:
+            "Requisito Must sem critério verificável não pode ser confirmado como implementado corretamente.",
+          suggestedAction: `Defina ao menos um Acceptance Criteria verificável para ${r.id}.`,
+        });
       }
     }
   }
@@ -116,12 +165,17 @@ export function checkTestability(parsed: ParsedSpec): DimensionResult {
   if (parsed.requirements.length === 0) {
     return {
       fraction: 0,
-      gaps: ["Nenhum requisito declarado para avaliar testabilidade."],
+      gaps: [{
+        location: "Functional Requirements",
+        problem: "Nenhum requisito declarado para avaliar testabilidade.",
+        impact: "Não há nada verificável na Spec.",
+        suggestedAction: "Adicione requisitos com Acceptance Criteria mensurável.",
+      }],
       strengths: [],
     };
   }
 
-  const gaps: string[] = [];
+  const gaps: Gap[] = [];
   const strengths: string[] = [];
   let total = 0;
   let satisfied = 0;
@@ -135,16 +189,24 @@ export function checkTestability(parsed: ParsedSpec): DimensionResult {
 
     const vagueTerm = findUnmeasuredVagueTerm(r);
     if (vagueTerm) {
-      gaps.push(
-        `${r.id} usa termo vago sem métrica mensurável: "${vagueTerm}" ` +
-          '(ex.: descreva um valor ou comportamento verificável, como "em até 500ms no P95").',
-      );
+      gaps.push({
+        location: r.id,
+        problem: `Usa termo vago sem métrica mensurável: "${vagueTerm}".`,
+        impact: "Não é possível verificar objetivamente se o requisito foi atendido.",
+        suggestedAction:
+          `Substitua "${vagueTerm}" por um valor ou comportamento mensurável em ${r.id} (ex.: "em até 500ms no P95").`,
+      });
     } else {
       score += 0.5;
     }
 
     if (r.acceptanceCriteria.length === 0) {
-      gaps.push(`${r.id} não possui Acceptance Criteria.`);
+      gaps.push({
+        location: r.id,
+        problem: "Não possui Acceptance Criteria.",
+        impact: "Não é possível testar se o requisito foi implementado corretamente.",
+        suggestedAction: `Adicione ao menos um Acceptance Criteria verificável para ${r.id}.`,
+      });
     }
 
     satisfied += score;
@@ -163,14 +225,14 @@ export function checkTestability(parsed: ParsedSpec): DimensionResult {
 const TEMPLATE_PLACEHOLDER_RE = /<[a-zà-ú][a-zà-ú\s-]*>/i;
 
 // #221 (#203 §6): decisão não resolvida mas sinalizada explicitamente ("unknown but explicit") é
-// melhor que a mesma lacuna omitida em silêncio ("unknown and hidden") — só a segunda é gap de
-// Clarity. Um requisito com `hasOpenMarker` (⚠️ ABERTO em algum lugar do seu texto) já tornou
-// suas lacunas explícitas, então não é penalizado por este heurístico mesmo que também contenha um
-// dos termos abaixo em outro trecho.
+// melhor que a mesma lacuna omitida em silêncio ("unknown and hidden"). Só a segunda é gap de
+// Clarity. Um requisito com `hasOpenMarker` (⚠️ ABERTO em algum lugar do seu texto) já tornou suas
+// lacunas explícitas, então não é penalizado por este heurístico mesmo que também contenha um dos
+// termos abaixo em outro trecho.
 const HIDDEN_OMISSION_RE = /\bTODO\b|\bTBD\b|a definir\b/i;
 
 export function checkClarity(parsed: ParsedSpec): DimensionResult {
-  const gaps: string[] = [];
+  const gaps: Gap[] = [];
   const strengths: string[] = [];
 
   const requirementsWithPlaceholder = parsed.requirements.filter((r) =>
@@ -181,13 +243,22 @@ export function checkClarity(parsed: ParsedSpec): DimensionResult {
   );
 
   for (const r of requirementsWithPlaceholder) {
-    gaps.push(`${r.id} contém placeholder de template não preenchido.`);
+    gaps.push({
+      location: r.id,
+      problem: "Contém placeholder de template não preenchido.",
+      impact: "A implementação não tem informação real para seguir nesse ponto.",
+      suggestedAction: `Substitua o placeholder pelo conteúdo real de ${r.id}.`,
+    });
   }
   for (const r of requirementsWithHiddenOmission) {
-    gaps.push(
-      `${r.id} tem uma lacuna omitida em silêncio (TODO/TBD/"a definir" sem "${OPEN_MARKER}") — ` +
-        `marque a lacuna explicitamente em vez de deixá-la implícita.`,
-    );
+    gaps.push({
+      location: r.id,
+      problem: `Tem uma lacuna omitida em silêncio (TODO/TBD/"a definir" sem "${OPEN_MARKER}").`,
+      impact:
+        "A lacuna pode passar despercebida durante a implementação, gerando comportamento não especificado.",
+      suggestedAction:
+        `Marque a lacuna explicitamente com "${OPEN_MARKER}: <o que falta definir>" em ${r.id}.`,
+    });
   }
 
   const requirementsWithIssue = new Set([
@@ -206,23 +277,33 @@ export function checkClarity(parsed: ParsedSpec): DimensionResult {
   return { fraction: fractionOf(satisfied, total), gaps, strengths };
 }
 
-const SCOPE_SECTIONS = ["Goals", "Non-Goals"];
+const SCOPE_SECTIONS: Record<string, { impact: string; suggestedAction: string }> = {
+  "Goals": {
+    impact: "Sem Goals, não fica claro o que a implementação deve alcançar.",
+    suggestedAction: 'Preencha "Goals" com o que esta Spec deve alcançar.',
+  },
+  "Non-Goals": {
+    impact:
+      "Sem Non-Goals, o limite do escopo não fica claro e a implementação pode se expandir silenciosamente.",
+    suggestedAction: 'Preencha "Non-Goals" com o que esta Spec deliberadamente não cobre.',
+  },
+};
 
 export function checkScope(parsed: ParsedSpec): DimensionResult {
-  const gaps: string[] = [];
+  const gaps: Gap[] = [];
   const strengths: string[] = [];
   let satisfied = 0;
 
-  for (const heading of SCOPE_SECTIONS) {
+  for (const [heading, { impact, suggestedAction }] of Object.entries(SCOPE_SECTIONS)) {
     if (isBlank(parsed.sections.get(heading))) {
-      gaps.push(`Seção "${heading}" está ausente ou vazia — limite do escopo não fica claro.`);
+      gaps.push(missingSectionGap(heading, impact, suggestedAction));
     } else {
       satisfied++;
       strengths.push(`Seção "${heading}" define o limite do escopo.`);
     }
   }
 
-  return { fraction: fractionOf(satisfied, SCOPE_SECTIONS.length), gaps, strengths };
+  return { fraction: fractionOf(satisfied, Object.keys(SCOPE_SECTIONS).length), gaps, strengths };
 }
 
 // #221 (#203 §8): categorias plausíveis de Edge Case — avaliação é contextual, nunca exige todas
@@ -248,7 +329,11 @@ export function checkEdgeCases(parsed: ParsedSpec): DimensionResult {
   if (isBlank(body)) {
     return {
       fraction: 0,
-      gaps: ['Seção "Edge Cases" está ausente ou vazia.'],
+      gaps: [missingSectionGap(
+        "Edge Cases",
+        "Comportamentos de erro/limite ficam indefinidos até serem descobertos em produção.",
+        'Preencha "Edge Cases" com os cenários de borda relevantes ao domínio, ou registre explicitamente que nenhum é relevante.',
+      )],
       strengths: [],
     };
   }
