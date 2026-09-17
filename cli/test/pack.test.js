@@ -26,4 +26,10 @@ test('npm pack --dry-run só empacota bin/, lib/ e templates/ (além dos implíc
       ALLOWED_PREFIXES.some((prefix) => file.path.startsWith(prefix));
     assert.ok(allowed, `arquivo inesperado no pacote: ${file.path}`);
   }
+
+  // Garante que o allowlist não está vazio por acidente (ex.: "files" quebrado
+  // silenciosamente): os arquivos reais de bin/ e lib/ precisam aparecer.
+  const paths = pkg.files.map((file) => file.path);
+  assert.ok(paths.includes('bin/vetor.js'), 'bin/vetor.js ausente do pacote');
+  assert.ok(paths.includes('lib/router.js'), 'lib/router.js ausente do pacote');
 });
