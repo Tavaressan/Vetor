@@ -20,6 +20,11 @@ Trate a issue como UI/design frontend se qualquer um dos sinais abaixo estiver p
    componente/tela.
 3. Prossiga normalmente com TDD/KISS conforme `planning-conventions.md` §3, aplicando as escolhas de
    design à mudança.
+4. Depois que a implementação compilar e rodar, siga a skill `design`
+   (`Skill({skill: "design"})`, `skills/design/SKILL.md`) — o Frontend Self-Correction Loop
+   (Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done)
+   que autocorrige problemas objetivos e escala decisões de produto/design, com degradação
+   graciosa quando não há MCP de browser disponível.
 
 ## Quando NÃO aplicar
 
