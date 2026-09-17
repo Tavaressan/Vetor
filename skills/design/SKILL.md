@@ -1,50 +1,172 @@
 ---
 name: design
-description: Frontend Self-Correction Loop — Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done. Visual Critique em 10 dimensões, critério explícito de autocorreção vs. escalação, MCPs de browser (Playwright/Chrome DevTools) e Context7 como capacidades opcionais com degradação graciosa. Consumida por issue-worker/fix-loop-agent ao implementar ou corrigir UI de frontend.
+description: Skill de design do Vetor — (1) detecta o modo de operação (Prototype-first/System-first/Vetor-first #213), importa um Design System existente sem duplicá-lo e mantém a Design Direction persistente em .vetor/design/; (2) Frontend Self-Correction Loop (Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done) com Visual Critique em 10 dimensões e degradação graciosa sem MCP de browser. Consumida por issue-worker/fix-loop-agent ao implementar ou corrigir UI de frontend.
 license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
-Você é o loop de autocorreção de frontend do Vetor. Sua missão é levar uma implementação de UI do
-Design Contract até um estado verificado — corrigindo sozinho o que é objetivo e reversível,
-escalando ao usuário o que é decisão de produto/design (#213, #230).
+Você é a skill de design do Vetor. Cobre duas responsabilidades sequenciais do fluxo de frontend
+(#213):
+
+1. **Setup** — detectar quais fontes de design já existem no projeto-alvo (protótipo, Design
+   System, ou nenhum dos dois) e adaptar o processo: importar/referenciar o Design System existente
+   (nunca duplicá-lo) e manter uma Design Direction persistente e específica do produto (#228).
+2. **Loop** — depois que uma implementação de UI compila e roda, levá-la do Design Contract até um
+   estado verificado: corrigindo sozinha o que é objetivo e reversível, escalando ao usuário o que é
+   decisão de produto/design (#230).
+
+Extração de conteúdo de um protótipo (handoff completo) e o formato do Design Contract em si são
+escopo de issues futuras — não implementados aqui (ver `design-vocabulary.md` para o vocabulário já
+definido).
 
 ---
 
 ## Sintaxe
 
-Esta skill não é tipicamente invocada por um comando de usuário — é consumida por `issue-worker` e
-`fix-loop-agent` (via `frontend-design-enforcement.md`) depois que a implementação de uma tela/fluxo
-de UI compila e roda. Também pode ser invocada manualmente com `Skill({skill: "design"})` para
-verificar uma tela de frontend já implementada.
+```
+/design [<diretório>]
+```
+
+- `<diretório>`: opcional — raiz do projeto a varrer para o Setup (modo de operação + import).
+  Default: raiz do projeto atual (`.`).
+
+O Loop (self-correction) não é tipicamente invocado por um comando de usuário — é consumido por
+`issue-worker`/`fix-loop-agent` (via `frontend-design-enforcement.md`) depois que a implementação de
+uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
+`Skill({skill: "design"})` para verificar uma tela de frontend já implementada.
 
 ---
 
 ## Referências
 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/design-vocabulary.md` — Design System, Design
-  Direction, Design Signature e o formato do Design Contract (entrada do passo 1). Não replique as
-  definições aqui — cite os campos.
+  Direction, Design Signature e o formato do Design Contract (entrada do Loop, passo 1). Não
+  replique as definições aqui — cite os campos.
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` — `OPEN_QUESTION` usado em
+  `patterns.md` (Setup, passo 2) quando um padrão de interação não é detectável por varredura de
+  filesystem.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/frontend-design-enforcement.md` — direção
   estética/tipográfica via skill nativa `frontend-design`, aplicada **antes** de escrever o código.
-  Este loop é complementar e roda **depois**: verifica o que foi construído, não decide como
-  desenhar.
+  O Loop é complementar e roda **depois**: verifica o que foi construído, não decide como desenhar.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — mecanismo de checagem de
   disponibilidade (procurar `mcp__<server>__` na lista de ferramentas). Servidores relevantes aqui:
-  browser (`mcp__chrome-devtools__`, `mcp__playwright__`) para os passos 4-6 e 9, Context7 para
-  qualquer comportamento de framework/lib consultado durante o Fix (passo 8).
+  browser (`mcp__chrome-devtools__`, `mcp__playwright__`) para os passos 4-6 e 9 do Loop, Context7
+  para qualquer comportamento de framework/lib consultado durante o Fix (Loop, passo 8).
+- `scripts/lib/design-mode.ts` — lógica de detecção/renderização do Setup (pura, testada em
+  `scripts/tests/design-mode_test.ts`).
+- `scripts/detect-design-mode.ts` — CLI que orquestra a escrita em disco do Setup a partir da lib
+  acima.
 - `scripts/lib/design-loop-mcp.ts` — `detectBrowserMcpServer`/`reportLoopStep`: formaliza o relato
-  de cada passo dependente de MCP de browser quando ele não está disponível, para nunca pular uma
-  etapa em silêncio nem fingir que a inspeção ocorreu (ver §3 "Sem MCP de browser").
+  de cada passo do Loop dependente de MCP de browser quando ele não está disponível, para nunca
+  pular uma etapa em silêncio nem fingir que a inspeção ocorreu (ver Loop §"Sem MCP de browser").
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md` — disciplina de teste aplicada
-  ao Fix (passo 8): reproduza o problema objetivo antes de corrigi-lo, quando o módulo tiver suíte.
+  ao Fix (Loop, passo 8): reproduza o problema objetivo antes de corrigi-lo, quando o módulo tiver
+  suíte.
 
 ---
 
-## Comportamento
+## Setup — Modo de operação, Design System Import, Design Direction
+
+### 1 — Detectar o modo de operação
+
+```bash
+deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/detect-design-mode.ts" <diretório>
+```
+
+Saída JSON: `mode`, `hasPrototype`, `evidence`, `written`, `skipped`.
+
+Modos, nesta ordem de prioridade (ver #213 "Modos de operação"):
+
+1. **Prototype-first** — existe `.vetor/design/prototype/`. O handoff de extração do protótipo em
+   si (estrutura de telas, tokens observáveis, estados) é escopo de issue futura; aqui só a
+   detecção do modo é resolvida.
+2. **System-first** — não há protótipo, mas há evidência de Design System: `tailwind.config.*`,
+   `tokens.*`, `components/`/`ui/` (raiz ou `src/`), `.storybook/`, ou dependência de design em
+   `package.json` (`tailwindcss`, `styled-components`, `@mui/material`, `@chakra-ui/react`,
+   `@storybook/react`, `@emotion/styled`).
+3. **Vetor-first** — nenhuma das fontes acima. A Design Direction (passo 3) é a única fonte visual
+   disponível além da Specification.
+
+Reporte o modo detectado e a evidência encontrada antes de prosseguir para os passos seguintes.
+
+### 2 — Design System Import (quando há evidência)
+
+Quando `evidence` não está vazio, o script do passo 1 já escreveu (ou já existiam — ver `skipped`)
+
+```text
+.vetor/
+└── design/
+    └── system/
+        ├── tokens.md
+        ├── components.md
+        ├── patterns.md
+        └── evidence.md
+```
+
+Cada arquivo:
+
+- referencia a fonte original via frontmatter `source`/`version`/`authority: project` — **nunca
+  copia** valores de token, cor, tipografia, espaçamento, radius, elevation ou motion;
+- é criado **uma única vez**: uma segunda execução nunca sobrescreve um arquivo já existente — a
+  representação em `.vetor/` é "criada/atualizável" manualmente, não regenerada a cada varredura.
+
+`patterns.md` nunca é preenchido com um padrão de interação inferido de forma especulativa — padrões
+de interação (ex.: "ações destrutivas sempre pedem confirmação") não são deriváveis de uma varredura
+de arquivos, então o arquivo registra um `OPEN_QUESTION` (ver `evidence-state.md`) em vez de um
+default plausível.
+
+Se `skipped` incluir algum desses arquivos, reporte que já existiam e não foram tocados.
+
+### 3 — Design Direction persistente
+
+O mesmo script garante `.vetor/design/direction/product.md`, com o esqueleto:
+
+```markdown
+# Design Direction
+
+## Product
+## Audience
+## Primary job
+## Visual personality
+## Density
+## Typography
+## Palette
+## Layout
+## Design Signature
+## Motion
+## Avoid
+```
+
+Ao preencher o esqueleto (seja você preenchendo agora, seja orientando o usuário a preencher),
+aplique a regra central:
+
+```text
+DEFAULT ≠ FORBIDDEN
+```
+
+Um padrão comum continua permitido quando há justificativa funcional ou estética derivada do
+produto, conteúdo ou interação (ver `design-vocabulary.md` §2). Nunca transforme "isso é comum em
+interfaces genéricas geradas por IA" em "isso está proibido aqui" sem essa justificativa — a seção
+`Avoid` documenta o que evitar **e por quê**, não uma lista de proibições universais.
+
+Assim como os arquivos do passo 2, `product.md` é criado uma única vez — execuções seguintes
+preservam qualquer edição feita nele.
+
+### 4 — Reportar
+
+Resuma ao final:
+
+- modo detectado (Prototype-first/System-first/Vetor-first) e a evidência que sustentou a decisão;
+- arquivos criados nesta execução vs. arquivos que já existiam e foram preservados;
+- se o Design System referenciado tem uma versão conhecida (campo `version` do frontmatter) ou
+  `unknown` (nenhuma dependência de design com versão detectável em `package.json`).
+
+---
+
+## Loop — Frontend Self-Correction
 
 ### 0 — Quando aplicar
 
@@ -57,8 +179,8 @@ system, mockup, wireframe. Não aplique a módulos puramente backend/CLI/infra.
 Entrada do loop: o Design Contract da tela/fluxo (`design-vocabulary.md` §4) — objetivo,
 hierarquia, componentes, tokens, estados, responsividade, acessibilidade. Se não existir um Design
 Contract explícito para a mudança, trate a Specification + código de referência do Design System
-como a melhor aproximação disponível e **registre isso como premissa** no relatório final do loop —
-nunca invente decisões de design que deveriam vir do contrato.
+(ver Setup, acima) como a melhor aproximação disponível e **registre isso como premissa** no
+relatório final do loop — nunca invente decisões de design que deveriam vir do contrato.
 
 ### 2 — Build
 
@@ -168,9 +290,7 @@ aplicados, as escalações pendentes (se houver) e a lista de passos marcados co
 `não verificável sem MCP de browser`. **Nunca** declare a tela "verificada visualmente" quando essa
 lista não está vazia — declare exatamente o que foi e o que não foi confirmado.
 
----
-
-## Sem MCP de browser (degradação graciosa)
+### Sem MCP de browser (degradação graciosa)
 
 Este loop nunca falha nem trava por falta de MCP de browser, e nunca finge que a inspeção ocorreu.
 Quando nenhum servidor de browser (`mcp__chrome-devtools__*`, `mcp__playwright__*`) está na lista de
@@ -186,3 +306,19 @@ ferramentas da sessão:
    vivo é sempre opcional; sua ausência não bloqueia entrega, só limita a confiança do veredito).
 4. Confirmação visual/acessibilidade ao vivo, quando não houver MCP, fica marcada como validação
    manual pendente pós-merge — nunca como critério de `GREEN` do worker.
+
+---
+
+## Restrições
+
+- Nunca duplica ou substitui tokens/componentes de um Design System já existente — a representação
+  em `.vetor/design/system/` é referência/handoff, nunca uma segunda fonte concorrente de tokens.
+- Nunca sobrescreve `.vetor/design/system/*.md` ou `.vetor/design/direction/product.md` já
+  existentes.
+- Nunca varre recursivamente o filesystem em busca de evidência — só os caminhos candidatos fixos
+  de `scripts/lib/design-mode.ts` (raiz + primeiro nível comum), evitando falso positivo em
+  `node_modules/`, `dist/`, `build/`.
+- Nunca promove um padrão comum a proibição universal na Design Direction sem justificativa ligada
+  ao produto (`DEFAULT ≠ FORBIDDEN`).
+- Nunca implementa extração de conteúdo de protótipo nem o formato do Design Contract nesta skill —
+  escopo de #213, issues futuras.
