@@ -11,13 +11,15 @@ metadata:
 Você é a skill de design do Vetor. Cobre três responsabilidades sequenciais do fluxo de frontend
 (#213):
 
-1. **Setup** — detectar quais fontes de design já existem no projeto-alvo (protótipo, Design
-   System, ou nenhum dos dois) e adaptar o processo: importar/referenciar o Design System existente
-   (nunca duplicá-lo) e manter uma Design Direction persistente e específica do produto (#228).
+1. **Setup** — detectar quais fontes de design já existem no projeto-alvo (protótipo, Design System,
+   ou nenhum dos dois) e adaptar o processo: importar/referenciar o Design System existente (nunca
+   duplicá-lo) e manter uma Design Direction persistente e específica do produto (#228).
 2. **Handoff** — quando o modo é Prototype-first, extrair do protótipo estrutura de telas,
    hierarquia, componentes, tokens observáveis, conteúdo, interações, estados e responsividade, e
-   transformar isso em um Design Contract (#227) que preserva `prototype intent + dados reais +
-   estados reais + restrições técnicas reais` — nunca uma cópia de pixels (#229).
+   transformar isso em um Design Contract (#227) que preserva
+   `prototype intent + dados reais +
+   estados reais + restrições técnicas reais` — nunca uma cópia
+   de pixels (#229).
 3. **Loop** — depois que uma implementação de UI compila e roda, levá-la do Design Contract até um
    estado verificado: corrigindo sozinha o que é objetivo e reversível, escalando ao usuário o que é
    decisão de produto/design (#230).
@@ -45,7 +47,8 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/design-vocabulary.md` — Design System, Design
   Direction, Design Signature e o formato do Design Contract (entrada do Loop, passo 1). Não
   replique as definições aqui — cite os campos. §4.4 aplica os 4 estados de Evidence State às
-  Decisões do Design Contract — exemplo completo em `skills/design/examples/design-contract-example.md`.
+  Decisões do Design Contract — exemplo completo em
+  `skills/design/examples/design-contract-example.md`.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` — `OPEN_QUESTION` usado em
   `patterns.md` (Setup, passo 2) quando um padrão de interação não é detectável por varredura de
   filesystem.
@@ -132,15 +135,25 @@ O mesmo script garante `.vetor/design/direction/product.md`, com o esqueleto:
 # Design Direction
 
 ## Product
+
 ## Audience
+
 ## Primary job
+
 ## Visual personality
+
 ## Density
+
 ## Typography
+
 ## Palette
+
 ## Layout
+
 ## Design Signature
+
 ## Motion
+
 ## Avoid
 ```
 
@@ -256,10 +269,13 @@ system, mockup, wireframe. Não aplique a módulos puramente backend/CLI/infra.
 
 ### 1 — Design Contract
 
-Entrada do loop: o Design Contract da tela/fluxo (`design-vocabulary.md` §4) — objetivo,
-hierarquia, componentes, tokens, estados, responsividade, acessibilidade. Se não existir um Design
-Contract explícito para a mudança, trate a Specification + código de referência do Design System
-(ver Setup, acima) como a melhor aproximação disponível e **registre isso como premissa** no
+Entrada do loop: o Design Contract da tela/fluxo (`design-vocabulary.md` §4) — objetivo, hierarquia,
+componentes, tokens, estados, responsividade, acessibilidade. Se o modo é Prototype-first (Setup,
+passo 1), procure primeiro um Design Contract já gerado pelo Handoff em
+`.vetor/design/handoff/<slug>.md`; se ainda não existir para esta tela/fluxo, rode o Handoff (seção
+acima) antes de prosseguir, em vez de tratar o protótipo como se não existisse. Só na ausência de
+protótipo e de Design Contract explícito, trate a Specification + código de referência do Design
+System (ver Setup, acima) como a melhor aproximação disponível e **registre isso como premissa** no
 relatório final do loop — nunca invente decisões de design que deveriam vir do contrato.
 
 ### 2 — Build
@@ -273,8 +289,8 @@ objetivo) — corrija e repita antes de prosseguir; não avance para Run com bui
 Suba a aplicação (dev server, preview build, ou o mecanismo que a skill `run` já usa para o
 projeto). Se subir falhar, trate como o mesmo tipo de erro objetivo do passo 2.
 
-**Sem MCP de browser disponível**, você ainda pode confirmar que o processo subiu (porta aberta,
-log de inicialização) por CLI — isso não depende de MCP. O que depende de MCP são os passos 4-6.
+**Sem MCP de browser disponível**, você ainda pode confirmar que o processo subiu (porta aberta, log
+de inicialização) por CLI — isso não depende de MCP. O que depende de MCP são os passos 4-6.
 
 ### 4 — Inspect
 
@@ -306,22 +322,22 @@ inspeção ao vivo, e o relatório final deve dizer isso explicitamente.
 
 ### 7 — Critique (Visual Critique)
 
-Avalie a implementação nas **10 dimensões** abaixo. Cada dimensão recebe um veredito objetivo:
-`ok`, `problema encontrado` (com o achado descrito), ou `não verificável sem MCP de browser` (para
-as dimensões que dependem de renderização real quando não há MCP — ver coluna "Sem MCP").
+Avalie a implementação nas **10 dimensões** abaixo. Cada dimensão recebe um veredito objetivo: `ok`,
+`problema encontrado` (com o achado descrito), ou `não verificável sem MCP de browser` (para as
+dimensões que dependem de renderização real quando não há MCP — ver coluna "Sem MCP").
 
-| # | Dimensão | O que avalia | Sem MCP |
-|---|----------|---------------|---------|
-| 1 | Specification fidelity | A implementação cobre o que a Specification pede — nenhum requisito perdido ou reinterpretado | Verificável (leitura de código × spec) |
-| 2 | Design fidelity | A implementação reflete o Design Contract (componentes, tokens, hierarquia) — não uma interpretação livre | Parcialmente verificável (código × contrato); confirmação visual fica pendente |
-| 3 | Hierarquia visual | Primário/secundário/terciário estão visualmente distinguíveis, conforme o campo "Hierarquia" do contrato | Não verificável sem MCP |
-| 4 | Domain specificity | A interface tem características do produto ou poderia ser de qualquer app parecido (genérica)? | Não verificável sem MCP |
-| 5 | Repetição sem justificativa semântica | Padrões repetidos (mesmo componente, mesmo layout) têm razão de domínio, não só conveniência de copiar-colar | Parcialmente verificável (código) |
-| 6 | Tipografia | Escala, peso, tracking conforme Design System/Direction | Não verificável sem MCP |
-| 7 | Layout | Grid/colunas/regiões conforme o campo "Layout" do contrato | Não verificável sem MCP |
-| 8 | Interação/estados | Os estados de `design-vocabulary.md` §4.3 (loading/empty/error/etc.) estão implementados e navegáveis | Parcialmente verificável (código dos handlers/estados); navegação ao vivo fica pendente |
-| 9 | Acessibilidade | Foco, contraste, navegação por teclado, semântica (ver passo 6) | Parcialmente verificável (estática) |
-| 10 | Comportamento responsivo | Breakpoints do contrato se comportam como especificado | Não verificável sem MCP |
+| #  | Dimensão                              | O que avalia                                                                                                 | Sem MCP                                                                                 |
+| -- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| 1  | Specification fidelity                | A implementação cobre o que a Specification pede — nenhum requisito perdido ou reinterpretado                | Verificável (leitura de código × spec)                                                  |
+| 2  | Design fidelity                       | A implementação reflete o Design Contract (componentes, tokens, hierarquia) — não uma interpretação livre    | Parcialmente verificável (código × contrato); confirmação visual fica pendente          |
+| 3  | Hierarquia visual                     | Primário/secundário/terciário estão visualmente distinguíveis, conforme o campo "Hierarquia" do contrato     | Não verificável sem MCP                                                                 |
+| 4  | Domain specificity                    | A interface tem características do produto ou poderia ser de qualquer app parecido (genérica)?               | Não verificável sem MCP                                                                 |
+| 5  | Repetição sem justificativa semântica | Padrões repetidos (mesmo componente, mesmo layout) têm razão de domínio, não só conveniência de copiar-colar | Parcialmente verificável (código)                                                       |
+| 6  | Tipografia                            | Escala, peso, tracking conforme Design System/Direction                                                      | Não verificável sem MCP                                                                 |
+| 7  | Layout                                | Grid/colunas/regiões conforme o campo "Layout" do contrato                                                   | Não verificável sem MCP                                                                 |
+| 8  | Interação/estados                     | Os estados de `design-vocabulary.md` §4.3 (loading/empty/error/etc.) estão implementados e navegáveis        | Parcialmente verificável (código dos handlers/estados); navegação ao vivo fica pendente |
+| 9  | Acessibilidade                        | Foco, contraste, navegação por teclado, semântica (ver passo 6)                                              | Parcialmente verificável (estática)                                                     |
+| 10 | Comportamento responsivo              | Breakpoints do contrato se comportam como especificado                                                       | Não verificável sem MCP                                                                 |
 
 Cada `problema encontrado` vira um item do passo 8 (Fix ou Escalação, conforme o critério abaixo).
 Cada `não verificável sem MCP de browser` entra no relatório final como limitação explícita — nunca
@@ -395,8 +411,8 @@ ferramentas da sessão:
   em `.vetor/design/system/` é referência/handoff, nunca uma segunda fonte concorrente de tokens.
 - Nunca sobrescreve `.vetor/design/system/*.md` ou `.vetor/design/direction/product.md` já
   existentes.
-- Nunca varre recursivamente o filesystem em busca de evidência — só os caminhos candidatos fixos
-  de `scripts/lib/design-mode.ts` (raiz + primeiro nível comum), evitando falso positivo em
+- Nunca varre recursivamente o filesystem em busca de evidência — só os caminhos candidatos fixos de
+  `scripts/lib/design-mode.ts` (raiz + primeiro nível comum), evitando falso positivo em
   `node_modules/`, `dist/`, `build/`.
 - Nunca promove um padrão comum a proibição universal na Design Direction sem justificativa ligada
   ao produto (`DEFAULT ≠ FORBIDDEN`).
