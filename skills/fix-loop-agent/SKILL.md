@@ -56,8 +56,9 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 - `../shared/references/agent-status.template.md` — path, estados e blocos
   obrigatórios do status file.
 - `../shared/references/touched-files-cache.md` — formato do cache gravado no §1.
-- `../shared/references/delegate-to-gemini.md` — resumo opcional da saída de
-  erro dos testes com `agy`. **A decisão e a aplicação do fix são sempre suas, nunca do Gemini.**
+- `../shared/references/delegate-to-runtime.md` — resumo opcional da saída de
+  erro dos testes delegado a um runtime externo disponível (Gemini/OpenCode/Codex). **A decisão e a
+  aplicação do fix são sempre suas, nunca do runtime delegado.**
 - `../shared/references/mcp-availability.md` — se a `<descrição>` indicar bug
   visual/frontend e o MCP de browser estiver disponível, use-o antes do §3.a para reproduzir o bug e
   capturar evidência. Se o erro envolver comportamento de uma ferramenta/lib/framework/API externa,
@@ -168,7 +169,8 @@ Se **verde** (todos os testes passaram):
 Atualize o status file com `Status: GREEN` e **pare**.
 
 Se **vermelho**:
-1. Leia a saída de erro (opcionalmente condensada com `agy` — ver `delegate-to-gemini.md` §1).
+1. Leia a saída de erro (opcionalmente condensada por um runtime de delegação disponível — ver
+   `delegate-to-runtime.md` §4.1).
 2. **Hipóteses**: a partir do erro lido, liste 2-3 hipóteses candidatas (não 3-5 — o Vetor já opera
    sob orçamento agressivo de iterações) para a causa raiz e escolha a de maior probabilidade antes
    de escrever o teste de reprodução do passo 3. Registre a escolha no campo `Last action` do status

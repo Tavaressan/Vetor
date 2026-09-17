@@ -175,14 +175,20 @@ gh pr list --search "closes:#<N>" --state open --json number,title
 Se já houver PR (ou se `vetor-status.sh` reportar `GREEN (PR #N aberta)` ou `GREEN (já mergeado via #N)`):
 pule a issue, registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado (#<PR>)".
 
-**Agrupamento de afinidade** (delegação opcional ao `agy`, se disponível no `PATH` e houver mais de
-3 issues; sem equivalente próprio em `.opencode/scripts`):
+**Agrupamento de afinidade** (delegação opcional a um runtime externo disponível no `PATH` —
+Gemini/`agy`, OpenCode/`opencode`, Codex/`codex` — detecção estática + algoritmo de seleção
+agnóstico de provedor em `skills/shared/references/delegate-to-runtime.md` §1-2 no plugin Claude
+Code; sem equivalente próprio em `.opencode/scripts`. Só delegue se exatamente um candidato estiver
+disponível, ou se houver preferência configurada, ou mediante confirmação explícita do usuário
+quando ambíguo — nunca escolha silenciosamente entre 2+ candidatos sem anuência; qualquer falha do
+CLI delegado, não só ausência do binário, cai para o caminho inline abaixo, sem retry):
 ```bash
-gh issue list --label <label> --state open --json number,title,labels,body | agy -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo/provedor ideal de execução deve ser o mais barato (ajustes simples/chore) ou o mais capaz (features complexas/refactor)."
+gh issue list --label <label> --state open --json number,title,labels,body | <runtime> -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo/provedor ideal de execução deve ser o mais barato (ajustes simples/chore) ou o mais capaz (features complexas/refactor)."
 ```
 
-Sem `agy` ou com 3 ou menos issues, agrupe inline: título/labels/descrição correlatos → mesma Lead
-Issue + Sequential Issues, resolvidas sequencialmente pelo mesmo worker no mesmo worktree.
+Sem nenhum runtime disponível ou com 3 ou menos issues, agrupe inline: título/labels/descrição
+correlatos → mesma Lead Issue + Sequential Issues, resolvidas sequencialmente pelo mesmo worker no
+mesmo worktree.
 
 **Ondas de despacho (DAG Waves).** Grupos paralelos podem depender causalmente uns dos outros (ex.:
 grupo B usa uma entidade/migration criada pelo grupo A). Despachar B a partir do branch default

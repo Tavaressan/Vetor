@@ -31,9 +31,9 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
 
 - `../shared/references/planning-conventions.md` — §3.1 (questionamento
   direcionado KISS/YAGNI) e §2.2 (aprovação do plano).
-- `../shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
-  resumir documentação extensa (§1) e rascunhar corpos de issue (§6). Você sempre revisa e ancora o
-  rascunho antes de criar.
+- `../shared/references/delegate-to-runtime.md` — uso opcional de um
+  runtime externo disponível (Gemini/OpenCode/Codex) para resumir documentação extensa (§4.8) e
+  rascunhar corpos de issue (§4.2). Você sempre revisa e ancora o rascunho antes de criar.
 - `../shared/references/mcp-availability.md` — MCP de observabilidade (§2.a).
   Se a ideação exigir pesquisar comportamento de uma ferramenta/lib/framework/API externa antes de
   propor uma issue, o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de
@@ -72,8 +72,8 @@ Leia as fontes de documentação disponíveis para ancorar as propostas, nesta o
 
 Avise quais fontes foram encontradas e usadas.
 
-**Se a documentação somar mais de 80 linhas**, não a leia inteira: delegue o resumo arquitetural ao
-`agy` (ver `delegate-to-gemini.md`) ou, na ausência dele, leia apenas os primeiros ~50 blocos dos
+**Se a documentação somar mais de 80 linhas**, não a leia inteira: delegue o resumo arquitetural a um
+runtime disponível (ver `delegate-to-runtime.md` §4.8) ou, na ausência de um, leia apenas os primeiros ~50 blocos dos
 arquivos principais e limite-se a listas de tópicos/buscas pontuais nos demais. Abaixo de 80 linhas,
 leia nativamente. Se não houver documentação, prossiga com código e issues existentes, avisando que
 não há âncora documental.
@@ -207,7 +207,7 @@ Se nenhum existir, **omita** o label de tipo (mantendo `backlog`, `ai-generated`
 
 #### 6.b — Criar as issues
 
-O corpo pode ser rascunhado com `agy` (ver `delegate-to-gemini.md`); revise e ancore antes de criar.
+O corpo pode ser rascunhado por um runtime disponível (ver `delegate-to-runtime.md` §4.2); revise e ancore antes de criar.
 
   ```bash
   gh issue create \

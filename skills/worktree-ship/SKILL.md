@@ -37,9 +37,10 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
   **A resolução do `module-test-map.md`/`config.json` no passo 4 sempre usa o root do repositório
   (`vetor-checks.sh repo-root`), nunca o `cwd` do worktree** — arquivos ignorados pelo `.gitignore`
   do projeto-alvo (ex.: `.claude/`) não são materializados em worktrees (issue #160).
-- `../shared/references/delegate-to-gemini.md` — delegação opcional ao `agy`
-  (resumo de logs de CI §1, corpo do PR §4). Se a chamada ao `agy` for **negada pelo classificador de
-  permissão**, não retente: a negação é política, não transiente — siga com o caminho nativo.
+- `../shared/references/delegate-to-runtime.md` — delegação opcional a um
+  runtime externo disponível (Gemini/OpenCode/Codex) para resumo de logs de CI §4.1 e corpo do PR
+  §4.4. Se a chamada for **negada pelo classificador de permissão**, ou falhar por qualquer outro
+  motivo, não retente: siga com o caminho nativo imediatamente (§3 da referência).
 - `../shared/references/conflict-resolution.md` — procedimento de resolução
   de conflitos (passos 2 e 10).
 - `../shared/references/mcp-availability.md` — se os módulos alterados
@@ -152,8 +153,8 @@ Construa o título a partir dos commits:
 git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```
 
-O corpo pode ser rascunhado com `agy` (ver `delegate-to-gemini.md` §4); caso contrário, use o
-template inline:
+O corpo pode ser rascunhado por um runtime de delegação disponível (ver `delegate-to-runtime.md`
+§4.4); caso contrário, use o template inline:
 ```markdown
 ## Resumo
 - <bullet points das mudanças principais, derivados dos commits>
@@ -239,7 +240,8 @@ Se retornar exit 0 (JSON com `isInfrastructureFailure: true`), nenhum fix de có
 ```bash
 gh run view <run-id> --log-failed
 ```
-(opcionalmente condensado com `agy` — ver `delegate-to-gemini.md` §1). Avalie a natureza do erro:
+(opcionalmente condensado por um runtime de delegação disponível — ver `delegate-to-runtime.md`
+§4.1). Avalie a natureza do erro:
 
 - **Transiente (rede/timeout do runner):** **não altere o código**. Aguarde 30 segundos e rode
   `gh run rerun <run-id>`. Backoff exponencial, até 3 tentativas.

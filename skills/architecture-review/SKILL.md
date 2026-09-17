@@ -40,9 +40,10 @@ candidatos comparáveis num relatório visual, e aprofundando com o usuário o c
 - `../shared/references/grilling-conventions.md` — mecanismo de rodadas
   (fato vs. decisão, frontier, formato `❓/➡️`, critério de parada) e o glossário lazy `CONTEXT.md`,
   ambos reaproveitados intactos na Fase 3.
-- `../shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
-  resumir `git log`/diffs extensos antes da Fase 1, e para condensar arquivos grandes encontrados
-  pelo sub-agente explorador. Você sempre revisa o resumo antes de usá-lo como evidência.
+- `../shared/references/delegate-to-runtime.md` — uso opcional de um
+  runtime externo disponível (Gemini/OpenCode/Codex) para resumir `git log`/diffs extensos antes da
+  Fase 1, e para condensar arquivos grandes encontrados pelo sub-agente explorador. Você sempre
+  revisa o resumo antes de usá-lo como evidência.
 - `../shared/references/mcp-availability.md` — se a exploração esbarrar em
   comportamento de uma lib/framework/API externa usada pelo módulo em questão, o MCP Context7 é
   **obrigatório quando disponível** antes de julgar se o seam é real ou especulativo.
