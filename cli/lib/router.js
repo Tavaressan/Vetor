@@ -2,6 +2,7 @@
 
 const { install } = require('./commands/install.js');
 const { makeStub } = require('./commands/stub.js');
+const { printBanner } = require('./banner.js');
 
 const COMMANDS = {
   install: { fn: install, description: 'Instala o Vetor no projeto atual' },
@@ -11,6 +12,7 @@ const COMMANDS = {
 };
 
 function printHelp() {
+  printBanner();
   console.log('Uso: vetor <comando>');
   console.log('');
   console.log('Comandos:');
