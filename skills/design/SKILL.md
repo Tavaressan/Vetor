@@ -1,26 +1,26 @@
 ---
 name: design
-description: Skill de design do Vetor — (1) detecta o modo de operação (Prototype-first/System-first/Vetor-first #213), importa um Design System existente sem duplicá-lo e mantém a Design Direction persistente em .vetor/design/; (2) Frontend Self-Correction Loop (Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done) com Visual Critique em 10 dimensões e degradação graciosa sem MCP de browser. Consumida por issue-worker/fix-loop-agent ao implementar ou corrigir UI de frontend.
+description: Skill de design do Vetor — (1) detecta o modo de operação (Prototype-first/System-first/Vetor-first #213), importa um Design System existente sem duplicá-lo e mantém a Design Direction persistente em .vetor/design/; (2) Handoff de protótipo para Design Contract, com estados de interface além do happy path (#229); (3) Frontend Self-Correction Loop (Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done) com Visual Critique em 10 dimensões e degradação graciosa sem MCP de browser. Consumida por issue-worker/fix-loop-agent ao implementar ou corrigir UI de frontend.
 license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
-Você é a skill de design do Vetor. Cobre duas responsabilidades sequenciais do fluxo de frontend
+Você é a skill de design do Vetor. Cobre três responsabilidades sequenciais do fluxo de frontend
 (#213):
 
 1. **Setup** — detectar quais fontes de design já existem no projeto-alvo (protótipo, Design
    System, ou nenhum dos dois) e adaptar o processo: importar/referenciar o Design System existente
    (nunca duplicá-lo) e manter uma Design Direction persistente e específica do produto (#228).
-2. **Loop** — depois que uma implementação de UI compila e roda, levá-la do Design Contract até um
+2. **Handoff** — quando o modo é Prototype-first, extrair do protótipo estrutura de telas,
+   hierarquia, componentes, tokens observáveis, conteúdo, interações, estados e responsividade, e
+   transformar isso em um Design Contract (#227) que preserva `prototype intent + dados reais +
+   estados reais + restrições técnicas reais` — nunca uma cópia de pixels (#229).
+3. **Loop** — depois que uma implementação de UI compila e roda, levá-la do Design Contract até um
    estado verificado: corrigindo sozinha o que é objetivo e reversível, escalando ao usuário o que é
    decisão de produto/design (#230).
-
-Extração de conteúdo de um protótipo (handoff completo) e o formato do Design Contract em si são
-escopo de issues futuras — não implementados aqui (ver `design-vocabulary.md` para o vocabulário já
-definido).
 
 ---
 
@@ -60,6 +60,10 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
   `scripts/tests/design-mode_test.ts`).
 - `scripts/detect-design-mode.ts` — CLI que orquestra a escrita em disco do Setup a partir da lib
   acima.
+- `scripts/lib/design-handoff.ts` — renderiza o Design Contract a partir da extração estruturada do
+  protótipo (pura, testada em `scripts/tests/design-handoff_test.ts`). Ver Handoff, abaixo.
+- `scripts/handoff-prototype.ts` — CLI que lê a extração (JSON) e grava o Design Contract em
+  `.vetor/design/handoff/` via a lib acima.
 - `scripts/lib/design-loop-mcp.ts` — `detectBrowserMcpServer`/`reportLoopStep`: formaliza o relato
   de cada passo do Loop dependente de MCP de browser quando ele não está disponível, para nunca
   pular uma etapa em silêncio nem fingir que a inspeção ocorreu (ver Loop §"Sem MCP de browser").
@@ -81,9 +85,8 @@ Saída JSON: `mode`, `hasPrototype`, `evidence`, `written`, `skipped`.
 
 Modos, nesta ordem de prioridade (ver #213 "Modos de operação"):
 
-1. **Prototype-first** — existe `.vetor/design/prototype/`. O handoff de extração do protótipo em
-   si (estrutura de telas, tokens observáveis, estados) é escopo de issue futura; aqui só a
-   detecção do modo é resolvida.
+1. **Prototype-first** — existe `.vetor/design/prototype/`. Prossiga para a seção Handoff, abaixo,
+   para transformar o protótipo em Design Contract.
 2. **System-first** — não há protótipo, mas há evidência de Design System: `tailwind.config.*`,
    `tokens.*`, `components/`/`ui/` (raiz ou `src/`), `.storybook/`, ou dependência de design em
    `package.json` (`tailwindcss`, `styled-components`, `@mui/material`, `@chakra-ui/react`,
@@ -164,6 +167,82 @@ Resuma ao final:
 - arquivos criados nesta execução vs. arquivos que já existiam e foram preservados;
 - se o Design System referenciado tem uma versão conhecida (campo `version` do frontmatter) ou
   `unknown` (nenhuma dependência de design com versão detectável em `package.json`).
+
+---
+
+## Handoff — Protótipo → Design Contract
+
+Só se aplica quando o Setup detectou `mode: "prototype-first"` (passo 1, acima). Transforma o
+protótipo em `.vetor/design/prototype/` no Design Contract consumido pelo Loop — nunca uma cópia
+visual do protótipo (design-vocabulary.md §4.1).
+
+### 1 — Observar o protótipo
+
+A origem é a ferramenta de design suportada pelo workflow, ou qualquer outro artefato visual
+disponível ao agente (imagens, export estático, MCP de design quando presente). Este passo é
+trabalho do agente, não deste script: leia/observe o conteúdo de `.vetor/design/prototype/` e
+extraia, conforme aplicável (design-vocabulary.md §4.2):
+
+```text
+objetivo da experiência, telas, hierarquia, componentes, tokens observáveis, conteúdo real,
+interações, estados, responsividade, restrições técnicas reais, decisões, questões abertas
+```
+
+**Preserve, nunca copie pixels:**
+
+```text
+prototype intent + real application data + real application states + real technical constraints
+```
+
+Conteúdo (`content`) é sempre real — textos, labels e mensagens do produto, nunca lorem ipsum.
+Restrições (`constraints`) documentam limitações técnicas reais que o protótipo pode não refletir
+(ex.: um campo que o protótipo mostra sempre preenchido, mas que a API real pode retornar vazio).
+
+### 2 — Estados de interface (além do happy path)
+
+O protótipo tipicamente mostra só o happy path. Avalie cada um dos 9 estados canônicos de
+`design-vocabulary.md` §4.3 para a tela/fluxo:
+
+```text
+loading, empty, populated, error, partial failure, permission denied, offline, disabled, success
+```
+
+Para cada estado, **ou**:
+
+- especifique-o (`states`): `trigger`, `expectedBehavior`, `primaryAction`/`visualTreatment` quando
+  aplicável, e `evidence` (`"Prototype"`, `"Specification"`, ou a combinação);
+- marque-o como não aplicável a esta tela (`notApplicableStates`), com a razão — ex.: uma tela sem
+  controle de acesso por usuário não precisa de "permission denied";
+
+**nunca omita um estado em silêncio.** `renderDesignContract` (`scripts/lib/design-handoff.ts`)
+garante isso: qualquer um dos 9 estados que não for especificado nem marcado como não aplicável
+aparece no documento como um bloco `OPEN_QUESTION` — a lacuna fica visível, nunca escondida.
+
+### 3 — Decisões e Evidence State
+
+Classifique cada decisão de design usando `design-vocabulary.md` §4.4 (`CONFIRMED`/`INFERRED` citam
+`source`; `ASSUMED` cita `reason`, nunca `source`). O que ainda não foi decidido vai para
+`openQuestions` (`impact`), nunca para `decisions`. Nunca promova `INFERRED`/`ASSUMED` a `CONFIRMED`
+sem evidência qualificada nova (`evidence-state.md` §5) — implementar uma leitura não a confirma.
+
+### 4 — Gerar o Design Contract
+
+Monte a extração como `PrototypeExtraction` (`scripts/lib/design-handoff.ts`) num JSON e rode:
+
+```bash
+deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/handoff-prototype.ts" <extração.json> <diretório>
+```
+
+Saída JSON: `written`, `skipped`, `unaddressedStates`. O Design Contract é gravado em
+`.vetor/design/handoff/<slug-do-título>.md` — nunca sobrescreve um já existente (mesmo contrato de
+`writeDesignFiles`, Setup passo 2). Exemplo completo (Painel de Worktrees, com estados Empty/Error)
+em `skills/design/examples/prototype-handoff-example.md`.
+
+### 5 — Reportar
+
+Resuma: título do Design Contract gerado (ou já existente, preservado), estados especificados vs.
+`notApplicableStates` vs. `unaddressedStates` (estes últimos precisam de decisão humana antes da
+implementação), e as questões abertas pendentes.
 
 ---
 
@@ -321,5 +400,12 @@ ferramentas da sessão:
   `node_modules/`, `dist/`, `build/`.
 - Nunca promove um padrão comum a proibição universal na Design Direction sem justificativa ligada
   ao produto (`DEFAULT ≠ FORBIDDEN`).
-- Nunca implementa extração de conteúdo de protótipo nem o formato do Design Contract nesta skill —
-  escopo de #213, issues futuras.
+- O Handoff nunca produz um Design Contract que seja cópia do protótipo (posição de pixel,
+  screenshot anotada, cópia de camadas) — sempre decisões que sobrevivem à transferência para código
+  (design-vocabulary.md §4.1).
+- O Handoff nunca omite em silêncio um dos 9 estados canônicos: cada um é especificado, marcado como
+  não aplicável (com razão), ou vira `OPEN_QUESTION` no documento gerado.
+- O Handoff nunca promove `INFERRED`/`ASSUMED` a `CONFIRMED` sem evidência qualificada nova
+  (`evidence-state.md` §5).
+- Conflito Specification × Design Contract, Design Drift e Visual Debt são extensões futuras (#231)
+  — esta skill não os implementa.
