@@ -14,14 +14,13 @@ classificá-la no Quality Gate e reportar o resultado em Strengths/Gaps/Suggesti
 sozinho se a Spec "está boa o bastante": o Quality Gate é um mecanismo de decisão, quem age sobre o
 resultado (refinar, seguir para implementação) é sempre o usuário ou a skill chamadora.
 
-Esta é a versão de scaffold (#220): o Quality Model, o Quality Gate e a estrutura de saída
-(Score/Status/Strengths/Gaps/Suggestions) já estão completos e operacionais; os dimension checkers
-ainda são estruturais/presença (seção existe e não está vazia) — a análise heurística de linguagem
-(termos vagos sem métrica, diferenciação `⚠️ ABERTO` explícito vs. omissão silenciosa, Edge Cases
-contextuais) é escopo de #221. Feedback estruturado por gap (`location`/`problem`/`impact`/
-`suggested_action`), o Quality Report em Markdown persistido separado da Spec e o refinamento
-iterativo com limite de 3 ciclos são escopo de #222. Metadados de rastreabilidade por requisito e
-Decision Log são escopo de #223.
+O Quality Model, o Quality Gate, a estrutura de saída (Score/Status/Strengths/Gaps/Suggestions —
+#220) e os dimension checkers heurísticos (#221: Must sem Acceptance Criteria, termos vagos sem
+métrica mensurável, `⚠️ ABERTO` explícito vs. omissão silenciosa, Non-Goals ausente, Edge Cases
+contextuais) já estão completos e operacionais. Feedback estruturado por gap (`location`/`problem`/
+`impact`/`suggested_action`), o Quality Report em Markdown persistido separado da Spec e o
+refinamento iterativo com limite de 3 ciclos são escopo de #222. Metadados de rastreabilidade por
+requisito e Decision Log são escopo de #223.
 
 ---
 
