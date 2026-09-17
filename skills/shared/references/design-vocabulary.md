@@ -22,6 +22,10 @@ Frontend Implementation
 Consumido por `frontend-design-enforcement.md` e pela skill `frontend-design` (verificação de
 UI/design de frontend) e pelo `fix-loop-agent` quando a descrição do fix envolve UI.
 
+As Decisões do Design Contract (§4.4) usam o modelo de estados epistêmicos definido em
+`$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` (#214) — este documento **consome**
+esse modelo, não o redefine.
+
 ---
 
 ## 1. Design System
@@ -227,8 +231,19 @@ Prototype + Specification
 
 ### 4.4 Evidence State nas decisões
 
-Decisões registradas no campo "Decisões" preservam sua origem e natureza epistêmica — inferência
-não é confirmação:
+O campo "Decisões" usa os 4 estados de `evidence-state.md` (#214) — `CONFIRMED`, `INFERRED`,
+`ASSUMED`, `OPEN_QUESTION`. Esta seção não redefine os estados nem o formato de Evidence Record
+(§2 de `evidence-state.md`) — aplica o modelo já existente às decisões de design, preservando a
+mesma assimetria de campos por estado: `CONFIRMED`/`INFERRED` citam `Source`; `ASSUMED` cita
+`Reason` (sem `Source` — não há fonte a apontar para uma premissa); `OPEN_QUESTION` cita `Impact`
+(sem `Source` nem confidence).
+
+`evidence-state.md` §3 não lista "Prototype" nem "Design System" entre os tipos formais de
+Evidence Source (`code`, `documentation`, `spec`, `adr`, `configuration`, `user`, `external`,
+`tool`, `test`). No vocabulário de design, `Source: Prototype`/`Source: Design System` é o rótulo
+legível usado nos exemplos abaixo; ao persistir como Evidence Record yaml, o `type` formal segue o
+mapeamento: Prototype → `external`, Design System → `documentation`/`configuration`,
+Specification → `spec`.
 
 ```text
 CONFIRMED
@@ -241,13 +256,28 @@ Source: Prototype + Specification
 
 ASSUMED
 Navegação desktop permanece expandida acima de 1024px.
-Source: Prototype
+Reason: Nenhuma tela do protótipo cobre breakpoints intermediários; premissa necessária para
+avançar a especificação.
 
 OPEN_QUESTION
 Filtros devem persistir entre sessões?
+Impact: Afeta se o estado do filtro precisa ser persistido em storage do cliente ou servidor.
 ```
 
-`OPEN_QUESTION` vai para o campo "Questões abertas" do contrato, não para "Decisões".
+`OPEN_QUESTION` vai para o campo "Questões abertas" do contrato, não para "Decisões" (ver exemplo
+completo em `skills/design/examples/design-contract-example.md`).
+
+**Proibição de auto-promoção** (regra fundamental de `evidence-state.md` §5, aplicada aqui sem
+redefinição): o Vetor nunca promove automaticamente
+
+```text
+INFERRED → CONFIRMED
+ASSUMED  → CONFIRMED
+```
+
+sem nova evidência qualificada (§3). Ex.: a sidebar permanecer `INFERRED` como navegação
+persistente não vira `CONFIRMED` só porque a implementação seguiu essa leitura — apenas evidência
+adicional (Specification explícita, decisão do usuário, ADR) promove o estado.
 
 ### 4.5 Esqueleto do documento
 
