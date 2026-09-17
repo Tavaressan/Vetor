@@ -91,10 +91,10 @@ async function main() {
     await saveValidationState(historyPath, { specPath, history });
   }
 
-  console.log(renderQualityReport(specPath, result, { history }));
+  console.info(renderQualityReport(specPath, result, { history }));
 
   if (capReached) {
-    console.log(
+    console.info(
       `\nLimite de ${history.length - 1} ciclos de refinamento automático já foi atingido para ` +
         "esta Spec — revisão manual necessária antes de validar novamente (#203 §10). O histórico " +
         "acima não inclui esta tentativa.",
