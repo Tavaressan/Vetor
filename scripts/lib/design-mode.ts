@@ -22,6 +22,9 @@ export interface DesignSystemEvidence {
   kind: DesignSystemEvidenceKind;
   /** Info extra legível, ex.: "tailwindcss@3.4.1" (nome do pacote + versão detectada). */
   detail?: string;
+  /** Nome do pacote, só presente em kind === "package-dep" — usado para não atribuir a versão
+   * de uma dependência à fonte errada (ex.: tailwindcss não é a versão de components/). */
+  packageName?: string;
 }
 
 export interface OperationModeResult {
@@ -94,6 +97,7 @@ function detectPackageDesignDeps(dir: string): DesignSystemEvidence[] {
         relPath: "package.json",
         kind: "package-dep",
         detail: `${dep}@${stripVersionPrefix(version)}`,
+        packageName: dep,
       });
     }
     return out;
@@ -148,8 +152,21 @@ export function detectOperationMode(dir: string): OperationModeResult {
   return { mode, hasPrototype: proto, evidence };
 }
 
-function versionFromEvidence(evidence: DesignSystemEvidence[]): string {
-  const pkg = evidence.find((e) => e.kind === "package-dep" && e.detail);
+// A versão só é atribuída à fonte a que ela realmente pertence: tailwindcss é a lib de tokens,
+// nunca a versão de um diretório de componentes que não tem versão própria (e vice-versa).
+const TOKEN_VERSION_DEPS = new Set(["tailwindcss"]);
+const COMPONENT_VERSION_DEPS = new Set([
+  "styled-components",
+  "@emotion/styled",
+  "@mui/material",
+  "@chakra-ui/react",
+  "@storybook/react",
+]);
+
+function versionFromEvidence(evidence: DesignSystemEvidence[], allowedDeps: Set<string>): string {
+  const pkg = evidence.find((e) =>
+    e.kind === "package-dep" && e.detail && e.packageName && allowedDeps.has(e.packageName)
+  );
   return pkg?.detail?.split("@").pop() ?? "unknown";
 }
 
@@ -163,7 +180,7 @@ function renderTokensMd(evidence: DesignSystemEvidence[]): DesignFile {
     e.kind === "tokens-config" || e.kind === "tokens-file"
   );
   const sources = tokenEvidence.map((e) => e.relPath);
-  const version = versionFromEvidence(evidence);
+  const version = versionFromEvidence(evidence, TOKEN_VERSION_DEPS);
   const body = sources.length > 0
     ? `Este projeto já possui tokens definidos externamente. O Vetor referencia a fonte abaixo em\nvez de duplicar os valores — esta representação é documentação/handoff, nunca uma segunda fonte\nconcorrente de tokens.\n\n${
       sources.map((s) => `- \`${s}\``).join("\n")
@@ -179,7 +196,7 @@ function renderTokensMd(evidence: DesignSystemEvidence[]): DesignFile {
 function renderComponentsMd(evidence: DesignSystemEvidence[]): DesignFile {
   const componentEvidence = evidence.filter((e) => e.kind === "components-dir");
   const sources = componentEvidence.map((e) => e.relPath);
-  const version = versionFromEvidence(evidence);
+  const version = versionFromEvidence(evidence, COMPONENT_VERSION_DEPS);
   const body = sources.length > 0
     ? `Componentes reutilizáveis já existem no projeto. O Vetor referencia o(s) diretório(s) abaixo\nem vez de listar/duplicar os componentes aqui.\n\n${
       sources.map((s) => `- \`${s}/\``).join("\n")

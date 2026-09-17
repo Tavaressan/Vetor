@@ -120,6 +120,32 @@ Deno.test("Design System Import referencia o arquivo original em vez de copiar o
   }
 });
 
+Deno.test("versão de uma dependência não vaza para a fonte errada (tailwindcss não é a versão de components/)", () => {
+  const dir = tempDir();
+  try {
+    Deno.writeTextFileSync(
+      `${dir}/package.json`,
+      JSON.stringify({ devDependencies: { tailwindcss: "^3.4.1" } }),
+    );
+    Deno.mkdirSync(`${dir}/components`);
+
+    const { evidence } = detectOperationMode(dir);
+    const files = renderDesignSystemFiles(evidence);
+    writeDesignFiles(dir, files);
+
+    const tokens = Deno.readTextFileSync(`${dir}/${DESIGN_SYSTEM_DIR}/tokens.md`);
+    const components = Deno.readTextFileSync(`${dir}/${DESIGN_SYSTEM_DIR}/components.md`);
+
+    assertEquals(tokens.includes("version: 3.4.1"), true);
+    // components/ não tem versão própria detectável — tailwindcss (dep de tokens) não pode
+    // ser atribuída a ele.
+    assertEquals(components.includes("version: 3.4.1"), false);
+    assertEquals(components.includes("version: unknown"), true);
+  } finally {
+    cleanup(dir);
+  }
+});
+
 Deno.test("Design System Import sem evidência de tokens ainda gera patterns.md e evidence.md", () => {
   const dir = tempDir();
   try {
