@@ -35,7 +35,11 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 
 > Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
 > ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
-> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
 Este coordenador compõe os primitivos do plugin:
 - `/vetor:worktree-create` — criação headless de worktree (skill, Fase 3)
@@ -84,7 +88,7 @@ Além disso, em `--headless`:
 ### 0 — Detecção de modo
 
 - **Sem argumento** ou **`--resume`**: entre em **modo de retomada**.
-  1. Rode `bash "../../scripts/vetor-status.sh"` para listar os worktrees ativos com
+  1. Rode `bash "$SKILL_DIR/../../scripts/vetor-status.sh"` para listar os worktrees ativos com
      status file. O script cruza os status files com `gh pr list` e anota `GREEN (PR #N aberta)` ou
      `GREEN (já mergeado via #N)`.
   2. Se houver ao menos um status file ativo: **pule as Fases 1–3** e faça a pergunta de workers
@@ -276,7 +280,7 @@ pela branch) ou pelo retorno do `Agent()`.
   sessão.
 
 ⚠️ **Checagem de duplicidade (antes de cada dispatch).** Rode
-`bash "../../scripts/vetor-status.sh"` e cruze as issues do grupo candidato contra as
+`bash "$SKILL_DIR/../../scripts/vetor-status.sh"` e cruze as issues do grupo candidato contra as
 já reportadas como em andamento (`Iteration: N/5 (Issue #<M>)`) em status files ativos (`RUNNING`,
 `BLOCKED_WAITING`, ou `GREEN` ainda não mergeado). Se qualquer issue do grupo já aparecer em um
 worktree ativo: alerte (`⚠️ Issue #<M> já está em andamento no worktree/branch <outra-branch> —
@@ -347,7 +351,7 @@ Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em al
 **5.a — Tabela de status**
 
 ```bash
-bash "../../scripts/vetor-status.sh"
+bash "$SKILL_DIR/../../scripts/vetor-status.sh"
 ```
 
 O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
@@ -426,7 +430,7 @@ possivelmente já mergeada e obsoleta.
 
 ```bash
 cd "$(git worktree list | head -1 | awk '{print $1}')"   # a 1ª linha é sempre o root
-bash "../../scripts/vetor-checks.sh" sync-root
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 ```
 
 `sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se

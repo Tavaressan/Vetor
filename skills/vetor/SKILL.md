@@ -27,7 +27,11 @@ Você é a skill de inicialização e configuração do Vetor. Sua missão é pr
 
 > Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
 > ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
-> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
 - `../shared/references/mcp-availability.md` — se, durante o setup, for
   preciso explicar ou depurar comportamento do próprio Claude Code (hooks, slash commands,
@@ -71,7 +75,7 @@ Um único script detecta o runtime, gera o mapeamento de testes, persiste a conf
 rules de convenção do projeto:
 
 ```bash
-deno run -A "../../scripts/detect-project.ts" [--force]
+deno run -A "$SKILL_DIR/../../scripts/detect-project.ts" [--force]
 ```
 
 Repasse o `--force` recebido nos args. A guarda é **por arquivo**: sem `--force`, cada arquivo que já
@@ -109,7 +113,7 @@ antemão, que o plugin está instalado e como invocar suas skills/agentes.
 Para cada um de `CLAUDE.md` e `AGENTS.md` que já exista na raiz do projeto-alvo, rode:
 
 ```bash
-deno run -A "../../scripts/inject-capabilities-doc.ts" <caminho-do-arquivo>
+deno run -A "$SKILL_DIR/../../scripts/inject-capabilities-doc.ts" <caminho-do-arquivo>
 ```
 
 O script acha o bloco delimitado por `<!-- vetor:capabilities:start -->` / `<!-- vetor:capabilities:end -->`

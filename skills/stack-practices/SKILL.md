@@ -33,7 +33,11 @@ que o `/vetor` já gera.
 
 > Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
 > ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
-> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
 - `../shared/references/mcp-availability.md` — mecanismo de checagem de
   disponibilidade do Context7 ("Documentação de ferramentas/libs (Context7)"). Esta skill é uma das
@@ -47,7 +51,7 @@ que o `/vetor` já gera.
 ### 1 — Detectar libs/frameworks estruturais
 
 ```bash
-deno run -A "../../scripts/lib/deps.ts" .
+deno run -A "$SKILL_DIR/../../scripts/lib/deps.ts" .
 ```
 
 (ou, dentro de outra skill/script Deno, importe `detectStructuralDeps` de

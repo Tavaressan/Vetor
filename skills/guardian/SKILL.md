@@ -27,7 +27,11 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
 
 > Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
 > ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
-> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
 - `../shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
   auditar a listagem de migrations (§2) e rascunhar o relatório final. Você valida o rascunho antes
@@ -81,7 +85,7 @@ Se encontrado, verifique a sequência **completa** (ex.: convenção Flyway `V<N
 
 ```bash
 # duplicatas de versão — mecanismo compartilhado com o worktree-ship §2.b
-bash "../../scripts/vetor-checks.sh" migrations
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" migrations
 ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 ```
 
@@ -123,7 +127,7 @@ Responde "o que sobrou e por quê?" — o cleanup do `worktree-ship` (passo 12) 
 feliz; execuções que falham no CI, ficam em revisão ou são abandonadas deixam worktree órfão.
 
 ```bash
-bash "../../scripts/vetor-checks.sh" worktree-audit
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" worktree-audit
 ```
 
 Cada linha vem como `<path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>` (`age_days` medido
@@ -142,7 +146,7 @@ Monte a tabela de auditoria:
 **Finding:** worktree com idade > 7 dias, sem PR aberto e sem trabalho pendente — candidata a remoção segura.
 **Finding:** worktree com `uncommitted=yes` — nunca remover automaticamente.
 **Auto-fix (modo manual):** para candidatas seguras (`uncommitted=no` **e** PR ausente ou já
-`MERGED`/`CLOSED`), propõe no plano `bash "../../scripts/vetor-checks.sh"
+`MERGED`/`CLOSED`), propõe no plano `bash "$SKILL_DIR/../../scripts/vetor-checks.sh"
 safe-remove-worktree <path>` — nunca `--force`, e nunca sobre worktree com `uncommitted=yes` ou
 branch com commits ausentes no remoto (`git log origin/<branch>..<branch>` não vazio → não propõe).
 Aplica somente após aprovação explícita.
@@ -152,13 +156,13 @@ Aplica somente após aprovação explícita.
 Arquivos em `.claude/vetor/status/` sobrevivem à remoção do worktree que os gerou.
 
 ```bash
-bash "../../scripts/vetor-checks.sh" find-orphan-status
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" find-orphan-status
 ```
 
 O script já confirma que o worktree correspondente não existe mais em `git worktree list`.
 
 **Finding:** status file órfão em `<path>` (worktree removido)
-**Auto-fix (modo manual):** propõe `bash "../../scripts/vetor-checks.sh"
+**Auto-fix (modo manual):** propõe `bash "$SKILL_DIR/../../scripts/vetor-checks.sh"
 archive-orphan-status <path>` — move para `.claude/vetor/status/archive/` (não apaga; reversível).
 Aplica somente após aprovação explícita.
 
@@ -215,7 +219,7 @@ em `../shared/references/codebase-design-vocabulary.md` §Princípios
 heurística barata de contagem).
 
 ```bash
-bash "../../scripts/vetor-checks.sh" architectural-risk
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" architectural-risk
 ```
 
 O script resolve os módulos tocados via `git log --since="7 days ago" --name-only`, mapeados pela
@@ -265,8 +269,8 @@ Audit concluído. Mutações recomendadas abaixo.
 
 ### Auto-fixes Recomendados
 - [ ] Corrigir JSON inválido no arquivo: `<path>`
-- [ ] Remover worktree órfão (limpa, sem PR aberto): `bash "../../scripts/vetor-checks.sh" safe-remove-worktree <path>`
-- [ ] Arquivar status file órfão: `bash "../../scripts/vetor-checks.sh" archive-orphan-status <path>`
+- [ ] Remover worktree órfão (limpa, sem PR aberto): `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree <path>`
+- [ ] Arquivar status file órfão: `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" archive-orphan-status <path>`
 - [ ] Solicitar rebase do Dependabot no PR #<N> (`gh pr comment <N> --body "@dependabot rebase"`)
 - [ ] Criar issue de revisão de design para `<módulo>` (label `ai-generated`, fan-in alto — deletion test)
 

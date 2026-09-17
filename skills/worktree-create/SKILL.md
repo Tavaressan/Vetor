@@ -96,11 +96,14 @@ Delegue ao script determinístico — ele detecta o runtime e faz o que couber (
 pois o cache `$DENO_DIR` já é global; Node ganha um link para o `node_modules` da raiz):
 
 > O path relativo abaixo resolve a partir do diretório desta própria skill (informado ao carregar,
-> ex. "Base directory for this skill: ..."), não do `cwd` de execução — prefixe o path absoluto
-> desse diretório ao caminho relativo antes de executar.
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
 ```bash
-deno run -A "../../scripts/prepare-worktree.ts" --path .claude/worktrees/<slug>
+deno run -A "$SKILL_DIR/../../scripts/prepare-worktree.ts" --path .claude/worktrees/<slug>
 ```
 
 O script é tolerante a falhas: avisa em stderr e sai com 0 mesmo se a preparação falhar. Prossiga

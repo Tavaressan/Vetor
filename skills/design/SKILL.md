@@ -46,7 +46,11 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
 
 > Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
 > ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
-> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
 - `../shared/references/design-vocabulary.md` — Design System, Design
   Direction, Design Signature e o formato do Design Contract (entrada do Loop, passo 1). Não
@@ -108,7 +112,7 @@ documentada em `design-vocabulary.md` §6. Resumo:
 ### 1 — Detectar o modo de operação
 
 ```bash
-deno run -A "../../scripts/detect-design-mode.ts" <diretório>
+deno run -A "$SKILL_DIR/../../scripts/detect-design-mode.ts" <diretório>
 ```
 
 Saída JSON: `mode`, `hasPrototype`, `evidence`, `written`, `skipped`.
@@ -270,7 +274,7 @@ sem evidência qualificada nova (`evidence-state.md` §5) — implementar uma le
 Monte a extração como `PrototypeExtraction` (`scripts/lib/design-handoff.ts`) num JSON e rode:
 
 ```bash
-deno run -A "../../scripts/handoff-prototype.ts" <extração.json> <diretório>
+deno run -A "$SKILL_DIR/../../scripts/handoff-prototype.ts" <extração.json> <diretório>
 ```
 
 Saída JSON: `written`, `skipped`, `unaddressedStates`. O Design Contract é gravado em

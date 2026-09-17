@@ -57,7 +57,8 @@ automatiza essa cópia.
 
 **Resumo da proteção:** guards de segurança têm parceridade estrutural com o Claude Code (mesmo
 formato de hook, mesmos scripts, cobertura de eventos igual ou maior), mas dependem de validação
-de payload não feita nesta investigação. Skills não funcionam sem edição prévia. Subagentes
+de payload não feita nesta investigação. Skills funcionam sem edição prévia — os `SKILL.md` são
+agnósticos de engine desde a issue #251. Subagentes
 funcionam, mas sem tool allowlist e sem isolamento de worktree garantido por hook — a mesma classe
 de risco documentada para o Antigravity (issue #57: cwd mal resolvido contaminando a raiz
 compartilhada), só que sem o guard `PreToolUse` de escrita fora do worktree para pegar o caso,

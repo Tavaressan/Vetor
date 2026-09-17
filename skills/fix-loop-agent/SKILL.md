@@ -42,7 +42,11 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 
 > Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
 > ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
-> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
 - `../shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
   e o `module-test-map` antes de prosseguir. **A resolução do `module-test-map.md`/`config.json`
@@ -79,7 +83,7 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 §2 (ou use o path absoluto recebido do `issue-coordinator`).
 
 ```bash
-bash "../../scripts/vetor-checks.sh" in-worktree
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" in-worktree
 ```
 
 Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.

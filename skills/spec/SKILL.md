@@ -11,7 +11,7 @@ metadata:
 Você é a skill de geração de Specs do Vetor. Sua missão é descobrir o contexto já existente no
 projeto, decompor requisitos grandes em componentes, esclarecer o que faltar com uma entrevista
 focada e, a partir disso, redigir um rascunho de Spec estruturada — descrevendo comportamento, não
-implementação — usando `templates/spec.md` como esqueleto.
+implementação — usando `$SKILL_DIR/../../templates/spec.md` como esqueleto.
 
 Esta skill ainda não cobre todo o pipeline de #202: implementa a entrada, a descoberta de contexto
 (via Knowledge Provider quando disponível, com fallback para filesystem direto), a decomposição em
@@ -45,9 +45,13 @@ cada estágio abaixo sinaliza explicitamente o que ainda não está implementado
 
 > Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
 > ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
-> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
-- `../../templates/spec.md` — esqueleto da Spec usado no passo 5.
+- `$SKILL_DIR/../../templates/spec.md` — esqueleto da Spec usado no passo 5.
 - `../shared/references/planning-conventions.md` — §3 ("Regra das 3
   perguntas"), base da entrevista focada do passo 4 e aplicável também quando o tema (Sintaxe)
   precisar de uma pergunta direta ao usuário.
@@ -78,7 +82,7 @@ Knowledge Provider
 Antes do passo 1, rode:
 
 ```bash
-deno run -A "../../scripts/knowledge-doc.ts" status
+deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" status
 ```
 
 - `{"enabled": true, ...}` (default quando `.claude/vetor/config.json` não define `knowledge`, ou
@@ -111,7 +115,7 @@ aplica depois que o tema estiver definido.
    trate de arquitetura
 4. **ADRs:** `docs/adr/**`, `docs/decisions/**`, ou arquivos que casem com `*ADR*.md`
 5. **Specs existentes:** se o Knowledge Provider estiver habilitado (passo 0), rode
-   `deno run -A "../../scripts/knowledge-doc.ts" search-specs "<tema>"` — a busca
+   `deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" search-specs "<tema>"` — a busca
    prévia por Specs relacionadas antes de gerar uma nova; senão, `grep`/`find` direto em
    `docs/specs/**/*.md`. Em ambos os casos, o objetivo é o mesmo: evitar duplicar uma Spec já criada
    para o mesmo tema
@@ -225,7 +229,7 @@ idioma já usado no restante da skill para incerteza.
 
 ### 5 — Motor de geração: montar o rascunho a partir do template
 
-Copie a estrutura de `templates/spec.md` e preencha, a partir **apenas** do que foi encontrado ou
+Copie a estrutura de `$SKILL_DIR/../../templates/spec.md` e preencha, a partir **apenas** do que foi encontrado ou
 confirmado nos passos 1-4, aplicando as regras 5.1-5.5 a `Functional Requirements`,
 `Non-Functional Requirements`, `Edge Cases` e `Non-Goals` — o núcleo do motor de geração — e 5.6 às
 demais seções do template.
@@ -336,7 +340,7 @@ opcional.
 - **Revision History:** uma linha inicial com a data e "rascunho inicial gerado por /vetor:spec".
 
 Mantenha a estrutura extensível — não invente seções obrigatórias fora do template, e não force
-seções irrelevantes para um tema pequeno (ver `templates/spec.md`).
+seções irrelevantes para um tema pequeno (ver `$SKILL_DIR/../../templates/spec.md`).
 
 ### 6 — Apresentar o rascunho e persistir
 
@@ -355,7 +359,7 @@ entrega:
 ```bash
 # grave o rascunho completo em um arquivo temporário antes (evita problemas de quoting em
 # heredoc com o conteúdo livre da Spec) e use-o como stdin:
-deno run -A "../../scripts/knowledge-doc.ts" create-spec \
+deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" create-spec \
   --slug <slug-derivado-do-tema> --project <nome-do-repositório> --status draft \
   < <arquivo-temporário-com-o-rascunho>
 ```
