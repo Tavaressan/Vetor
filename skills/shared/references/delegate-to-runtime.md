@@ -28,11 +28,20 @@ command -v agy 2>/dev/null; command -v opencode 2>/dev/null; command -v codex 2>
 
 Monte a lista `available` com os que retornaram um path. Runtimes candidatos conhecidos hoje:
 
-| Runtime | Binário | Invocação não-interativa (verificar `--help` antes do primeiro uso em CLIs novos) |
-|---------|---------|---|
-| Gemini (Antigravity) | `agy` | `agy -p "<prompt>"` — lê stdin via pipe, `-p`/`--print` roda um prompt único e imprime a resposta (confirmado via `agy --help`) |
-| OpenCode | `opencode` | `opencode run "<prompt>"` — mensagem como argumento posicional, não flag `-p` (confirmado via `opencode run --help`; `-p`/`--password` do OpenCode é autenticação HTTP, não prompt — não confundir com o `-p` do `agy`) |
-| Codex | `codex` | `codex exec "<prompt>"` (sintaxe **não verificada neste ambiente** — binário não estava instalado nem MCP de documentação disponível na sessão que escreveu esta referência; confirme com `codex exec --help` antes do primeiro uso) |
+| Runtime | Binário | Invocação não-interativa | Consome stdin via pipe (pré-requisito das tarefas §4)? |
+|---------|---------|---|---|
+| Gemini (Antigravity) | `agy` | `agy -p "<prompt>"` — `-p`/`--print` roda um prompt único e imprime a resposta | **Confirmado** (`agy --help`; documenta explicitamente o consumo de stdin em modo print) |
+| OpenCode | `opencode` | `opencode run "<prompt>"` — mensagem como argumento posicional, não flag `-p` (`-p`/`--password` do OpenCode é autenticação HTTP, não prompt — não confundir com o `-p` do `agy`) | **Confirmado empiricamente**: `echo "MARCADOR-XYZ-123" \| opencode run --model <free> "Repita exatamente o texto que você recebeu via stdin"` devolveu `MARCADOR-XYZ-123` — o conteúdo do pipe chega ao modelo mesmo sem flag dedicada |
+| Codex | `codex` | `codex exec "<prompt>"` (sintaxe **não verificada neste ambiente** — binário não estava instalado nem MCP de documentação disponível na sessão que escreveu esta referência) | **Não verificado** |
+
+**Regra:** um runtime com consumo de stdin **não verificado** nunca deve ser usado para as tarefas
+de §4 (todas dependem do pipe `<producer> | $DELEGATE "..."` carregar o conteúdo real). Um CLI que
+ignora silenciosamente o stdin ainda retorna exit 0 e uma resposta plausível — não é uma falha que
+o guardrail do §3 detecta, é uma alucinação sobre um input que o runtime nunca recebeu. Antes do
+primeiro uso de um runtime novo em produção: rode o teste de eco acima (`echo "<marcador>" | <cli> "repita o marcador"`) e só marque a coluna acima como confirmada se o marcador voltar exato. Enquanto
+não confirmado, trate esse runtime como **não viável para §4** (mesmo que detectado no PATH) — se
+for o único candidato disponível, siga inline; use o CLI apenas via seu mecanismo documentado de
+anexo de arquivo (ex.: `-f/--file` do `opencode`) se a tarefa permitir.
 
 **Preferência configurada:** leia `.claude/vetor/config.json` → bloco opcional `delegation`:
 
@@ -136,7 +145,7 @@ viável.
 Mesmo contrato de saída independente do runtime escolhido: substitua `$DELEGATE` pelo comando de
 invocação do runtime selecionado no passo 2 (tabela do §1).
 
-### 1. Resumir logs de CI / build
+### 4.1. Resumir logs de CI / build
 Antes de diagnosticar uma falha, condense o log bruto para não despejar centenas de
 linhas no contexto:
 
@@ -148,7 +157,7 @@ gh run view <run-id> --log-failed \
 O Claude lê o resumo e **decide o fix**. Usado por `worktree-ship` (monitorar CI) e
 `fix-loop-agent` (avaliar resultado dos testes).
 
-### 2. Rascunhar texto de issues
+### 4.2. Rascunhar texto de issues
 Em `backlog-ideator`, gere a primeira versão do corpo da issue:
 
 ```bash
@@ -158,7 +167,7 @@ $DELEGATE "Escreva o corpo de uma issue GitHub (descrição + critério de aceit
 O Claude **revisa e ancora** o rascunho na documentação do projeto antes de criar via
 `gh issue create`.
 
-### 3. Rascunhar mensagens de commit e relatórios
+### 4.3. Rascunhar mensagens de commit e relatórios
 Mensagens de commit (`fix-loop-agent`, `worktree-ship`) e o relatório do `guardian`:
 
 ```bash
@@ -167,7 +176,7 @@ git diff --staged | $DELEGATE "Escreva uma mensagem de commit conventional commi
 
 O Claude valida o rascunho antes de usar.
 
-### 4. Rascunhar corpo/descrição de Pull Request
+### 4.4. Rascunhar corpo/descrição de Pull Request
 Em `worktree-ship`, gere a primeira versão da descrição do Pull Request com base no diff acumulado da branch em relação à branch default do projeto:
 
 ```bash
@@ -176,7 +185,7 @@ git diff "$DEFAULT_BRANCH"...HEAD | $DELEGATE "Escreva uma descrição concisa e
 
 O Claude **revisa e formata** a descrição antes de passá-la ao comando `gh pr create --body`.
 
-### 5. Análise de afinidade e agrupamento de issues
+### 4.5. Análise de afinidade e agrupamento de issues
 Em `issue-coordinator`, delegue a varredura e o agrupamento preliminar de issues em lote:
 
 ```bash
@@ -186,7 +195,7 @@ gh issue list --label <label> --state open --json number,title,labels,body \
 
 O Claude **valida a afinidade**, resolve eventuais erros do rascunho e constrói a tabela final de dispatch.
 
-### 6. Geração de Changelog de Sessão
+### 4.6. Geração de Changelog de Sessão
 No `issue-coordinator`, delegue a criação do changelog consolidado a partir do histórico de commits da sessão. **Sempre limite o range** (a regra de 100 linhas de `planning-conventions.md` §1.1 vale para histórico de git também) — `origin/main...HEAD` sozinho não é suficiente como limite: uma branch de longa duração e nunca rebaseada pode produzir um range enorme. Use um cap numérico fixo além do range:
 
 ```bash
@@ -195,7 +204,7 @@ git log origin/main...HEAD --oneline -200 | $DELEGATE "Com base nestes commits, 
 
 O Claude **valida o texto**, refina o formato e salva no arquivo `.claude/vetor/CHANGELOG.md`.
 
-### 7. Validação de Migrations
+### 4.7. Validação de Migrations
 No `guardian`, envie o dump de arquivos de migrations para verificar a integridade da sequência temporal:
 
 ```bash
@@ -204,7 +213,7 @@ ls "$MIGRATIONS_DIR" | $DELEGATE "Examine esta listagem de arquivos de migration
 
 O Claude **avalia os findings apontados** e os compila no relatório da auditoria.
 
-### 8. Resumo Conceitual da Arquitetura
+### 4.8. Resumo Conceitual da Arquitetura
 No `backlog-ideator`, envie arquivos longos de documentação para obter uma síntese executiva de apoio à ideação:
 
 ```bash
