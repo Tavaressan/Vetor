@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 Você é a skill de geração de Specs do Vetor. Sua missão é descobrir o contexto já existente no
@@ -15,11 +15,12 @@ implementação — usando `templates/spec.md` como esqueleto.
 
 Esta skill ainda não cobre todo o pipeline de #202: implementa a entrada, a descoberta de contexto
 (via Knowledge Provider quando disponível, com fallback para filesystem direto), a decomposição em
-componentes, a entrevista focada, a montagem do rascunho a partir do template e a persistência
-mínima (frontmatter válido, identidade estável, sem sobrescrever sem perguntar). Motor de geração
-aprofundado de RF/RNF chega em outra issue; controle de overwrite avançado (versionamento, merge de
-rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra (issue #225) — cada
-estágio abaixo sinaliza explicitamente o que ainda não está implementado.
+componentes, a entrevista focada, o motor de geração de RF/RNF/Acceptance Criteria/Edge Cases/
+Non-Goals, a montagem do rascunho a partir do template e a persistência mínima (frontmatter válido,
+identidade estável, sem sobrescrever sem perguntar). Validação de qualidade (Quality Gate,
+rastreabilidade — Handoff #203) chega em outra issue; controle de overwrite avançado (versionamento,
+merge de rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra (issue #225) —
+cada estágio abaixo sinaliza explicitamente o que ainda não está implementado.
 
 ---
 
@@ -218,26 +219,117 @@ Se, após 3 perguntas, ainda faltar informação para aquele componente, **não 
 pergunta** — marque a lacuna como `⚠️ ABERTO: <o que falta definir>` no rascunho (passo 5), o mesmo
 idioma já usado no restante da skill para incerteza.
 
-### 5 — Montar o rascunho a partir do template
+### 5 — Motor de geração: montar o rascunho a partir do template
 
 Copie a estrutura de `templates/spec.md` e preencha, a partir **apenas** do que foi encontrado ou
-confirmado nos passos 1-4:
+confirmado nos passos 1-4, aplicando as regras 5.1-5.5 a `Functional Requirements`,
+`Non-Functional Requirements`, `Edge Cases` e `Non-Goals` — o núcleo do motor de geração — e 5.6 às
+demais seções do template.
+
+#### 5.1 — Comportamento, não implementação
+
+Toda Spec descreve **o que** o sistema faz, nunca **como** foi construído. Evite decisão
+tecnológica em `Functional Requirements`/`Non-Functional Requirements` quando ela não for parte do
+próprio requisito:
+
+```text
+Evitar:   "Utilizar Spring Boot com PostgreSQL."
+Preferir: "O sistema deve persistir o cadastro do usuário e permitir sua recuperação posteriormente."
+```
+
+Exceção: quando a decisão tecnológica **é** o requisito (ex.: "integrar com o gateway de pagamento
+X já contratado pela empresa" — uma restrição externa, não uma escolha de implementação livre),
+mantenha-a no requisito. Toda decisão arquitetural/tecnológica encontrada nos passos 1-4 que não for
+parte de um requisito vai para `## Decisions` como candidata a ADR — nunca embutida em
+`Functional Requirements`/`Non-Functional Requirements`.
+
+#### 5.2 — IDs estáveis (RF-/RNF-)
+
+- Numere sequencialmente a partir de `RF-01` para requisitos funcionais e `RNF-01` para não
+  funcionais — uma sequência própria para cada prefixo, contínua por toda a Spec (não reinicia por
+  componente nem por seção).
+- Quando o passo 3 identificou componentes, agrupe os RF-XX de cada componente sob um subtítulo com
+  o nome do componente (em vez de diluir os componentes num único bloco de requisitos), mas mantenha
+  a numeração global e sequencial — o agrupamento é só apresentação, não reinicia a sequência.
+- IDs são estáveis: ao **refinar** uma Spec existente (nova rodada sobre um rascunho já gerado, ou
+  atualização via `create-spec`/edição manual), novos requisitos recebem o **próximo número
+  disponível**; nunca renumere um `RF-`/`RNF-` já existente para "abrir espaço" ou reordenar. Um
+  requisito removido deixa lacuna na numeração — isso é esperado e preferível a renumerar (mesmo
+  espírito de #202 §7: os IDs sustentarão futuramente `spec → requirement → task → code → test`).
+
+#### 5.3 — Priority e Acceptance Criteria
+
+- Toda seção de requisito usa `**Priority:** Must | Should | Could` (MoSCoW), derivada do que os
+  passos 1-4 sustentam: o que é indispensável ao Goal declarado é `Must`; o que foi mencionado como
+  desejável mas não essencial é `Should`; o que é especulativo/futuro é `Could`. Quando a prioridade
+  não puder ser inferida com confiança, prefira `Should` e registre
+  `⚠️ ABERTO: confirmar prioridade deste requisito` em `Open Questions` — nunca marque `Must` só
+  para "jogar seguro".
+- Todo requisito `Must` tem **ao menos um** Acceptance Criteria verificável — binário, observável ou
+  com valor mensurável, nunca um adjetivo vago:
+
+  ```text
+  Evitar:   "O sistema deve ser rápido."
+  Preferir: "Uma solicitação válida deve receber resposta em até 500 ms em condições normais."
+  ```
+
+  Quando o contexto ou a entrevista não permitiram determinar um valor concreto, **não omita o
+  critério** — escreva-o com a lacuna explícita, no mesmo checkbox:
+
+  ```text
+  - [ ] ⚠️ ABERTO: definir limite máximo aceitável para o tempo de resposta.
+  ```
+
+- Requisitos `Should`/`Could` têm Acceptance Criteria quando o contexto sustentar; sua ausência não
+  exige justificativa nem `⚠️ ABERTO` — a obrigatoriedade desta regra é exclusiva de `Must`.
+
+#### 5.4 — Edge Cases (contextuais)
+
+Avalie, para cada requisito ou componente, quais destas categorias são plausíveis no domínio da
+Spec — **sem exigir todas em toda feature**:
+
+```text
+entrada inválida · ausência de dados · timeout · dependência indisponível · duplicidade ·
+concorrência · retry · autenticação expirada · estado inconsistente
+```
+
+- Inclua em `## Edge Cases` só as categorias com relevância real para o tema (ex.: uma Spec sem
+  chamada a serviço externo não precisa tratar "dependência indisponível"); para cada categoria
+  incluída, defina o comportamento esperado — nomear o caso sem descrever o comportamento não conta
+  como tratado.
+- Se nenhuma categoria for relevante ao tema, não deixe a seção vazia silenciosamente — escreva
+  explicitamente algo como "Nenhum edge case relevante identificado para este tema" (mesmo princípio
+  de "vazio explícito, nunca omitido" já usado no passo 2 para as categorias de contexto).
+- Nunca preencha a seção mecanicamente com as 9 categorias só para parecer completo — isso é padding
+  irrelevante, não Edge Case relevante ao domínio.
+
+#### 5.5 — Non-Goals (sempre explícitos)
+
+`## Non-Goals` nunca fica vazia. Derive ao menos uma entrada de:
+
+- componentes identificados no passo 3 mas deliberadamente fora do escopo desta Spec;
+- decisões tecnológicas/arquiteturais encontradas nos passos 1-4 e roteadas para `## Decisions`
+  (5.1) em vez de viraram requisito;
+- fronteiras explícitas mencionadas em `Goals` ou na entrevista — o complemento natural de cada
+  Goal, isto é, o que ele deliberadamente não cobre.
+
+Se a descoberta não sustentar nenhum Non-Goal específico, registre a fronteira mais óbvia do tema
+(ex.: "Não cobre cenários fora do descrito em Goals") em vez de deixar a seção sem conteúdo. Isso
+existe para impedir expansão silenciosa de escopo durante a implementação (#202 §10) — nunca é
+opcional.
+
+#### 5.6 — Demais seções
 
 - **Título / Summary:** derive do tema e do contexto encontrado, em 1-2 frases.
 - **Context:** síntese das fontes relevantes, citando os arquivos de origem.
-- Demais seções (Goals, Non-Goals, Users/Personas, Functional Requirements, Non-Functional
-  Requirements, Behavior/States, Data, Integrations/Dependencies, Edge Cases, Error Handling,
-  Security/Privacy, Rollout, Decisions, References): preencha o que o contexto sustenta; onde a
-  informação não existir, escreva explicitamente `⚠️ ABERTO: <o que falta definir>` em vez de deixar
-  a seção vazia ou inventar conteúdo.
+- Demais seções do template (Goals, Users/Personas, Behavior/States, Data,
+  Integrations/Dependencies, Error Handling, Security/Privacy, Rollout, References): preencha o que
+  o contexto sustenta; onde a informação não existir, escreva explicitamente
+  `⚠️ ABERTO: <o que falta definir>` em vez de deixar a seção vazia ou inventar conteúdo.
 - **Open Questions:** liste toda pergunta ainda sem resposta identificada durante a descoberta, a
-  decomposição (divergência residual do passo 3) e a entrevista (lacunas marcadas `⚠️ ABERTO` no
-  passo 4).
+  decomposição (divergência residual do passo 3), a entrevista (lacunas marcadas `⚠️ ABERTO` no
+  passo 4) e as prioridades não confirmadas (5.3).
 - **Revision History:** uma linha inicial com a data e "rascunho inicial gerado por /vetor:spec".
-
-Quando o passo 3 identificou componentes, espelhe-os na estrutura de `Functional Requirements`
-(ex.: agrupe os RF-XX de cada componente sob um subtítulo com o nome do componente) em vez de
-diluir os componentes num único bloco de requisitos.
 
 Mantenha a estrutura extensível — não invente seções obrigatórias fora do template, e não force
 seções irrelevantes para um tema pequeno (ver `templates/spec.md`).
@@ -248,8 +340,8 @@ Mostre o rascunho completo na conversa para revisão do usuário e pergunte se d
 o que esta versão da skill **não** cobre ainda, para não sugerir uma qualidade que ela ainda não
 entrega:
 
-- motor de geração aprofundado de RF/RNF/Acceptance Criteria/Edge Cases;
-- validação de qualidade (Quality Gate) e refinamento iterativo;
+- validação de qualidade (Quality Gate, dimension checkers, rastreabilidade — Handoff #203) e
+  refinamento iterativo a partir de feedback de qualidade;
 - controle de overwrite avançado (versionamento, merge de rascunhos) — hoje a única proteção é
   `create-spec` recusar sobrescrever uma identidade já existente;
 - Knowledge Provider além de filesystem (ex.: Obsidian, issue #225).
@@ -308,3 +400,15 @@ grava a Spec em disco** — o rascunho fica apenas na conversa.
   de perguntar de novo.
 - Nunca pergunte quando a resposta não mudaria a Spec de forma significativa (ex.: não alteraria um
   Acceptance Criteria, Non-Goal ou Edge Case) — prossiga com o que já foi descoberto.
+- Nunca registre decisão tecnológica/arquitetural em `Functional Requirements`/
+  `Non-Functional Requirements` quando ela não for parte do próprio requisito — roteie para
+  `## Decisions` (5.1).
+- Nunca renumere um `RF-`/`RNF-` já existente ao refinar uma Spec — novos requisitos recebem o
+  próximo número disponível da sequência; uma lacuna por remoção é aceitável (5.2).
+- Nunca deixe um requisito `Must` sem Acceptance Criteria verificável — quando não houver valor
+  determinável, marque `⚠️ ABERTO` explicitamente no próprio checkbox em vez de omitir o critério
+  (5.3).
+- Nunca preencha `## Edge Cases` mecanicamente com todas as categorias, nem a deixe vazia sem uma
+  frase explícita quando nenhuma for relevante ao tema (5.4).
+- Nunca deixe `## Non-Goals` vazia — na ausência de achado específico, registre a fronteira mais
+  óbvia do tema (5.5).
