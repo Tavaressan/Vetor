@@ -25,16 +25,20 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` — §3.1 (questionamento
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+
+- `../shared/references/planning-conventions.md` — §3.1 (questionamento
   direcionado KISS/YAGNI) e §2.2 (aprovação do plano).
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
+- `../shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
   resumir documentação extensa (§1) e rascunhar corpos de issue (§6). Você sempre revisa e ancora o
   rascunho antes de criar.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — MCP de observabilidade (§2.a).
+- `../shared/references/mcp-availability.md` — MCP de observabilidade (§2.a).
   Se a ideação exigir pesquisar comportamento de uma ferramenta/lib/framework/API externa antes de
   propor uma issue, o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de
   ferramentas/libs (Context7)").
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/grilling-conventions.md` — mecanismo de rodadas
+- `../shared/references/grilling-conventions.md` — mecanismo de rodadas
   (§1.a e §2.b), consumido também por `architecture-review`. Não replique o formato aqui.
 
 ---

@@ -25,16 +25,24 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+
+- `../shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
   auditar a listagem de migrations (§2) e rascunhar o relatório final. Você valida o rascunho antes
   de apresentá-lo.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — detecção de MCPs (§7, §8). Se
+- `../shared/references/mcp-availability.md` — detecção de MCPs (§7, §8). Se
   a auditoria exigir consultar comportamento de uma ferramenta/lib/framework/API externa (ex.:
   semântica de uma flag do Docker, driver de banco), o MCP Context7 é **obrigatório quando
   disponível** (ver "Documentação de ferramentas/libs (Context7)").
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` — vocabulário de
+- `../shared/references/codebase-design-vocabulary.md` — vocabulário de
   "fan-in"/"deletion test" usado pelo Check 9.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolução do
+- `../shared/references/project-conventions.md` — resolução do
   `module-test-map.md` a partir do repo-root, consumida pelo Check 9 (§9).
 
 ---
@@ -77,7 +85,7 @@ Se encontrado, verifique a sequência **completa** (ex.: convenção Flyway `V<N
 
 ```bash
 # duplicatas de versão — mecanismo compartilhado com o worktree-ship §2.b
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" migrations
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" migrations
 ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 ```
 
@@ -119,7 +127,7 @@ Responde "o que sobrou e por quê?" — o cleanup do `worktree-ship` (passo 12) 
 feliz; execuções que falham no CI, ficam em revisão ou são abandonadas deixam worktree órfão.
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" worktree-audit
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" worktree-audit
 ```
 
 Cada linha vem como `<path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>` (`age_days` medido
@@ -138,7 +146,7 @@ Monte a tabela de auditoria:
 **Finding:** worktree com idade > 7 dias, sem PR aberto e sem trabalho pendente — candidata a remoção segura.
 **Finding:** worktree com `uncommitted=yes` — nunca remover automaticamente.
 **Auto-fix (modo manual):** para candidatas seguras (`uncommitted=no` **e** PR ausente ou já
-`MERGED`/`CLOSED`), propõe no plano `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh"
+`MERGED`/`CLOSED`), propõe no plano `bash "$SKILL_DIR/../../scripts/vetor-checks.sh"
 safe-remove-worktree <path>` — nunca `--force`, e nunca sobre worktree com `uncommitted=yes` ou
 branch com commits ausentes no remoto (`git log origin/<branch>..<branch>` não vazio → não propõe).
 Aplica somente após aprovação explícita.
@@ -148,13 +156,13 @@ Aplica somente após aprovação explícita.
 Arquivos em `.claude/vetor/status/` sobrevivem à remoção do worktree que os gerou.
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" find-orphan-status
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" find-orphan-status
 ```
 
 O script já confirma que o worktree correspondente não existe mais em `git worktree list`.
 
 **Finding:** status file órfão em `<path>` (worktree removido)
-**Auto-fix (modo manual):** propõe `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh"
+**Auto-fix (modo manual):** propõe `bash "$SKILL_DIR/../../scripts/vetor-checks.sh"
 archive-orphan-status <path>` — move para `.claude/vetor/status/archive/` (não apaga; reversível).
 Aplica somente após aprovação explícita.
 
@@ -206,12 +214,12 @@ Sinal contínuo de dívida arquitetural, não reativo a uma deleção pontual: m
 outros arquivos importam) dos módulos **tocados nos últimos 7 dias**, como proxy do "deletion test"
 (Feathers/Pocock) — um módulo bem desenhado pode ser deletado e refeito sem espalhar mudança.
 Read-only e barato (nunca cria/aplica fix de código). Vocabulário de "fan-in"/"deletion test" definido
-em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` §Princípios
+em `../shared/references/codebase-design-vocabulary.md` §Princípios
 (compartilhado com `architecture-review`, survey mais profundo e qualitativo — este check é só a
 heurística barata de contagem).
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" architectural-risk
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" architectural-risk
 ```
 
 O script resolve os módulos tocados via `git log --since="7 days ago" --name-only`, mapeados pela
@@ -261,8 +269,8 @@ Audit concluído. Mutações recomendadas abaixo.
 
 ### Auto-fixes Recomendados
 - [ ] Corrigir JSON inválido no arquivo: `<path>`
-- [ ] Remover worktree órfão (limpa, sem PR aberto): `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" safe-remove-worktree <path>`
-- [ ] Arquivar status file órfão: `bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" archive-orphan-status <path>`
+- [ ] Remover worktree órfão (limpa, sem PR aberto): `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree <path>`
+- [ ] Arquivar status file órfão: `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" archive-orphan-status <path>`
 - [ ] Solicitar rebase do Dependabot no PR #<N> (`gh pr comment <N> --body "@dependabot rebase"`)
 - [ ] Criar issue de revisão de design para `<módulo>` (label `ai-generated`, fan-in alto — deletion test)
 
