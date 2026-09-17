@@ -1,0 +1,23 @@
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+/**
+ * Comando `install`. Nesta fase (scaffold) faz apenas a detecção mais básica
+ * de engine (Claude Code via `.claude/`) — a seleção interativa entre
+ * múltiplas engines chega em issue futura (detecção completa de engines).
+ */
+function install(cwd = process.cwd()) {
+  const claudeDetected = fs.existsSync(path.join(cwd, '.claude'));
+
+  if (claudeDetected) {
+    console.log('Engine detectada: Claude Code (.claude/ encontrado).');
+  } else {
+    console.log('Nenhuma engine detectada no diretório atual.');
+  }
+
+  console.log('Detecção completa de engines e instalação interativa chegam em issue futura.');
+}
+
+module.exports = { install };
