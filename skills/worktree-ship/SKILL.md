@@ -24,18 +24,26 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+
+- `../shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
   e o `module-test-map` conforme descrito lá. Use `$DEFAULT_BRANCH` em todos os comandos abaixo.
   **A resolução do `module-test-map.md`/`config.json` no passo 4 sempre usa o root do repositório
   (`vetor-checks.sh repo-root`), nunca o `cwd` do worktree** — arquivos ignorados pelo `.gitignore`
   do projeto-alvo (ex.: `.claude/`) não são materializados em worktrees (issue #160).
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-runtime.md` — delegação opcional a um
+- `../shared/references/delegate-to-runtime.md` — delegação opcional a um
   runtime externo disponível (Gemini/OpenCode/Codex) para resumo de logs de CI §4.1 e corpo do PR
   §4.4. Se a chamada for **negada pelo classificador de permissão**, ou falhar por qualquer outro
   motivo, não retente: siga com o caminho nativo imediatamente (§3 da referência).
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/conflict-resolution.md` — procedimento de resolução
+- `../shared/references/conflict-resolution.md` — procedimento de resolução
   de conflitos (passos 2 e 10).
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se os módulos alterados
+- `../shared/references/mcp-availability.md` — se os módulos alterados
   envolverem UI/frontend e o MCP de browser estiver disponível, use-o no passo 4 como checagem e2e
   leve **adicional** aos testes automatizados, nunca substituta.
 
@@ -46,7 +54,7 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 ### 1 — Guarda de contexto
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" in-worktree
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" in-worktree
 ```
 
 Se sair não-zero, **aborte**: `/worktree-ship` deve rodar de dentro de um worktree (use
@@ -86,7 +94,7 @@ Se falhar, siga a recuperação descrita em `conflict-resolution.md` §5 (refaç
 Logo após o merge do passo 2, **antes dos testes locais**:
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" migrations
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" migrations
 ```
 
 Detecta colisões semânticas invisíveis ao git entre workers paralelos (dois arquivos com a mesma
@@ -124,7 +132,7 @@ Saída: <últimas 30 linhas do log>
 ### 4.b — Scan de debugging
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" debug-scan "origin/$DEFAULT_BRANCH"
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" debug-scan "origin/$DEFAULT_BRANCH"
 ```
 
 Se sair não-zero, remova os padrões apontados (debug temporário, `it.only` etc.) e commite antes
@@ -322,14 +330,14 @@ Aguardando aprovação antes de prosseguir com merge.
 ### 10 — Merge
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-merge.sh" <PR-number>
+bash "$SKILL_DIR/../../scripts/vetor-merge.sh" <PR-number>
 ```
 
 O script faz `gh pr ready` + `gh pr merge --squash --delete-branch` e verifica o estado real do PR
 quando o `gh` sai não-zero (erro de cleanup local da branch não é falha de merge):
 - **exit 0** — PR mergeado. Siga para o passo 11.
 - **exit 3** — merge não aconteceu. Rode `git merge "$DEFAULT_BRANCH"` localmente no worktree e siga
-  `$CLAUDE_PLUGIN_ROOT/skills/shared/references/conflict-resolution.md`. Resolvido e verde, volte ao
+  `../shared/references/conflict-resolution.md`. Resolvido e verde, volte ao
   passo 7.
 
 **Se o comando for negado pela camada de permissões do Claude Code** (classificador de auto-mode,
@@ -339,7 +347,7 @@ aprovação explícita via `AskUserQuestion`** e só repita após o "sim". **Nun
 ### 11 — Sincronizar root
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" sync-root
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 ```
 
 Volta ao root e sincroniza com a branch default. (Só numa sessão manual em que você entrou no
@@ -352,7 +360,7 @@ Descubra o path real do worktree via `git worktree list` (não assuma convençã
 localização é do harness). Se invocado pelo `issue-coordinator` (modo headless), execute
 automaticamente:
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" safe-remove-worktree "<path-do-worktree>"
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree "<path-do-worktree>"
 git branch -d <branch>
 rm -f .claude/vetor/status/<branch>.md
 rm -f .claude/vetor/status/<branch>-touched-files.json

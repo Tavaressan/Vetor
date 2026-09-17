@@ -29,18 +29,22 @@ candidatos comparáveis num relatório visual, e aprofundando com o usuário o c
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/codebase-design-vocabulary.md` — vocabulário
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+
+- `../shared/references/codebase-design-vocabulary.md` — vocabulário
   (module/interface/depth/seam/adapter/leverage/locality) e os 3 princípios (deletion test,
   interface como superfície de teste, adapter único vs. real) usados nas Fases 1 e 2. Não replique
   as definições aqui — cite os termos.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/grilling-conventions.md` — mecanismo de rodadas
+- `../shared/references/grilling-conventions.md` — mecanismo de rodadas
   (fato vs. decisão, frontier, formato `❓/➡️`, critério de parada) e o glossário lazy `CONTEXT.md`,
   ambos reaproveitados intactos na Fase 3.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-runtime.md` — uso opcional de um
+- `../shared/references/delegate-to-runtime.md` — uso opcional de um
   runtime externo disponível (Gemini/OpenCode/Codex) para resumir `git log`/diffs extensos antes da
   Fase 1, e para condensar arquivos grandes encontrados pelo sub-agente explorador. Você sempre
   revisa o resumo antes de usá-lo como evidência.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se a exploração esbarrar em
+- `../shared/references/mcp-availability.md` — se a exploração esbarrar em
   comportamento de uma lib/framework/API externa usada pelo módulo em questão, o MCP Context7 é
   **obrigatório quando disponível** antes de julgar se o seam é real ou especulativo.
 

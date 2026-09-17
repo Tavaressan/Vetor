@@ -40,28 +40,36 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+
+- `../shared/references/project-conventions.md` — resolva `$DEFAULT_BRANCH`
   e o `module-test-map` antes de prosseguir. **A resolução do `module-test-map.md`/`config.json`
   sempre usa o root do repositório (`vetor-checks.sh repo-root`), nunca o `cwd`** — dentro de um
   worktree, arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: `.claude/`) não existem
   localmente (issue #160).
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md` — path, estados e blocos
+- `../shared/references/agent-status.template.md` — path, estados e blocos
   obrigatórios do status file.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/touched-files-cache.md` — formato do cache gravado no §1.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-runtime.md` — resumo opcional da saída de
+- `../shared/references/touched-files-cache.md` — formato do cache gravado no §1.
+- `../shared/references/delegate-to-runtime.md` — resumo opcional da saída de
   erro dos testes delegado a um runtime externo disponível (Gemini/OpenCode/Codex). **A decisão e a
   aplicação do fix são sempre suas, nunca do runtime delegado.**
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se a `<descrição>` indicar bug
+- `../shared/references/mcp-availability.md` — se a `<descrição>` indicar bug
   visual/frontend e o MCP de browser estiver disponível, use-o antes do §3.a para reproduzir o bug e
   capturar evidência. Se o erro envolver comportamento de uma ferramenta/lib/framework/API externa,
   o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de ferramentas/libs
   (Context7)") antes de aplicar o fix.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/frontend-design-enforcement.md` — se a `<descrição>`
+- `../shared/references/frontend-design-enforcement.md` — se a `<descrição>`
   indicar UI/design de frontend, invoque a skill `frontend-design` antes de aplicar o fix (§3.b).
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md` — disciplina completa de TDD
+- `../shared/references/tdd-conventions.md` — disciplina completa de TDD
   (bom teste, seams, anti-padrões, mocking) consumida pelo passo TDD de §3.b — não replique o texto
   aqui.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` — vocabulário de rastreabilidade
+- `../shared/references/evidence-state.md` — vocabulário de rastreabilidade
   epistemológica (`CONFIRMED`/`INFERRED`/`ASSUMED`/`OPEN_QUESTION`, Evidence Conflict) usado ao
   redigir `Blocked on` em `BLOCKED_WAITING` (§2) quando o bloqueio for epistemológico, não uma
   permissão de comando.
@@ -76,7 +84,7 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 §2 (ou use o path absoluto recebido do `issue-coordinator`).
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" in-worktree
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" in-worktree
 ```
 
 Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.

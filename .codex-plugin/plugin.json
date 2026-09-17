@@ -7,5 +7,6 @@
   "repository": "https://github.com/Tavaressan/Vetor",
   "license": "MIT",
   "keywords": ["worktree", "ci", "github-issues", "automation", "workflow"],
-  "hooks": "./hooks/hooks-codex.json"
+  "hooks": "./hooks/hooks-codex.json",
+  "skills": "./skills"
 }
