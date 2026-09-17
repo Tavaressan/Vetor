@@ -44,7 +44,11 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/design-vocabulary.md` — Design System, Design
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar.
+
+- `../shared/references/design-vocabulary.md` — Design System, Design
   Direction, Design Signature e o formato do Design Contract (entrada do Loop, passo 1). Não
   replique as definições aqui — cite os campos. §4.4 aplica os 4 estados de Evidence State às
   Decisões do Design Contract — exemplo completo em
@@ -52,13 +56,13 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
   em `.vetor/design/`; §7 o conflito Specification × Design Contract (#231); §8 os pontos de
   extensão futuros — Design Drift, Visual Debt, integração com Guardian (#231, não implementados
   nesta issue).
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` — `OPEN_QUESTION` usado em
+- `../shared/references/evidence-state.md` — `OPEN_QUESTION` usado em
   `patterns.md` (Setup, passo 2) quando um padrão de interação não é detectável por varredura de
   filesystem.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/frontend-design-enforcement.md` — direção
+- `../shared/references/frontend-design-enforcement.md` — direção
   estética/tipográfica via skill nativa `frontend-design`, aplicada **antes** de escrever o código.
   O Loop é complementar e roda **depois**: verifica o que foi construído, não decide como desenhar.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — mecanismo de checagem de
+- `../shared/references/mcp-availability.md` — mecanismo de checagem de
   disponibilidade (procurar `mcp__<server>__` na lista de ferramentas). Servidores relevantes aqui:
   browser (`mcp__chrome-devtools__`, `mcp__playwright__`) para os passos 4-6 e 9 do Loop, Context7
   para qualquer comportamento de framework/lib consultado durante o Fix (Loop, passo 8).
@@ -77,7 +81,7 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
   compara um valor de decisão já extraído do Design Contract e da Specification e relata a
   divergência sem escolher um lado (design-vocabulary.md §7). Usado no Loop, passo 1 (abaixo) e
   passo 8.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md` — disciplina de teste aplicada
+- `../shared/references/tdd-conventions.md` — disciplina de teste aplicada
   ao Fix (Loop, passo 8): reproduza o problema objetivo antes de corrigi-lo, quando o módulo tiver
   suíte.
 
@@ -104,7 +108,7 @@ documentada em `design-vocabulary.md` §6. Resumo:
 ### 1 — Detectar o modo de operação
 
 ```bash
-deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/detect-design-mode.ts" <diretório>
+deno run -A "../../scripts/detect-design-mode.ts" <diretório>
 ```
 
 Saída JSON: `mode`, `hasPrototype`, `evidence`, `written`, `skipped`.
@@ -266,7 +270,7 @@ sem evidência qualificada nova (`evidence-state.md` §5) — implementar uma le
 Monte a extração como `PrototypeExtraction` (`scripts/lib/design-handoff.ts`) num JSON e rode:
 
 ```bash
-deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/handoff-prototype.ts" <extração.json> <diretório>
+deno run -A "../../scripts/handoff-prototype.ts" <extração.json> <diretório>
 ```
 
 Saída JSON: `written`, `skipped`, `unaddressedStates`. O Design Contract é gravado em
