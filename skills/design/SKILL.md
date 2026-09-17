@@ -44,7 +44,8 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
 
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/design-vocabulary.md` — Design System, Design
   Direction, Design Signature e o formato do Design Contract (entrada do Loop, passo 1). Não
-  replique as definições aqui — cite os campos.
+  replique as definições aqui — cite os campos. §4.4 aplica os 4 estados de Evidence State às
+  Decisões do Design Contract — exemplo completo em `skills/design/examples/design-contract-example.md`.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` — `OPEN_QUESTION` usado em
   `patterns.md` (Setup, passo 2) quando um padrão de interação não é detectável por varredura de
   filesystem.
