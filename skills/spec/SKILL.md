@@ -242,7 +242,9 @@ seja implementada.
 - Nunca persista arquivos em `docs/specs/` nesta versão da skill.
 - Nunca omita uma categoria de busca do relatório do passo 2, mesmo quando vazia.
 - Nunca gere o rascunho (passo 5) sem antes apresentar a decomposição (passo 3) quando o tema for
-  grande — a confirmação do usuário é obrigatória, não opcional.
+  grande (ver critério de "tema grande" no passo 3) — a confirmação do usuário é obrigatória, não
+  opcional. Temas atômicos (nenhum sinal de "grande") pulam os passos 3 e 4 legitimamente, direto
+  ao passo 5 — isso não viola esta restrição.
 - Nunca ultrapasse 2 rodadas de ajuste na decomposição (passo 3) — ao atingir o limite, prossiga com
   a última versão e registre a divergência em `Open Questions`.
 - Nunca faça mais de 3 perguntas por componente na entrevista (passo 4) — ver `planning-conventions.md`
