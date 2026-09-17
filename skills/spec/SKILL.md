@@ -14,10 +14,12 @@ focada e, a partir disso, redigir um rascunho de Spec estruturada — descrevend
 implementação — usando `templates/spec.md` como esqueleto.
 
 Esta skill ainda não cobre todo o pipeline de #202: implementa a entrada, a descoberta de contexto
-via filesystem, a decomposição em componentes, a entrevista focada e a montagem do rascunho a partir
-do template. Motor de geração aprofundado de RF/RNF chega em outra issue; persistência com controle
-de overwrite chega em outra; Obsidian como Knowledge Provider chega em outras duas — cada estágio
-abaixo sinaliza explicitamente o que ainda não está implementado.
+(via Knowledge Provider quando disponível, com fallback para filesystem direto), a decomposição em
+componentes, a entrevista focada, a montagem do rascunho a partir do template e a persistência
+mínima (frontmatter válido, identidade estável, sem sobrescrever sem perguntar). Motor de geração
+aprofundado de RF/RNF chega em outra issue; controle de overwrite avançado (versionamento, merge de
+rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra (issue #225) — cada
+estágio abaixo sinaliza explicitamente o que ainda não está implementado.
 
 ---
 
@@ -47,28 +49,46 @@ abaixo sinaliza explicitamente o que ainda não está implementado.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
   resumir documentação extensa encontrada no passo 1 (mesmo critério de `backlog-ideator`: acima de
   ~80 linhas, delegue o resumo em vez de ler tudo nativamente).
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/knowledge-provider-contract.md` — contrato do
+  Knowledge Provider consumido pelos passos 0, 1 (item 5) e 4 via `scripts/knowledge-doc.ts`.
+- `$CLAUDE_PLUGIN_ROOT/scripts/knowledge-doc.ts` — CLI que expõe `status`/`search-specs`/
+  `create-spec`/`find` sobre o Knowledge Provider (ver passo 0).
 
 ---
 
 ## Comportamento
 
-### 0 — Knowledge Provider (conceito)
+### 0 — Knowledge Provider
 
-A descoberta de contexto é feita através de um **Knowledge Provider** — uma fonte de conhecimento do
-projeto, abstrata por design:
+A busca por Specs relacionadas (passo 1, item 5) e a persistência (passo 6) são feitas através de um
+**Knowledge Provider** — uma fonte de conhecimento do projeto, abstrata por design:
 
 ```
 Knowledge Provider
-├── filesystem   (implementado nesta skill)
-├── obsidian     (fora de escopo aqui — issue futura)
+├── filesystem   (implementado — via scripts/knowledge-doc.ts)
+├── obsidian     (issue #225, ainda não implementado neste código)
 └── future providers
 ```
 
-Nesta versão da skill, apenas o provider `filesystem` está implementado (passo 1). A skill não
-assume nem referencia Obsidian em nenhum ponto do fluxo — quando um provider externo existir, ele
-deverá substituir a fonte de busca do passo 1 sem alterar os passos seguintes.
+Antes do passo 1, rode:
 
-### 1 — Context Discovery (filesystem)
+```bash
+deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/knowledge-doc.ts" status
+```
+
+- `{"enabled": true, ...}` (default quando `.claude/vetor/config.json` não define `knowledge`, ou
+  define `knowledge.enabled` diferente de `false`) → use o Knowledge Provider nos passos 1 (item 5) e
+  4 conforme descrito abaixo.
+- `{"enabled": false, ...}` (`knowledge.enabled: false` explícito) → **fallback**: ignore o provider
+  em todo o fluxo — descoberta do item 5 vira busca direta por `grep`/`find` em `docs/specs/**/*.md`
+  (como nas demais categorias do passo 1) e o passo 6 não persiste nada em disco (apenas apresenta o
+  rascunho, como nesta skill antes desta integração).
+
+A skill nunca assume nem referencia Obsidian diretamente em nenhum ponto do fluxo — o CLI sempre usa
+`FilesystemKnowledgeProvider` hoje; quando `ObsidianKnowledgeProvider` existir (#225), a mudança fica
+isolada em `scripts/knowledge-doc.ts`, sem alterar os passos abaixo.
+
+### 1 — Context Discovery
 
 Antes de gerar qualquer rascunho, procure contexto no projeto **nesta ordem de prioridade**. Em toda
 busca por arquivo (`find`/`grep`), exclua sempre
@@ -85,7 +105,11 @@ aplica depois que o tema estiver definido.
 3. **Arquitetura:** `ARCHITECTURE.md`, `docs/architecture/**`, ou qualquer `docs/*.md` cujo conteúdo
    trate de arquitetura
 4. **ADRs:** `docs/adr/**`, `docs/decisions/**`, ou arquivos que casem com `*ADR*.md`
-5. **Specs existentes:** `docs/specs/**/*.md` — evita duplicar uma Spec já criada para o mesmo tema
+5. **Specs existentes:** se o Knowledge Provider estiver habilitado (passo 0), rode
+   `deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/knowledge-doc.ts" search-specs "<tema>"` — a busca
+   prévia por Specs relacionadas antes de gerar uma nova; senão, `grep`/`find` direto em
+   `docs/specs/**/*.md`. Em ambos os casos, o objetivo é o mesmo: evitar duplicar uma Spec já criada
+   para o mesmo tema
 6. **Código relevante:** busque por palavras-chave do tema (já definido) nos módulos indicados por
    `.claude/vetor/module-test-map.md` (se existir)
 7. **Configuração do Vetor:** `.claude/vetor/config.json`, `.claude/vetor/module-test-map.md`,
@@ -218,18 +242,45 @@ diluir os componentes num único bloco de requisitos.
 Mantenha a estrutura extensível — não invente seções obrigatórias fora do template, e não force
 seções irrelevantes para um tema pequeno (ver `templates/spec.md`).
 
-### 6 — Apresentar o rascunho
+### 6 — Apresentar o rascunho e persistir
 
-Mostre o rascunho completo na conversa para revisão do usuário. Explicite o que esta versão da skill
-**não** cobre ainda, para não sugerir uma qualidade que ela ainda não entrega:
+Mostre o rascunho completo na conversa para revisão do usuário e pergunte se deseja salvá-lo. Explicite
+o que esta versão da skill **não** cobre ainda, para não sugerir uma qualidade que ela ainda não
+entrega:
 
 - motor de geração aprofundado de RF/RNF/Acceptance Criteria/Edge Cases;
 - validação de qualidade (Quality Gate) e refinamento iterativo;
-- persistência em `docs/specs/` com controle de overwrite;
-- Knowledge Provider além de filesystem (ex.: Obsidian).
+- controle de overwrite avançado (versionamento, merge de rascunhos) — hoje a única proteção é
+  `create-spec` recusar sobrescrever uma identidade já existente;
+- Knowledge Provider além de filesystem (ex.: Obsidian, issue #225).
 
-Esta skill **não grava a Spec em disco** — o rascunho fica apenas na conversa até que a persistência
-seja implementada.
+**Persistência (quando o Knowledge Provider está habilitado — passo 0, e o usuário confirmar):**
+
+```bash
+# grave o rascunho completo em um arquivo temporário antes (evita problemas de quoting em
+# heredoc com o conteúdo livre da Spec) e use-o como stdin:
+deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/knowledge-doc.ts" create-spec \
+  --slug <slug-derivado-do-tema> --project <nome-do-repositório> --status draft \
+  < <arquivo-temporário-com-o-rascunho>
+```
+
+- O `slug` deriva do tema (kebab-case, ex.: "autenticação de usuários" → `autenticacao-de-usuarios`).
+- O documento recebe frontmatter válido (`id`, `type: spec`, `project`, `status: draft`, `created`,
+  `updated`) e identidade estável `spec:<slug>`, localizável depois via
+  `knowledge-doc.ts find spec:<slug>`.
+- Se o passo 1 encontrou um documento com relação clara ao tema (ex.: o ADR que rege a decisão, ou a
+  arquitetura específica do componente — não qualquer resultado incidental), passe
+  `--link <path-do-documento-relacionado>` para criar o link. Não linke indiscriminadamente: só
+  quando a relação for evidente a partir do que foi encontrado no passo 1. O path pode ser passado
+  tanto relativo à raiz do repositório (ex.: `docs/adr/001.md`, como reportado pelo passo 1) quanto
+  relativo à raiz do Knowledge Provider (ex.: `adr/001.md`) — o CLI normaliza um prefixo `docs/`
+  redundante automaticamente.
+- Se `create-spec` falhar (identidade já existe — corrida com outra sessão, por exemplo), informe o
+  usuário e não tente sobrescrever por conta própria.
+- Reporte ao usuário a identidade e o path onde a Spec foi salva.
+
+Quando o Knowledge Provider está desabilitado (passo 0), mantenha o comportamento anterior: **não
+grava a Spec em disco** — o rascunho fica apenas na conversa.
 
 ---
 
@@ -238,8 +289,13 @@ seja implementada.
 - Nunca afirme certeza sobre um requisito que o contexto descoberto não sustenta — marque como
   `⚠️ ABERTO`.
 - Nunca decida sozinho sobrescrever uma Spec existente encontrada no passo 1 — pergunte ao usuário.
-- Nunca acople a descoberta de contexto a um provider específico além de filesystem.
-- Nunca persista arquivos em `docs/specs/` nesta versão da skill.
+- Nunca acople a descoberta de contexto a um provider específico além de `FilesystemKnowledgeProvider`
+  (hoje o único implementado em `scripts/knowledge-doc.ts`).
+- Nunca persista a Spec sem antes ter rodado a busca prévia do passo 1, item 5.
+- Nunca crie um link (`--link`) para um documento sem relação clara com o tema — vínculos
+  indiscriminados são piores que a ausência de vínculo.
+- Nunca persista em disco quando o Knowledge Provider estiver desabilitado (passo 0) — apenas
+  apresente o rascunho na conversa.
 - Nunca omita uma categoria de busca do relatório do passo 2, mesmo quando vazia.
 - Nunca gere o rascunho (passo 5) sem antes apresentar a decomposição (passo 3) quando o tema for
   grande (ver critério de "tema grande" no passo 3) — a confirmação do usuário é obrigatória, não
