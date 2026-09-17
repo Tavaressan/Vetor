@@ -52,7 +52,9 @@ Deno.test("referências relativas (shared/references, scripts, templates, plugin
         await Deno.stat(resolved);
         checked++;
       } catch {
-        throw new Error(`${file}: path relativo "${relPath}" não resolve para um arquivo existente`);
+        throw new Error(
+          `${file}: path relativo "${relPath}" não resolve para um arquivo existente`,
+        );
       }
     }
   }
