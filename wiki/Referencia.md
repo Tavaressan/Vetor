@@ -55,7 +55,7 @@ agents/
 skills/
 ├── shared/references/
 │   ├── module-test-map.template.md
-│   ├── delegate-to-gemini.md
+│   ├── delegate-to-runtime.md
 │   └── project-conventions.md
 ├── backlog-ideator/SKILL.md
 ├── fix-loop-agent/SKILL.md
