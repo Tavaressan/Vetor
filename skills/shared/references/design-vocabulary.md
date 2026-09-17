@@ -342,3 +342,154 @@ Design Signature   → (opcional) o que torna esta experiência distintiva no do
 Design Contract    → a síntese de tudo isso + Specification + Prototype + Constraints,
                       em decisões que sobrevivem à implementação
 ```
+
+---
+
+## 6. Artefatos (#231)
+
+Árvore de artefatos do workflow de design, gravada em `.vetor/design/`:
+
+```text
+.vetor/
+└── design/
+    ├── system/
+    │   ├── tokens.md
+    │   ├── components.md
+    │   ├── patterns.md
+    │   └── evidence.md
+    │
+    ├── direction/
+    │   └── product.md
+    │
+    ├── prototype/
+    │   └── <artefato visual observado pelo agente — ex.: export estático, imagens>
+    │
+    └── handoff/
+        └── <slug-do-título>.md
+```
+
+- `system/` e `direction/` — gravados pelo Setup (`writeDesignFiles`, `scripts/lib/design-mode.ts`),
+  §1-3 de `skills/design/SKILL.md`.
+- `prototype/` — origem do protótipo observado pelo agente (§4.1); sua presença é o próprio sinal
+  de modo Prototype-first (`hasPrototype`, `scripts/lib/design-mode.ts`).
+- `handoff/` — Design Contract gerado a partir do protótipo (`renderPrototypeHandoffFile`,
+  `scripts/lib/design-handoff.ts`), §4.5.
+
+Nota de nomenclatura: #213 ("Artefatos") ilustrou o diretório de origem do protótipo como
+`prototypes/` (plural); a implementação de #229 já havia fixado `prototype/` (singular) como
+constante (`PROTOTYPE_DIR`) e é o nome em uso em todo o código e nos exemplos desta skill desde
+então. Esta issue documenta a árvore com o nome já estabelecido em vez de renomear um diretório já
+em uso — #213 registrava a estrutura como "inicial, ajustável conforme necessidade do workflow
+existente", não uma nomenclatura definitiva.
+
+Cada arquivo de `system/`/`direction/`/`handoff/` é criado **uma única vez** (nunca sobrescrito por
+uma execução seguinte) — ver `writeDesignFiles`/Handoff passo 4 em `skills/design/SKILL.md`.
+
+---
+
+## 7. Conflito Specification × Design Contract (#231)
+
+A relação entre os dois artefatos nunca é de substituição:
+
+```text
+Specification    → o que o produto deve fazer
+Design Contract  → como essa experiência deve se expressar
+Implementation   → o sistema real
+```
+
+Quando os dois divergem sobre a mesma decisão (`Specification ≠ Design Contract`), o agente **nunca
+resolve essa divergência sozinho** — é uma decisão de produto, não um erro objetivo passível de
+autocorreção (mesma classificação de `frontend-design-enforcement.md`/Loop passo 8: "conflito
+Specification × Prototype" já era escalado; este é o caso análogo entre Specification e o Design
+Contract já consolidado).
+
+`scripts/lib/spec-design-conflict.ts` formaliza a detecção: `detectFieldConflict(field,
+designContractClaim, specificationClaim)` (e sua especialização `detectPrimaryActionConflict` para
+o caso mais comum, ação primária) compara os dois valores já extraídos pelo agente — a extração em
+si (ler o Design Contract e a Specification e identificar o valor relevante de cada um) é trabalho
+do agente, este módulo só compara e relata. Retorna `null` quando os valores são equivalentes
+(ignorando espaço/pontuação final/caixa); caso contrário, retorna um relato com os dois valores e
+suas origens (`source`) — **nunca** um veredito de qual lado está correto (sem campo
+`resolved`/`winner`).
+
+**Exemplo do critério de aceite de #231:** Design Contract especifica ação primária "Criar
+worktree" (Hierarquia) e a Specification implica ação primária "Exportar relatório" (RF-03) → o
+agente reporta o conflito com as duas origens, nunca escolhe um dos dois.
+
+Ao detectar um conflito, escale via `BLOCKED_WAITING` (`agent-status.template.md`): os blocos
+`Blocked on`/`Options`/`Recommendation` citam os dois valores e suas fontes — a decisão de qual
+prevalece é do usuário.
+
+---
+
+## 8. Extensões futuras: Design Drift, Visual Debt, Guardian (#231)
+
+As três seções abaixo são **pontos de extensão documentados, não implementados** nesta issue —
+preparação conceitual para trabalho futuro, sem mecanismo de detecção/tracking automático.
+
+### 8.1 Design Drift
+
+Ocorre quando a implementação **deixa de representar** uma decisão de design já `CONFIRMED` no
+Design Contract — diferente do conflito do §7 (que é entre Specification e Design Contract, antes
+da implementação), Design Drift é entre o Design Contract e o estado atual do código.
+
+```text
+Design Contract
+    ↓
+Primary action = "Create Worktree"
+    ↓
+Implementation
+    ↓
+Primary action não é mais visualmente dominante
+    ↓
+DESIGN DRIFT
+```
+
+Quando implementado, o sistema deve sinalizar o desvio e apresentar as evidências (decisão original
+do Design Contract × estado observado na implementação) — nunca alterar o produto arbitrariamente
+para "corrigir" o drift; a resolução é sempre uma decisão humana, mesmo espírito do §7.
+
+### 8.2 Visual Debt
+
+Registro de problemas visuais conhecidos que **não bloqueiam** a implementação (diferente de um
+achado do Loop, que é corrigido ou escalado antes de `Done` — ver `skills/design/SKILL.md`, Loop
+passo 8/10). Formato proposto:
+
+```text
+VD-001
+
+Issue:
+Generic card pattern used for unrelated entities.
+
+Reason:
+Temporary implementation shortcut.
+
+Impact:
+Medium.
+
+Status:
+Open.
+```
+
+- `Issue` — o problema visual observado, objetivamente descrito.
+- `Reason` — por que ele existe (ex.: atalho temporário, restrição de prazo).
+- `Impact` — `Low`/`Medium`/`High`, sem mecanismo automático de cálculo nesta issue.
+- `Status` — `Open`/`Resolved`; sem tracking automático de transição nesta issue.
+
+Objetivo: problemas de design conhecidos não desaparecem silenciosamente só porque a funcionalidade
+foi concluída — ficam registrados até serem endereçados ou deliberadamente aceitos.
+
+### 8.3 Integração futura com Guardian
+
+O Guardian (auditoria de gaps que o pre-commit não cobre) é o consumidor futuro natural de §7, 8.1 e
+8.2, apresentando, para cada divergência encontrada:
+
+```text
+Spec Drift | Design Drift | Evidence Conflict | Visual Debt
+    ↓
+decisão original · implementação atual · evidências · divergência · impacto
+```
+
+O Guardian **nunca decide automaticamente** qual fonte está correta quando as evidências forem
+conflitantes — mesma regra do §7, extrapolada para o momento de auditoria em vez do momento de
+implementação.

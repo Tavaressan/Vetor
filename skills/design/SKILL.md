@@ -48,7 +48,10 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
   Direction, Design Signature e o formato do Design Contract (entrada do Loop, passo 1). Não
   replique as definições aqui — cite os campos. §4.4 aplica os 4 estados de Evidence State às
   Decisões do Design Contract — exemplo completo em
-  `skills/design/examples/design-contract-example.md`.
+  `skills/design/examples/design-contract-example.md`. §6 documenta a árvore completa de artefatos
+  em `.vetor/design/`; §7 o conflito Specification × Design Contract (#231); §8 os pontos de
+  extensão futuros — Design Drift, Visual Debt, integração com Guardian (#231, não implementados
+  nesta issue).
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` — `OPEN_QUESTION` usado em
   `patterns.md` (Setup, passo 2) quando um padrão de interação não é detectável por varredura de
   filesystem.
@@ -70,9 +73,29 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
 - `scripts/lib/design-loop-mcp.ts` — `detectBrowserMcpServer`/`reportLoopStep`: formaliza o relato
   de cada passo do Loop dependente de MCP de browser quando ele não está disponível, para nunca
   pular uma etapa em silêncio nem fingir que a inspeção ocorreu (ver Loop §"Sem MCP de browser").
+- `scripts/lib/spec-design-conflict.ts` — `detectFieldConflict`/`detectPrimaryActionConflict`:
+  compara um valor de decisão já extraído do Design Contract e da Specification e relata a
+  divergência sem escolher um lado (design-vocabulary.md §7). Usado no Loop, passo 1 (abaixo) e
+  passo 8.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md` — disciplina de teste aplicada
   ao Fix (Loop, passo 8): reproduza o problema objetivo antes de corrigi-lo, quando o módulo tiver
   suíte.
+
+---
+
+## Artefatos
+
+Toda a árvore gravada em `.vetor/design/` — `system/`, `direction/`, `prototype/`, `handoff/` — está
+documentada em `design-vocabulary.md` §6. Resumo:
+
+```text
+.vetor/
+└── design/
+    ├── system/      ← Setup, passo 2 (abaixo)
+    ├── direction/   ← Setup, passo 3 (abaixo)
+    ├── prototype/   ← origem observada pelo agente (Handoff, passo 1)
+    └── handoff/     ← Design Contract gerado (Handoff, passo 4)
+```
 
 ---
 
@@ -278,6 +301,11 @@ protótipo e de Design Contract explícito, trate a Specification + código de r
 System (ver Setup, acima) como a melhor aproximação disponível e **registre isso como premissa** no
 relatório final do loop — nunca invente decisões de design que deveriam vir do contrato.
 
+Ao ler o Design Contract, confira também se ele diverge da Specification da mesma tela/fluxo em
+alguma decisão relevante (ex.: ação primária) — ver `design-vocabulary.md` §7 e
+`scripts/lib/spec-design-conflict.ts`. Encontrar essa divergência aqui, antes do Build, evita
+implementar uma tela sobre uma base já conflitante.
+
 ### 2 — Build
 
 Rode o build do módulo alterado (comando do `module-test-map.md`, ou o comando de build do
@@ -359,6 +387,8 @@ como `ok`.
 
 - interpretações legítimas conflitantes do protótipo;
 - conflito Specification × Prototype;
+- conflito Specification × Design Contract (ver `design-vocabulary.md` §7 e
+  `detectFieldConflict`/`detectPrimaryActionConflict` de `scripts/lib/spec-design-conflict.ts`);
 - mudança de information architecture;
 - ausência de ação primária definida;
 - mudança de identidade visual;
@@ -423,5 +453,8 @@ ferramentas da sessão:
   não aplicável (com razão), ou vira `OPEN_QUESTION` no documento gerado.
 - O Handoff nunca promove `INFERRED`/`ASSUMED` a `CONFIRMED` sem evidência qualificada nova
   (`evidence-state.md` §5).
-- Conflito Specification × Design Contract, Design Drift e Visual Debt são extensões futuras (#231)
-  — esta skill não os implementa.
+- O conflito Specification × Design Contract nunca é resolvido silenciosamente — sempre relatado
+  (`spec-design-conflict.ts`) e escalado via `BLOCKED_WAITING` (#231, design-vocabulary.md §7).
+- Design Drift, Visual Debt e a integração com Guardian são pontos de extensão **documentados, não
+  implementados** nesta issue (#231, design-vocabulary.md §8) — sem mecanismo de detecção/tracking
+  automático nesta skill ainda.
