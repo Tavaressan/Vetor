@@ -36,13 +36,33 @@ function normalize(value: string): string {
  * Retorna `null` quando os valores são equivalentes (ignorando espaços/pontuação final/caixa) —
  * nenhum conflito a relatar. Quando divergem, retorna o relato explícito dos dois lados; nunca
  * escolhe um dos dois automaticamente (ver design-vocabulary.md, "Integração com Specification").
+ *
+ * Caso especial: se um ou ambos os valores estão vazios (após normalização), retorna um relatório
+ * indicando ausência de valor, nunca retorna null como falso all-clear (issue #259).
  */
 export function detectFieldConflict(
   field: string,
   designContract: DecisionClaim,
   specification: DecisionClaim,
 ): SpecDesignConflictReport | null {
-  if (normalize(designContract.value) === normalize(specification.value)) return null;
+  const normalizedDC = normalize(designContract.value);
+  const normalizedSpec = normalize(specification.value);
+
+  // Se um ou ambos os valores estão vazios (após normalização), é ausência de valor (issue #259)
+  if (normalizedDC === "" || normalizedSpec === "") {
+    return {
+      field,
+      designContract,
+      specification,
+      message: `Ausência de valor definido em "${field}": ` +
+        `Design Contract (${designContract.source}) define "${designContract.value}", mas ` +
+        `Specification (${specification.source}) implica "${specification.value}". ` +
+        "Um ou ambos os lados estão vazios/não preenchidos — escale via BLOCKED_WAITING para decisão humana.",
+    };
+  }
+
+  // Se os valores normalizados são iguais (e nenhum está vazio) → sem conflito
+  if (normalizedDC === normalizedSpec) return null;
 
   return {
     field,
