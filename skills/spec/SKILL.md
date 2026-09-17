@@ -47,9 +47,10 @@ cada estágio abaixo sinaliza explicitamente o que ainda não está implementado
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` — §3 ("Regra das 3
   perguntas"), base da entrevista focada do passo 4 e aplicável também quando o tema (Sintaxe)
   precisar de uma pergunta direta ao usuário.
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
-  resumir documentação extensa encontrada no passo 1 (mesmo critério de `backlog-ideator`: acima de
-  ~80 linhas, delegue o resumo em vez de ler tudo nativamente).
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-runtime.md` — uso opcional de um
+  runtime externo disponível (Gemini/OpenCode/Codex) para resumir documentação extensa encontrada no
+  passo 1 (mesmo critério de `backlog-ideator`: acima de ~80 linhas, delegue o resumo em vez de ler
+  tudo nativamente).
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/knowledge-provider-contract.md` — contrato do
   Knowledge Provider consumido pelos passos 0, 1 (item 5) e 4 via `scripts/knowledge-doc.ts`.
 - `$CLAUDE_PLUGIN_ROOT/scripts/knowledge-doc.ts` — CLI que expõe `status`/`search-specs`/
@@ -121,7 +122,7 @@ aplica depois que o tema estiver definido.
 Para cada categoria, registre o que foi encontrado (arquivo + trecho relevante) ou, explicitamente,
 que nada foi encontrado — uma categoria vazia deve aparecer no relatório do passo 2 como vazia, nunca
 ser omitida silenciosamente. Se um arquivo encontrado passar de ~80 linhas, resuma-o (nativamente ou
-via `agy`, ver Referências) em vez de reproduzi-lo inteiro.
+via runtime de delegação disponível, ver Referências) em vez de reproduzi-lo inteiro.
 
 ### 2 — Reportar o contexto encontrado
 

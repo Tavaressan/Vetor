@@ -76,7 +76,8 @@ existe é preservado (o JSON de saída informa o que foi criado e o que foi pula
 O script grava:
 - `.claude/vetor/module-test-map.md` — comandos de teste por módulo;
 - `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados, preservando
-  o `maxConcurrentWorkers` (default 5) e o bloco `knowledge` (`enabled`/`provider`), se já existir. O
+  o `maxConcurrentWorkers` (default 5), o bloco `knowledge` (`enabled`/`provider`) e o bloco opcional
+  `delegation` (`preferredRuntime` — ver `delegate-to-runtime.md`), se já existirem. O
   `prepare-worktree.ts` lê isso para saber como preparar cada worktree;
 - `.claude/rules/vetor/<runtime>.md` — convenções do projeto (comando de teste, formatador, lint,
   estilo de import), com frontmatter `paths` para entrarem em contexto **apenas** quando o agente lê
@@ -94,6 +95,11 @@ O JSON de saída inclui um campo `knowledge` (`{"status": ..., "label": ...}`) c
 Ausência do bloco `knowledge` em `config.json` (ou de `config.json` inteiro) nunca é erro: o default é
 `✓ Filesystem`, sempre funcional sem configuração adicional. Só vira `○ Disabled` com
 `knowledge.enabled: false` explícito, e `✓ Obsidian` com `knowledge.provider: "obsidian"` explícito.
+
+Ausência do bloco `delegation` também nunca é erro: sem `delegation.preferredRuntime` configurado,
+a seleção do runtime de delegação (Gemini/OpenCode/Codex) segue puramente por disponibilidade no
+PATH e, se ambígua (2+ candidatos), por anuência explícita — ver algoritmo completo em
+`delegate-to-runtime.md` §2.
 
 ### 2.b — Inserir/atualizar resumo de capacidades em CLAUDE.md/AGENTS.md
 

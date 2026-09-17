@@ -36,7 +36,7 @@ Rules ficam no subdiretório `vetor/` para não pisar nas suas, e não são sobr
 ## Arquivos de referência compartilhados
 
 - **`skills/shared/references/module-test-map.template.md`** — template de comandos de teste headless por módulo (ver [Configuração › Testes por projeto](Configuracao.md#testes-por-projeto)).
-- **`skills/shared/references/delegate-to-gemini.md`** — padrão opcional de delegação ao Gemini CLI.
+- **`skills/shared/references/delegate-to-runtime.md`** — padrão opcional de delegação agnóstica de runtime (Gemini/OpenCode/Codex).
 - **`skills/shared/references/project-conventions.md`** — detecção de branch default e resolução do `module-test-map`, compartilhada por `fix-loop-agent`, `worktree-ship` e `worktree-create` (evita duplicar a mesma lógica três vezes).
 
 ## Observabilidade

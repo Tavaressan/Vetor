@@ -25,9 +25,9 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md` — uso opcional do `agy` para
-  auditar a listagem de migrations (§2) e rascunhar o relatório final. Você valida o rascunho antes
-  de apresentá-lo.
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-runtime.md` — uso opcional de um
+  runtime externo disponível (Gemini/OpenCode/Codex) para auditar a listagem de migrations (§4.7) e
+  rascunhar o relatório final. Você valida o rascunho antes de apresentá-lo.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — detecção de MCPs (§7, §8). Se
   a auditoria exigir consultar comportamento de uma ferramenta/lib/framework/API externa (ex.:
   semântica de uma flag do Docker, driver de banco), o MCP Context7 é **obrigatório quando
@@ -82,7 +82,8 @@ ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 ```
 
 Analise a listagem para buracos de versão (ex.: V3 → V5 sem V4) e naming inválido — duplicatas já são
-cobertas pelo script. A análise da listagem pode ser delegada ao `agy` (ver `delegate-to-gemini.md`).
+cobertas pelo script. A análise da listagem pode ser delegada a um runtime disponível (ver
+`delegate-to-runtime.md` §4.7).
 
 **Finding:** buraco de versão, duplicata ou naming inválido
 **Auto-fix:** nenhum — apenas reporta. Migrations são domínio do desenvolvedor.

@@ -47,9 +47,9 @@ arquivo a partir do root do repositório (`vetor-checks.sh repo-root`), nunca do
 que `.claude/` está ignorado no projeto-alvo, você pode opcionalmente injetar os comandos de teste
 já resolvidos diretamente no prompt de cada worker despachado, como reforço redundante — a fonte de
 verdade continua sendo a resolução via root em `project-conventions.md`.
-Regras de economia de tokens e delegação ao `agy`:
+Regras de economia de tokens e delegação a um runtime externo disponível (Gemini/OpenCode/Codex):
 `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` e
-`$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-gemini.md`.
+`$CLAUDE_PLUGIN_ROOT/skills/shared/references/delegate-to-runtime.md`.
 
 ---
 
@@ -140,8 +140,10 @@ pule a issue e registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado 
 #### Agrupamento por afinidade
 
 Com as candidatas válidas em mãos, se houver mais de 3 issues, você pode delegar a proposta de
-agrupamento ao `agy` — ver `delegate-to-gemini.md`. Você valida e corrige a proposta; a distribuição
-final é sua.
+agrupamento a um runtime externo disponível — detecção e algoritmo de seleção em
+`delegate-to-runtime.md` §1-2 (com 2+ candidatos e nenhuma preferência configurada, em sessão
+interativa pergunte qual usar; em `--headless`, siga inline). Você valida e corrige a proposta; a
+distribuição final é sua.
 
 Inline (ou com 3 ou menos issues):
 - Agrupe issues **complementares ou correlatas** (mesmo módulo, ou um `fix` que complementa
