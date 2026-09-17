@@ -39,9 +39,9 @@ export interface DesignFile {
 }
 
 /**
- * Local canônico de um protótipo já registrado no Vetor. Convenção deliberadamente mínima (#228):
- * o handoff completo de protótipo (extração de estrutura/tokens/estados) é escopo de issue futura
- * (#213 "Handoff de protótipos") — aqui só a evidência de existência importa para a detecção de modo.
+ * Local canônico de um protótipo já registrado no Vetor. Aqui só a evidência de existência importa
+ * para a detecção de modo — o handoff completo de protótipo (extração de estrutura/tokens/estados)
+ * é `scripts/lib/design-handoff.ts` (#229, #213 "Handoff de protótipos").
  */
 export const PROTOTYPE_DIR = ".vetor/design/prototype";
 export const DESIGN_SYSTEM_DIR = ".vetor/design/system";
