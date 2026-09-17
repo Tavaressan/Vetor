@@ -151,6 +151,109 @@ Deno.test("create-spec com --link cria referência para o documento relacionado 
   }
 });
 
+Deno.test("create-spec com --link contendo o prefixo docs/ redundante ainda cria o link (issue de code-review)", async () => {
+  const dir = await tempDir();
+  try {
+    await Deno.mkdir(`${dir}/docs/adr`, { recursive: true });
+    await Deno.writeTextFile(`${dir}/docs/adr/001-oauth.md`, "# ADR 001 - OAuth");
+
+    // Sem --root explícito (default "docs"), rodando com cwd=dir: mesma condição real de uso da
+    // skill. Context Discovery (SKILL.md passo 1) reporta paths relativos à raiz do repo, ex.
+    // "docs/adr/001-oauth.md" — sem a normalização, isso duplicava o prefixo ("docs/docs/...")
+    // e o link sempre falhava, mesmo com a Spec já persistida com sucesso.
+    const created = await run(
+      [
+        "create-spec",
+        "--slug",
+        "authentication",
+        "--project",
+        "vetor",
+        "--link",
+        "docs/adr/001-oauth.md",
+      ],
+      { cwd: dir, stdin: "# Authentication" },
+    );
+    assertEquals(created.code, 0, created.stderr);
+
+    const raw = await Deno.readTextFile(`${dir}/docs/specs/authentication.md`);
+    assertMatch(raw, /- Relacionado: adr\/001-oauth\.md/);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("create-spec com --link para destino inexistente: Spec fica persistida e o erro é reportado de forma clara (não crasha)", async () => {
+  const dir = await tempDir();
+  try {
+    const created = await run(
+      [
+        "create-spec",
+        "--slug",
+        "authentication",
+        "--project",
+        "vetor",
+        "--root",
+        dir,
+        "--link",
+        "adr/inexistente.md",
+      ],
+      { stdin: "# Authentication" },
+    );
+
+    assertEquals(created.code, 1);
+    assertMatch(created.stderr, /AVISO: Spec criada em/);
+    assertEquals(JSON.parse(created.stdout).linkFailed, true);
+
+    // A Spec foi persistida de verdade, apesar do link ter falhado — não é um erro total.
+    const raw = await Deno.readTextFile(`${dir}/specs/authentication.md`);
+    assertMatch(raw, /type: spec/);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("create-spec com --slug contendo caracteres reservados de filesystem é normalizado via slugify (nunca usado literalmente)", async () => {
+  const dir = await tempDir();
+  try {
+    const created = await run(
+      ["create-spec", "--slug", "a:b weird/slug!", "--project", "vetor", "--root", dir],
+      { stdin: "# Teste" },
+    );
+    assertEquals(created.code, 0, created.stderr);
+    const { identity, path } = JSON.parse(created.stdout);
+    assertEquals(identity, "spec:a-b-weird-slug");
+    assertEquals(path, "specs/a-b-weird-slug.md");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("create-spec falha com ERRO claro (não stack trace) quando a identidade já existe", async () => {
+  const dir = await tempDir();
+  try {
+    const args = ["create-spec", "--slug", "dup", "--project", "vetor", "--root", dir];
+    const first = await run(args, { stdin: "# Um" });
+    assertEquals(first.code, 0);
+
+    const second = await run(args, { stdin: "# Dois" });
+    assertEquals(second.code, 1);
+    assertMatch(second.stderr, /^ERRO: /);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("find com identidade malformada falha com ERRO claro (não stack trace)", async () => {
+  const dir = await tempDir();
+  try {
+    const result = await run(["find", "sem-separador", "--root", dir]);
+    assertEquals(result.code, 1);
+    assertMatch(result.stderr, /^ERRO: /);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("fluxo completo do critério de aceite: busca prévia vazia, depois cria e confirma frontmatter", async () => {
   const dir = await tempDir();
   try {

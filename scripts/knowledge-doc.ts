@@ -17,11 +17,23 @@
 // existe neste código (issue #225 em andamento).
 
 import { detectKnowledgeState, FilesystemKnowledgeProvider } from "./lib/knowledge.ts";
-import { createDocument, findByIdentity, findRelatedSpecs } from "./lib/knowledge-docs.ts";
+import { createDocument, findByIdentity, findRelatedSpecs, slugify } from "./lib/knowledge-docs.ts";
 
 function flagValue(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
   return idx === -1 ? undefined : args[idx + 1];
+}
+
+/**
+ * Descarta um prefixo `<root>/` redundante em `--link`. Context Discovery (skills/spec/SKILL.md
+ * passo 1) reporta paths relativos à raiz do repositório (ex.: "docs/adr/001.md"), mas o
+ * KnowledgeProvider resolve paths relativos à sua própria raiz (`--root`, default "docs") — sem
+ * esta normalização, um link para "docs/adr/001.md" com `--root docs` resolveria para
+ * "docs/docs/adr/001.md" (path duplicado, nunca existe) e o `link()` sempre lançaria.
+ */
+function stripRootPrefix(path: string, root: string): string {
+  const prefix = `${root.replace(/\/+$/, "")}/`;
+  return path.startsWith(prefix) ? path.slice(prefix.length) : path;
 }
 
 async function readStdin(): Promise<string> {
@@ -39,6 +51,15 @@ async function readConfig(path: string): Promise<unknown> {
 async function main() {
   const [command, ...rest] = Deno.args;
 
+  try {
+    await run(command, rest);
+  } catch (err) {
+    console.error(`ERRO: ${(err as Error).message}`);
+    Deno.exit(1);
+  }
+}
+
+async function run(command: string, rest: string[]) {
   switch (command) {
     case "status": {
       const configPath = flagValue(rest, "--config") ?? ".claude/vetor/config.json";
@@ -62,13 +83,21 @@ async function main() {
       break;
     }
     case "create-spec": {
-      const slug = flagValue(rest, "--slug");
+      const slugArg = flagValue(rest, "--slug");
       const project = flagValue(rest, "--project");
       const status = flagValue(rest, "--status") ?? "draft";
       const root = flagValue(rest, "--root") ?? "docs";
-      const link = flagValue(rest, "--link");
-      if (!slug || !project) {
+      const linkArg = flagValue(rest, "--link");
+      if (!slugArg || !project) {
         console.error("ERRO: create-spec exige --slug e --project.");
+        Deno.exit(1);
+      }
+      // Sempre normalizado via slugify — nunca usa o argumento literal. Sem isso, um --slug com
+      // caracteres reservados de filesystem (ex.: "a:b" no Windows/NTFS) grava fora do path
+      // esperado (Alternate Data Stream) em vez de falhar de forma clara.
+      const slug = slugify(slugArg);
+      if (!slug) {
+        console.error(`ERRO: --slug "${slugArg}" não produz um slug válido (kebab-case).`);
         Deno.exit(1);
       }
       const provider = new FilesystemKnowledgeProvider(root);
@@ -80,8 +109,21 @@ async function main() {
         status,
         body,
       });
-      if (link) {
-        await provider.link(path, link);
+      if (linkArg) {
+        const link = stripRootPrefix(linkArg, root);
+        try {
+          await provider.link(path, link);
+        } catch (err) {
+          // A Spec já foi criada com sucesso — reporta o path real em vez de mascarar o
+          // resultado como falha total, mas sinaliza claramente que o link não foi criado.
+          console.error(
+            `AVISO: Spec criada em "${path}" (${identity}), mas o link para "${link}" falhou: ${
+              (err as Error).message
+            }`,
+          );
+          console.log(JSON.stringify({ identity, path, linkFailed: true }));
+          Deno.exit(1);
+        }
       }
       console.log(JSON.stringify({ identity, path }));
       break;

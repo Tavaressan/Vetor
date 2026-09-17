@@ -60,7 +60,7 @@ estágio abaixo sinaliza explicitamente o que ainda não está implementado.
 
 ### 0 — Knowledge Provider
 
-A busca por Specs relacionadas (passo 1, item 5) e a persistência (passo 4) são feitas através de um
+A busca por Specs relacionadas (passo 1, item 5) e a persistência (passo 6) são feitas através de um
 **Knowledge Provider** — uma fonte de conhecimento do projeto, abstrata por design:
 
 ```
@@ -81,7 +81,7 @@ deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/knowledge-doc.ts" status
   4 conforme descrito abaixo.
 - `{"enabled": false, ...}` (`knowledge.enabled: false` explícito) → **fallback**: ignore o provider
   em todo o fluxo — descoberta do item 5 vira busca direta por `grep`/`find` em `docs/specs/**/*.md`
-  (como nas demais categorias do passo 1) e o passo 4 não persiste nada em disco (apenas apresenta o
+  (como nas demais categorias do passo 1) e o passo 6 não persiste nada em disco (apenas apresenta o
   rascunho, como nesta skill antes desta integração).
 
 A skill nunca assume nem referencia Obsidian diretamente em nenhum ponto do fluxo — o CLI sempre usa
@@ -271,7 +271,10 @@ deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/knowledge-doc.ts" create-spec \
 - Se o passo 1 encontrou um documento com relação clara ao tema (ex.: o ADR que rege a decisão, ou a
   arquitetura específica do componente — não qualquer resultado incidental), passe
   `--link <path-do-documento-relacionado>` para criar o link. Não linke indiscriminadamente: só
-  quando a relação for evidente a partir do que foi encontrado no passo 1.
+  quando a relação for evidente a partir do que foi encontrado no passo 1. O path pode ser passado
+  tanto relativo à raiz do repositório (ex.: `docs/adr/001.md`, como reportado pelo passo 1) quanto
+  relativo à raiz do Knowledge Provider (ex.: `adr/001.md`) — o CLI normaliza um prefixo `docs/`
+  redundante automaticamente.
 - Se `create-spec` falhar (identidade já existe — corrida com outra sessão, por exemplo), informe o
   usuário e não tente sobrescrever por conta própria.
 - Reporte ao usuário a identidade e o path onde a Spec foi salva.
