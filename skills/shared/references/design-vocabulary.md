@@ -399,7 +399,7 @@ Implementation   → o sistema real
 
 Quando os dois divergem sobre a mesma decisão (`Specification ≠ Design Contract`), o agente **nunca
 resolve essa divergência sozinho** — é uma decisão de produto, não um erro objetivo passível de
-autocorreção (mesma classificação de `frontend-design-enforcement.md`/Loop passo 8: "conflito
+autocorreção (mesma classificação de `skills/design/SKILL.md`, Loop passo 8: "conflito
 Specification × Prototype" já era escalado; este é o caso análogo entre Specification e o Design
 Contract já consolidado).
 
@@ -416,9 +416,11 @@ suas origens (`source`) — **nunca** um veredito de qual lado está correto (se
 worktree" (Hierarquia) e a Specification implica ação primária "Exportar relatório" (RF-03) → o
 agente reporta o conflito com as duas origens, nunca escolhe um dos dois.
 
-Ao detectar um conflito, escale via `BLOCKED_WAITING` (`agent-status.template.md`): os blocos
-`Blocked on`/`Options`/`Recommendation` citam os dois valores e suas fontes — a decisão de qual
-prevalece é do usuário.
+Ao detectar um conflito, escale via `BLOCKED_WAITING` (`agent-status.template.md`), qualificando o
+motivo com o vocabulário já existente de Evidence State (`agent-status.template.md`, ver
+`evidence-state.md`): `Blocked on: Evidence Conflict — <valor do Design Contract> vs. <valor da
+Specification>`. Os blocos `Options`/`Recommendation` apresentam os dois valores e suas fontes —
+a decisão de qual prevalece é do usuário.
 
 ---
 
