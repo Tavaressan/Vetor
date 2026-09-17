@@ -19,8 +19,10 @@ O Quality Model, o Quality Gate, a estrutura de saída (Score/Status/Strengths/G
 métrica mensurável, `⚠️ ABERTO` explícito vs. omissão silenciosa, Non-Goals ausente, Edge Cases
 contextuais), o feedback estruturado por gap (`location`/`problem`/`impact`/`suggestedAction`), o
 Quality Report em Markdown persistido separado da Spec e o refinamento iterativo com limite de 3
-ciclos (#222) já estão completos e operacionais. Metadados de rastreabilidade por requisito e
-Decision Log são escopo de #223.
+ciclos (#222) já estão completos e operacionais. O formato de metadados de rastreabilidade por
+requisito (`id`/`priority`/`status`) e o Decision Log (#223) também estão preparados — ver
+`references/traceability.md` —, mas **sem** integração real com Coordinator/Guardian: essa
+integração é infraestrutura futura, não código funcional desta skill.
 
 ---
 
@@ -49,6 +51,9 @@ vez de invocação direta pelo usuário.
   `skills/spec/SKILL.md`).
 - `templates/spec.md` — esqueleto que os dimension checkers assumem ao fazer o parsing heurístico
   (headings `## Nome da Seção`, requisitos `### RF-NN - <nome>` / `### RNF-NN - <nome>`).
+- `$CLAUDE_PLUGIN_ROOT/skills/spec-validate/references/traceability.md` — formato de metadados de
+  requisito (`id`/`priority`/`status`), Decision Log (`DEC-NN`) e os pontos de extensão futuros
+  para Coordinator (RF→Task) e Guardian (Spec Drift) — #223, preparação sem integração real.
 
 ---
 
