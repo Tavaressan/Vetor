@@ -386,6 +386,41 @@ Deno.test("ObsidianKnowledgeProvider com MCP disponível: create/read delegam ao
   }
 });
 
+Deno.test("ObsidianKnowledgeProvider com MCP disponível: search delega ao client, não ao fallback", async () => {
+  const { dir } = tempVault();
+  try {
+    const client = new FakeObsidianClient();
+    const provider = new ObsidianKnowledgeProvider(client, { vault: dir }, () => {});
+
+    await provider.create("notes/adr-1.md", "contém ADR importante");
+    const results = await provider.search("adr");
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].path, "notes/adr-1.md");
+    assertEquals(provider.warning, undefined);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("ObsidianKnowledgeProvider com MCP disponível: list delega ao client, não ao fallback", async () => {
+  const { dir } = tempVault();
+  try {
+    const client = new FakeObsidianClient();
+    const provider = new ObsidianKnowledgeProvider(client, { vault: dir }, () => {});
+
+    await provider.create("specs/one.md", "1");
+    await provider.create("specs/two.md", "2");
+    await provider.create("other.md", "3");
+
+    assertEquals((await provider.list("specs")).sort(), ["specs/one.md", "specs/two.md"]);
+    assertEquals((await provider.list()).sort(), ["other.md", "specs/one.md", "specs/two.md"]);
+    assertEquals(provider.warning, undefined);
+  } finally {
+    cleanup(dir);
+  }
+});
+
 Deno.test("ObsidianKnowledgeProvider: link é idempotente via read+update do client", async () => {
   const { dir } = tempVault();
   try {
@@ -495,13 +530,17 @@ Deno.test("ObsidianKnowledgeProvider: rejeita symlink que escapa da raiz do vaul
   try {
     Deno.writeTextFileSync(`${outsideDir}/secret.md`, "segredo");
     try {
-      Deno.symlinkSync(outsideDir, `${vaultDir}/escape`, { type: "dir" });
+      // No Windows, symlink de diretório exige privilégio elevado/Developer Mode — junction
+      // não exige (mesmo mecanismo usado por prepare-worktree.ts) e também é resolvido por
+      // `Deno.realPathSync`, então cobre o mesmo cenário de escape que este teste valida.
+      const type = Deno.build.os === "windows" ? "junction" : "dir";
+      Deno.symlinkSync(outsideDir, `${vaultDir}/escape`, { type });
     } catch (err) {
-      // Criar symlink de diretório no Windows exige privilégio elevado/Developer Mode — sem
-      // isso, o próprio SO impede o cenário que este teste valida. A guarda de symlink roda
-      // normalmente em CI (Linux), onde o symlink pode ser criado sem privilégio especial.
+      // Último recurso: se mesmo a junction/symlink não puder ser criada neste ambiente, não
+      // falha o teste — a guarda roda de verdade em CI (Linux), onde symlinks não exigem
+      // privilégio especial.
       console.warn(
-        `symlink test ignorado: sem privilégio para criar symlink neste ambiente (${
+        `symlink test ignorado: sem privilégio para criar symlink/junction neste ambiente (${
           (err as Error).message
         })`,
       );
