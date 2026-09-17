@@ -44,14 +44,22 @@ vez de invocação direta pelo usuário.
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/scripts/spec-validate.ts` — CLI que expõe o Quality Model e os dimension
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+
+- `../../scripts/spec-validate.ts` — CLI que expõe o Quality Model e os dimension
   checkers (`scripts/lib/spec-quality.ts`, `scripts/lib/spec-quality-checkers.ts`,
   `scripts/lib/spec-parser.ts`). Uma `SKILL.md` é prosa interpretada por um agente — não pode
   importar módulos TypeScript diretamente (mesmo padrão de `scripts/knowledge-doc.ts` para
   `skills/spec/SKILL.md`).
 - `templates/spec.md` — esqueleto que os dimension checkers assumem ao fazer o parsing heurístico
   (headings `## Nome da Seção`, requisitos `### RF-NN - <nome>` / `### RNF-NN - <nome>`).
-- `$CLAUDE_PLUGIN_ROOT/skills/spec-validate/references/traceability.md` — formato de metadados de
+- `references/traceability.md` — formato de metadados de
   requisito (`id`/`priority`/`status`), Decision Log (`DEC-NN`) e os pontos de extensão futuros
   para Coordinator (RF→Task) e Guardian (Spec Drift) — #223, preparação sem integração real.
 
@@ -62,7 +70,7 @@ vez de invocação direta pelo usuário.
 ### 1 — Rodar o Quality Model
 
 ```bash
-deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/spec-validate.ts" <path> [--config <path-do-config>] [--history <path>]
+deno run -A "$SKILL_DIR/../../scripts/spec-validate.ts" <path> [--config <path-do-config>] [--history <path>]
 ```
 
 - `<path>`: obrigatório — path para a Spec em markdown.
