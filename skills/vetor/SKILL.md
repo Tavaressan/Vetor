@@ -25,7 +25,15 @@ Você é a skill de inicialização e configuração do Vetor. Sua missão é pr
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se, durante o setup, for
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+
+- `../shared/references/mcp-availability.md` — se, durante o setup, for
   preciso explicar ou depurar comportamento do próprio Claude Code (hooks, slash commands,
   configuração de MCP, permissões, SDK de agentes), o MCP `claude-code-docs` é **obrigatório quando
   disponível** (ver "Documentação do próprio Claude Code (`claude-code-docs`)").
@@ -51,7 +59,7 @@ de dependências dos worktrees não funcionam:
 
 Crie os diretórios do Vetor no projeto-alvo e garanta que os status files dos workers
 (escritos em `.claude/vetor/status/` — ver
-`$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`) nunca sejam commitados:
+`../shared/references/agent-status.template.md`) nunca sejam commitados:
 
 ```bash
 mkdir -p .claude/vetor/status
@@ -67,7 +75,7 @@ Um único script detecta o runtime, gera o mapeamento de testes, persiste a conf
 rules de convenção do projeto:
 
 ```bash
-deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/detect-project.ts" [--force]
+deno run -A "$SKILL_DIR/../../scripts/detect-project.ts" [--force]
 ```
 
 Repasse o `--force` recebido nos args. A guarda é **por arquivo**: sem `--force`, cada arquivo que já
@@ -76,7 +84,8 @@ existe é preservado (o JSON de saída informa o que foi criado e o que foi pula
 O script grava:
 - `.claude/vetor/module-test-map.md` — comandos de teste por módulo;
 - `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados, preservando
-  o `maxConcurrentWorkers` (default 5) e o bloco `knowledge` (`enabled`/`provider`), se já existir. O
+  o `maxConcurrentWorkers` (default 5), o bloco `knowledge` (`enabled`/`provider`) e o bloco opcional
+  `delegation` (`preferredRuntime` — ver `delegate-to-runtime.md`), se já existirem. O
   `prepare-worktree.ts` lê isso para saber como preparar cada worktree;
 - `.claude/rules/vetor/<runtime>.md` — convenções do projeto (comando de teste, formatador, lint,
   estilo de import), com frontmatter `paths` para entrarem em contexto **apenas** quando o agente lê
@@ -90,10 +99,15 @@ Se o runtime sair como `unknown`, avise o usuário de que o `module-test-map.md`
 manual — as skills de teste dependem dele.
 
 O JSON de saída inclui um campo `knowledge` (`{"status": ..., "label": ...}`) com o estado do
-**Knowledge Provider** — ver `$CLAUDE_PLUGIN_ROOT/skills/shared/references/knowledge-provider-contract.md`.
+**Knowledge Provider** — ver `../shared/references/knowledge-provider-contract.md`.
 Ausência do bloco `knowledge` em `config.json` (ou de `config.json` inteiro) nunca é erro: o default é
 `✓ Filesystem`, sempre funcional sem configuração adicional. Só vira `○ Disabled` com
 `knowledge.enabled: false` explícito, e `✓ Obsidian` com `knowledge.provider: "obsidian"` explícito.
+
+Ausência do bloco `delegation` também nunca é erro: sem `delegation.preferredRuntime` configurado,
+a seleção do runtime de delegação (Gemini/OpenCode/Codex) segue puramente por disponibilidade no
+PATH e, se ambígua (2+ candidatos), por anuência explícita — ver algoritmo completo em
+`delegate-to-runtime.md` §2.
 
 ### 2.b — Inserir/atualizar resumo de capacidades em CLAUDE.md/AGENTS.md
 
@@ -105,7 +119,7 @@ antemão, que o plugin está instalado e como invocar suas skills/agentes.
 Para cada um de `CLAUDE.md` e `AGENTS.md` que já exista na raiz do projeto-alvo, rode:
 
 ```bash
-deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/inject-capabilities-doc.ts" <caminho-do-arquivo>
+deno run -A "$SKILL_DIR/../../scripts/inject-capabilities-doc.ts" <caminho-do-arquivo>
 ```
 
 O script acha o bloco delimitado por `<!-- vetor:capabilities:start -->` / `<!-- vetor:capabilities:end -->`

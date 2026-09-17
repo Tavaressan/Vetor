@@ -50,7 +50,7 @@ Valide também:
 
 ### 2 — Derivar nomes
 
-Detecte a branch default do repositório: leia `$CLAUDE_PLUGIN_ROOT/skills/shared/references/project-conventions.md` e resolva `$DEFAULT_BRANCH` conforme descrito lá (não assuma `master`).
+Detecte a branch default do repositório: leia `../shared/references/project-conventions.md` e resolva `$DEFAULT_BRANCH` conforme descrito lá (não assuma `master`).
 
 - **Branch:** `<type>/<issue#>-<slug>` se issue fornecida; `<type>/<slug>` caso contrário
 - **Path:** `.claude/worktrees/<slug>`
@@ -95,8 +95,15 @@ Se `git worktree add` falhar, reporte o erro e aborte.
 Delegue ao script determinístico — ele detecta o runtime e faz o que couber (Deno puro é no-op,
 pois o cache `$DENO_DIR` já é global; Node ganha um link para o `node_modules` da raiz):
 
+> O path relativo abaixo resolve a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+
 ```bash
-deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/prepare-worktree.ts" --path .claude/worktrees/<slug>
+deno run -A "$SKILL_DIR/../../scripts/prepare-worktree.ts" --path .claude/worktrees/<slug>
 ```
 
 O script é tolerante a falhas: avisa em stderr e sai com 0 mesmo se a preparação falhar. Prossiga

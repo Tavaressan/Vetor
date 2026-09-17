@@ -9,11 +9,11 @@ Este documento estabelece o padrão de design para o ciclo de vida de planejamen
 Para evitar sessões com mais de 150k de contexto e o spawn excessivo de subagentes caros:
 
 ### 1.1 Limites de Contexto e Leitura Bruta
-* **Regra de 100 linhas**: Nunca despeje mais de 100 linhas de logs, documentações ou dumps brutos de arquivos no contexto do agente primário se o CLI `agy` (Gemini) estiver disponível.
-* **Delegação Obrigatória**:
-  - **Logs de Erro/CI**: Utilize `gh run view <run-id> --log-failed | agy -p "..."` para obter resumos de até 15 linhas antes do diagnóstico.
-  - **Documentações longas**: Use `cat <docs> | agy -p "..."` para gerar sumários arquiteturais compactos de alta densidade antes de analisar o backlog.
-  - **Dumps de Migrations/Estruturas**: Use `ls -R | agy -p "..."` para pré-auditar antes de o agente ler os arquivos.
+* **Regra de 100 linhas**: Nunca despeje mais de 100 linhas de logs, documentações ou dumps brutos de arquivos no contexto do agente primário se houver um runtime de delegação disponível (Gemini/OpenCode/Codex — ver `delegate-to-runtime.md`).
+* **Delegação Obrigatória** (sintaxe de invocação e algoritmo de seleção de runtime em `delegate-to-runtime.md` §1-2; `$DELEGATE` = comando do runtime selecionado):
+  - **Logs de Erro/CI**: Utilize `gh run view <run-id> --log-failed | $DELEGATE "..."` para obter resumos de até 15 linhas antes do diagnóstico.
+  - **Documentações longas**: Use `cat <docs> | $DELEGATE "..."` para gerar sumários arquiteturais compactos de alta densidade antes de analisar o backlog.
+  - **Dumps de Migrations/Estruturas**: Use `ls -R | $DELEGATE "..."` para pré-auditar antes de o agente ler os arquivos.
 * **Finalização Restrita**: Oriente os subagentes a finalizarem a execução assim que atingirem seu objetivo restrito, em vez de manter contexto acumulando além do necessário.
 
 ### 1.2 Regras de Orquestração de Subagentes
