@@ -70,8 +70,10 @@ deno run -A "$CLAUDE_PLUGIN_ROOT/scripts/spec-validate.ts" <path> [--config <pat
   Quality Gate são lidos (ver passo 3). Path inexistente/config sem a chave usam os thresholds
   default.
 - `--history`: opcional — sobrescreve onde o histórico de validação é persistido (default:
-  derivado do path da Spec, ver passo 5). Use só em cenário de teste/automação; em uso normal,
-  deixe o CLI derivar o path sozinho.
+  derivado da raiz do repositório git + path da Spec, `<git-toplevel>/.claude/vetor/specs/
+  <slug>.validation.json` — não do cwd do processo, para que duas invocações a partir de
+  subdiretórios diferentes do mesmo checkout encontrem o mesmo histórico). Use só em cenário de
+  teste/automação; em uso normal, deixe o CLI derivar o path sozinho.
 
 O CLI lê a Spec, faz o parsing heurístico (`spec-parser.ts`), roda os 5 dimension checkers
 (`spec-quality-checkers.ts`) e agrega o resultado no Quality Model (`spec-quality.ts`), imprimindo

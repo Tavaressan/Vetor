@@ -4,9 +4,23 @@
 import { assertEquals } from "@std/assert";
 import {
   loadValidationState,
+  resolveDefaultHistoryPath,
   saveValidationState,
   validationPathFor,
 } from "../lib/spec-quality-persistence.ts";
+
+async function git(args: string[], cwd: string): Promise<void> {
+  const { code, stderr } = await new Deno.Command("git", {
+    args,
+    cwd,
+    stdout: "piped",
+    stderr: "piped",
+  })
+    .output();
+  if (code !== 0) {
+    throw new Error(`git ${args.join(" ")} falhou: ${new TextDecoder().decode(stderr)}`);
+  }
+}
 
 Deno.test("validationPathFor deriva o path de persistência a partir do path da Spec (função pura)", () => {
   assertEquals(
@@ -58,6 +72,39 @@ Deno.test("saveValidationState cria diretórios intermediários quando não exis
     });
     const loaded = await loadValidationState(path);
     assertEquals(loaded?.specPath, "docs/specs/authentication.md");
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("resolveDefaultHistoryPath resolve a partir da raiz do repositório git, não do cwd (#222 fix)", async () => {
+  const repoRoot = await Deno.makeTempDir();
+  const subdir = `${repoRoot}/nested/dir`;
+  try {
+    await git(["init", "-q"], repoRoot);
+    await Deno.mkdir(subdir, { recursive: true });
+
+    const fromRoot = await resolveDefaultHistoryPath("docs/specs/authentication.md", repoRoot);
+    const fromSubdir = await resolveDefaultHistoryPath("docs/specs/authentication.md", subdir);
+
+    const expected = `${
+      repoRoot.replaceAll("\\", "/")
+    }/.claude/vetor/specs/authentication.validation.json`;
+    assertEquals(fromRoot, expected);
+    // A mesma Spec, resolvida a partir de um subdiretório do mesmo checkout, aponta para o mesmo
+    // arquivo de histórico — sem isso, duas invocações do CLI em cwds diferentes do mesmo
+    // repositório perderiam a continuidade do refinamento iterativo.
+    assertEquals(fromSubdir, expected);
+  } finally {
+    await Deno.remove(repoRoot, { recursive: true });
+  }
+});
+
+Deno.test("resolveDefaultHistoryPath cai no path relativo quando cwd não é um repositório git", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const resolved = await resolveDefaultHistoryPath("docs/specs/authentication.md", tmpDir);
+    assertEquals(resolved, ".claude/vetor/specs/authentication.validation.json");
   } finally {
     await Deno.remove(tmpDir, { recursive: true });
   }

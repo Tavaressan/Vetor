@@ -25,6 +25,36 @@ export function validationPathFor(
   return `${root}/${base}.validation.json`;
 }
 
+/**
+ * Resolve o path default de persistência a partir da raiz do repositório git (`git rev-parse
+ * --show-toplevel`), não do cwd do processo — sem isso, duas invocações do CLI a partir de
+ * subdiretórios diferentes do mesmo checkout resolveriam paths relativos diferentes para o mesmo
+ * histórico, quebrando a continuidade do refinamento iterativo (#222, #203 §10). Quando não é
+ * possível resolver a raiz (não é um repositório git, ou `git` indisponível), cai no path relativo
+ * ao cwd (`validationPathFor` sem `root` customizado) — mesmo comportamento de antes desta função
+ * existir, nunca uma falha dura.
+ */
+export async function resolveDefaultHistoryPath(
+  specPath: string,
+  cwd = Deno.cwd(),
+): Promise<string> {
+  try {
+    const output = await new Deno.Command("git", {
+      args: ["rev-parse", "--show-toplevel"],
+      cwd,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    if (output.code === 0) {
+      const toplevel = new TextDecoder().decode(output.stdout).trim();
+      if (toplevel) return validationPathFor(specPath, `${toplevel}/.claude/vetor/specs`);
+    }
+  } catch {
+    // git indisponível — cai no fallback relativo abaixo.
+  }
+  return validationPathFor(specPath);
+}
+
 export async function loadValidationState(path: string): Promise<ValidationState | null> {
   try {
     return JSON.parse(await Deno.readTextFile(path));

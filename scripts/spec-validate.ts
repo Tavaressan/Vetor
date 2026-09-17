@@ -27,8 +27,8 @@ import { computeQuality, type QualityResult, resolveThresholds } from "./lib/spe
 import { appendValidation, renderQualityReport } from "./lib/spec-quality-report.ts";
 import {
   loadValidationState,
+  resolveDefaultHistoryPath,
   saveValidationState,
-  validationPathFor,
 } from "./lib/spec-quality-persistence.ts";
 
 function flagValue(args: string[], flag: string): string | undefined {
@@ -75,7 +75,7 @@ async function main() {
   }
 
   const configPath = flagValue(rest, "--config") ?? ".claude/vetor/config.json";
-  const historyPath = flagValue(rest, "--history") ?? validationPathFor(specPath);
+  const historyPath = flagValue(rest, "--history") ?? await resolveDefaultHistoryPath(specPath);
 
   const config = await readConfig(configPath);
   const result = validateSpecText(text, config);
