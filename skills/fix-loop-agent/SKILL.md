@@ -60,6 +60,10 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md` — disciplina completa de TDD
   (bom teste, seams, anti-padrões, mocking) consumida pelo passo TDD de §3.b — não replique o texto
   aqui.
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` — vocabulário de rastreabilidade
+  epistemológica (`CONFIRMED`/`INFERRED`/`ASSUMED`/`OPEN_QUESTION`, Evidence Conflict) usado ao
+  redigir `Blocked on` em `BLOCKED_WAITING` (§2) quando o bloqueio for epistemológico, não uma
+  permissão de comando.
 
 ---
 
@@ -100,6 +104,12 @@ derive-o: `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` (ro
 Se bloqueado por permissão ou decisão técnica, mude `Status` para `BLOCKED_WAITING` preenchendo os
 blocos `Blocked on` / `Options` / `Recommendation` — o coordinator escala ao usuário a partir deles.
 Iterações em `BLOCKED_WAITING` **não contam** contra o orçamento de 5.
+
+Se o bloqueio for epistemológico — falta uma informação decisiva, uma premissa assumida precisa de
+confirmação, ou duas evidências se contradizem — nomeie a natureza do bloqueio em `Blocked on` com o
+vocabulário de `evidence-state.md`: `OPEN_QUESTION` crítica, `ASSUMED` que precisa confirmação, ou
+`Evidence Conflict`. O mecanismo de escalação continua sendo `BLOCKED_WAITING`; o vocabulário só
+qualifica o motivo, sem criar um segundo caminho de escalação paralelo.
 
 ⚠️ **O limite de 5 é um orçamento sugerido, não um hard cap enforced (issue #156):** nenhum hook
 interrompe a sessão automaticamente ao ultrapassá-lo. A responsabilidade de parar é sua — nunca

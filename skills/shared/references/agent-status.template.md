@@ -35,6 +35,14 @@ Options:
 Recommendation: <opção recomendada e por quê>
 ```
 
+Quando o bloqueio for epistemológico (falta de informação, premissa não confirmada, evidências que
+se contradizem) em vez de uma permissão de comando, use o vocabulário de
+`$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` para nomear a natureza do bloqueio
+em `Blocked on` — ex.: `Blocked on: OPEN_QUESTION crítica — <pergunta>`, `Blocked on: ASSUMED sem
+confirmação — <premissa>` ou `Blocked on: Evidence Conflict — <fontes em contradição>`. Isso não cria
+um novo estado ou caminho de escalação: `BLOCKED_WAITING` continua sendo o único mecanismo; o
+vocabulário apenas qualifica o motivo já registrado em `Blocked on`.
+
 **`FAILED_MAX_ITERATIONS`**: além de atualizar o status, crie `FAIL_ANALYSIS.md` no root do
 worktree com o handover de falha (ver `fix-loop-agent` §4).
 
