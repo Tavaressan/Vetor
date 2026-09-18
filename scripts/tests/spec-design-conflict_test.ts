@@ -44,3 +44,46 @@ Deno.test("detectFieldConflict: sem conflito quando valores são equivalentes ig
   );
   assertEquals(report, null);
 });
+
+Deno.test("detectFieldConflict: ambos valores vazios -> reporta como conflito (ausência de valor)", () => {
+  const report = detectFieldConflict(
+    "Ação primária",
+    { value: "", source: "Design Contract" },
+    { value: "", source: "Specification" },
+  );
+  // Não deve ser null (falso all-clear) — deve reportar ausência de valor
+  assertNotEquals(report, null);
+  assertEquals(report?.field, "Ação primária");
+});
+
+Deno.test("detectFieldConflict: ambos valores só-espaço -> reporta como conflito (ausência de valor)", () => {
+  const report = detectFieldConflict(
+    "Ação primária",
+    { value: "   ", source: "Design Contract" },
+    { value: "  ", source: "Specification" },
+  );
+  // Não deve ser null (falso all-clear) — deve reportar ausência de valor
+  assertNotEquals(report, null);
+  assertEquals(report?.field, "Ação primária");
+});
+
+Deno.test("detectFieldConflict: um vazio, outro preenchido -> reporta como conflito (ausência de valor)", () => {
+  const report = detectFieldConflict(
+    "Ação primária",
+    { value: "", source: "Design Contract" },
+    { value: "Criar worktree", source: "Specification" },
+  );
+  // Deve reportar como conflito (ausência de valor)
+  assertNotEquals(report, null);
+  assertEquals(report?.field, "Ação primária");
+});
+
+Deno.test("detectPrimaryActionConflict: um vazio, outro preenchido -> reporta como conflito", () => {
+  const report = detectPrimaryActionConflict(
+    { value: "   ", source: "Design Contract" },
+    { value: "Exportar relatório", source: "Specification — RF-03" },
+  );
+  // Deve reportar como conflito (ausência de valor em um dos lados)
+  assertNotEquals(report, null);
+  assertEquals(report?.field, "Ação primária");
+});
