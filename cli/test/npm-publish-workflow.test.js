@@ -51,11 +51,15 @@ test('a checagem de versão (mesma lógica do workflow) falha para versão já p
   // barrar o publish (exit 1).
   assert.throws(() => gate('react@18.2.0'));
 
-  // "vetor" está sem publicações no registry hoje (confirmado via `npm view
-  // vetor version` -> E404 "Unpublished"), então a versão atual de
-  // cli/package.json não existe — a checagem deve liberar o publish (exit 0).
-  const { name, version } = require('../package.json');
-  assert.doesNotThrow(() => gate(`${name}@${version}`));
+  // Usamos um nome de pacote sintético e aleatório (nunca publicado por
+  // ninguém) em vez do nome+versão reais de cli/package.json: o pacote deste
+  // projeto ("vetor") ainda não tinha sido publicado quando este teste foi
+  // escrito, mas assim que o primeiro `npm publish` real acontecer este caso
+  // passaria a falhar permanentemente contra o registry real. O gate não deve
+  // depender do estado de publicação do próprio pacote.
+  const { randomUUID } = require('node:crypto');
+  const unpublishedPkg = `vetor-npm-publish-gate-probe-${randomUUID()}@0.0.0`;
+  assert.doesNotThrow(() => gate(unpublishedPkg));
 });
 
 test('workflow publica usando NPM_TOKEN como NODE_AUTH_TOKEN', () => {

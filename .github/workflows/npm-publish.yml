@@ -1,22 +1,30 @@
 name: NPM Publish (cli)
 
-# Dispara quando uma GitHub Release é publicada. As tags `vX.Y.Z` já existentes
-# neste repo (v0.2.0, v0.2.1, v0.2.3, v1.0.0) versionam o plugin
-# (`plugin.json`), não o subpacote `cli/` (npm "vetor", hoje em 0.1.0) — por
-# isso o gatilho é `release: published`, não um filtro de tag `v*`, para não
-# disparar publish do npm em toda release do plugin.
-# `workflow_dispatch` permite rodar o job manualmente (ex.: para validar a
-# checagem de versão) sem precisar publicar uma release.
+# Dispara quando uma GitHub Release é publicada. IMPORTANTE: `release:
+# published` dispara em TODA Release do repositório, inclusive as tags
+# `vX.Y.Z` que versionam o plugin (`plugin.json`) — v0.2.0, v0.2.1, v0.2.3,
+# v1.0.0 etc. Para não publicar o npm por engano numa release do plugin, o job
+# abaixo tem um guard (`if:`) que só publica quando a tag da release segue a
+# convenção `cli-vX.Y.Z`, reservada para releases do subpacote `cli/` (npm
+# "vetor"). Releases do plugin devem continuar usando `vX.Y.Z`.
+# `workflow_dispatch` permite rodar o job manualmente sem publicar uma
+# release; por padrão roda em modo dry-run (ver input `dry_run` abaixo).
 on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry-run: valida a checagem de versão sem publicar de fato'
+        type: boolean
+        default: true
 
 # Dry-run local, sem publicar de fato (não requer NPM_TOKEN nem login):
 #   cd cli && npm publish --dry-run
 
 jobs:
   publish:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'cli-v')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -49,6 +57,13 @@ jobs:
           echo "$PKG_NAME@$PKG_VERSION ainda não publicada — prosseguindo com o publish."
 
       - name: Publica no npm
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true'
         run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publica no npm (dry-run manual)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
+        run: npm publish --dry-run
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
