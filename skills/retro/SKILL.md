@@ -33,7 +33,15 @@ Invocação manual, tipicamente ao final de uma sessão que usou uma ou mais ski
 
 ## Referências
 
-- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — ao avaliar um achado sobre
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+
+- `../shared/references/mcp-availability.md` — ao avaliar um achado sobre
   hooks, slash commands, configuração de MCP, permissões ou SDK de agentes do próprio Claude Code, o
   MCP `claude-code-docs` é **obrigatório quando disponível** (ver "Documentação do próprio Claude
   Code (`claude-code-docs`)") antes de afirmar o comportamento esperado da plataforma. Nota: há
@@ -83,7 +91,7 @@ Priorize achados que **realmente aconteceram** nesta sessão sobre problemas hip
 
 Antes de propor criação, cheque se já existe issue equivalente no repo do Vetor (não no projeto
 atual). Resolva o repo alvo lendo `homepage` (ou `repository`, se presente) de
-`$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json` — hoje `Tavaressan/Vetor`.
+`$SKILL_DIR/../../.claude-plugin/plugin.json` — hoje `Tavaressan/Vetor`.
 
 Use a CLI `gh`:
   ```bash
@@ -95,7 +103,7 @@ Se encontrar equivalente, não proponha criar de novo — anote como "já rastre
 ### 4 — Apresentar e aguardar aprovação
 
 Apresente a lista de issues candidatas (após remover duplicatas) e obtenha aprovação seguindo o
-mecanismo do ecossistema atual (`$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md`
+mecanismo do ecossistema atual (`../shared/references/planning-conventions.md`
 §2.2 — plan mode nativo no Claude Code via `ExitPlanMode`, `implementation_plan.md` com
 `request_feedback: true` no Antigravity, ou confirmação no chat).
 

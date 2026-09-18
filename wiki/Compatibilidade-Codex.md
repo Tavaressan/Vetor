@@ -29,12 +29,12 @@ esperados (fail-open, não fail-closed — os scripts saem com código 0 em JSON
 
 **Skills.** O formato é idêntico ao Claude Code (`SKILL.md` com frontmatter `name`/`description`),
 e o manifesto do plugin Codex (`.codex-plugin/plugin.json`) tem um campo `skills` que aceita
-apontar para um diretório — em tese, o mesmo `skills/` deste repositório serviria sem duplicação.
-**Na prática, isso está bloqueado**: 8 dos 9 arquivos de skill (todos exceto `fix-loop-agent`, que
-tem esse problema por dependência) referenciam `$CLAUDE_PLUGIN_ROOT` no corpo do texto, variável
-que o Codex não define. `.codex-plugin/plugin.json` **deliberadamente não declara** o campo
-`skills` até essa referência ser tornada agnóstica de runtime (issue de acompanhamento) — declarar
-teria dado falsa impressão de skills funcionais que na verdade falham ao resolver um path.
+apontar para um diretório — o mesmo `skills/` deste repositório serve sem duplicação.
+**Resolvido (issue #251):** os `SKILL.md` referenciavam `$CLAUDE_PLUGIN_ROOT` no corpo do texto,
+variável que o Codex não define — todas as referências a `skills/shared/references/*.md`,
+`scripts/*` e `templates/*` agora resolvem por path relativo ao diretório da própria skill
+(`../shared/references/...`, `../../scripts/...`), sem depender de variável de ambiente de engine
+nenhuma. `.codex-plugin/plugin.json` já declara o campo `skills` apontando para `./skills`.
 
 **Subagentes.** Definidos como arquivos TOML (`name`, `description`, `developer_instructions`,
 `model`, `sandbox_mode`, `mcp_servers`, `skills.config`) em `.codex/agents/` (projeto) ou
@@ -57,7 +57,8 @@ automatiza essa cópia.
 
 **Resumo da proteção:** guards de segurança têm parceridade estrutural com o Claude Code (mesmo
 formato de hook, mesmos scripts, cobertura de eventos igual ou maior), mas dependem de validação
-de payload não feita nesta investigação. Skills não funcionam sem edição prévia. Subagentes
+de payload não feita nesta investigação. Skills funcionam sem edição prévia — os `SKILL.md` são
+agnósticos de engine desde a issue #251. Subagentes
 funcionam, mas sem tool allowlist e sem isolamento de worktree garantido por hook — a mesma classe
 de risco documentada para o Antigravity (issue #57: cwd mal resolvido contaminando a raiz
 compartilhada), só que sem o guard `PreToolUse` de escrita fora do worktree para pegar o caso,
