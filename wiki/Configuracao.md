@@ -12,7 +12,7 @@ Tudo aqui é opcional — o Vetor funciona sem nenhuma dessas etapas, mas elas r
 - Git com suporte a worktrees (`git worktree`)
 - *(opcional)* Node/`npx` — necessário apenas para o MCP `chrome-devtools`
 - *(opcional)* Docker com o plugin `docker mcp` — necessário apenas para o MCP `docker`
-- *(opcional)* `agy` CLI no PATH para delegação de tarefas ao Gemini
+- *(opcional)* `agy`/`opencode`/`codex` CLI no PATH para delegação agnóstica de runtime
 
 ## Testes por projeto
 
@@ -83,6 +83,8 @@ Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do pr
       "Bash(git worktree remove:*)",
       "Bash(git worktree list:*)",
       "Bash(agy:*)",
+      "Bash(opencode:*)",
+      "Bash(codex:*)",
       "Bash(deno run:*)",
       "Bash(deno task:*)",
       "Bash(deno test:*)",
@@ -105,15 +107,15 @@ Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do pr
 ```
 </details>
 
-## Delegação ao Gemini
+## Delegação de tarefas a um runtime externo (agnóstica de provedor)
 
-Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco ao CLI `agy` (Google Antigravity/Gemini CLI), seguindo o padrão **Gemini rascunha, Claude valida**:
+Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco a um CLI externo de IA disponível (Gemini/`agy`, OpenCode/`opencode`, Codex/`codex`), seguindo o padrão **o runtime delegado rascunha, Claude valida**. A escolha do runtime é dinâmica: disponibilidade no PATH × preferência configurada em `.claude/vetor/config.json` (`delegation.preferredRuntime`) × anuência explícita do usuário quando houver 2+ candidatos disponíveis e nenhuma preferência registrada.
 
 - Resumir logs de CI longos antes do diagnóstico (`worktree-ship`, `fix-loop`)
 - Rascunhar corpos de issue (`backlog`)
 - Rascunhar mensagens de commit e relatórios (`guardian`)
 
-É **totalmente opcional**: se `agy` não estiver no PATH, as skills fazem tudo inline. Correção de código, resolução de conflito e decisão de merge **nunca** são delegadas — ficam sempre com o Claude. Detalhes em `skills/shared/references/delegate-to-gemini.md`.
+É **totalmente opcional**: se nenhum dos CLIs estiver no PATH, as skills fazem tudo inline. Qualquer falha do CLI delegado (não só ausência do binário) também cai para o caminho inline, sem retry. Correção de código, resolução de conflito e decisão de merge **nunca** são delegadas — ficam sempre com o Claude. Detalhes em `skills/shared/references/delegate-to-runtime.md`.
 
 ---
 

@@ -1,0 +1,192 @@
+---
+name: spec-validate
+description: Valida a qualidade de uma Spec (RF/RNF, Acceptance Criteria, Non-Goals, Edge Cases) contra o Quality Model do Vetor — score 0-100 ponderado por dimensão e Quality Gate (READY/NEEDS_REFINEMENT/INCOMPLETE) — e reporta Strengths/Gaps/Suggestions.
+license: MIT
+compatibility: Claude Code, OpenCode, Codex, Antigravity
+metadata:
+  author: vitortavares
+  version: "1.0.0"
+---
+
+Você é a skill de validação de qualidade de Specs do Vetor (Handoff #203). Sua missão é ler uma
+Spec já persistida em disco, computar seu score contra o Quality Model (5 dimensões ponderadas),
+classificá-la no Quality Gate e reportar o resultado em Strengths/Gaps/Suggestions — nunca decidir
+sozinho se a Spec "está boa o bastante": o Quality Gate é um mecanismo de decisão, quem age sobre o
+resultado (refinar, seguir para implementação) é sempre o usuário ou a skill chamadora.
+
+O Quality Model, o Quality Gate, a estrutura de saída (Score/Status/Strengths/Gaps/Suggestions —
+#220), os dimension checkers heurísticos (#221: Must sem Acceptance Criteria, termos vagos sem
+métrica mensurável, `⚠️ ABERTO` explícito vs. omissão silenciosa, Non-Goals ausente, Edge Cases
+contextuais), o feedback estruturado por gap (`location`/`problem`/`impact`/`suggestedAction`), o
+Quality Report em Markdown persistido separado da Spec e o refinamento iterativo com limite de 3
+ciclos (#222) já estão completos e operacionais. O formato de metadados de rastreabilidade por
+requisito (`id`/`priority`/`status`) e o Decision Log (#223) também estão preparados — ver
+`references/traceability.md` —, mas **sem** integração real com Coordinator/Guardian: essa
+integração é infraestrutura futura, não código funcional desta skill.
+
+---
+
+## Sintaxe
+
+```
+/vetor:spec-validate <path>
+```
+
+- `<path>`: caminho (relativo ao repositório) de uma Spec em markdown já persistida em disco (ex.:
+  `docs/specs/authentication.md`).
+
+Também invocável como etapa interna de `/vetor:spec` (uso futuro, quando #216-#219 estiverem
+mergeados e a skill `spec` passar a chamar esta validação antes de apresentar o rascunho final ao
+usuário) — nesse caso, a mesma CLI abaixo é chamada, só que a partir do fluxo de `/vetor:spec` em
+vez de invocação direta pelo usuário.
+
+---
+
+## Referências
+
+> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
+> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ```bash
+> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
+> ```
+> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+
+- `../../scripts/spec-validate.ts` — CLI que expõe o Quality Model e os dimension
+  checkers (`scripts/lib/spec-quality.ts`, `scripts/lib/spec-quality-checkers.ts`,
+  `scripts/lib/spec-parser.ts`). Uma `SKILL.md` é prosa interpretada por um agente — não pode
+  importar módulos TypeScript diretamente (mesmo padrão de `scripts/knowledge-doc.ts` para
+  `skills/spec/SKILL.md`).
+- `templates/spec.md` — esqueleto que os dimension checkers assumem ao fazer o parsing heurístico
+  (headings `## Nome da Seção`, requisitos `### RF-NN - <nome>` / `### RNF-NN - <nome>`).
+- `references/traceability.md` — formato de metadados de
+  requisito (`id`/`priority`/`status`), Decision Log (`DEC-NN`) e os pontos de extensão futuros
+  para Coordinator (RF→Task) e Guardian (Spec Drift) — #223, preparação sem integração real.
+
+---
+
+## Comportamento
+
+### 1 — Rodar o Quality Model
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/spec-validate.ts" <path> [--config <path-do-config>] [--history <path>]
+```
+
+- `<path>`: obrigatório — path para a Spec em markdown.
+- `--config`: opcional — path para `.claude/vetor/config.json` (default), de onde os thresholds do
+  Quality Gate são lidos (ver passo 3). Path inexistente/config sem a chave usam os thresholds
+  default.
+- `--history`: opcional — sobrescreve onde o histórico de validação é persistido (default:
+  derivado da raiz do repositório git + path da Spec, `<git-toplevel>/.claude/vetor/specs/
+  <slug>.validation.json` — não do cwd do processo, para que duas invocações a partir de
+  subdiretórios diferentes do mesmo checkout encontrem o mesmo histórico). Use só em cenário de
+  teste/automação; em uso normal, deixe o CLI derivar o path sozinho.
+
+O CLI lê a Spec, faz o parsing heurístico (`spec-parser.ts`), roda os 5 dimension checkers
+(`spec-quality-checkers.ts`) e agrega o resultado no Quality Model (`spec-quality.ts`), imprimindo
+o Quality Report em Markdown na saída padrão (`spec-quality-report.ts`). Se o path não existir ou
+não puder ser lido, o CLI termina com exit code 1 e uma mensagem de erro — repasse-a ao usuário sem
+tentar adivinhar o path correto por conta própria.
+
+### 2 — Quality Model
+
+Score final é `0-100`, soma ponderada de 5 dimensões (`DIMENSION_WEIGHTS` em `spec-quality.ts`,
+#203 §2):
+
+| Dimensão     | Peso |
+| ------------ | ---: |
+| Completeness |   30 |
+| Testability  |   25 |
+| Clarity      |   20 |
+| Scope        |   15 |
+| Edge Cases   |   10 |
+
+Cada dimensão é avaliada por um checker independente que devolve uma fração `0-1` de quanto foi
+satisfeita; o score da dimensão é `fraction × peso`, arredondado. A soma das 5 dimensões nunca
+ultrapassa 100.
+
+### 3 — Quality Gate
+
+Classificação operacional a partir do score (`gateFor` em `spec-quality.ts`, #203 §3):
+
+```text
+80-100 → READY
+60-79  → NEEDS_REFINEMENT
+0-59   → INCOMPLETE
+```
+
+Os thresholds são configuráveis via `.claude/vetor/config.json`:
+
+```json
+{
+  "specValidate": {
+    "thresholds": { "ready": 80, "needsRefinement": 60 }
+  }
+}
+```
+
+Um override parcial (ex.: só `ready`) preserva o default para o campo omitido — nunca assuma que a
+ausência de `specValidate` no config é um erro, é o caso comum (default aplicado silenciosamente).
+
+### 4 — Apresentar o resultado
+
+Reproduza o Quality Report emitido pelo CLI ao usuário — não resuma nem edite os números nem os
+gaps. Cada gap listado já vem estruturado (`location`/`problem`/`impact`/`suggestedAction`, #203
+§9) — nunca substitua esse detalhe por uma frase genérica tipo "a Spec precisa melhorar". O relato
+sempre inclui, no mínimo:
+
+```
+Score: <N>/100
+Status: <READY|NEEDS_REFINEMENT|INCOMPLETE>
+
+## Strengths
+...
+
+## Gaps
+- **<location>**: <problem>
+  - Impact: <impact>
+  - Suggested action: <suggestedAction>
+
+## Suggestions
+...
+```
+
+### 5 — Refinamento iterativo (limite de 3 ciclos)
+
+Quando `Status` for `NEEDS_REFINEMENT` ou `INCOMPLETE`, o ciclo `validate → gaps → refine →
+validate` (#203 §10) pode se repetir **no máximo 3 vezes** (`MAX_REFINEMENT_CYCLES` em
+`spec-quality-report.ts`) além da validação inicial:
+
+1. Rode o passo 1. Se `Status` for `READY`, pare — não há necessidade de refinar.
+2. Caso contrário, aplique **uma** correção objetiva a partir de um `Gap` do relatório (edite a
+   Spec você mesmo ou peça ao usuário, conforme o contexto de quem chamou esta skill).
+3. Rode o passo 1 de novo, **sempre com o mesmo `<path>`** (o CLI deriva o mesmo arquivo de
+   histórico automaticamente a partir do path da Spec — não passe `--history` em uso normal).
+4. O Quality Report da segunda chamada em diante inclui `## Refinement History` com a evolução do
+   score (ex.: `54 → 71 → 84`). Repita os passos 2-3 até `READY` ou até o CLI imprimir a mensagem de
+   limite de ciclos atingido.
+5. Se o CLI sinalizar que o limite foi atingido, **pare** — não invente uma 5ª validação. Informe ao
+   usuário que a Spec precisa de revisão manual; esta skill nunca decide sozinha refinar além do
+   limite.
+
+---
+
+## Restrições
+
+- Nunca decida sozinho que uma Spec `NEEDS_REFINEMENT`/`INCOMPLETE` pode seguir para implementação
+  mesmo assim — o Quality Gate é informativo para quem decide (usuário ou skill chamadora), não uma
+  trava automática nesta versão.
+- Nunca edite a Spec original a partir desta skill fora do ciclo de refinamento explícito do passo
+  5 — validação é somente leitura por padrão; qualquer edição fora desse ciclo é responsabilidade
+  de quem chamou (`/vetor:spec` ou o usuário diretamente).
+- Nunca invente um score, gate ou gap fora do que o CLI (`scripts/spec-validate.ts`) reportou.
+- Nunca substitua o `problem`/`impact`/`suggestedAction` de um gap por uma frase genérica — o
+  Handoff #203 §9 proíbe explicitamente saída tipo "Spec precisa ser melhorada" sem especificar
+  location/problem/impact/ação.
+- Nunca trate a ausência de `specValidate.thresholds` no config como erro — é o caso default,
+  silenciosamente resolvido para `{ ready: 80, needsRefinement: 60 }`.
+- Nunca ultrapasse `MAX_REFINEMENT_CYCLES` (3) ciclos de refinamento automático — ao atingir o
+  limite, pare e escale para revisão manual em vez de insistir em mais uma tentativa.
+- Nunca escreva o Quality Report dentro do arquivo da Spec — ele é sempre persistido separado
+  (`scripts/lib/spec-quality-persistence.ts`), nunca misturado ao conteúdo da Spec.
