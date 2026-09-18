@@ -27,11 +27,35 @@ test('workflow de publish no npm existe e dispara em release published', () => {
   assert.match(content, /workflow_dispatch/);
 });
 
-test('workflow falha se a versão do cli/package.json já existir no registry', () => {
+test('workflow declara a checagem de versão existente antes do publish', () => {
   const content = fs.readFileSync(workflowPath, 'utf8');
 
   assert.match(content, /npm view/);
   assert.match(content, /exit 1/);
+});
+
+test('a checagem de versão (mesma lógica do workflow) falha para versão já publicada e passa para versão inexistente', () => {
+  const { execSync } = require('node:child_process');
+
+  // Duplica a condição usada no step "Falha se a versão já existir no
+  // registry" do workflow (não faz parsing do YAML — o snippet é curto e
+  // manter as duas cópias em sincronia é mais simples do que extrair e
+  // reexecutar shell parseado a partir do YAML).
+  const gate = (pkgAtVersion) =>
+    execSync(
+      `EXISTING=$(npm view "${pkgAtVersion}" version 2>/dev/null || true); if [ -n "$EXISTING" ]; then exit 1; fi; exit 0`,
+      { shell: 'bash', encoding: 'utf8' },
+    );
+
+  // react@18.2.0 é uma versão real e estável já publicada — a checagem deve
+  // barrar o publish (exit 1).
+  assert.throws(() => gate('react@18.2.0'));
+
+  // "vetor" está sem publicações no registry hoje (confirmado via `npm view
+  // vetor version` -> E404 "Unpublished"), então a versão atual de
+  // cli/package.json não existe — a checagem deve liberar o publish (exit 0).
+  const { name, version } = require('../package.json');
+  assert.doesNotThrow(() => gate(`${name}@${version}`));
 });
 
 test('workflow publica usando NPM_TOKEN como NODE_AUTH_TOKEN', () => {
