@@ -48,8 +48,14 @@ Deno.test("prepareDeps grava marcador quando npm ci falha (sem package-lock.json
   const worktreePath = await Deno.makeTempDir();
 
   try {
-    // package.json sem package-lock.json: `npm ci` falha de imediato, sem rede.
-    await Deno.writeTextFile(`${sourceDir}/package.json`, JSON.stringify({ name: "fixture" }));
+    // package.json também no worktree (como num checkout real de `git worktree add`), sem
+    // lockfile: `npm ci` falha de imediato, sem rede. Sem o package.json no worktreePath, o
+    // `npm ci` roda em cwd vazio e o npm resolve o localPrefix subindo a árvore de diretórios —
+    // podendo achar um package.json de um ancestral do temp dir e sair com código 0, tornando
+    // este teste dependente de arquivos preexistentes fora do repositório (issue #262).
+    const pkg = JSON.stringify({ name: "fixture" });
+    await Deno.writeTextFile(`${sourceDir}/package.json`, pkg);
+    await Deno.writeTextFile(`${worktreePath}/package.json`, pkg);
 
     await prepareDeps(worktreePath, sourceDir);
 
