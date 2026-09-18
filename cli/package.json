@@ -1,0 +1,34 @@
+{
+  "name": "vetor",
+  "version": "0.1.0",
+  "description": "Instalador do Vetor: automação de workflow de desenvolvimento (skills para Claude Code, Codex e outras engines).",
+  "bin": {
+    "vetor": "bin/vetor.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "templates/"
+  ],
+  "keywords": [
+    "claude-code",
+    "codex",
+    "cli",
+    "installer",
+    "automation",
+    "skills"
+  ],
+  "license": "MIT",
+  "author": "Vitor Tavares Chaves",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tavaressan/Vetor.git",
+    "directory": "cli"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

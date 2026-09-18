@@ -10,11 +10,13 @@ Revise os comandos: eles são executados de forma headless pelo `fix-loop-agent`
 | Módulo | Comando headless | Notas |
 |--------|------------------|-------|
 | `root` | `deno task test` | Módulo raiz |
+| `cli` | `cd cli && npm test` | Subpacote npm (`cli/`), primeira dependência Node/npm do projeto (issue #252) |
 
 ## Detecção de módulo por arquivos alterados
 
 | Prefixo do path | Módulo |
 |-----------------|--------|
+| `cli/` | `cli` |
 | `./` | `root` |
 
 ## Regras de execução
