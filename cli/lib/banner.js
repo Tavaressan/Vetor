@@ -15,9 +15,9 @@ const RESET = '\x1b[0m';
 
 function printBanner() {
   for (const line of BANNER_LINES) {
-    console.log(`${CYAN}${line}${RESET}`);
+    console.info(`${CYAN}${line}${RESET}`);
   }
-  console.log('');
+  console.info('');
 }
 
 module.exports = { printBanner, BANNER_LINES };

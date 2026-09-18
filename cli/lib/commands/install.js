@@ -12,12 +12,12 @@ function install(cwd = process.cwd()) {
   const claudeDetected = fs.existsSync(path.join(cwd, '.claude'));
 
   if (claudeDetected) {
-    console.log('Engine detectada: Claude Code (.claude/ encontrado).');
+    console.info('Engine detectada: Claude Code (.claude/ encontrado).');
   } else {
-    console.log('Nenhuma engine detectada no diretório atual.');
+    console.info('Nenhuma engine detectada no diretório atual.');
   }
 
-  console.log('Detecção completa de engines e instalação interativa chegam em issue futura.');
+  console.info('Detecção completa de engines e instalação interativa chegam em issue futura.');
 }
 
 module.exports = { install };

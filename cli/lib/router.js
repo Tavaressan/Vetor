@@ -13,11 +13,11 @@ const COMMANDS = {
 
 function printHelp() {
   printBanner();
-  console.log('Uso: vetor <comando>');
-  console.log('');
-  console.log('Comandos:');
+  console.info('Uso: vetor <comando>');
+  console.info('');
+  console.info('Comandos:');
   for (const [name, { description }] of Object.entries(COMMANDS)) {
-    console.log(`  ${name.padEnd(12)} ${description}`);
+    console.info(`  ${name.padEnd(12)} ${description}`);
   }
 }
 

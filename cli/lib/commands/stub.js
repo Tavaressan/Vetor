@@ -7,7 +7,7 @@
  */
 function makeStub(name) {
   return function stub() {
-    console.log(`vetor ${name}: ainda não implementado.`);
+    console.info(`vetor ${name}: ainda não implementado.`);
   };
 }
 
