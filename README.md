@@ -1,5 +1,9 @@
 # Vetor
 
+<div align="center">
+  <img src="assets/logo.png" alt="Vetor Logo" width="400" />
+</div>
+
 Plugin de skills para automação de workflow de desenvolvimento no Claude Code. **Agnóstico a projeto** — instale uma vez e use em qualquer repositório.
 
 Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix autônomo → ship → guarda**.
