@@ -1,0 +1,54 @@
+name: NPM Publish (cli)
+
+# Dispara quando uma GitHub Release é publicada. As tags `vX.Y.Z` já existentes
+# neste repo (v0.2.0, v0.2.1, v0.2.3, v1.0.0) versionam o plugin
+# (`plugin.json`), não o subpacote `cli/` (npm "vetor", hoje em 0.1.0) — por
+# isso o gatilho é `release: published`, não um filtro de tag `v*`, para não
+# disparar publish do npm em toda release do plugin.
+# `workflow_dispatch` permite rodar o job manualmente (ex.: para validar a
+# checagem de versão) sem precisar publicar uma release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Dry-run local, sem publicar de fato (não requer NPM_TOKEN nem login):
+#   cd cli && npm publish --dry-run
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Não há package-lock.json em cli/ (sem dependências ainda), então
+      # `npm ci` não se aplica.
+      - name: Instala dependências
+        run: npm install
+
+      - name: Roda a suíte de testes do pacote
+        run: npm test
+
+      - name: Falha se a versão já existir no registry
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          EXISTING=$(npm view "$PKG_NAME@$PKG_VERSION" version 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            echo "::error::$PKG_NAME@$PKG_VERSION já existe no npm registry. Faça bump da versão em cli/package.json antes de publicar."
+            exit 1
+          fi
+          echo "$PKG_NAME@$PKG_VERSION ainda não publicada — prosseguindo com o publish."
+
+      - name: Publica no npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
