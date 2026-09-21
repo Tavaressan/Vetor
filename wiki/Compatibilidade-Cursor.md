@@ -81,53 +81,117 @@ parser do Cursor diante de campos desconhecidos **não foi verificado contra uma
 (inferido por analogia ao padrão "campos extras ignorados" confirmado para skills, não confirmado
 para agents especificamente).
 
-## Hooks — formato camelCase, schema de payload confirmado, mas caminho de destino incompatível com o writer atual
+## Hooks — traduzidos em tempo de instalação para o schema e caminho reais do Cursor (issue #284)
 
-Confirmado em `cursor.com/docs/hooks`: hooks vivem em `hooks.json` (JSON, `stdin`/`stdout`, exit
-code `2` bloqueia — "This matches Claude Code behavior for compatibility"), com **nomes de evento em
-camelCase** (`preToolUse`, `postToolUse`, `beforeShellExecution`, `afterShellExecution`,
+Confirmado diretamente em `cursor.com/docs/hooks.md` e
+`cursor.com/docs/reference/third-party-hooks.md` (buscados via `curl` nesta investigação — as
+duas páginas servem Markdown limpo no sufixo `.md`, ao contrário do que a investigação da issue
+#256 presumiu ao concluir "sem acesso à internet nesta máquina"; ambiente de execução, não
+limitação de rede real).
+
+**Schema confirmado** (`cursor.com/docs/hooks#configuration`):
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "<eventoCamelCase>": [
+      { "command": "<script>", "matcher": "<regex opcional>", "timeout": 30 }
+    ]
+  }
+}
+```
+
+`version` é obrigatório (inteiro, hoje sempre `1`). Cada entrada de evento é um **array plano**
+de `{command, matcher?, timeout?, type?, loop_limit?, failClosed?}` — diferente do Claude Code,
+que aninha `hooks[].hooks[]` (um nível de `matcher` por fora, um array de `{type,command}` por
+dentro). Nomes de evento em **camelCase**: `preToolUse`, `postToolUse`, `postToolUseFailure`,
+`beforeShellExecution`, `afterShellExecution`, `beforeMCPExecution`, `afterMCPExecution`,
 `beforeReadFile`, `afterFileEdit`, `subagentStart`, `subagentStop`, `beforeSubmitPrompt`,
 `preCompact`, `stop`, `sessionStart`, `sessionEnd`, `afterAgentResponse`, `afterAgentThought`,
-`workspaceOpen`) — cobertura de eventos maior que Codex e OpenCode, mas **payload por evento
-diferente do Claude Code** (ex.: `beforeShellExecution` expõe `command` como campo de topo, não
-`tool_input.command` aninhado; `preToolUse` não documenta payload de entrada específico por tipo de
-tool). Achado favorável: a variável de ambiente `CLAUDE_PROJECT_DIR` é injetada automaticamente nos
-hooks do Cursor "(Claude compatibility)" — mas isso não substitui a adaptação de schema de payload
-necessária para reaproveitar `scripts/safety-check.ts`/`scripts/check-edit.ts` como estão.
+`beforeTabFileRead`, `afterTabFileEdit`, `workspaceOpen`.
 
-**Caminho de destino do arquivo, não só o formato, diverge:** hooks de projeto carregam de
-`<project-root>/.cursor/hooks.json` — um **arquivo único na raiz de `.cursor/`**, não
-`.cursor/hooks/hooks.json` (diretório). O `SOURCE_DIRS`/`installFiles()` deste repositório
-(`cli/lib/installer/writer.js`) copia `hooks/` inteiro para `<destino>/hooks/...`, sempre um
-subdiretório — uma cópia direta de `hooks/hooks.json` cairia em `.cursor/hooks/hooks.json`, onde o
-Cursor **não o descobre**. Por isso `hooks/` está em `ENGINE_EXCLUDED_SOURCE_DIRS.cursor`
-(`writer.js`) e **não é copiado** para o destino do Cursor — copiar um arquivo inerte e reportá-lo
-como `copied` seria enganoso. Esse é o mesmo tipo de gap já documentado (mas com destino diferente
-por engine: aqui, exclusão; ver comentário em `writer.js`) que existe para OpenCode (hooks são TS em
-`.opencode/plugin/*.ts`, não JSON) e para Antigravity (`.antigravity` não é sequer uma âncora
-documentada) — **decisão consciente**: tratar hooks como gap conhecido e documentado por engine em
-vez de complicar `installFiles()` com destino por-subdiretório-por-engine (YAGNI: nenhuma engine
-hoje usa o layout genérico de `hooks/` tal como o writer copia para as demais). Tradução de
-`hooks/hooks.json` para o schema de payload + caminho do Cursor (e reativação da cópia, quando isso
-existir) fica como trabalho futuro, fora do escopo desta issue.
+**Caminho de destino, confirmado**: hooks de projeto carregam de
+`<project-root>/.cursor/hooks.json` — um **arquivo único na raiz de `.cursor/`**, nunca
+`.cursor/hooks/hooks.json` (diretório).
 
-**Formato de plugin** (`cursor.com/docs/reference/plugins`): quando empacotado como *Cursor Plugin*
-(`.cursor-plugin/plugin.json`, análogo a `.codex-plugin/plugin.json`), a descoberta padrão de hooks
-*dentro do plugin* é `hooks/hooks.json` relativo à raiz do plugin — mas essa é uma rota de
-distribuição via marketplace/instalação de plugin (`~/.cursor/plugins/local` ou Customize), **não**
-o mecanismo `vetor install` (cópia direta de arquivo) usado por este CLI. As duas rotas não se
-confundem: `.cursor-plugin/plugin.json` deste repositório é só um manifesto de referência para quem
-quiser instalar o Vetor como Cursor Plugin nativo (mesmo papel que `.codex-plugin/plugin.json` já
-cumpre para o Codex) — inclui apenas `skills`. `agents` fica de fora do manifesto de propósito: a
-tabela de descoberta de componentes (`cursor.com/docs/reference/plugins#cursor-plugin-component-discovery`)
-escaneia `agents/` por `.md`/`.mdc`/`.markdown`, e `agents/issue-worker.md`/`agents/code-review.md`
-deste repositório usam frontmatter do Claude Code (`tools`, `isolation`) — campos que o parser de
-agente do Cursor **não documenta reconhecer**, diferente do que está confirmado para skills (`name`/
-`description`, campos extras ignorados). Sem validar isso contra o parser real, incluir `agents` no
-manifesto do plugin seria uma alegação não verificada; o caminho `.cursor/agents/` via
-`vetor install` (writer, abaixo) já cobre a descoberta confirmada por `docs/subagents#file-locations`
-sem depender dessa inferência. `hooks` também fica de fora do manifesto até a tradução de schema ser
-feita.
+**Mapeamento de terceiros confirmado em `docs/reference/third-party-hooks.md`** (o Cursor até
+consegue carregar `.claude/settings.json` nativamente como import de terceiros, mas essa rota lê
+`.claude/settings.json`/`.claude/settings.local.json` — nunca o `.claude/hooks/hooks.json` que
+`vetor install` gera para a engine Claude Code, então não se aplica ao instalador deste
+repositório). A tabela "Hook Step Mapping" dessa página é a fonte usada pelo tradutor:
+
+| Claude Code | Cursor |
+| --- | --- |
+| `PreToolUse` | `preToolUse` |
+| `PostToolUse` | `postToolUse` |
+| `UserPromptSubmit` | `beforeSubmitPrompt` |
+| `Stop` | `stop` |
+| `SubagentStop` | `subagentStop` |
+| `SessionStart` | `sessionStart` |
+| `SessionEnd` | `sessionEnd` |
+| `PreCompact` | `preCompact` |
+
+E a tabela "Tool Name Mapping" (usada para traduzir o `matcher` de `PreToolUse`/`PostToolUse`,
+que no Cursor filtra pelo vocabulário de tool do Cursor, não do Claude Code): `Bash` → `Shell`,
+`Read` → `Read`, `Write` → `Write`, `Edit` → `Write` (o Cursor não distingue edição de escrita
+nova), `Grep` → `Grep`, `Task` → `Task`.
+
+### Implementação
+
+`cli/lib/installer/cursor-hooks.js` exporta `translateHooksForCursor(sourceHooksJson)`: lê
+`hooks/hooks.json` (fonte agnóstica), traduz nomes de evento e achata `matcher`/`hooks[]`
+aninhado no formato plano do Cursor, incluindo a tradução do `matcher` de tool via
+`TOOL_NAME_MAP` (com dedupe — `Bash|Edit|Write` vira `Shell|Write`, não `Shell|Write|Write`).
+`validateCursorHooksSchema(hooksJson)` valida o resultado contra os nomes de evento documentados
+e a obrigatoriedade de `command`/tipos de `timeout`/`matcher` — sem depender de lib externa (este
+pacote não tem dependências de runtime).
+
+`cli/lib/installer/writer.js` (`installCursorHooks`) chama essa tradução para a engine `cursor`
+em vez do loop genérico de cópia byte-a-byte, e grava o resultado em `.cursor/hooks.json`
+(arquivo único). `ENGINE_EXCLUDED_SOURCE_DIRS.cursor` foi removido — a exclusão só existia
+porque a cópia bruta anterior era inerte, e isso deixou de ser verdade. O manifesto de
+idempotência (`.vetor/install-manifest.json`) guarda o hash do **conteúdo traduzido**, não da
+fonte, para que a segunda `vetor install` continue reconhecendo o arquivo como gerenciado por
+este instalador (uma comparação contra o hash da fonte nunca bateria, gerando falso
+`user-modified` para sempre).
+
+### Gaps confirmados, mantidos conscientemente (não silenciados)
+
+- **`WorktreeCreate` sem equivalente no Cursor** (mesma classe de gap já documentada para o
+  Codex, `wiki/Compatibilidade-Codex.md`): não existe evento de hook de "worktree acabou de ser
+  criado" na doc do Cursor. `translateHooksForCursor` descarta o evento e reporta em `dropped`
+  (`{event: "WorktreeCreate", reason: "no-cursor-equivalent"}`) — não é copiado, não aparece no
+  `.cursor/hooks.json` gerado.
+- **Matcher de `SubagentStop` não é traduzível com fidelidade semântica.** No Claude Code, o
+  matcher `vetor:issue-worker` filtra por *nome* de subagente (definido em
+  `agents/issue-worker.md`). No Cursor, o matcher de `subagentStop` filtra por
+  **`subagent_type`**, um enum fixo (`generalPurpose`, `explore`, `shell`, ...) sem conceito de
+  nome customizado — não há como expressar "só para o subagente issue-worker" no schema nativo do
+  Cursor. `translateHooksForCursor` mantém o hook (`check-status.ts` continua rodando), mas
+  **remove o matcher**, reportando o gap (`{event: "SubagentStop", reason:
+  "matcher-not-translatable"}`). Consequência prática: no Cursor, `check-status.ts` roda para
+  **qualquer** término de subagente, não só issue-worker — aceitável porque o próprio script
+  resolve o worktree pelo `cwd`/`agent_id` do payload e não bloqueia quando não há
+  correspondência (`scripts/lib/status.ts`), mas é uma diferença de comportamento real, não só de
+  nomenclatura.
+- **`${CLAUDE_PLUGIN_ROOT}` não é substituído.** Os comandos traduzidos preservam a variável
+  literal (`deno run -A "${CLAUDE_PLUGIN_ROOT}/scripts/safety-check.ts"`), mas o Cursor **não
+  define** essa variável — só `CURSOR_PROJECT_DIR`/`CLAUDE_PROJECT_DIR` (raiz do projeto, "Claude
+  compatibility") e outras variáveis de sessão (`cursor.com/docs/hooks#environment-variables`).
+  Isso não é um gap novo desta tradução: `SOURCE_DIRS` em `writer.js` (`['skills', 'agents',
+  'hooks']`) nunca copiou `scripts/` para o projeto-alvo, para **nenhuma** engine — o hook
+  traduzido para o Cursor tem o mesmo problema de resolução de path que o `.claude/hooks.json`
+  gerado para a própria engine Claude Code via `vetor install` já tinha antes desta issue.
+  Resolver a distribuição de `scripts/` para o projeto-alvo é trabalho futuro, fora do escopo de
+  #284 (não é um gap específico do Cursor).
+- **Rota "Cursor Plugin" (`.cursor-plugin/plugin.json`) continua sem `hooks`.** A tradução acima
+  serve só à rota `vetor install` (cópia direta de arquivo). Quando empacotado como *Cursor
+  Plugin* (`cursor.com/docs/reference/plugins`, descoberta padrão de hooks em `hooks/hooks.json`
+  relativo à raiz do plugin — formato bruto do Claude Code, não o nativo do Cursor), o manifesto
+  de referência deste repositório (`.cursor-plugin/plugin.json`) segue incluindo só `skills`;
+  adicionar `hooks` a essa rota exigiria descobrir se o carregador de plugin do Cursor também
+  espera o schema nativo ali (não verificado) — fora do escopo desta issue.
 
 ## CLI e detecção
 
@@ -166,10 +230,9 @@ diretório `.cursor/` cobre esse caso de qualquer forma).
 
 `ENGINE_DEST_DIR.cursor = '.cursor'`. `skills/` e `agents/` copiados por `installFiles()` funcionam
 **sem tradução** (`.cursor/skills/...`, `.cursor/agents/...` — ambos confirmados como caminhos de
-descoberta nativa). `hooks/` está em `ENGINE_EXCLUDED_SOURCE_DIRS.cursor` e **não é copiado** para
-o destino do Cursor — o caminho que `installFiles()` produziria (`.cursor/hooks/...`) não é
-descoberto pelo Cursor (ver seção Hooks acima), então copiar e reportar como `copied` seria
-enganoso. Limitação conhecida, documentada no comentário do writer, não escondida do usuário.
+descoberta nativa). `hooks/hooks.json` é **traduzido** (não copiado bruto) para
+`.cursor/hooks.json` via `installCursorHooks`/`translateHooksForCursor` — ver seção Hooks acima
+para o schema, o mapeamento de eventos/tools e os gaps conhecidos (issue #284).
 
 ## Resumo da confiança por componente
 
@@ -179,12 +242,14 @@ enganoso. Limitação conhecida, documentada no comentário do writer, não esco
 | `.cursorrules` legado/deprecado | Confirmado via docs oficiais | `cursor.com/help/customization/rules` |
 | Skills em `.cursor/skills/` + compat `.claude/skills/`/`.codex/skills/` | Confirmado via docs oficiais | `cursor.com/docs/skills` |
 | Subagentes em `.cursor/agents/` + compat `.claude/agents/`/`.codex/agents/` | Confirmado via docs oficiais | `cursor.com/docs/subagents` |
-| Schema de payload de hooks (camelCase, campos por evento) | Confirmado via docs oficiais | `cursor.com/docs/hooks` |
+| Schema de `.cursor/hooks.json` (`version`, array plano `{command,matcher,timeout}` por evento) | Confirmado via docs oficiais, buscadas via `curl` | `cursor.com/docs/hooks#configuration` |
 | Caminho `.cursor/hooks.json` (arquivo único, não diretório) | Confirmado via docs oficiais | `cursor.com/docs/hooks#configuration` |
+| Mapeamento de nomes de evento e de tool (Claude Code → Cursor) usado por `translateHooksForCursor` | Confirmado via docs oficiais | `cursor.com/docs/reference/third-party-hooks` |
+| Tradução de `hooks/hooks.json` → `.cursor/hooks.json` (`cli/lib/installer/cursor-hooks.js`) validada contra o schema documentado | Confirmado — teste automatizado (`cli/test/installer-cursor-hooks.test.js`) | `cursor.com/docs/hooks` |
 | Comportamento do parser do Cursor diante de campos de frontmatter desconhecidos em `agents/*.md` (`tools`, `isolation`) | **Não confirmado** — inferido por analogia ao padrão de skills | — |
 | `agent`/`cursor-agent` como symlinks do mesmo binário | Confirmado via script de instalação real | `cursor.com/install` |
 | Schema de `.cursor-plugin/plugin.json` (campo `skills` como string/array de path relativo) | Confirmado via docs oficiais | `cursor.com/docs/reference/plugins` |
-| **Instalação end-to-end validada contra o Cursor real instalado** | **Não feito nesta investigação** — sem Cursor/CLI instalado nesta máquina | — |
+| **Instalação end-to-end validada contra o Cursor real instalado** (incluindo o `.cursor/hooks.json` traduzido de fato bloqueando uma ação) | **Não feito nesta investigação** — sem Cursor/CLI instalado nesta máquina | — |
 
 ## Teste manual pendente
 
@@ -202,7 +267,13 @@ projeto, de fato reconhece o que foi gerado. Procedimento para quem for validar 
 4.  Abra **Customize** e confirme que os subagentes (`.cursor/agents/*.md`) aparecem, mesmo com os
     campos `tools`/`isolation` extras no frontmatter (confirmar se são ignorados ou causam erro de
     parse — ponto não verificado nesta investigação, ver tabela acima).
-5.  Registre desvios encontrados como issue de acompanhamento (mesmo padrão usado para os gaps do
+5.  Abra a aba **Hooks** em Customize e confirme que `.cursor/hooks.json` foi carregado sem erro
+    de parse, com os 4 eventos traduzidos (`preToolUse`, `postToolUse`, `subagentStop`,
+    `sessionStart`) listados. Dispare uma ação que o `safety-check.ts` bloquearia no Claude Code
+    (ex.: editar um arquivo fora do worktree esperado) e confirme que o Cursor de fato bloqueia —
+    isso depende de `${CLAUDE_PLUGIN_ROOT}` resolver no ambiente onde o Cursor roda o script, o
+    que **não é garantido pela tradução** (ver gap documentado na seção Hooks).
+6.  Registre desvios encontrados como issue de acompanhamento (mesmo padrão usado para os gaps do
     Codex e OpenCode).
 
 ---
