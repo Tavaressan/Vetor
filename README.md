@@ -1,7 +1,10 @@
 # Vetor
 
 <div align="center">
-  <img src="assets/logo.png" alt="Vetor Logo" width="400" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+    <img src="assets/logo.png" alt="Vetor Logo" width="400" />
+  </picture>
 </div>
 
 Plugin de skills para automação de workflow de desenvolvimento no Claude Code. **Agnóstico a projeto** — instale uma vez e use em qualquer repositório.

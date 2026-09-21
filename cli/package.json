@@ -1,9 +1,12 @@
 {
-  "name": "vetor",
+  "name": "@tavaressan/vetor",
   "version": "0.1.0",
   "description": "Instalador do Vetor: automação de workflow de desenvolvimento (skills para Claude Code, Codex e outras engines).",
   "bin": {
     "vetor": "bin/vetor.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "bin/",
