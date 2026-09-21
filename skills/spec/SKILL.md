@@ -435,8 +435,8 @@ Já existe uma Spec com a identidade "spec:<slug>" (<path>). O que deseja fazer?
   muda se `--status` for passado explicitamente (ex.: usuário confirmou uma transição de `draft`
   para `approved`). Também preserva qualquer linha `- Relacionado: <target>` já gravada no corpo por
   um `create-spec --link` anterior, mesmo que o novo rascunho não a mencione — `update-spec` **não
-  adiciona** um link novo durante a atualização (limitação conhecida; vincular um documento
-  relacionado depois da criação ainda não tem um comando dedicado — ver issue futura).
+  adiciona** um link novo durante a atualização (limitação conhecida: vincular um documento
+  relacionado depois da criação ainda não tem um comando dedicado).
 
   ```bash
   deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" update-spec \
