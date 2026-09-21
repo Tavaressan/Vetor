@@ -69,13 +69,20 @@ function parseAcceptanceCriteria(block: string): string[] {
  * seções "Functional/Non-Functional Requirements" — robustez contra reorganização manual). */
 function parseRequirements(text: string): ParsedRequirement[] {
   const headingRe = /^###\s+(RF|RNF)-(\d+)\s*(?:-|–)?\s*(.*)$/gm;
+  const h2Re = /^##\s+.+?\s*$/gm;
   const matches = [...text.matchAll(headingRe)];
+  // #269: o corpo de um requisito termina no próximo `### RF/RNF-` OU no próximo `## ` (H2), o que
+  // vier primeiro — sem o limite de H2, o último requisito de uma seção engolia todas as seções H2
+  // subsequentes até EOF, contaminando `raw`/`hasOpenMarker` com conteúdo de outras seções.
+  const h2Starts = [...text.matchAll(h2Re)].map((m) => m.index!);
   const requirements: ParsedRequirement[] = [];
 
   for (let i = 0; i < matches.length; i++) {
     const [, kind, num, name] = matches[i];
     const start = matches[i].index! + matches[i][0].length;
-    const end = i + 1 < matches.length ? matches[i + 1].index! : text.length;
+    const nextRequirementStart = i + 1 < matches.length ? matches[i + 1].index! : text.length;
+    const nextH2Start = h2Starts.find((idx) => idx > start) ?? text.length;
+    const end = Math.min(nextRequirementStart, nextH2Start);
     const raw = text.slice(start, end).trim();
 
     requirements.push({
