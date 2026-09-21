@@ -347,3 +347,84 @@ test('installFiles: instalação Cursor-exclusiva não cria .claude/ (manifesto 
     }
   });
 });
+
+// Issue #284, achado do advisor: translateHooksForCursor descarta eventos/matchers sem
+// equivalente fiel (WorktreeCreate, matcher de SubagentStop) e installCursorHooks calculava
+// isso mas jogava fora — a instalação nunca avisava o usuário que uma fração dos hooks não
+// tinha tradução, mesmo essa informação já existindo em memória. Este teste prova que o
+// resultado de installFiles agora carrega esses avisos.
+test('installFiles: reporta em "warnings" os eventos/matchers descartados na tradução de hooks para o Cursor', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vetor-writer-source-'));
+    try {
+      fs.mkdirSync(path.join(sourceRoot, 'hooks'), { recursive: true });
+      fs.writeFileSync(
+        path.join(sourceRoot, 'hooks', 'hooks.json'),
+        JSON.stringify({
+          hooks: {
+            SubagentStop: [
+              { matcher: 'vetor:issue-worker', hooks: [{ type: 'command', command: 'check-status' }] },
+            ],
+            WorktreeCreate: [{ hooks: [{ type: 'command', command: 'prepare-worktree' }] }],
+          },
+        }),
+      );
+
+      const { warnings } = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.ok(warnings.some((w) => w.includes('WorktreeCreate')));
+      assert.ok(warnings.some((w) => w.includes('SubagentStop')));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('installFiles: sem eventos descartados, "warnings" vem vazio', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const { warnings } = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.deepEqual(warnings, []);
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Issue #284, achado do advisor: hooks/hooks.json malformado não pode derrubar a instalação
+// inteira (skills/agents de outras engines já processadas no mesmo loop, ou até deste mesmo
+// engine se hooks/ não fosse o primeiro de SOURCE_DIRS) sem sequer chegar em writeManifest —
+// os arquivos já copiados ficariam em disco sem entrada no manifesto (permanentemente
+// "unmanaged"). JSON inválido em hooks.json vira "skipped", não uma exceção.
+test('installFiles: hooks/hooks.json malformado não derruba a instalação — reporta skipped e não impede o resto', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      fs.writeFileSync(path.join(sourceRoot, 'hooks', 'hooks.json'), '{ isto não é JSON válido');
+
+      const { copied, skipped } = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.ok(copied.includes('.cursor/skills/demo/SKILL.md'));
+      assert.ok(copied.includes('.cursor/agents/demo.md'));
+      assert.ok(!copied.includes('.cursor/hooks.json'));
+      assert.ok(skipped.some((s) => s.path === '.cursor/hooks.json' && s.reason === 'invalid-source'));
+      assert.ok(fs.existsSync(manifestPathFor(projectRoot)));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});

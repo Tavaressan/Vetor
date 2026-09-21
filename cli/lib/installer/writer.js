@@ -143,16 +143,34 @@ function writeManaged({ destFile, manifestKey, contentHash, write, engineId, man
  * para uma `sourceDir` ausente). Outros arquivos de `hooks/` (ex.: `hooks-codex.json`) não são
  * tocados — só `hooks.json` tem tradução para o Cursor.
  */
-function installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, copied, skipped }) {
+function installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, copied, skipped, warnings }) {
   const sourceFile = path.join(sourceRoot, 'hooks', 'hooks.json');
   if (!fs.existsSync(sourceFile)) return;
 
-  const sourceJson = JSON.parse(fs.readFileSync(sourceFile, 'utf8'));
-  const { hooks: translated } = translateHooksForCursor(sourceJson);
-  const content = `${JSON.stringify(translated, null, 2)}\n`;
-
   const destFile = path.join(projectRoot, destRootName, 'hooks.json');
   const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
+
+  let sourceJson;
+  try {
+    sourceJson = JSON.parse(fs.readFileSync(sourceFile, 'utf8'));
+  } catch (error) {
+    // JSON inválido na fonte não pode derrubar toda a instalação (outras engines/dirs já
+    // processados no mesmo loop perderiam a entrada no manifesto, ver writeManifest só no
+    // final de installFiles) — reporta e segue.
+    skipped.push({ path: manifestKey, reason: 'invalid-source' });
+    warnings.push(`${manifestKey}: hooks/hooks.json não é JSON válido (${error.message})`);
+    return;
+  }
+
+  const { hooks: translated, dropped } = translateHooksForCursor(sourceJson);
+  const content = `${JSON.stringify(translated, null, 2)}\n`;
+
+  for (const { event, reason } of dropped) {
+    const description = reason === 'no-cursor-equivalent'
+      ? `evento "${event}" sem equivalente no Cursor — não incluído em ${manifestKey}`
+      : `matcher de "${event}" não é traduzível com fidelidade — hook mantido em ${manifestKey}, mas sem matcher (roda para todos os casos do evento)`;
+    warnings.push(`${description} — ver wiki/Compatibilidade-Cursor.md`);
+  }
 
   writeManaged({
     destFile,
@@ -173,7 +191,9 @@ function installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, c
  * no projeto-alvo. `hooks/` para o Cursor é tratado à parte por `installCursorHooks` (issue
  * #284): não é uma cópia byte-a-byte, é uma tradução de schema + caminho de destino.
  *
- * Retorna `{ copied, skipped }` com os paths relativos ao projeto-alvo.
+ * Retorna `{ copied, skipped, warnings }` com os paths relativos ao projeto-alvo. `warnings`
+ * cobre perdas parciais que não impedem a instalação (ex.: evento de hook sem tradução fiel
+ * para uma engine, ver `installCursorHooks`) — vazio quando não há nada a avisar.
  */
 function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() } = {}) {
   if (!projectRoot) {
@@ -183,6 +203,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   const manifest = readManifest(projectRoot);
   const copied = [];
   const skipped = [];
+  const warnings = [];
 
   for (const engine of engines ?? []) {
     const destRootName = ENGINE_DEST_DIR[engine.id];
@@ -194,7 +215,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
       if (excludedSourceDirs.includes(sourceDirName)) continue;
 
       if (engine.id === 'cursor' && sourceDirName === 'hooks') {
-        installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, copied, skipped });
+        installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, copied, skipped, warnings });
         continue;
       }
 
@@ -221,7 +242,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   }
 
   writeManifest(projectRoot, manifest);
-  return { copied, skipped };
+  return { copied, skipped, warnings };
 }
 
 module.exports = {

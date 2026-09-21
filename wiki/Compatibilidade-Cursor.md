@@ -185,9 +185,16 @@ este instalador (uma comparação contra o hash da fonte nunca bateria, gerando 
 - **Guarda de escrita (`Edit`/`Write`) e correlação `agent_id` são de payload não confirmado ou
   ausente sob o Cursor.** `preToolUse` é confirmado para `tool_name: "Shell"` (`tool_input:
   {command, working_directory}`, exemplo explícito na doc), mas a doc **não mostra** o
-  `tool_input` de um `preToolUse` com `tool_name: "Write"` — `checkWrite` em `safety-check.ts`
-  depende de `tool_input.file_path`, campo cuja presença sob o Cursor não está confirmada.
-  Além disso, o payload comum a todos os hooks do Cursor (`conversation_id`, `generation_id`,
+  `tool_input` de um `preToolUse` com `tool_name: "Write"` — tanto `checkWrite` em
+  `safety-check.ts` (`PreToolUse`) quanto o diagnóstico de typecheck em `check-edit.ts`
+  (`PostToolUse`, mesmo problema: `postToolUse` também usa `tool_input`, sem exemplo documentado
+  para `Write`) dependem de `tool_input.file_path`, campo cuja presença sob o Cursor não está
+  confirmada. O impacto é assimétrico: se o campo faltar, `check-edit.ts` cai no próprio
+  `quiet()` (nenhum diagnóstico — comportamento idêntico ao de "nada para checar", sem risco);
+  já `checkWrite` faltar silenciosamente é o guard de segurança (escrita fora do worktree) não
+  bloqueando quando deveria — por isso é o ponto de maior prioridade para validar contra um
+  Cursor real (ver Teste manual pendente, passo 7). Além disso, o payload comum a todos os hooks
+  do Cursor (`conversation_id`, `generation_id`,
   `model`, `hook_event_name`, `cursor_version`, `workspace_roots`, `user_email`,
   `transcript_path` — `cursor.com/docs/hooks#common-schema`) **não inclui `agent_type` nem
   `agent_id`**, os campos que `checkFreshness`/`checkAgentBinding` usam para a segunda camada de
@@ -273,7 +280,8 @@ para o schema, o mapeamento de eventos/tools e os gaps conhecidos (issue #284).
 | Mapeamento de nomes de evento e de tool (Claude Code → Cursor) usado por `translateHooksForCursor` | Confirmado via docs oficiais | `cursor.com/docs/reference/third-party-hooks` |
 | Tradução de `hooks/hooks.json` → `.cursor/hooks.json` (`cli/lib/installer/cursor-hooks.js`) validada contra o schema documentado | Confirmado — teste automatizado (`cli/test/installer-cursor-hooks.test.js`) | `cursor.com/docs/hooks` |
 | `checkBash` (git destrutivo, push protegido, gate de PR/push não-`GREEN`) funcional sob `.cursor/hooks.json` traduzido | Confirmado — payload `preToolUse`/`Shell` documentado + teste de integração (`scripts/tests/safety-check_test.ts`, issue #284) | `cursor.com/docs/hooks#pretooluse` |
-| `checkWrite` (guarda de escrita fora do worktree) funcional sob o Cursor | **Não confirmado** — `tool_input` de `preToolUse`/`Write` não é mostrado na doc oficial | — |
+| `checkWrite` (guarda de escrita fora do worktree, `safety-check.ts`) funcional sob o Cursor | **Não confirmado** — `tool_input` de `preToolUse`/`Write` não é mostrado na doc oficial | — |
+| Diagnóstico de typecheck (`check-edit.ts`) funcional sob o Cursor | **Não confirmado** — mesma lacuna de `tool_input`/`Write`, mas fail-safe (`quiet()` sem diagnóstico, não é guard de segurança) | — |
 | `checkFreshness`/`checkAgentBinding` (correlação `agent_type`/`agent_id`, issue #63) funcionais sob o Cursor | **Confirmado como inertes** — payload comum do Cursor não tem `agent_type` nem `agent_id` | `cursor.com/docs/hooks#common-schema` |
 | Comportamento do parser do Cursor diante de campos de frontmatter desconhecidos em `agents/*.md` (`tools`, `isolation`) | **Não confirmado** — inferido por analogia ao padrão de skills | — |
 | `agent`/`cursor-agent` como symlinks do mesmo binário | Confirmado via script de instalação real | `cursor.com/install` |
