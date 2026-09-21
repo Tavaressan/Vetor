@@ -105,7 +105,10 @@ export function checkCompleteness(parsed: ParsedSpec): DimensionResult {
           problem: `${r.id} é Must mas não possui Acceptance Criteria.`,
           impact:
             "Requisito Must sem critério verificável não pode ser confirmado como implementado corretamente.",
-          suggestedAction: `Defina ao menos um Acceptance Criteria verificável para ${r.id}.`,
+          // #269: mesmo texto de `checkTestability` para o gap "sem Acceptance Criteria" — o
+          // dedup de `suggestions` em spec-quality.ts é por string exata; sem isso, os dois
+          // checkers geram duas sugestões quase-idênticas para o mesmo requisito.
+          suggestedAction: `Adicione ao menos um Acceptance Criteria verificável para ${r.id}.`,
         });
       }
     }
@@ -187,7 +190,11 @@ export function checkTestability(parsed: ParsedSpec): DimensionResult {
     total += 1;
     let score = r.acceptanceCriteria.length > 0 ? 0.5 : 0;
 
-    const vagueTerm = findUnmeasuredVagueTerm(r);
+    // #269: o crédito de "não ter termo vago" só se aplica quando há conteúdo de fato (description
+    // ou AC não-vazios) — sem isso, um requisito totalmente vazio pontuava mais que um requisito
+    // com conteúdo real mas termo vago sem métrica, já que "sem texto" também "não contém o termo".
+    const hasContent = !isBlank(r.description) || r.acceptanceCriteria.length > 0;
+    const vagueTerm = hasContent ? findUnmeasuredVagueTerm(r) : null;
     if (vagueTerm) {
       gaps.push({
         location: r.id,
@@ -196,7 +203,7 @@ export function checkTestability(parsed: ParsedSpec): DimensionResult {
         suggestedAction:
           `Substitua "${vagueTerm}" por um valor ou comportamento mensurável em ${r.id} (ex.: "em até 500ms no P95").`,
       });
-    } else {
+    } else if (hasContent) {
       score += 0.5;
     }
 
@@ -232,6 +239,23 @@ const TEMPLATE_PLACEHOLDER_RE = /<[a-zà-ú][a-zà-ú\s-]*>/i;
 const HIDDEN_OMISSION_RE = /\bTODO\b|\bTBD\b|a definir\b/i;
 
 export function checkClarity(parsed: ParsedSpec): DimensionResult {
+  // #269 (blocker): sem nenhum requisito não há nada para confirmar que lacunas foram sinalizadas
+  // explicitamente — `fraction: 0`, mesmo tratamento de `checkTestability` para o mesmo cenário.
+  // Antes, `total = Math.max(1, ...)` dava `fraction: 1` (pontuação de graça) para Spec vazia.
+  if (parsed.requirements.length === 0) {
+    return {
+      fraction: 0,
+      gaps: [{
+        location: "Functional Requirements",
+        problem: "Nenhum requisito declarado para avaliar clareza.",
+        impact: "Não há nada para confirmar que lacunas foram sinalizadas explicitamente.",
+        suggestedAction: "Adicione requisitos com decisões explícitas (ou marque lacunas com " +
+          `"${OPEN_MARKER}: <o que falta definir>").`,
+      }],
+      strengths: [],
+    };
+  }
+
   const gaps: Gap[] = [];
   const strengths: string[] = [];
 
@@ -272,7 +296,7 @@ export function checkClarity(parsed: ParsedSpec): DimensionResult {
     );
   }
 
-  const total = Math.max(1, parsed.requirements.length);
+  const total = parsed.requirements.length;
   const satisfied = total - requirementsWithIssue.size;
   return { fraction: fractionOf(satisfied, total), gaps, strengths };
 }
