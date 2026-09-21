@@ -205,6 +205,30 @@ Mapeie os tipos aos labels existentes no repo alvo, usando o primeiro da linha q
 
 Se nenhum existir, **omita** o label de tipo (mantendo `backlog`, `ai-generated` e `<módulo>`).
 
+#### 6.a.1 — Validar e criar labels obrigatórios (`backlog`, `ai-generated`)
+
+Os labels `backlog` e `ai-generated` são **mandatórios** e não têm fallback. Antes de criar as issues,
+valide sua existência e crie-os automaticamente se necessário:
+
+```bash
+gh label list --limit 100 --json name,color,description
+```
+
+Se `backlog` ou `ai-generated` **não existirem**, crie-os:
+
+```bash
+# Criar label 'backlog' se não existir
+gh label list --search "backlog" --json name | grep -q '"backlog"' || \
+  gh label create "backlog" --color "0366d6" --description "Issue do backlog — priorizadas para implementação"
+
+# Criar label 'ai-generated' se não existir
+gh label list --search "ai-generated" --json name | grep -q '"ai-generated"' || \
+  gh label create "ai-generated" --color "a2eeef" --description "Gerado automaticamente por IA (backlog-ideator, issue-coordinator, etc.)"
+```
+
+**Não pergunte ao usuário** — os labels são mandatórios pela própria skill e devem existir antes de
+criar issues. A criação é automática e não reverte.
+
 #### 6.b — Criar as issues
 
 O corpo pode ser rascunhado por um runtime disponível (ver `delegate-to-runtime.md` §4.2); revise e ancore antes de criar.
