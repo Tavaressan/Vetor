@@ -26,3 +26,4 @@ não precisa estar no caminho de quem só quer começar.
 - **[Antigravity](Compatibilidade-Antigravity.md)** — proteção reduzida; não usar `coordinator`.
 - **[OpenAI Codex](Compatibilidade-Codex.md)** — paridade estrutural de hooks, skills bloqueadas.
 - **[OpenCode](Compatibilidade-OpenCode.md)** — isolamento de worktree resolvido, `coordinator` portado.
+- **[Cursor](Compatibilidade-Cursor.md)** — skills/agentes compatíveis sem tradução (`.cursor/`), hooks com caminho/schema incompatíveis com o writer atual.
