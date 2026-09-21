@@ -33,3 +33,31 @@ test('npm pack --dry-run só empacota bin/, lib/ e templates/ (além dos implíc
   assert.ok(paths.includes('bin/vetor.js'), 'bin/vetor.js ausente do pacote');
   assert.ok(paths.includes('lib/router.js'), 'lib/router.js ausente do pacote');
 });
+
+// Issue #255 (redespacho): o teste acima só checa o prefixo "templates/" — passaria mesmo
+// com o diretório vazio (só ".gitkeep"). Este teste garante que o hook `prepack`
+// (cli/scripts/sync-templates.js) de fato populou templates/ com conteúdo real de
+// skills/agents/hooks antes do pacote ser montado, checando um arquivo concreto e
+// conhecido de cada uma das três fontes.
+test('npm pack --dry-run inclui arquivos concretos sincronizados de skills/, agents/ e hooks/ via prepack', () => {
+  const output = execFileSync('npm', ['pack', '--dry-run', '--json'], {
+    cwd: cliRoot,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  });
+  const [pkg] = JSON.parse(output);
+  const paths = pkg.files.map((file) => file.path);
+
+  assert.ok(
+    paths.includes('templates/skills/vetor/SKILL.md'),
+    'templates/skills/vetor/SKILL.md ausente do pacote — prepack não sincronizou skills/',
+  );
+  assert.ok(
+    paths.includes('templates/agents/code-review/agent.json'),
+    'templates/agents/code-review/agent.json ausente do pacote — prepack não sincronizou agents/',
+  );
+  assert.ok(
+    paths.includes('templates/hooks/hooks.json'),
+    'templates/hooks/hooks.json ausente do pacote — prepack não sincronizou hooks/',
+  );
+});

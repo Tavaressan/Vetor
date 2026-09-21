@@ -25,12 +25,32 @@ const ENGINE_DEST_DIR = {
 
 const SOURCE_DIRS = ['skills', 'agents', 'hooks'];
 
-// cli/lib/installer/writer.js -> cli/lib -> cli -> raiz do monorepo (onde skills/agents/
-// hooks vivem hoje). Ver nota de escopo no handoff: em produção (pacote npm publicado,
-// que só embarca bin/lib/templates) isso precisa apontar para `cli/templates/`, ainda não
-// populado — sincronizar `templates/` é gap de um build/publish step futuro, fora deste writer.
-function defaultSourceRoot() {
-  return path.join(__dirname, '..', '..', '..');
+// cli/lib/installer/writer.js -> cli/lib -> cli (raiz do pacote, tanto em dev quanto no
+// pacote npm publicado, onde "cli/" é achatado para a raiz do pacote).
+//
+// Decide entre a raiz do monorepo e `templates/` (populado por
+// `cli/scripts/sync-templates.js` via hook `prepack` do npm, ver #255 redespacho) por um
+// marcador, não por "templates/ tem conteúdo": `plugin.json` só existe na raiz do monorepo
+// Vetor, nunca no pacote publicado nem em node_modules de um projeto-alvo qualquer. Isso
+// evita dois problemas:
+// - Falso-positivo: checar só "skills/ existe um nível acima" arriscaria ler o `skills/`
+//   do próprio projeto-alvo do usuário como se fosse a fonte do Vetor.
+// - Deriva em dev: se a decisão fosse "usa templates/ quando tiver conteúdo", um
+//   dev editando `skills/` na raiz e rodando `vetor install` logo depois de qualquer
+//   `npm test` (que já roda o sync via prepack) leria o snapshot congelado de
+//   templates/, não a edição viva — o mesmo tipo de deriva que a automação do sync
+//   existe para evitar, só que realocada para o runtime do installer.
+// Em dev, a raiz do monorepo (sempre viva) vence. Só no pacote publicado, sem o marcador,
+// cai para `templates/`.
+//
+// `packageRoot` é injetável só para teste (evita depender do `cli/templates/` real, que
+// outros testes também sincronizam via prepack — ver sync-templates.test.js).
+function defaultSourceRoot({ packageRoot = path.join(__dirname, '..', '..') } = {}) {
+  const monorepoRoot = path.join(packageRoot, '..');
+  const isMonorepoCheckout = fs.existsSync(path.join(monorepoRoot, 'plugin.json'));
+  if (isMonorepoCheckout) return monorepoRoot;
+
+  return path.join(packageRoot, 'templates');
 }
 
 function listFilesRecursive(dir) {
