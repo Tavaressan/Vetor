@@ -99,15 +99,17 @@ necessária para reaproveitar `scripts/safety-check.ts`/`scripts/check-edit.ts` 
 `<project-root>/.cursor/hooks.json` — um **arquivo único na raiz de `.cursor/`**, não
 `.cursor/hooks/hooks.json` (diretório). O `SOURCE_DIRS`/`installFiles()` deste repositório
 (`cli/lib/installer/writer.js`) copia `hooks/` inteiro para `<destino>/hooks/...`, sempre um
-subdiretório — então mesmo com `cursor: '.cursor'` em `ENGINE_DEST_DIR`, uma cópia direta de
-`hooks/hooks.json` cairia em `.cursor/hooks/hooks.json`, onde o Cursor **não o descobre**. Esse é o
-mesmo tipo de gap já documentado (e deliberadamente não resolvido pelo writer, ver comentário em
-`writer.js`) para OpenCode (hooks são TS em `.opencode/plugin/*.ts`, não JSON) e para Antigravity
-(`.antigravity` não é sequer uma âncora documentada) — **decisão consciente**: tratar hooks como
-gap conhecido e documentado por engine em vez de complicar `installFiles()` com destino
-por-subdiretório-por-engine (YAGNI: nenhuma engine hoje usa o layout genérico de `hooks/` tal como
-o writer copia). Tradução de `hooks/hooks.json` para o schema de payload + caminho do Cursor fica
-como trabalho futuro, fora do escopo desta issue.
+subdiretório — uma cópia direta de `hooks/hooks.json` cairia em `.cursor/hooks/hooks.json`, onde o
+Cursor **não o descobre**. Por isso `hooks/` está em `ENGINE_EXCLUDED_SOURCE_DIRS.cursor`
+(`writer.js`) e **não é copiado** para o destino do Cursor — copiar um arquivo inerte e reportá-lo
+como `copied` seria enganoso. Esse é o mesmo tipo de gap já documentado (mas com destino diferente
+por engine: aqui, exclusão; ver comentário em `writer.js`) que existe para OpenCode (hooks são TS em
+`.opencode/plugin/*.ts`, não JSON) e para Antigravity (`.antigravity` não é sequer uma âncora
+documentada) — **decisão consciente**: tratar hooks como gap conhecido e documentado por engine em
+vez de complicar `installFiles()` com destino por-subdiretório-por-engine (YAGNI: nenhuma engine
+hoje usa o layout genérico de `hooks/` tal como o writer copia para as demais). Tradução de
+`hooks/hooks.json` para o schema de payload + caminho do Cursor (e reativação da cópia, quando isso
+existir) fica como trabalho futuro, fora do escopo desta issue.
 
 **Formato de plugin** (`cursor.com/docs/reference/plugins`): quando empacotado como *Cursor Plugin*
 (`.cursor-plugin/plugin.json`, análogo a `.codex-plugin/plugin.json`), a descoberta padrão de hooks
@@ -164,9 +166,10 @@ diretório `.cursor/` cobre esse caso de qualquer forma).
 
 `ENGINE_DEST_DIR.cursor = '.cursor'`. `skills/` e `agents/` copiados por `installFiles()` funcionam
 **sem tradução** (`.cursor/skills/...`, `.cursor/agents/...` — ambos confirmados como caminhos de
-descoberta nativa). `hooks/` é copiado para `.cursor/hooks/...` por consistência com as demais
-engines, mas **não é descoberto pelo Cursor** nesse caminho (ver seção Hooks acima) — limitação
-conhecida, documentada no comentário do writer, não escondida do usuário.
+descoberta nativa). `hooks/` está em `ENGINE_EXCLUDED_SOURCE_DIRS.cursor` e **não é copiado** para
+o destino do Cursor — o caminho que `installFiles()` produziria (`.cursor/hooks/...`) não é
+descoberto pelo Cursor (ver seção Hooks acima), então copiar e reportar como `copied` seria
+enganoso. Limitação conhecida, documentada no comentário do writer, não escondida do usuário.
 
 ## Resumo da confiança por componente
 

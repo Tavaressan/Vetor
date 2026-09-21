@@ -271,3 +271,32 @@ test('installFiles: outras engines continuam copiando hooks/ normalmente (exclus
     }
   });
 });
+
+// Follow-up de code-review da PR #282 (issue #256), achado #1: o manifesto vivia em
+// .claude/vetor/install-manifest.json — writeManifest fazia mkdirSync(dirname(...),
+// {recursive:true}) e criava .claude/ como efeito colateral de QUALQUER instalação,
+// poluindo detectEngines() (uma instalação "Cursor-exclusiva" passaria a reportar
+// claude-code: detected: true na próxima execução, só por causa do manifesto). Este teste
+// prova que uma instalação só-Cursor não cria .claude/ no projeto-alvo.
+test('installFiles: instalação Cursor-exclusiva não cria .claude/ (manifesto vive em .vetor/, não em .claude/vetor/)', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.ok(
+        !fs.existsSync(path.join(projectRoot, '.claude')),
+        'instalação Cursor-exclusiva não deveria criar .claude/ — isso poluiria detectEngines() ' +
+          'na próxima execução, reportando claude-code: detected: true falsamente',
+      );
+      assert.ok(fs.existsSync(manifestPathFor(projectRoot)));
+      assert.ok(manifestPathFor(projectRoot).split(path.sep).includes('.vetor'));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
