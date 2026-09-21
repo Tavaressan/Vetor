@@ -93,15 +93,30 @@ interativo disponível). Portar as 7 skills restantes (mesmo ajuste de referênc
 complexidade adicional do modelo de dispatch multi-processo) segue como trabalho futuro — igual ao
 que foi feito para o Codex.
 
-**Instalação manual** (sem marketplace de primeira classe no OpenCode — plugins/agentes/skills são
-arquivos copiados, não um pacote instalável em um comando):
+**Instalação automatizada via `vetor install` (issue #283).** `installFiles()`
+(`cli/lib/installer/writer.js`) agora copia a árvore `opencode/` inteira, achatada, para
+`.opencode/` no projeto-alvo quando o OpenCode é selecionado — equivalente ao `cp -r opencode/.
+<projeto>/.opencode/` manual documentado abaixo, mas com o mesmo controle de manifesto/update seguro
+(SHA-256 por arquivo, nunca sobrescreve edição do usuário) que as demais engines já tinham.
+`skills/`, `agents/`, `hooks/` (os SOURCE_DIRS agnósticos genéricos) são **excluídos** do destino do
+OpenCode — copiá-los produziria skills inertes (`$CLAUDE_PLUGIN_ROOT` não definido), um `agents/`
+(plural) que o OpenCode não escaneia (ele usa `agent/`, singular) e hooks em JSON onde o OpenCode
+espera plugin TS.
+
+**Verificado nesta issue contra o CLI `opencode` real instalado:** após `vetor install` com OpenCode
+selecionado, `opencode agent list` dentro do projeto-alvo lista `issue-worker (subagent)` e
+`code-review (subagent)` — confirma que o resultado da cópia é reconhecido pelo OpenCode de verdade,
+não só que o arquivo foi parar no path esperado.
+
+Depois, mescle o bloco `mcp` de `.opencode/mcp.jsonc` (copiado como referência, não fundido
+automaticamente — merge de JSON de config alheio fica fora de escopo) no `opencode.json` do
+projeto-alvo (ajuste o path do `docker-catalog.yaml` se for usar o servidor `docker`).
+
+**Instalação manual** (alternativa sem o `vetor install`, mesmo resultado):
 
 ```bash
 cp -r opencode/. <projeto-alvo>/.opencode/
 ```
-
-Depois, mescle o bloco `mcp` de `opencode/mcp.jsonc` no `opencode.json` do projeto-alvo (ajuste o
-path do `docker-catalog.yaml` se for usar o servidor `docker`).
 
 **Resumo:** isolamento de worktree por worker é **verificado e resolvido** (via `opencode run
 --dir`, testado contra o CLI real instalado). Hooks de segurança são **reais e funcionais**
