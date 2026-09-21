@@ -75,6 +75,31 @@ Deno.test("resolveThresholds aplica override parcial de specValidate.thresholds"
   assertEquals(resolved, { ready: 90, needsRefinement: DEFAULT_THRESHOLDS.needsRefinement });
 });
 
+// #269: thresholds lidos de .claude/vetor/config.json eram usados sem validação de tipo/shape —
+// um valor malformado (string, null, array, objeto sem os campos certos) era aceito sem checagem
+// e quebrava silenciosamente as comparações numéricas de `gateFor`.
+Deno.test("resolveThresholds ignora thresholds com tipo inválido e cai no default (#269)", () => {
+  assertEquals(resolveThresholds({ specValidate: { thresholds: { ready: "80" } } }), {
+    ready: DEFAULT_THRESHOLDS.ready,
+    needsRefinement: DEFAULT_THRESHOLDS.needsRefinement,
+  });
+  assertEquals(resolveThresholds({ specValidate: { thresholds: { ready: null } } }), {
+    ready: DEFAULT_THRESHOLDS.ready,
+    needsRefinement: DEFAULT_THRESHOLDS.needsRefinement,
+  });
+  assertEquals(resolveThresholds({ specValidate: { thresholds: "não é objeto" } }), DEFAULT_THRESHOLDS);
+  assertEquals(resolveThresholds({ specValidate: "não é objeto" }), DEFAULT_THRESHOLDS);
+  assertEquals(resolveThresholds("não é objeto"), DEFAULT_THRESHOLDS);
+  assertEquals(resolveThresholds([1, 2, 3]), DEFAULT_THRESHOLDS);
+});
+
+Deno.test("resolveThresholds aceita override válido mesmo ao lado de campo inválido (#269)", () => {
+  const resolved = resolveThresholds({
+    specValidate: { thresholds: { ready: 90, needsRefinement: "50" } },
+  });
+  assertEquals(resolved, { ready: 90, needsRefinement: DEFAULT_THRESHOLDS.needsRefinement });
+});
+
 Deno.test("computeQuality com todas as dimensões plenas soma 100/100 e READY", () => {
   const result = computeQuality({
     completeness: full(),

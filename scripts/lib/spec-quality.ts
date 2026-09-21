@@ -35,13 +35,30 @@ export interface VetorConfigWithSpecValidate {
   specValidate?: { thresholds?: Partial<Thresholds> };
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** #269: `ready`/`needsRefinement` só entram no override quando são de fato `number` finito — um
+ * valor malformado em `.claude/vetor/config.json` (string, null, array...) é ignorado em silêncio,
+ * caindo no default, em vez de quebrar as comparações numéricas de `gateFor`. */
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 /** Resolve os thresholds a partir da config do Vetor, com fallback para o default — os thresholds
  * são configuráveis (#203 §3: "número exato... deve ficar configurável caso a arquitetura
- * permita") via `.claude/vetor/config.json` → `specValidate.thresholds`. */
-export function resolveThresholds(
-  config: VetorConfigWithSpecValidate | null | undefined,
-): Thresholds {
-  return { ...DEFAULT_THRESHOLDS, ...(config?.specValidate?.thresholds ?? {}) };
+ * permita") via `.claude/vetor/config.json` → `specValidate.thresholds`. `config` é `unknown`
+ * (lido cru de um JSON externo) — o shape nunca é assumido sem checagem em runtime. */
+export function resolveThresholds(config: unknown): Thresholds {
+  const specValidate = isPlainObject(config) ? config.specValidate : undefined;
+  const thresholds = isPlainObject(specValidate) ? specValidate.thresholds : undefined;
+  if (!isPlainObject(thresholds)) return { ...DEFAULT_THRESHOLDS };
+
+  const overrides: Partial<Thresholds> = {};
+  if (isFiniteNumber(thresholds.ready)) overrides.ready = thresholds.ready;
+  if (isFiniteNumber(thresholds.needsRefinement)) overrides.needsRefinement = thresholds.needsRefinement;
+  return { ...DEFAULT_THRESHOLDS, ...overrides };
 }
 
 export function gateFor(score: number, thresholds: Thresholds = DEFAULT_THRESHOLDS): Gate {
