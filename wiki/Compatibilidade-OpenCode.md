@@ -103,10 +103,17 @@ OpenCode — copiá-los produziria skills inertes (`$CLAUDE_PLUGIN_ROOT` não de
 (plural) que o OpenCode não escaneia (ele usa `agent/`, singular) e hooks em JSON onde o OpenCode
 espera plugin TS.
 
-**Verificado nesta issue contra o CLI `opencode` real instalado:** após `vetor install` com OpenCode
-selecionado, `opencode agent list` dentro do projeto-alvo lista `issue-worker (subagent)` e
-`code-review (subagent)` — confirma que o resultado da cópia é reconhecido pelo OpenCode de verdade,
-não só que o arquivo foi parar no path esperado.
+**Verificado nesta issue contra o CLI `opencode` real instalado:** chamando `installFiles()`
+diretamente (mesmo código que `vetor install` executa) a partir de um checkout do monorepo, com
+OpenCode selecionado, `opencode agent list` dentro do projeto-alvo resultante lista `issue-worker
+(subagent)` e `code-review (subagent)` — confirma que o resultado da cópia é reconhecido pelo
+OpenCode de verdade, não só que o arquivo foi parar no path esperado. **Verificado só no layout de
+checkout de monorepo** (`defaultSourceRoot()` resolvendo a raiz do monorepo, via `plugin.json`) — o
+layout de pacote publicado (`templates/opencode/...`, sincronizado por
+`cli/scripts/sync-templates.js`) tem cobertura só por teste automatizado
+(`cli/test/pack.test.js`, `cli/test/sync-templates.test.js`,
+`cli/test/installer-writer.test.js`), não por execução do `opencode` real contra um pacote `npm
+pack`ado de verdade.
 
 Depois, mescle o bloco `mcp` de `.opencode/mcp.jsonc` (copiado como referência, não fundido
 automaticamente — merge de JSON de config alheio fica fora de escopo) no `opencode.json` do

@@ -37,9 +37,13 @@ test('npm pack --dry-run só empacota bin/, lib/ e templates/ (além dos implíc
 // Issue #255 (redespacho): o teste acima só checa o prefixo "templates/" — passaria mesmo
 // com o diretório vazio (só ".gitkeep"). Este teste garante que o hook `prepack`
 // (cli/scripts/sync-templates.js) de fato populou templates/ com conteúdo real de
-// skills/agents/hooks antes do pacote ser montado, checando um arquivo concreto e
-// conhecido de cada uma das três fontes.
-test('npm pack --dry-run inclui arquivos concretos sincronizados de skills/, agents/ e hooks/ via prepack', () => {
+// skills/agents/hooks/opencode antes do pacote ser montado, checando um arquivo concreto e
+// conhecido de cada uma das fontes.
+//
+// `opencode/` adicionada na issue #283: sem isso no pacote publicado,
+// `ENGINE_NATIVE_SOURCE_DIR.opencode` (writer.js) resolveria um diretório inexistente e
+// `vetor install` com OpenCode selecionado, rodando do pacote npm real, não copiaria nada.
+test('npm pack --dry-run inclui arquivos concretos sincronizados de skills/, agents/, hooks/ e opencode/ via prepack', () => {
   const output = execFileSync('npm', ['pack', '--dry-run', '--json'], {
     cwd: cliRoot,
     encoding: 'utf8',
@@ -59,5 +63,9 @@ test('npm pack --dry-run inclui arquivos concretos sincronizados de skills/, age
   assert.ok(
     paths.includes('templates/hooks/hooks.json'),
     'templates/hooks/hooks.json ausente do pacote — prepack não sincronizou hooks/',
+  );
+  assert.ok(
+    paths.includes('templates/opencode/agent/issue-worker.md'),
+    'templates/opencode/agent/issue-worker.md ausente do pacote — prepack não sincronizou opencode/',
   );
 });

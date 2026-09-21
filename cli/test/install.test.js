@@ -98,6 +98,28 @@ test('install: reporta arquivos não sobrescritos quando o writer sinaliza skipp
   });
 });
 
+// Issue #283: engine sem destino de arquivo confirmado (ex.: Antigravity) precisa ser
+// reportada ao usuário, não silenciosamente ignorada — ver `enginesSkipped` em writer.js.
+test('install: reporta engine sem destino de arquivo confirmado (enginesSkipped)', async () => {
+  await withTempDir(async (dir) => {
+    const detectEngines = () => [{ id: 'antigravity', name: 'Antigravity', detected: true }];
+    const runInstallPrompts = async (engines) => engines.filter((e) => e.detected);
+    const installFiles = () => ({
+      copied: [],
+      skipped: [],
+      enginesSkipped: [
+        { id: 'antigravity', name: 'Antigravity', reason: 'no-verified-project-anchor' },
+      ],
+    });
+
+    const output = await captureInfo(() =>
+      install(dir, { detectEngines, runInstallPrompts, installFiles }),
+    );
+
+    assert.match(output, /Antigravity: nenhum arquivo instalado/);
+  });
+});
+
 test('install: nunca instala sem a confirmação explícita do runInstallPrompts (seleção vazia = sem side effect)', async () => {
   await withTempDir(async (dir) => {
     const detectEngines = () => [{ id: 'claude-code', name: 'Claude Code', detected: true }];

@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const { installFiles } = require('../lib/installer/writer.js');
+const { installFiles, defaultSourceRoot } = require('../lib/installer/writer.js');
 const { manifestPathFor, readManifest } = require('../lib/installer/manifest.js');
 
 function withTempDir(fn) {
@@ -377,6 +377,42 @@ test('installFiles: copia a árvore opencode/ achatada para .opencode/ quando Op
       assert.ok(!fs.existsSync(path.join(projectRoot, '.opencode', 'opencode')));
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Issue #283 (achado do advisor pós-implementação): defaultSourceRoot() recai sobre
+// `<packageRoot>/templates/` no pacote publicado (sem plugin.json ao lado) — o mesmo
+// arranjo que cli/scripts/sync-templates.js precisa popular com `opencode/` (não só
+// skills/agents/hooks) para o pacote npm real. Este teste prova a integração completa
+// (defaultSourceRoot + installFiles) nesse layout, não só o script de sync isoladamente.
+test('installFiles: OpenCode resolve via defaultSourceRoot() mesmo no layout de pacote publicado (sem plugin.json, conteúdo em templates/)', () => {
+  withTempDir((projectRoot) => {
+    const fakeParent = fs.mkdtempSync(path.join(os.tmpdir(), 'vetor-writer-pkg-'));
+    try {
+      // fakeParent simula node_modules/ (sem plugin.json) — packageRoot é o pacote em si.
+      const packageRoot = path.join(fakeParent, 'vetor');
+      fs.mkdirSync(path.join(packageRoot, 'templates', 'opencode', 'agent'), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(packageRoot, 'templates', 'opencode', 'agent', 'demo.md'),
+        'opencode agent v1\n',
+      );
+
+      const sourceRoot = defaultSourceRoot({ packageRoot });
+      assert.equal(sourceRoot, path.join(packageRoot, 'templates'));
+
+      const { copied } = installFiles({
+        projectRoot,
+        engines: [{ id: 'opencode', name: 'OpenCode', detected: false }],
+        sourceRoot,
+      });
+
+      assert.ok(copied.includes('.opencode/agent/demo.md'));
+      assert.ok(fs.existsSync(path.join(projectRoot, '.opencode', 'agent', 'demo.md')));
+    } finally {
+      fs.rmSync(fakeParent, { recursive: true, force: true });
     }
   });
 });
