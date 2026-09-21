@@ -186,18 +186,46 @@ test('installFiles: copia para múltiplas engines selecionadas, cada uma no seu 
   });
 });
 
-test('installFiles: engine sem destino conhecido (ex.: Cursor) é ignorada sem erro', () => {
+test('installFiles: engine sem destino conhecido é ignorada sem erro', () => {
   withTempDir((projectRoot) => {
     const sourceRoot = makeFakeSourceRoot();
     try {
       const { copied, skipped } = installFiles({
         projectRoot,
-        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        engines: [{ id: 'unknown-engine', name: 'Unknown', detected: false }],
         sourceRoot,
       });
 
       assert.deepEqual(copied, []);
       assert.deepEqual(skipped, []);
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Issue #256: skills/ e agents/ são descobertos nativamente pelo Cursor em `.cursor/skills/`
+// e `.cursor/agents/` sem tradução de formato (ver wiki/Compatibilidade-Cursor.md). hooks/
+// também é copiado por consistência com as demais engines, mesmo sabendo que o Cursor não
+// o descobre nesse caminho (`.cursor/hooks/...` em vez de `.cursor/hooks.json`) — limitação
+// documentada, não escondida.
+test('installFiles: copia skills/agents/hooks para ".cursor/" quando Cursor é selecionada', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const { copied } = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.deepEqual(copied.sort(), [
+        '.cursor/agents/demo.md',
+        '.cursor/hooks/hooks.json',
+        '.cursor/skills/demo/SKILL.md',
+      ]);
+      assert.ok(fs.existsSync(path.join(projectRoot, '.cursor', 'skills', 'demo', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(projectRoot, '.cursor', 'agents', 'demo.md')));
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
     }

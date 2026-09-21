@@ -6,13 +6,22 @@ const path = require('node:path');
 const { hashFile, readManifest, writeManifest } = require('./manifest.js');
 
 // Decisão de escopo (issue #255): destino nativo por engine é o diretório-âncora já usado
-// pela própria detecção (detector.js usa `.claude`/`.opencode` como âncora; `.codex` e
-// `.antigravity` seguem a mesma convenção por consistência, mesmo sem detecção por
-// diretório própria hoje). Cursor (#256) fica de fora deliberadamente.
+// pela própria detecção (detector.js usa `.claude`/`.opencode`/`.cursor` como âncora;
+// `.codex` e `.antigravity` seguem a mesma convenção por consistência, mesmo sem detecção
+// por diretório própria hoje).
+//
+// Cursor (#256, ver wiki/Compatibilidade-Cursor.md): `.cursor/skills/` e `.cursor/agents/`
+// são descobertos nativamente pelo Cursor sem tradução de formato (SKILL.md e agents/*.md já
+// são agnósticos de engine desde #251) — cópia direta funciona de verdade para essas duas
+// pastas. `hooks/` é copiado por consistência com as demais engines, mas o Cursor só carrega
+// hooks de projeto em `.cursor/hooks.json` (arquivo único na raiz), não
+// `.cursor/hooks/hooks.json` (o que este writer produz) — limitação conhecida e documentada
+// na wiki, não escondida do usuário; tradução de schema de payload (camelCase, campos por
+// evento diferentes do Claude Code) fica para trabalho futuro.
 //
 // Simplificação assumida e documentada (ver handoff da issue): copia-se `skills/`,
 // `agents/`, `hooks/` inteiros e agnósticos (#251) para `<destino-da-engine>/<pasta>/...`,
-// igual para as 4 engines. Adaptação fina por formato — ex. Codex exige subagentes em
+// igual para todas as engines. Adaptação fina por formato — ex. Codex exige subagentes em
 // `.codex/agents/*.toml` (não `agents/*.md`), OpenCode tem árvore-fonte própria em
 // `opencode/` (não `skills/`/`agents/`/`hooks/`) — é gap conhecido, fora do escopo deste
 // writer (mecanismo de cópia + manifesto); só a política de destino evolui depois.
@@ -21,6 +30,7 @@ const ENGINE_DEST_DIR = {
   codex: '.codex',
   opencode: '.opencode',
   antigravity: '.antigravity',
+  cursor: '.cursor',
 };
 
 const SOURCE_DIRS = ['skills', 'agents', 'hooks'];
@@ -93,7 +103,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
 
   for (const engine of engines ?? []) {
     const destRootName = ENGINE_DEST_DIR[engine.id];
-    if (!destRootName) continue; // engine sem destino conhecido (ex.: Cursor, #256)
+    if (!destRootName) continue; // engine sem destino conhecido no mapa acima
 
     for (const sourceDirName of SOURCE_DIRS) {
       const sourceDir = path.join(sourceRoot, sourceDirName);
