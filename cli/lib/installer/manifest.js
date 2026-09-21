@@ -4,11 +4,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-// `.claude/vetor/` já é o diretório de metadados do Vetor usado por config.json e pelos
-// status files (agnóstico de engine — consumido por todos os workers, inclusive Codex/
-// OpenCode, ver skills/fix-loop-agent/SKILL.md e agents/issue-worker/codex.toml). O
-// manifesto do instalador segue a mesma convenção.
-const MANIFEST_RELATIVE_PATH = path.join('.claude', 'vetor', 'install-manifest.json');
+// Correção pós-code-review da PR #282 (issue #256): o manifesto vivia em
+// `.claude/vetor/install-manifest.json`, mas `writeManifest`/`readManifest` fazem
+// `mkdirSync(dirname(manifestPath), { recursive: true })` — criar `.claude/` como efeito
+// colateral de QUALQUER instalação (mesmo uma "Cursor-exclusiva", sem Claude Code
+// envolvido) polui `detectEngines()`: uma segunda execução de `vetor install` passaria a
+// reportar `claude-code: detected: true` falsamente, só por causa do diretório-âncora que
+// o próprio manifesto criou. `.vetor/` na raiz do projeto-alvo (fora de `.claude/`) não é
+// âncora de detecção de nenhuma engine hoje (ver `detector.js`) nem previsivelmente no
+// futuro, então não contamina a detecção de nenhuma delas.
+const MANIFEST_RELATIVE_PATH = path.join('.vetor', 'install-manifest.json');
 
 function manifestPathFor(projectRoot) {
   return path.join(projectRoot, MANIFEST_RELATIVE_PATH);
