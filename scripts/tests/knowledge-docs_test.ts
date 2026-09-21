@@ -14,6 +14,7 @@ import {
   parseFrontmatter,
   pathForIdentity,
   slugify,
+  updateDocument,
 } from "../lib/knowledge-docs.ts";
 
 function tempProvider(): { dir: string; provider: FilesystemKnowledgeProvider } {
@@ -132,6 +133,166 @@ Deno.test("createDocument lança se já existir uma entrada na mesma identidade 
         status: "draft",
         body: "# v2",
       })
+    );
+  } finally {
+    cleanup(dir);
+  }
+});
+
+// --- updateDocument ---
+
+Deno.test("updateDocument preserva id/type/project/created e avança updated (issue #219)", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await createDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      project: "vetor",
+      status: "draft",
+      body: "# v1",
+    });
+    const rawBefore = await provider.read("specs/authentication.md");
+    const createdBefore = parseFrontmatter(rawBefore).frontmatter.created;
+
+    const { identity, path } = await updateDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      body: "# v2",
+    });
+    assertEquals(identity, "spec:authentication");
+    assertEquals(path, "specs/authentication.md");
+
+    const raw = await provider.read(path);
+    const { frontmatter, body } = parseFrontmatter(raw);
+    assertEquals(frontmatter.id, "spec:authentication");
+    assertEquals(frontmatter.type, "spec");
+    assertEquals(frontmatter.project, "vetor");
+    assertEquals(frontmatter.status, "draft"); // status preservado quando não informado
+    assertEquals(frontmatter.created, createdBefore); // created nunca é sobrescrito por update
+    assertMatch(frontmatter.updated, /^\d{4}-\d{2}-\d{2}$/);
+    assertEquals(body.trim(), "# v2");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("updateDocument com status explícito sobrescreve o status atual", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await createDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      project: "vetor",
+      status: "draft",
+      body: "# v1",
+    });
+    await updateDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      status: "approved",
+      body: "# v2",
+    });
+    const { frontmatter } = parseFrontmatter(await provider.read("specs/authentication.md"));
+    assertEquals(frontmatter.status, "approved");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("updateDocument lança quando o documento existente não tem frontmatter válido (project ausente) — nunca grava project vazio", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    // Documento escrito à mão (ou anterior ao create-spec), sem frontmatter — reproduz o caso em
+    // que parseFrontmatter devolve {} e project/created/type ficariam vazios silenciosamente.
+    await provider.create("specs/legacy.md", "# Spec legada sem frontmatter");
+    await assertRejects(
+      () => updateDocument(provider, { type: "spec", slug: "legacy", body: "# v2" }),
+      Error,
+      "frontmatter",
+    );
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("updateDocument preserva link (`- Relacionado:`) gravado no corpo por provider.link, mesmo sem o novo rascunho mencioná-lo (blocker code-review PR #280)", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await createDocument(provider, {
+      type: "adr",
+      slug: "other",
+      project: "vetor",
+      status: "active",
+      body: "# ADR Other",
+    });
+    await createDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      project: "vetor",
+      status: "draft",
+      body: "# v1",
+    });
+    await provider.link("specs/authentication.md", "adr/other.md");
+
+    const before = await provider.read("specs/authentication.md");
+    assertMatch(before, /- Relacionado: adr\/other\.md/);
+
+    // update-spec com um novo rascunho que não menciona o link — a implementação anterior
+    // sobrescrevia o corpo inteiro e apagava a linha de link silenciosamente.
+    await updateDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      body: "# v2 sem menção ao link",
+    });
+
+    const after = await provider.read("specs/authentication.md");
+    assertMatch(after, /- Relacionado: adr\/other\.md/);
+    assertMatch(after, /# v2 sem menção ao link/);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("updateDocument não duplica uma linha de link já presente no novo rascunho", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await createDocument(provider, {
+      type: "adr",
+      slug: "other",
+      project: "vetor",
+      status: "active",
+      body: "# ADR Other",
+    });
+    await createDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      project: "vetor",
+      status: "draft",
+      body: "# v1",
+    });
+    await provider.link("specs/authentication.md", "adr/other.md");
+
+    await updateDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      body: "# v2\n\n- Relacionado: adr/other.md",
+    });
+
+    const after = await provider.read("specs/authentication.md");
+    const occurrences = after.split(/\r?\n/).filter((l) =>
+      l.trim() === "- Relacionado: adr/other.md"
+    );
+    assertEquals(occurrences.length, 1);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("updateDocument lança quando a identidade não existe — nunca cria por engano", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await assertRejects(() =>
+      updateDocument(provider, { type: "spec", slug: "nao-existe", body: "# v1" })
     );
   } finally {
     cleanup(dir);

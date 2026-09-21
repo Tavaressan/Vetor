@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 Você é a skill de geração de Specs do Vetor. Sua missão é descobrir o contexto já existente no
@@ -16,11 +16,13 @@ implementação — usando `$SKILL_DIR/../../templates/spec.md` como esqueleto.
 Esta skill ainda não cobre todo o pipeline de #202: implementa a entrada, a descoberta de contexto
 (via Knowledge Provider quando disponível, com fallback para filesystem direto), a decomposição em
 componentes, a entrevista focada, o motor de geração de RF/RNF/Acceptance Criteria/Edge Cases/
-Non-Goals, a montagem do rascunho a partir do template e a persistência mínima (frontmatter válido,
-identidade estável, sem sobrescrever sem perguntar). Validação de qualidade (Quality Gate,
-rastreabilidade — Handoff #203) chega em outra issue; controle de overwrite avançado (versionamento,
-merge de rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra (issue #225) —
-cada estágio abaixo sinaliza explicitamente o que ainda não está implementado.
+Non-Goals, a montagem do rascunho a partir do template e a persistência (frontmatter válido,
+identidade estável, path previsível em `docs/specs/<slug>.md` por padrão, overwrite nunca silencioso
+— sempre `update`/`create-new`/`cancel`, ver passo 6). Validação de qualidade (Quality Gate,
+rastreabilidade — Handoff #203) chega em outra issue; overwrite avançado (versionamento, merge de
+rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra (issue #225); consumo
+automático da Spec pelo `issue-coordinator` (geração de código) não é escopo desta skill — cada
+estágio abaixo sinaliza explicitamente o que ainda não está implementado.
 
 ---
 
@@ -62,7 +64,7 @@ cada estágio abaixo sinaliza explicitamente o que ainda não está implementado
 - `../shared/references/knowledge-provider-contract.md` — contrato do
   Knowledge Provider consumido pelos passos 0, 1 (item 5) e 4 via `scripts/knowledge-doc.ts`.
 - `../../scripts/knowledge-doc.ts` — CLI que expõe `status`/`search-specs`/
-  `create-spec`/`find` sobre o Knowledge Provider (ver passo 0).
+  `create-spec`/`update-spec`/`find` sobre o Knowledge Provider (ver passo 0).
 
 ---
 
@@ -153,7 +155,11 @@ confirmação do usuário antes do passo 3 (Decomposição).
 ```
 
 Se a Spec existente do item 5 já cobrir o mesmo tema, pare aqui e pergunte ao usuário se deseja
-atualizar a existente em vez de gerar uma nova (não decida por conta própria).
+atualizar a existente em vez de gerar uma nova (não decida por conta própria) — use o mecanismo de
+pergunta disponível (`AskUserQuestion` em modo interativo; texto livre em modo headless, ver passo 6
+para o vocabulário exato de opções). Este é um aviso antecipado baseado em busca textual (pode
+falsear por tema parecido, mas não idêntico); a checagem definitiva — por identidade exata
+(`spec:<slug>`) — acontece no passo 6, na hora de persistir.
 
 ### 3 — Decomposição em componentes
 
@@ -351,11 +357,38 @@ entrega:
 
 - validação de qualidade (Quality Gate, dimension checkers, rastreabilidade — Handoff #203) e
   refinamento iterativo a partir de feedback de qualidade;
-- controle de overwrite avançado (versionamento, merge de rascunhos) — hoje a única proteção é
-  `create-spec` recusar sobrescrever uma identidade já existente;
-- Knowledge Provider além de filesystem (ex.: Obsidian, issue #225).
+- overwrite avançado (versionamento, merge automático de rascunhos divergentes) — o que existe é o
+  fluxo binário `update`/`create-new`/`cancel` abaixo, não um merge de conteúdo;
+- Knowledge Provider além de filesystem (ex.: Obsidian, issue #225);
+- geração de código a partir da Spec — esta skill só produz o documento; consumi-lo para gerar
+  Issues/Tasks/Worktree/Implementation é responsabilidade de um estágio posterior do workflow (ex.:
+  `issue-coordinator`), fora do escopo desta skill.
 
-**Persistência (quando o Knowledge Provider está habilitado — passo 0, e o usuário confirmar):**
+**Path previsível (issue #219):** com o Knowledge Provider `filesystem` (default, sem config
+adicional), toda Spec é persistida em `docs/specs/<slug>.md` — o mesmo `<slug>` usado na identidade
+`spec:<slug>`. Este path é a forma documentada de localizar a Spec fora da conversa (ex.: por um
+humano, ou por uma etapa futura do workflow que venha a consumi-la).
+
+**6.1 — Checar colisão de identidade antes de persistir**
+
+Antes de chamar `create-spec`, sempre confira se a identidade já existe:
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" find spec:<slug-derivado-do-tema>
+```
+
+Sem `--root` (default `docs`, mesmo default usado em 6.2/6.3 — nunca troque de root entre as três
+chamadas, senão a checagem e a escrita podem mirar locais diferentes). O `<slug>` já deve estar
+normalizado em kebab-case (o mesmo valor que será passado a `create-spec`/`update-spec` a seguir) —
+`find` não normaliza como `create-spec` normaliza `--slug`; se o slug usado aqui divergir do
+normalizado, a colisão real só será pega pelo fallback de 6.2.
+
+- `null` → nenhuma colisão, siga direto para 6.2 (`create-spec`).
+- Um resultado (`{"path": ..., "excerpt": ...}`) → existe uma Spec com esta identidade exata. Nunca
+  prossiga direto para `create-spec` (ele falharia) nem decida sozinho qual ação tomar — vá para 6.3
+  (decisão de overwrite).
+
+**6.2 — Persistir (sem colisão)**
 
 ```bash
 # grave o rascunho completo em um arquivo temporário antes (evita problemas de quoting em
@@ -376,12 +409,51 @@ deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" create-spec \
   tanto relativo à raiz do repositório (ex.: `docs/adr/001.md`, como reportado pelo passo 1) quanto
   relativo à raiz do Knowledge Provider (ex.: `adr/001.md`) — o CLI normaliza um prefixo `docs/`
   redundante automaticamente.
-- Se `create-spec` falhar (identidade já existe — corrida com outra sessão, por exemplo), informe o
-  usuário e não tente sobrescrever por conta própria.
+- Se `create-spec` mesmo assim falhar (corrida com outra sessão entre 6.1 e 6.2, por exemplo),
+  trate como colisão — vá para 6.3 — em vez de tentar sobrescrever por conta própria.
 - Reporte ao usuário a identidade e o path onde a Spec foi salva.
 
+**6.3 — Decisão de overwrite: `update` / `create-new` / `cancel`**
+
+Nunca decida sozinho qual das três opções aplicar. Em modo **interativo**, use `AskUserQuestion` com
+as três opções abaixo (uma pergunta, não texto livre); em modo **headless** — sem interlocutor para
+responder (ex.: despachada de forma não-interativa por outro agente/skill) — **nunca assuma
+`update`**: trate a ausência de resposta como `cancel`, reporte a colisão (identidade e path
+existente) e pare, sem persistir nada. Silenciosamente sobrescrever é exatamente o que esta issue
+proíbe.
+
+```
+Já existe uma Spec com a identidade "spec:<slug>" (<path>). O que deseja fazer?
+
+1. update      — sobrescrever o conteúdo desta Spec com o novo rascunho (mantém created, avança updated)
+2. create-new  — manter a existente intacta e persistir este rascunho sob um novo slug
+3. cancel      — não persistir nada; o rascunho continua disponível apenas nesta conversa
+```
+
+- **`update`**: rode `update-spec` (mesmo `--slug`, corpo via stdin como em 6.2). Preserva
+  `id`/`type`/`project`/`created` do frontmatter existente e avança apenas `updated`; `status` só
+  muda se `--status` for passado explicitamente (ex.: usuário confirmou uma transição de `draft`
+  para `approved`). Também preserva qualquer linha `- Relacionado: <target>` já gravada no corpo por
+  um `create-spec --link` anterior, mesmo que o novo rascunho não a mencione — `update-spec` **não
+  adiciona** um link novo durante a atualização (limitação conhecida: vincular um documento
+  relacionado depois da criação ainda não tem um comando dedicado).
+
+  ```bash
+  deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" update-spec \
+    --slug <slug-derivado-do-tema> \
+    < <arquivo-temporário-com-o-rascunho>
+  ```
+
+- **`create-new`**: pergunte (ou proponha) um novo `<slug>` que diferencie esta Spec da existente
+  (ex.: sufixo do tema, não um sufixo numérico arbitrário) e siga 6.2 normalmente com esse slug —
+  isso nunca é um comando novo, é o mesmo `create-spec`.
+- **`cancel`**: não execute `create-spec` nem `update-spec`. Informe ao usuário que o rascunho
+  permanece apenas na conversa e pode ser retomado depois.
+- Em qualquer uma das três opções, reporte ao usuário o resultado (identidade + path persistido, ou
+  confirmação de que nada foi gravado).
+
 Quando o Knowledge Provider está desabilitado (passo 0), mantenha o comportamento anterior: **não
-grava a Spec em disco** — o rascunho fica apenas na conversa.
+grava a Spec em disco** — o rascunho fica apenas na conversa, e 6.1-6.3 não se aplicam.
 
 ---
 
@@ -389,10 +461,15 @@ grava a Spec em disco** — o rascunho fica apenas na conversa.
 
 - Nunca afirme certeza sobre um requisito que o contexto descoberto não sustenta — marque como
   `⚠️ ABERTO`.
-- Nunca decida sozinho sobrescrever uma Spec existente encontrada no passo 1 — pergunte ao usuário.
+- Nunca decida sozinho sobrescrever uma Spec existente — ao detectar colisão de identidade (passo
+  6.1), sempre ofereça a escolha explícita `update`/`create-new`/`cancel` (passo 6.3) via
+  `AskUserQuestion` em modo interativo; em modo headless sem interlocutor, trate a ausência de
+  resposta como `cancel` — nunca como `update` implícito.
 - Nunca acople a descoberta de contexto a um provider específico além de `FilesystemKnowledgeProvider`
   (hoje o único implementado em `scripts/knowledge-doc.ts`).
-- Nunca persista a Spec sem antes ter rodado a busca prévia do passo 1, item 5.
+- Nunca persista a Spec sem antes ter rodado a busca prévia do passo 1, item 5, **e** a checagem de
+  colisão por identidade exata do passo 6.1 — a busca do passo 1 é textual/aproximada, não substitui
+  a checagem por identidade.
 - Nunca crie um link (`--link`) para um documento sem relação clara com o tema — vínculos
   indiscriminados são piores que a ausência de vínculo.
 - Nunca persista em disco quando o Knowledge Provider estiver desabilitado (passo 0) — apenas

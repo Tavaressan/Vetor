@@ -20,6 +20,15 @@ export interface KnowledgeSearchResult {
   excerpt: string;
 }
 
+/**
+ * Formato canônico da linha de link gravada por `provider.link` no corpo do documento —
+ * único ponto de verdade para as duas implementações abaixo e para quem precisa reconhecer
+ * (não apenas gravar) uma linha de link já existente (ex.: `updateDocument`, knowledge-docs.ts).
+ */
+export function linkLine(target: string): string {
+  return `- Relacionado: ${target}`;
+}
+
 export interface KnowledgeProvider {
   /** Busca entradas cujo path ou conteúdo combina com a query (case-insensitive). */
   search(query: string): Promise<KnowledgeSearchResult[]>;
@@ -135,10 +144,6 @@ export class FilesystemKnowledgeProvider implements KnowledgeProvider {
     return results;
   }
 
-  private linkLine(target: string): string {
-    return `- Relacionado: ${target}`;
-  }
-
   // deno-lint-ignore require-await
   async link(source: string, target: string): Promise<void> {
     const sourceFull = this.resolve(source);
@@ -149,7 +154,7 @@ export class FilesystemKnowledgeProvider implements KnowledgeProvider {
       );
     }
     const content = Deno.readTextFileSync(sourceFull);
-    const line = this.linkLine(target);
+    const line = linkLine(target);
     // Idempotente: compara a linha renderizada, não uma substring solta — evita falso
     // positivo (ex.: já existir "b.md" ao linkar "ab.md") e falso negativo.
     if (content.split(/\r?\n/).some((l) => l.trim() === line)) return;
@@ -449,7 +454,7 @@ export class ObsidianKnowledgeProvider implements KnowledgeProvider {
     this.assertSafeVaultPath(target);
     const content = await this.read(source);
     await this.read(target); // apenas para validar existência — contrato exige que target também exista
-    const line = `- Relacionado: ${target}`;
+    const line = linkLine(target);
     if (content.split(/\r?\n/).some((l) => l.trim() === line)) return;
     const separator = content.endsWith("\n") || content === "" ? "" : "\n";
     await this.update(source, `${content}${separator}\n${line}\n`);

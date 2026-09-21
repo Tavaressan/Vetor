@@ -58,6 +58,9 @@ verdade continua sendo a resolução via root em `project-conventions.md`.
 Regras de economia de tokens e delegação a um runtime externo disponível (Gemini/OpenCode/Codex):
 `../shared/references/planning-conventions.md` e
 `../shared/references/delegate-to-runtime.md`.
+Se uma issue referenciar uma Spec previamente gerada por `/vetor:spec` (ver `skills/spec/SKILL.md`
+§6), ela fica em `docs/specs/<slug>.md` por padrão (path previsível, issue #219) — útil como contexto
+adicional ao ler a issue no passo 1; esta skill não consome nem gera código a partir dela.
 
 ---
 
