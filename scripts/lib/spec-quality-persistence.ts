@@ -19,7 +19,14 @@ export interface ValidationState {
  *
  * #269: usa o path relativo completo (sem extensão, `/` virando `-`), não só o basename — duas
  * Specs com o mesmo nome em pastas diferentes (ex.: "docs/specs/auth/x.md" e
- * "docs/specs/billing/x.md") precisam de arquivos de histórico distintos. */
+ * "docs/specs/billing/x.md") precisam de arquivos de histórico distintos.
+ *
+ * Migração: essa mudança altera o nome do arquivo derivado para toda Spec fora da raiz do diretório
+ * de histórico (ex.: "docs/specs/x.md" → "docs-specs-x.validation.json", antes "x.validation.json").
+ * Um histórico já persistido com o nome antigo fica órfão (não é lido, não é migrado) — a próxima
+ * validação dessa Spec recomeça o histórico de refinamento do zero, resetando o contador de
+ * `MAX_REFINEMENT_CYCLES` (#222). Aceitável: o histórico é metadado informativo/gitignored, não
+ * conteúdo da Spec — perdê-lo uma vez não perde trabalho, só o contador de ciclos já percorridos. */
 export function validationPathFor(
   specPath: string,
   root = ".claude/vetor/specs",
