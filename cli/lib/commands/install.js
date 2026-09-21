@@ -1,31 +1,43 @@
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
+const { detectEngines: defaultDetectEngines } = require('../installer/detector.js');
+const { runInstallPrompts: defaultRunInstallPrompts } = require('../installer/prompts.js');
 
 /**
- * Comando `install`. Nesta fase (scaffold) faz apenas a detecção mais básica
- * de engine (Claude Code via `.claude/`) — a seleção interativa entre
- * múltiplas engines chega em issue futura (detecção completa de engines).
+ * Comando `install`: detecta engines suportadas no projeto-alvo (Claude Code, Codex,
+ * OpenCode, Antigravity — Cursor fica para a issue #256) e oferece seleção interativa
+ * com as engines detectadas pré-marcadas. A detecção é só sugestão inicial: nenhuma
+ * engine é instalada sem confirmação explícita do usuário via `runInstallPrompts`.
+ *
+ * Cópia de arquivos/skills por engine é escopo da issue #255 (writer) — este comando
+ * só detecta e confirma a seleção.
+ *
+ * `detectEngines`/`runInstallPrompts`/`input`/`output` são injetáveis para testes.
  */
-function isDirectory(targetPath) {
-  try {
-    return fs.statSync(targetPath).isDirectory();
-  } catch {
-    return false;
-  }
-}
+async function install(cwd = process.cwd(), options = {}) {
+  const detectEngines = options.detectEngines ?? defaultDetectEngines;
+  const runInstallPrompts = options.runInstallPrompts ?? defaultRunInstallPrompts;
+  const input = options.input ?? process.stdin;
+  const output = options.output ?? process.stdout;
 
-function install(cwd = process.cwd()) {
-  const claudeDetected = isDirectory(path.join(cwd, '.claude'));
+  const engines = detectEngines(cwd);
+  const detectedNames = engines.filter((engine) => engine.detected).map((engine) => engine.name);
 
-  if (claudeDetected) {
-    console.info('Engine detectada: Claude Code (.claude/ encontrado).');
+  if (detectedNames.length > 0) {
+    console.info(`Engines detectadas: ${detectedNames.join(', ')}.`);
   } else {
     console.info('Nenhuma engine detectada no diretório atual.');
   }
 
-  console.info('Detecção completa de engines e instalação interativa chegam em issue futura.');
+  const selected = await runInstallPrompts(engines, { input, output });
+
+  if (selected.length === 0) {
+    console.info('Nenhuma engine selecionada. Instalação cancelada.');
+    return;
+  }
+
+  console.info(`Engines selecionadas: ${selected.map((engine) => engine.name).join(', ')}.`);
+  console.info('Cópia de arquivos/skills por engine chega na issue #255.');
 }
 
 module.exports = { install };
