@@ -205,11 +205,8 @@ test('installFiles: engine sem destino conhecido é ignorada sem erro', () => {
 });
 
 // Issue #256: skills/ e agents/ são descobertos nativamente pelo Cursor em `.cursor/skills/`
-// e `.cursor/agents/` sem tradução de formato (ver wiki/Compatibilidade-Cursor.md). hooks/
-// também é copiado por consistência com as demais engines, mesmo sabendo que o Cursor não
-// o descobre nesse caminho (`.cursor/hooks/...` em vez de `.cursor/hooks.json`) — limitação
-// documentada, não escondida.
-test('installFiles: copia skills/agents/hooks para ".cursor/" quando Cursor é selecionada', () => {
+// e `.cursor/agents/` sem tradução de formato (ver wiki/Compatibilidade-Cursor.md).
+test('installFiles: copia skills/agents para ".cursor/" quando Cursor é selecionada', () => {
   withTempDir((projectRoot) => {
     const sourceRoot = makeFakeSourceRoot();
     try {
@@ -219,13 +216,56 @@ test('installFiles: copia skills/agents/hooks para ".cursor/" quando Cursor é s
         sourceRoot,
       });
 
-      assert.deepEqual(copied.sort(), [
-        '.cursor/agents/demo.md',
-        '.cursor/hooks/hooks.json',
-        '.cursor/skills/demo/SKILL.md',
-      ]);
+      assert.deepEqual(copied.sort(), ['.cursor/agents/demo.md', '.cursor/skills/demo/SKILL.md']);
       assert.ok(fs.existsSync(path.join(projectRoot, '.cursor', 'skills', 'demo', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(projectRoot, '.cursor', 'agents', 'demo.md')));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Follow-up de code-review da PR #282 (issue #256): o Cursor só carrega hooks de projeto de
+// `.cursor/hooks.json` (arquivo único), nunca `.cursor/hooks/hooks.json` (diretório, o que
+// installFiles() produzia antes desta correção). Copiar e reportar como `copied` era
+// enganoso — o arquivo copiado é inerte. hooks/ não deve ir para o destino do Cursor,
+// mesmo existindo na fonte.
+test('installFiles: NÃO copia hooks/ para ".cursor/" quando Cursor é selecionada (caminho inerte)', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const { copied, skipped } = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.ok(!copied.includes('.cursor/hooks/hooks.json'));
+      assert.ok(!skipped.some((s) => s.path === '.cursor/hooks/hooks.json'));
+      assert.ok(!fs.existsSync(path.join(projectRoot, '.cursor', 'hooks')));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Confirma que a exclusão é específica do Cursor: outras engines continuam copiando
+// hooks/ normalmente (ver ENGINE_EXCLUDED_SOURCE_DIRS em writer.js).
+test('installFiles: outras engines continuam copiando hooks/ normalmente (exclusão é só do Cursor)', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const { copied } = installFiles({
+        projectRoot,
+        engines: [
+          CLAUDE_ENGINE,
+          { id: 'cursor', name: 'Cursor', detected: false },
+        ],
+        sourceRoot,
+      });
+
+      assert.ok(copied.includes('.claude/hooks/hooks.json'));
+      assert.ok(!copied.includes('.cursor/hooks/hooks.json'));
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
     }

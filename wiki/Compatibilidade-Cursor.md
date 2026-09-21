@@ -180,6 +180,7 @@ conhecida, documentada no comentário do writer, não escondida do usuário.
 | Caminho `.cursor/hooks.json` (arquivo único, não diretório) | Confirmado via docs oficiais | `cursor.com/docs/hooks#configuration` |
 | Comportamento do parser do Cursor diante de campos de frontmatter desconhecidos em `agents/*.md` (`tools`, `isolation`) | **Não confirmado** — inferido por analogia ao padrão de skills | — |
 | `agent`/`cursor-agent` como symlinks do mesmo binário | Confirmado via script de instalação real | `cursor.com/install` |
+| Schema de `.cursor-plugin/plugin.json` (campo `skills` como string/array de path relativo) | Confirmado via docs oficiais | `cursor.com/docs/reference/plugins` |
 | **Instalação end-to-end validada contra o Cursor real instalado** | **Não feito nesta investigação** — sem Cursor/CLI instalado nesta máquina | — |
 
 ## Teste manual pendente

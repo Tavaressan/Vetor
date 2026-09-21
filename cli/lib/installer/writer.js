@@ -13,15 +13,25 @@ const { hashFile, readManifest, writeManifest } = require('./manifest.js');
 // Cursor (#256, ver wiki/Compatibilidade-Cursor.md): `.cursor/skills/` e `.cursor/agents/`
 // são descobertos nativamente pelo Cursor sem tradução de formato (SKILL.md e agents/*.md já
 // são agnósticos de engine desde #251) — cópia direta funciona de verdade para essas duas
-// pastas. `hooks/` é copiado por consistência com as demais engines, mas o Cursor só carrega
-// hooks de projeto em `.cursor/hooks.json` (arquivo único na raiz), não
-// `.cursor/hooks/hooks.json` (o que este writer produz) — limitação conhecida e documentada
-// na wiki, não escondida do usuário; tradução de schema de payload (camelCase, campos por
-// evento diferentes do Claude Code) fica para trabalho futuro.
+// pastas. `hooks/` NÃO é copiado para o destino do Cursor (ver `ENGINE_EXCLUDED_SOURCE_DIRS`
+// abaixo): a wiki confirma que o Cursor só carrega hooks de projeto em `.cursor/hooks.json`
+// (arquivo único na raiz), nunca `.cursor/hooks/hooks.json` (diretório, o formato que este
+// writer produz para as demais engines) — copiar e reportar como `copied` seria enganoso,
+// já que o arquivo copiado é inerte. Tradução de schema de payload (camelCase, campos por
+// evento diferentes do Claude Code) e de caminho fica para trabalho futuro.
+//
+// Redundância conhecida e aceita (YAGNI, achado #4 do code-review da PR #282): quando
+// Claude Code E Cursor estão ambos selecionados, `skills/`/`agents/` são copiados tanto
+// para `.claude/` quanto para `.cursor/`, mesmo a wiki confirmando que o Cursor já lê
+// `.claude/skills/`/`.claude/agents/` nativamente para compatibilidade (ver
+// wiki/Compatibilidade-Cursor.md). Deduplicar exigiria decidir qual engine é a "fonte da
+// verdade" em disco e como reagir a edição de só uma das cópias — complexidade/risco maior
+// que o custo de ter uma cópia extra em disco. Não implementado de propósito.
 //
 // Simplificação assumida e documentada (ver handoff da issue): copia-se `skills/`,
 // `agents/`, `hooks/` inteiros e agnósticos (#251) para `<destino-da-engine>/<pasta>/...`,
-// igual para todas as engines. Adaptação fina por formato — ex. Codex exige subagentes em
+// igual para todas as engines (exceto as exclusões declaradas em
+// `ENGINE_EXCLUDED_SOURCE_DIRS`). Adaptação fina por formato — ex. Codex exige subagentes em
 // `.codex/agents/*.toml` (não `agents/*.md`), OpenCode tem árvore-fonte própria em
 // `opencode/` (não `skills/`/`agents/`/`hooks/`) — é gap conhecido, fora do escopo deste
 // writer (mecanismo de cópia + manifesto); só a política de destino evolui depois.
@@ -34,6 +44,14 @@ const ENGINE_DEST_DIR = {
 };
 
 const SOURCE_DIRS = ['skills', 'agents', 'hooks'];
+
+// Diretórios de SOURCE_DIRS que não devem ser copiados para o destino de uma engine
+// específica, mesmo existindo na fonte. Hoje só o Cursor: `hooks/` copiado para
+// `.cursor/hooks/...` é comprovadamente inerte (ver comentário acima e
+// wiki/Compatibilidade-Cursor.md) — reportar como `copied` seria enganoso.
+const ENGINE_EXCLUDED_SOURCE_DIRS = {
+  cursor: ['hooks'],
+};
 
 // cli/lib/installer/writer.js -> cli/lib -> cli (raiz do pacote, tanto em dev quanto no
 // pacote npm publicado, onde "cli/" é achatado para a raiz do pacote).
@@ -78,8 +96,9 @@ function listFilesRecursive(dir) {
 
 /**
  * Copia `skills/`, `agents/`, `hooks/` (fonte agnóstica de engine, #251) para o destino
- * nativo de cada engine selecionada, gravando manifesto de hash SHA-256 por arquivo
- * copiado em `.claude/vetor/install-manifest.json` no projeto-alvo.
+ * nativo de cada engine selecionada (exceto exclusões de `ENGINE_EXCLUDED_SOURCE_DIRS`),
+ * gravando manifesto de hash SHA-256 por arquivo copiado em `.vetor/install-manifest.json`
+ * no projeto-alvo.
  *
  * Idempotente e seguro para update:
  * - Arquivo ausente no destino: copia e manifesta.
@@ -105,7 +124,11 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
     const destRootName = ENGINE_DEST_DIR[engine.id];
     if (!destRootName) continue; // engine sem destino conhecido no mapa acima
 
+    const excludedSourceDirs = ENGINE_EXCLUDED_SOURCE_DIRS[engine.id] ?? [];
+
     for (const sourceDirName of SOURCE_DIRS) {
+      if (excludedSourceDirs.includes(sourceDirName)) continue;
+
       const sourceDir = path.join(sourceRoot, sourceDirName);
       if (!fs.existsSync(sourceDir)) continue;
 
@@ -144,4 +167,10 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   return { copied, skipped };
 }
 
-module.exports = { installFiles, ENGINE_DEST_DIR, SOURCE_DIRS, defaultSourceRoot };
+module.exports = {
+  installFiles,
+  ENGINE_DEST_DIR,
+  SOURCE_DIRS,
+  ENGINE_EXCLUDED_SOURCE_DIRS,
+  defaultSourceRoot,
+};
