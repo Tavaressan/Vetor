@@ -55,6 +55,8 @@ interface HookInput {
   agent_type?: string;
   /** Identificador único da instância do subagente — estável entre chamadas, ao contrário de agent_type. */
   agent_id?: string;
+  /** Campo de topo do payload `beforeShellExecution` do Cursor (issue #284) — não aninhado em tool_input. */
+  command?: string;
 }
 
 const APPLY_PATCH_PATH_RE = /^\*\*\* (?:Add File|Delete File|Update File|Move to): (.+)$/gm;
@@ -314,7 +316,12 @@ async function main() {
     Deno.exit(0);
   }
 
-  const command = input.tool_input?.command;
+  // Issue #284: o hook `beforeShellExecution` do Cursor (destino da tradução de PreToolUse
+  // para o Cursor, ver cli/lib/installer/cursor-hooks.js) expõe `command` como campo de topo
+  // do payload, não aninhado em `tool_input.command` como no Claude Code — sem este fallback,
+  // checkBash nunca rodava sob esse payload, deixando o gate de git destrutivo/push protegido
+  // inerte no Cursor.
+  const command = input.tool_input?.command ?? input.command;
   if (typeof command === "string") checkBash(command, wt);
   Deno.exit(0);
 }

@@ -171,10 +171,36 @@ este instalador (uma comparação contra o hash da fonte nunca bateria, gerando 
   Cursor. `translateHooksForCursor` mantém o hook (`check-status.ts` continua rodando), mas
   **remove o matcher**, reportando o gap (`{event: "SubagentStop", reason:
   "matcher-not-translatable"}`). Consequência prática: no Cursor, `check-status.ts` roda para
-  **qualquer** término de subagente, não só issue-worker — aceitável porque o próprio script
-  resolve o worktree pelo `cwd`/`agent_id` do payload e não bloqueia quando não há
-  correspondência (`scripts/lib/status.ts`), mas é uma diferença de comportamento real, não só de
-  nomenclatura.
+  **qualquer** término de subagente, não só issue-worker. Diferente do que uma primeira leitura
+  do payload do Claude Code sugeriria, isso **não** é amenizado por `cwd`/`agent_id`: o payload
+  real de `subagentStop` do Cursor (confirmado em `cursor.com/docs/hooks#subagentstop`) traz
+  `subagent_id`, `subagent_type`, `parent_conversation_id`, `loop_count`, `modified_files`,
+  `agent_transcript_path` — **sem `cwd` e sem `agent_id`**. `resolveWorktree` em
+  `check-status.ts` cai no fallback `Deno.cwd()` (processo do próprio hook, que para hooks de
+  projeto do Cursor roda a partir da raiz do projeto — `cursor.com/docs/hooks#configuration`),
+  então o script não quebra, mas roda com uma resolução de worktree diferente da do Claude Code
+  em todo término de subagente, não só nos de `vetor:issue-worker`. Não verificado nesta
+  investigação se isso produz falso-bloqueio ou é inofensivo em uso real — sinalizado como gap
+  aberto, não testado.
+- **Guarda de escrita (`Edit`/`Write`) e correlação `agent_id` são de payload não confirmado ou
+  ausente sob o Cursor.** `preToolUse` é confirmado para `tool_name: "Shell"` (`tool_input:
+  {command, working_directory}`, exemplo explícito na doc), mas a doc **não mostra** o
+  `tool_input` de um `preToolUse` com `tool_name: "Write"` — `checkWrite` em `safety-check.ts`
+  depende de `tool_input.file_path`, campo cuja presença sob o Cursor não está confirmada.
+  Além disso, o payload comum a todos os hooks do Cursor (`conversation_id`, `generation_id`,
+  `model`, `hook_event_name`, `cursor_version`, `workspace_roots`, `user_email`,
+  `transcript_path` — `cursor.com/docs/hooks#common-schema`) **não inclui `agent_type` nem
+  `agent_id`**, os campos que `checkFreshness`/`checkAgentBinding` usam para a segunda camada de
+  defesa contra cwd contaminado entre workers paralelos (issue #63). Sob o Cursor, essas duas
+  defesas específicas ficam inertes por construção — não é algo que a tradução de schema possa
+  corrigir sozinha (exigiria mudar o próprio contrato de payload que `safety-check.ts` espera).
+  **O que É confirmado como funcional:** o guard de comando (`checkBash` — git destrutivo
+  incondicional, push para branch protegida, gate de PR/push de worker não-`GREEN`) roda
+  corretamente sob `preToolUse`/`tool_name: "Shell"` (`tool_input.command`, schema confirmado) —
+  `safety-check.ts` ganhou um fallback (`input.tool_input?.command ?? input.command`, issue #284)
+  que também cobre o payload de `beforeShellExecution` (`command` no topo, sem `tool_input`),
+  caso este `hooks.json` seja adaptado no futuro para usar esse evento em vez de `preToolUse`
+  para o guard de shell.
 - **`${CLAUDE_PLUGIN_ROOT}` não é substituído.** Os comandos traduzidos preservam a variável
   literal (`deno run -A "${CLAUDE_PLUGIN_ROOT}/scripts/safety-check.ts"`), mas o Cursor **não
   define** essa variável — só `CURSOR_PROJECT_DIR`/`CLAUDE_PROJECT_DIR` (raiz do projeto, "Claude
@@ -246,6 +272,9 @@ para o schema, o mapeamento de eventos/tools e os gaps conhecidos (issue #284).
 | Caminho `.cursor/hooks.json` (arquivo único, não diretório) | Confirmado via docs oficiais | `cursor.com/docs/hooks#configuration` |
 | Mapeamento de nomes de evento e de tool (Claude Code → Cursor) usado por `translateHooksForCursor` | Confirmado via docs oficiais | `cursor.com/docs/reference/third-party-hooks` |
 | Tradução de `hooks/hooks.json` → `.cursor/hooks.json` (`cli/lib/installer/cursor-hooks.js`) validada contra o schema documentado | Confirmado — teste automatizado (`cli/test/installer-cursor-hooks.test.js`) | `cursor.com/docs/hooks` |
+| `checkBash` (git destrutivo, push protegido, gate de PR/push não-`GREEN`) funcional sob `.cursor/hooks.json` traduzido | Confirmado — payload `preToolUse`/`Shell` documentado + teste de integração (`scripts/tests/safety-check_test.ts`, issue #284) | `cursor.com/docs/hooks#pretooluse` |
+| `checkWrite` (guarda de escrita fora do worktree) funcional sob o Cursor | **Não confirmado** — `tool_input` de `preToolUse`/`Write` não é mostrado na doc oficial | — |
+| `checkFreshness`/`checkAgentBinding` (correlação `agent_type`/`agent_id`, issue #63) funcionais sob o Cursor | **Confirmado como inertes** — payload comum do Cursor não tem `agent_type` nem `agent_id` | `cursor.com/docs/hooks#common-schema` |
 | Comportamento do parser do Cursor diante de campos de frontmatter desconhecidos em `agents/*.md` (`tools`, `isolation`) | **Não confirmado** — inferido por analogia ao padrão de skills | — |
 | `agent`/`cursor-agent` como symlinks do mesmo binário | Confirmado via script de instalação real | `cursor.com/install` |
 | Schema de `.cursor-plugin/plugin.json` (campo `skills` como string/array de path relativo) | Confirmado via docs oficiais | `cursor.com/docs/reference/plugins` |
@@ -269,12 +298,18 @@ projeto, de fato reconhece o que foi gerado. Procedimento para quem for validar 
     parse — ponto não verificado nesta investigação, ver tabela acima).
 5.  Abra a aba **Hooks** em Customize e confirme que `.cursor/hooks.json` foi carregado sem erro
     de parse, com os 4 eventos traduzidos (`preToolUse`, `postToolUse`, `subagentStop`,
-    `sessionStart`) listados. Dispare uma ação que o `safety-check.ts` bloquearia no Claude Code
-    (ex.: editar um arquivo fora do worktree esperado) e confirme que o Cursor de fato bloqueia —
-    isso depende de `${CLAUDE_PLUGIN_ROOT}` resolver no ambiente onde o Cursor roda o script, o
-    que **não é garantido pela tradução** (ver gap documentado na seção Hooks).
-6.  Registre desvios encontrados como issue de acompanhamento (mesmo padrão usado para os gaps do
-    Codex e OpenCode).
+    `sessionStart`) listados. Tudo isso depende de `${CLAUDE_PLUGIN_ROOT}` resolver no ambiente
+    onde o Cursor roda o script, o que **não é garantido pela tradução** (gap pré-existente, ver
+    seção Hooks).
+6.  Dispare um `git reset --hard`/`git push origin master` num terminal que o agente do Cursor
+    controle e confirme que `checkBash` bloqueia — este é o caminho **confirmado por schema**
+    (`preToolUse`/`Shell`, `tool_input.command`).
+7.  Peça ao agente para editar um arquivo fora do worktree esperado e confirme (ou refute) se
+    `checkWrite` bloqueia — este caminho depende de um `tool_input` de `preToolUse`/`Write` **não
+    confirmado pela doc oficial** (ver tabela de confiança acima); o resultado deste teste manual
+    é o dado que falta para fechar esse gap.
+8.  Registre desvios encontrados (inclusive o resultado do passo 7) como issue de acompanhamento
+    (mesmo padrão usado para os gaps do Codex e OpenCode).
 
 ---
 
