@@ -100,3 +100,37 @@ test('detectEngines: comando no PATH detecta a engine mesmo sem arquivo-âncora'
     assert.equal(antigravity.detected, true);
   });
 });
+
+// Issue #256: Cursor usa `.cursor/` como diretório-âncora (rules/skills/agents/hooks
+// vivem todos ali — ver wiki/Compatibilidade-Cursor.md).
+test('detectEngines: ".cursor/" na raiz detecta Cursor', () => {
+  withTempDir((dir) => {
+    fs.mkdirSync(path.join(dir, '.cursor'));
+    const result = detectEngines(dir, EMPTY_PATH_ENV);
+    const cursor = result.find((e) => e.id === 'cursor');
+    assert.equal(cursor.detected, true);
+  });
+});
+
+test('detectEngines: ".cursor" como arquivo comum não detecta Cursor (simétrico ao caso .claude)', () => {
+  withTempDir((dir) => {
+    fs.writeFileSync(path.join(dir, '.cursor'), 'não é um diretório');
+    const result = detectEngines(dir, EMPTY_PATH_ENV);
+    const cursor = result.find((e) => e.id === 'cursor');
+    assert.equal(cursor.detected, false);
+  });
+});
+
+// `cursor-agent` (não `agent`, genérico demais e propenso a colisão — ver wiki) é o sinal
+// de comando confirmado contra o script real de instalação do Cursor.
+test('detectEngines: "cursor-agent" no PATH detecta Cursor mesmo sem ".cursor/"', () => {
+  withTempDir((dir) => {
+    const binDir = path.join(dir, 'bin');
+    fs.mkdirSync(binDir);
+    fs.writeFileSync(path.join(binDir, 'cursor-agent'), '#!/bin/sh\n');
+    const env = { PATH: binDir, Path: binDir, PATHEXT: '' };
+    const result = detectEngines(dir, env);
+    const cursor = result.find((e) => e.id === 'cursor');
+    assert.equal(cursor.detected, true);
+  });
+});

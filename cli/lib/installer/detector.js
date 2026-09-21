@@ -22,8 +22,7 @@ function isFile(targetPath) {
 }
 
 // Escopo da issue #254: só as 4 engines já suportadas pelo Vetor hoje (ver wiki/Compatibilidade-*.md
-// para os arquivos-âncora de cada uma). Cursor fica para a issue #256, que ainda vai investigar seu
-// mecanismo real de detecção.
+// para os arquivos-âncora de cada uma). Cursor foi investigado e adicionado na issue #256.
 //
 // Premissa declarada: não há convenção de arquivo-âncora de projeto documentada para Antigravity
 // neste repositório (sem equivalente a `.claude/`, `AGENTS.md` ou `.opencode/` encontrado em
@@ -50,6 +49,19 @@ const ENGINES = [
     id: 'antigravity',
     name: 'Antigravity',
     detect: (_root, env) => commandExists('agy', env),
+  },
+  // Issue #256 (ver wiki/Compatibilidade-Cursor.md): `.cursor/` é a âncora de projeto
+  // confirmada contra a doc oficial (rules/skills/agents/hooks vivem todos ali). O comando
+  // de PATH usado é `cursor-agent`, não `agent` — `agent` é o nome "primary" hoje na doc do
+  // CLI, mas é genérico demais e colide com facilidade com binários não relacionados ao
+  // Cursor; `cursor-agent` é mantido como symlink "legacy" pelo próprio script oficial de
+  // instalação (`cursor.com/install`, verificado nesta investigação) e carrega o mesmo sinal
+  // com risco de falso positivo muito menor.
+  {
+    id: 'cursor',
+    name: 'Cursor',
+    detect: (root, env) =>
+      isDirectory(path.join(root, '.cursor')) || commandExists('cursor-agent', env),
   },
 ];
 
