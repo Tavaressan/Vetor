@@ -1,28 +1,36 @@
 #!/usr/bin/env node
 'use strict';
 
-// Popula cli/templates/ a partir de skills/, agents/, hooks/ na raiz do monorepo.
+// Popula cli/templates/ a partir de skills/, agents/, hooks/, opencode/ na raiz do
+// monorepo.
 //
 // cli/templates/ é o que o pacote npm publicado embarca de fato (cli/package.json
-// declara "files": ["bin/", "lib/", "templates/"] — skills/, agents/, hooks/ da raiz do
-// monorepo NÃO fazem parte do tarball). Sem este sync, um usuário real rodando
+// declara "files": ["bin/", "lib/", "templates/"] — skills/, agents/, hooks/, opencode/ da
+// raiz do monorepo NÃO fazem parte do tarball). Sem este sync, um usuário real rodando
 // `vetor install` a partir do pacote instalado via npm não copiaria nada, pois
 // `defaultSourceRoot()` (cli/lib/installer/writer.js) recai sobre `templates/` quando
-// não encontra skills/agents/hooks ao lado do pacote (ver comentário lá).
+// não encontra skills/agents/hooks/opencode ao lado do pacote (ver comentário lá).
 //
 // cli/templates/ é gerado, nunca editado manualmente — este script é a única fonte de
 // verdade para o conteúdo do diretório, chamado automaticamente pelo hook de lifecycle
 // `prepack` do npm (cli/package.json) antes de `npm pack`/`npm publish`, e está no
 // .gitignore da raiz do monorepo.
 //
-// Escopo deliberadamente restrito (issue #255, redespacho): copia as 3 pastas inteiras
-// e agnósticas de engine, sem nenhuma adaptação de formato por destino (isso é um gap
-// conhecido e documentado em writer.js, fora do escopo deste script).
+// `opencode` adicionada na issue #283: `ENGINE_NATIVE_SOURCE_DIR.opencode` em writer.js
+// resolve `sourceRoot/opencode`, que precisa existir em `templates/` no pacote publicado
+// pelo mesmo motivo que skills/agents/hooks precisam — sem isso, `vetor install` com
+// OpenCode selecionado, rodando a partir do pacote npm, não copiaria nada (o guard
+// `fs.existsSync` de `installFiles()` tornaria isso um no-op silencioso).
+//
+// Escopo deliberadamente restrito (issue #255, redespacho): copia as pastas inteiras e
+// (para skills/agents/hooks) agnósticas de engine, sem nenhuma adaptação de formato por
+// destino (isso é um gap conhecido e documentado em writer.js, fora do escopo deste
+// script).
 
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SOURCE_DIRS = ['skills', 'agents', 'hooks'];
+const SOURCE_DIRS = ['skills', 'agents', 'hooks', 'opencode'];
 
 // cli/scripts/sync-templates.js -> cli/scripts -> cli -> raiz do monorepo.
 const MONOREPO_ROOT = path.join(__dirname, '..', '..');

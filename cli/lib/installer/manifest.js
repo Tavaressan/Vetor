@@ -13,6 +13,18 @@ const crypto = require('node:crypto');
 // o próprio manifesto criou. `.vetor/` na raiz do projeto-alvo (fora de `.claude/`) não é
 // âncora de detecção de nenhuma engine hoje (ver `detector.js`) nem previsivelmente no
 // futuro, então não contamina a detecção de nenhuma delas.
+//
+// Decisão de migração (issue #285): este já é o segundo path usado por
+// MANIFEST_RELATIVE_PATH nesta mesma feature (o primeiro, `.claude/vetor/...` acima, durou
+// só até a PR #282) — sem nenhuma lógica de migração implementada para quem tivesse
+// instalado com o path antigo. Avaliado e decidido não implementar migração automática
+// (opção b, não a): até a data desta issue, `vetor install`/`installFiles` nunca foi
+// publicado em nenhum release/pacote npm — não existe usuário real com manifesto gravado
+// no path antigo para migrar. A primeira versão publicada já nasce com este path como
+// definitivo. Se `MANIFEST_RELATIVE_PATH` precisar mudar de novo DEPOIS de uma versão
+// publicada, essa migração (ler o path antigo se o novo não existir, ou equivalente) passa
+// a ser obrigatória — o que não se aplicou nas duas mudanças anteriores continua não se
+// aplicando por acidente.
 const MANIFEST_RELATIVE_PATH = path.join('.vetor', 'install-manifest.json');
 
 function manifestPathFor(projectRoot) {
