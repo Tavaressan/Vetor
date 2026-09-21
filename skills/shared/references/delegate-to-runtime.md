@@ -30,7 +30,7 @@ Monte a lista `available` com os que retornaram um path. Runtimes candidatos con
 
 | Runtime | Binário | Invocação não-interativa | Consome stdin via pipe (pré-requisito das tarefas §4)? |
 |---------|---------|---|---|
-| Gemini (Antigravity) | `agy` | `agy -p "<prompt>"` — `-p`/`--print` roda um prompt único e imprime a resposta | **Confirmado** (`agy --help`; documenta explicitamente o consumo de stdin em modo print) |
+| Gemini (Antigravity) | `agy` | `agy -p "<prompt>"` — `-p`/`--print` roda um prompt único e imprime a resposta | **Não funciona com modo padrão** — flag `--input-format` padrão é `text`, que ignora stdin (regressão de #111). Alternativa verificada: embutir conteúdo no argumento do prompt: `agy -p "... $conteudo"` (válido para conteúdo que cabe no limite de linha de comando); para conteúdo grande, use `opencode` (stdin confirmado empiricamente) em vez de `agy`. |
 | OpenCode | `opencode` | `opencode run "<prompt>"` — mensagem como argumento posicional, não flag `-p` (`-p`/`--password` do OpenCode é autenticação HTTP, não prompt — não confundir com o `-p` do `agy`) | **Confirmado empiricamente**: `echo "MARCADOR-XYZ-123" \| opencode run --model <free> "Repita exatamente o texto que você recebeu via stdin"` devolveu `MARCADOR-XYZ-123` — o conteúdo do pipe chega ao modelo mesmo sem flag dedicada |
 | Codex | `codex` | `codex exec "<prompt>"` (sintaxe **não verificada neste ambiente** — binário não estava instalado nem MCP de documentação disponível na sessão que escreveu esta referência) | **Não verificado** |
 
@@ -47,9 +47,12 @@ anexo de arquivo (ex.: `-f/--file` do `opencode`) se a tarefa permitir.
 
 ```json
 {
-  "delegation": { "preferredRuntime": "agy" }
+  "delegation": { "preferredRuntime": "opencode" }
 }
 ```
+
+(Exemplo mostra `opencode` como preferência recomendada: é o único com suporte comprovado a stdin
+em todas as tarefas de §4. Se preferir `agy`, consulte a linha da tabela do §1 para limitações e alternativas.)
 
 Ausência do bloco `delegation` (ou do `config.json` inteiro) nunca é erro — mesmo contrato do
 bloco `knowledge` (ver `skills/vetor/SKILL.md`).
