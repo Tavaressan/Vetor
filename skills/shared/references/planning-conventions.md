@@ -51,13 +51,30 @@ Exemplo para Coordinator:
 ```
 
 ### 2.2 Mecanismo de aprovação por ecossistema
+
+#### Para skills de implementação de código (`fix-loop-agent`, `issue-worker`, e similares)
+
 * **No Claude Code**: use o plan mode nativo — apresente o plano acima e conclua com `ExitPlanMode`
-  para pedir aprovação do usuário. Este é o caminho de primeira classe no Claude Code, não um
-  fallback.
+  para pedir aprovação do usuário. Este é o caminho de primeira classe no Claude Code para código,
+  não um fallback.
 * **No Antigravity/Gemini**: salve o plano no artefato `implementation_plan.md` definindo
   `request_feedback: true` nos metadados. O agente interromperá a chamada até o clique em "Proceed".
-* Em ecossistemas sem nenhum dos dois mecanismos, exiba o plano no chat e aguarde uma resposta
-  textual afirmativa do usuário (ex.: "sim", "prosseguir") antes de prosseguir com a execução.
+
+#### Para skills de orquestração/ideação (`backlog-ideator`, `issue-coordinator`, `guardian`)
+
+Estas skills realizam mutações estruturais (criar issues, orquestrar subagentes) mas **não implementam
+código de produto**. Para elas:
+
+* **No Claude Code**: exiba o plano no chat e aguarde uma resposta textual afirmativa do usuário
+  (ex.: "sim", "prosseguir"). **Não use `ExitPlanMode`** — a ferramenta a desaconselha explicitamente
+  para tarefas fora do escopo de escrita de código.
+* **No Antigravity/Gemini**: salve o plano no artefato `implementation_plan.md` definindo
+  `request_feedback: true` nos metadados. O agente interromperá a chamada até o clique em "Proceed".
+
+#### Fallback para ecossistemas sem mecanismo nativo
+
+Em ecossistemas sem nenhum dos dois mecanismos acima, exiba o plano no chat e aguarde uma resposta
+textual afirmativa do usuário (ex.: "sim", "prosseguir") antes de prosseguir com a execução.
 
 ---
 
