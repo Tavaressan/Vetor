@@ -13,12 +13,21 @@ Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix aut
 
 ## Instalação
 
+**Via plugin do Claude Code** (comandos nativos do Claude Code, não funcionam em outros terminais):
+
 ```
 /plugin marketplace add Tavaressan/Vetor
 /plugin install vetor@vetor
 ```
 
-Depois, rode **`/vetor`** no projeto-alvo: ele detecta o runtime, gera o mapeamento de testes e grava a configuração em `.claude/vetor/`.
+**Via npm** (CLI multi-engine — Claude Code, Codex e outras engines suportadas):
+
+```
+npm install -g @tavaressan/vetor
+vetor install
+```
+
+Depois de qualquer uma das duas, rode **`/vetor`** no projeto-alvo: ele detecta o runtime, gera o mapeamento de testes e grava a configuração em `.claude/vetor/`.
 
 **Pré-requisitos:** [Deno](https://deno.com) e `gh` CLI autenticado no PATH, e Git com suporte a `git worktree`. *(Opcionais: `npx` para o MCP `chrome-devtools`, Docker com plugin `docker mcp` para o MCP `docker`, `agy`/`opencode`/`codex` para delegação agnóstica de runtime — ver `delegate-to-runtime.md`.)*
 
