@@ -57,7 +57,9 @@ export function resolveThresholds(config: unknown): Thresholds {
 
   const overrides: Partial<Thresholds> = {};
   if (isFiniteNumber(thresholds.ready)) overrides.ready = thresholds.ready;
-  if (isFiniteNumber(thresholds.needsRefinement)) overrides.needsRefinement = thresholds.needsRefinement;
+  if (isFiniteNumber(thresholds.needsRefinement)) {
+    overrides.needsRefinement = thresholds.needsRefinement;
+  }
   return { ...DEFAULT_THRESHOLDS, ...overrides };
 }
 

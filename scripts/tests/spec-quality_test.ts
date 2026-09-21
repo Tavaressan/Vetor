@@ -87,7 +87,10 @@ Deno.test("resolveThresholds ignora thresholds com tipo inválido e cai no defau
     ready: DEFAULT_THRESHOLDS.ready,
     needsRefinement: DEFAULT_THRESHOLDS.needsRefinement,
   });
-  assertEquals(resolveThresholds({ specValidate: { thresholds: "não é objeto" } }), DEFAULT_THRESHOLDS);
+  assertEquals(
+    resolveThresholds({ specValidate: { thresholds: "não é objeto" } }),
+    DEFAULT_THRESHOLDS,
+  );
   assertEquals(resolveThresholds({ specValidate: "não é objeto" }), DEFAULT_THRESHOLDS);
   assertEquals(resolveThresholds("não é objeto"), DEFAULT_THRESHOLDS);
   assertEquals(resolveThresholds([1, 2, 3]), DEFAULT_THRESHOLDS);
