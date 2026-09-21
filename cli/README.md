@@ -27,10 +27,11 @@ vetor install
 
 ```
 vetor install     # instala o Vetor no projeto atual
+vetor update       # sincroniza a instalação existente com a fonte
+vetor status       # mostra o status da instalação por engine
+vetor uninstall    # remove os arquivos instalados pelo Vetor (pede confirmação)
 vetor --help       # lista os comandos disponíveis
 ```
-
-`update`, `status` e `uninstall` ainda são stubs — não implementados nesta versão.
 
 ## Documentação
 

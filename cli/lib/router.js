@@ -1,14 +1,16 @@
 'use strict';
 
 const { install } = require('./commands/install.js');
-const { makeStub } = require('./commands/stub.js');
+const { update } = require('./commands/update.js');
+const { status } = require('./commands/status.js');
+const { uninstall } = require('./commands/uninstall.js');
 const { printBanner } = require('./banner.js');
 
 const COMMANDS = {
   install: { fn: install, description: 'Instala o Vetor no projeto atual' },
-  update: { fn: makeStub('update'), description: '(stub) Atualiza a instalação existente' },
-  status: { fn: makeStub('status'), description: '(stub) Mostra o status da instalação' },
-  uninstall: { fn: makeStub('uninstall'), description: '(stub) Remove a instalação' },
+  update: { fn: update, description: 'Atualiza a instalação existente a partir do manifesto' },
+  status: { fn: status, description: 'Mostra o status da instalação por engine' },
+  uninstall: { fn: uninstall, description: 'Remove os arquivos instalados pelo Vetor' },
 };
 
 function printHelp() {
