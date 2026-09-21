@@ -21,6 +21,12 @@ on:
 
 # Dry-run local, sem publicar de fato (não requer NPM_TOKEN nem login):
 #   cd cli && npm publish --dry-run
+#
+# cli/templates/ (skills/agents/hooks embarcados no pacote) é GERADO pelo hook `prepack`
+# do npm (cli/scripts/sync-templates.js), disparado automaticamente por `npm pack`/
+# `npm publish` — inclusive nos passos abaixo. Nunca editar `cli/templates/` manualmente
+# nem commitar seu conteúdo (está no .gitignore da raiz); a fonte de verdade é sempre
+# skills/, agents/, hooks/ na raiz do monorepo (issue #255, redespacho).
 
 jobs:
   publish:

@@ -73,9 +73,14 @@ test('npm publish --dry-run funciona localmente a partir de cli/ (sem publicar)'
   const { execSync } = require('node:child_process');
   const cliRoot = path.join(__dirname, '..');
 
-  // npm publish escreve os "notice"/"warn" em stderr; combinamos os dois
-  // fluxos (2>&1) para conseguir asserir o comportamento de dry-run.
-  const output = execSync('npm publish --dry-run 2>&1', {
+  // --ignore-scripts: este teste valida só o comportamento de dry-run do npm publish, não
+  // o conteúdo de templates/ (isso é responsabilidade de pack.test.js, que roda o prepack
+  // real). Pular o hook `prepack` (que sincroniza cli/templates/ a partir da raiz do
+  // monorepo, #255 redespacho) evita que este arquivo de teste também mute o diretório
+  // real em paralelo com pack.test.js — o test runner do Node roda arquivos de teste em
+  // paralelo por padrão, e dois processos rodando o sync ao mesmo tempo sobre o mesmo
+  // diretório correriam risco de corrida.
+  const output = execSync('npm publish --dry-run --ignore-scripts 2>&1', {
     cwd: cliRoot,
     encoding: 'utf8',
     shell: true,

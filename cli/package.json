@@ -29,6 +29,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "sync-templates": "node scripts/sync-templates.js",
+    "prepack": "node scripts/sync-templates.js"
   }
 }

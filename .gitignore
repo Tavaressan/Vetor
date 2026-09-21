@@ -1,3 +1,9 @@
 AGENT_STATUS.md
 .claude/vetor/status/
 node_modules/
+
+# cli/templates/ é gerado por cli/scripts/sync-templates.js (hook prepack do npm) a
+# partir de skills/, agents/, hooks/ da raiz do monorepo — nunca editar manualmente
+# nem commitar o conteúdo sincronizado (issue #255, redespacho).
+cli/templates/*
+!cli/templates/.gitkeep

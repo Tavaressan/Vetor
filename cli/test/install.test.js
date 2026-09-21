@@ -55,17 +55,46 @@ test('install: nenhuma engine detectada + usuário confirma seleção vazia -> c
   });
 });
 
-test('install: engine detectada + usuário confirma seleção pré-marcada -> reporta selecionadas', async () => {
+test('install: engine detectada + usuário confirma seleção pré-marcada -> reporta selecionadas e copia arquivos', async () => {
   await withTempDir(async (dir) => {
     const detectEngines = () => [{ id: 'claude-code', name: 'Claude Code', detected: true }];
     const runInstallPrompts = async (engines) => engines.filter((e) => e.detected);
+    // installFiles é responsabilidade do writer (issue #255, testado isoladamente em
+    // installer-writer.test.js) — aqui só verificamos que install() invoca com os
+    // parâmetros certos e reporta o resultado.
+    let receivedArgs;
+    const installFiles = (args) => {
+      receivedArgs = args;
+      return { copied: ['.claude/skills/foo/SKILL.md'], skipped: [] };
+    };
 
     const output = await captureInfo(() =>
-      install(dir, { detectEngines, runInstallPrompts }),
+      install(dir, { detectEngines, runInstallPrompts, installFiles }),
     );
 
     assert.match(output, /Engines detectadas: Claude Code/);
     assert.match(output, /Engines selecionadas: Claude Code/);
+    assert.match(output, /1 arquivo\(s\) copiado\(s\)/);
+    assert.equal(receivedArgs.projectRoot, dir);
+    assert.equal(receivedArgs.engines.length, 1);
+    assert.equal(receivedArgs.engines[0].id, 'claude-code');
+  });
+});
+
+test('install: reporta arquivos não sobrescritos quando o writer sinaliza skipped', async () => {
+  await withTempDir(async (dir) => {
+    const detectEngines = () => [{ id: 'claude-code', name: 'Claude Code', detected: true }];
+    const runInstallPrompts = async (engines) => engines.filter((e) => e.detected);
+    const installFiles = () => ({
+      copied: [],
+      skipped: [{ path: '.claude/skills/foo/SKILL.md', reason: 'user-modified' }],
+    });
+
+    const output = await captureInfo(() =>
+      install(dir, { detectEngines, runInstallPrompts, installFiles }),
+    );
+
+    assert.match(output, /1 arquivo\(s\) não sobrescrito\(s\)/);
   });
 });
 
@@ -75,9 +104,12 @@ test('install: nunca instala sem a confirmação explícita do runInstallPrompts
     // Mesmo com engine detectada, o usuário pode recusar explicitamente (runInstallPrompts
     // retorna vazio) — install() precisa respeitar isso e não seguir adiante.
     const runInstallPrompts = async () => [];
+    const installFiles = () => {
+      throw new Error('installFiles não deveria ser chamado sem seleção confirmada');
+    };
 
     const output = await captureInfo(() =>
-      install(dir, { detectEngines, runInstallPrompts }),
+      install(dir, { detectEngines, runInstallPrompts, installFiles }),
     );
 
     assert.match(output, /Instalação cancelada/);
