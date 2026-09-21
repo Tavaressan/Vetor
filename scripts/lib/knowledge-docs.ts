@@ -144,12 +144,22 @@ export async function updateDocument(
   const path = pathForIdentity(identity);
   const current = await provider.read(path);
   const { frontmatter: currentFrontmatter } = parseFrontmatter(current);
+  // `project` e `created` só existem em documentos com frontmatter completo (ex.: criados via
+  // createDocument). Um documento sem frontmatter válido (legado, ou editado à mão) nunca deve
+  // ser reescrito com esses campos vazios silenciosamente — melhor falhar com ERRO claro do que
+  // corromper a identidade/rastreabilidade do documento.
+  if (!currentFrontmatter.project || !currentFrontmatter.created) {
+    throw new Error(
+      `KnowledgeProvider: não é possível atualizar "${path}" — frontmatter ausente ou incompleto ` +
+        `(esperado ao menos "project" e "created").`,
+    );
+  }
   const frontmatter = buildFrontmatter({
     id: currentFrontmatter.id ?? identity,
     type: currentFrontmatter.type ?? params.type,
-    project: currentFrontmatter.project ?? "",
+    project: currentFrontmatter.project,
     status: params.status ?? currentFrontmatter.status ?? "draft",
-    created: currentFrontmatter.created ?? todayISO(),
+    created: currentFrontmatter.created,
     updated: todayISO(),
   });
   await provider.update(path, `${frontmatter}${params.body}`);

@@ -199,6 +199,22 @@ Deno.test("updateDocument com status explícito sobrescreve o status atual", asy
   }
 });
 
+Deno.test("updateDocument lança quando o documento existente não tem frontmatter válido (project ausente) — nunca grava project vazio", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    // Documento escrito à mão (ou anterior ao create-spec), sem frontmatter — reproduz o caso em
+    // que parseFrontmatter devolve {} e project/created/type ficariam vazios silenciosamente.
+    await provider.create("specs/legacy.md", "# Spec legada sem frontmatter");
+    await assertRejects(
+      () => updateDocument(provider, { type: "spec", slug: "legacy", body: "# v2" }),
+      Error,
+      "frontmatter",
+    );
+  } finally {
+    cleanup(dir);
+  }
+});
+
 Deno.test("updateDocument lança quando a identidade não existe — nunca cria por engano", async () => {
   const { dir, provider } = tempProvider();
   try {

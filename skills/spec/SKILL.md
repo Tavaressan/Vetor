@@ -374,8 +374,14 @@ humano, ou por uma etapa futura do workflow que venha a consumi-la).
 Antes de chamar `create-spec`, sempre confira se a identidade já existe:
 
 ```bash
-deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" find spec:<slug-derivado-do-tema> --root docs
+deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" find spec:<slug-derivado-do-tema>
 ```
+
+Sem `--root` (default `docs`, mesmo default usado em 6.2/6.3 — nunca troque de root entre as três
+chamadas, senão a checagem e a escrita podem mirar locais diferentes). O `<slug>` já deve estar
+normalizado em kebab-case (o mesmo valor que será passado a `create-spec`/`update-spec` a seguir) —
+`find` não normaliza como `create-spec` normaliza `--slug`; se o slug usado aqui divergir do
+normalizado, a colisão real só será pega pelo fallback de 6.2.
 
 - `null` → nenhuma colisão, siga direto para 6.2 (`create-spec`).
 - Um resultado (`{"path": ..., "excerpt": ...}`) → existe uma Spec com esta identidade exata. Nunca
