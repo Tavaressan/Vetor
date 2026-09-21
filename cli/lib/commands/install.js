@@ -10,9 +10,11 @@ const { installFiles: defaultInstallFiles } = require('../installer/writer.js');
  * com as engines detectadas pré-marcadas. A detecção é só sugestão inicial: nenhuma
  * engine é instalada sem confirmação explícita do usuário via `runInstallPrompts`.
  *
- * Após a confirmação, copia `skills/`/`agents/`/`hooks/` para o destino nativo de cada
- * engine selecionada via `installFiles` (writer, issue #255), gravando manifesto de hash
- * por arquivo para updates seguros mais tarde.
+ * Após a confirmação, copia `skills/`/`agents/`/`hooks/` (ou a árvore nativa da engine,
+ * quando existir) para o destino de cada engine selecionada via `installFiles` (writer,
+ * issue #255, tradução de formato por engine revisada na #283), gravando manifesto de hash
+ * por arquivo para updates seguros mais tarde. Engine sem destino de arquivo confirmado
+ * (`enginesSkipped`) é reportada ao usuário em vez de silenciosamente ignorada.
  *
  * `detectEngines`/`runInstallPrompts`/`installFiles`/`input`/`output` são injetáveis para
  * testes.
@@ -42,7 +44,12 @@ async function install(cwd = process.cwd(), options = {}) {
 
   console.info(`Engines selecionadas: ${selected.map((engine) => engine.name).join(', ')}.`);
 
-  const { copied, skipped, warnings = [] } = installFiles({ projectRoot: cwd, engines: selected });
+  const {
+    copied,
+    skipped,
+    warnings = [],
+    enginesSkipped = [],
+  } = installFiles({ projectRoot: cwd, engines: selected });
   console.info(`${copied.length} arquivo(s) copiado(s).`);
   if (skipped.length > 0) {
     console.info(
@@ -51,6 +58,13 @@ async function install(cwd = process.cwd(), options = {}) {
   }
   for (const warning of warnings) {
     console.info(`Aviso: ${warning}`);
+  }
+  // Issue #283: engine selecionada sem destino de arquivo confirmado (ex.: Antigravity) não
+  // falha nem copia nada — mas precisa ser visível para o usuário, não silenciosa.
+  for (const engine of enginesSkipped) {
+    console.info(
+      `${engine.name}: nenhum arquivo instalado (sem convenção de projeto confirmada para esta engine ainda).`,
+    );
   }
 }
 

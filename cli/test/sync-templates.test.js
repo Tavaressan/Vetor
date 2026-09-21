@@ -27,8 +27,9 @@ function withTempDir(fn) {
   }
 }
 
-// Cria uma fonte fake com skills/agents/hooks, no mesmo formato esperado pelo sync
-// (`monorepoRoot/{skills,agents,hooks}/**`), sem depender da árvore real do repo.
+// Cria uma fonte fake com skills/agents/hooks/opencode, no mesmo formato esperado pelo
+// sync (`monorepoRoot/{skills,agents,hooks,opencode}/**`), sem depender da árvore real do
+// repo.
 function makeFakeMonorepoRoot(dir) {
   fs.mkdirSync(path.join(dir, 'skills', 'demo'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'skills', 'demo', 'SKILL.md'), 'conteúdo v1\n');
@@ -36,9 +37,13 @@ function makeFakeMonorepoRoot(dir) {
   fs.writeFileSync(path.join(dir, 'agents', 'demo.md'), 'agente v1\n');
   fs.mkdirSync(path.join(dir, 'hooks'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'hooks', 'hooks.json'), '{}\n');
+  // opencode/ (issue #283): árvore-fonte própria do OpenCode, também precisa chegar em
+  // templates/ para o pacote publicado — ver ENGINE_NATIVE_SOURCE_DIR em writer.js.
+  fs.mkdirSync(path.join(dir, 'opencode', 'agent'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'opencode', 'agent', 'demo.md'), 'opencode agent v1\n');
 }
 
-test('syncTemplates: popula templatesDir com skills/, agents/, hooks/ de monorepoRoot', () => {
+test('syncTemplates: popula templatesDir com skills/, agents/, hooks/, opencode/ de monorepoRoot', () => {
   withTempDir((monorepoRoot) => {
     withTempDir((templatesDir) => {
       makeFakeMonorepoRoot(monorepoRoot);
@@ -52,6 +57,7 @@ test('syncTemplates: popula templatesDir com skills/, agents/, hooks/ de monorep
       );
       assert.ok(fs.existsSync(path.join(templatesDir, 'agents', 'demo.md')));
       assert.ok(fs.existsSync(path.join(templatesDir, 'hooks', 'hooks.json')));
+      assert.ok(fs.existsSync(path.join(templatesDir, 'opencode', 'agent', 'demo.md')));
     });
   });
 });

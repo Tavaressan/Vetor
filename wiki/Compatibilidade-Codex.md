@@ -50,10 +50,23 @@ nenhuma. `.codex-plugin/plugin.json` já declara o campo `skills` apontando para
 
 **Bundling via plugin.** O manifesto `.codex-plugin/plugin.json` tem campos para `skills`,
 `hooks`, `mcpServers` e `apps`, mas **nenhum para subagentes** — não há como o plugin instalar um
-`.toml` de agente automaticamente. `agents/issue-worker/codex.toml` e
-`agents/code-review/codex.toml` neste repositório são **templates de referência**: para usar, copie
-manualmente para `.codex/agents/` no projeto-alvo. O `/vetor` (porta de entrada) ainda não
-automatiza essa cópia.
+`.toml` de agente automaticamente.
+
+**Resolvido via `vetor install` (issue #283).** `agents/issue-worker/codex.toml` e
+`agents/code-review/codex.toml` deixaram de ser só templates de cópia manual: `installFiles()`
+(`cli/lib/installer/writer.js`) agora traduz `agents/<nome>/codex.toml` → `.codex/agents/<nome>.toml`
+(achatado, path plano — o formato que `.codex/agents/` espera, confirmado nesta wiki logo acima)
+quando o Codex é selecionado, e **exclui** `agents/*.md` (Claude Code) e `agents/*/agent.json`
+(Antigravity) do destino do Codex — copiá-los produziria arquivo inerte, mesma classe de problema já
+corrigida para `hooks/` no Cursor. Cobertura automatizada em
+`cli/test/installer-writer.test.js` ("traduz agents/<nome>/codex.toml..."). **Não verificado nesta
+issue** (sem CLI `codex` disponível no ambiente de investigação, e sem acesso a documentação externa
+via Context7 nesta sessão): se `.codex/skills/` é de fato um caminho de descoberta de skills a nível
+de projeto (distinto do campo `skills` do manifesto de *plugin*) — `skills/` continua sendo copiado
+para `.codex/skills/...` sem tradução, comportamento herdado, não alterado por esta issue. Mesma
+ressalva vale para `hooks/` (copiado para `.codex/hooks/...` sem tradução de path/variável — ver
+"Reuso dos scripts" acima). Tratar essas duas lacunas fica para investigação futura com CLI real
+disponível.
 
 **Resumo da proteção:** guards de segurança têm parceridade estrutural com o Claude Code (mesmo
 formato de hook, mesmos scripts, cobertura de eventos igual ou maior), mas dependem de validação

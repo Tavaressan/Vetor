@@ -31,7 +31,7 @@ Alavancas para manter o custo baixo no dispatch paralelo:
 └── marketplace.json         # listagem do marketplace
 .codex-plugin/
 └── plugin.json              # manifesto do plugin (Codex) — sem campo "skills" (ver Compatibilidade)
-opencode/                    # camada de compatibilidade (OpenCode) — copiar para .opencode/ no projeto-alvo
+opencode/                    # camada de compatibilidade (OpenCode) — `vetor install` copia para .opencode/ no projeto-alvo (issue #283)
 ├── agent/
 │   ├── issue-worker.md      # subagente (OpenCode) — instrui dispatch via `opencode run --dir`
 │   └── code-review.md       # subagente (OpenCode) — permission.edit: deny
@@ -46,12 +46,12 @@ opencode/                    # camada de compatibilidade (OpenCode) — copiar p
 agents/
 ├── issue-worker.md          # subagente nativo (Claude Code) — worker isolado despachado pelo coordinator
 ├── issue-worker/
-│   ├── agent.json           # subagente nativo (Antigravity)
-│   └── codex.toml           # template de subagente (Codex) — copiar para .codex/agents/
+│   ├── agent.json           # subagente nativo (Antigravity) — `vetor install` não instala (sem âncora de projeto confirmada, issue #283)
+│   └── codex.toml           # subagente nativo (Codex) — `vetor install` traduz para .codex/agents/<nome>.toml (issue #283)
 ├── code-review.md           # subagente nativo (Claude Code) — revisão consultiva despachada pelo worktree-ship
 └── code-review/
-    ├── agent.json           # subagente nativo (Antigravity)
-    └── codex.toml           # template de subagente (Codex) — copiar para .codex/agents/
+    ├── agent.json           # subagente nativo (Antigravity) — `vetor install` não instala (sem âncora de projeto confirmada, issue #283)
+    └── codex.toml           # subagente nativo (Codex) — `vetor install` traduz para .codex/agents/<nome>.toml (issue #283)
 skills/
 ├── shared/references/
 │   ├── module-test-map.template.md
