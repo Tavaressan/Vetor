@@ -37,7 +37,12 @@ function run(argv) {
     return;
   }
 
-  entry.fn();
+  // Comandos podem ser assíncronos (ex.: install, com prompt interativo) — aguarda a
+  // promise, se houver, e reporta rejeição sem deixá-la solta (unhandled rejection).
+  return Promise.resolve(entry.fn()).catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+  });
 }
 
 module.exports = { run, COMMANDS };

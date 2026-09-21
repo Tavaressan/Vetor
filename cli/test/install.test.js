@@ -8,6 +8,10 @@ const path = require('node:path');
 
 const { install } = require('../lib/commands/install.js');
 
+// Regressão da issue #269 (".claude" como arquivo comum não é falso-positivo de engine) migrou
+// para test/installer-detector.test.js, onde a lógica de detecção agora vive (detector.js).
+// Este arquivo testa a orquestração do comando install() em cima de detectEngines/runInstallPrompts.
+
 function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vetor-install-test-'));
   try {
@@ -17,33 +21,66 @@ function withTempDir(fn) {
   }
 }
 
-function captureInfo(fn) {
+async function captureInfo(fn) {
   const lines = [];
   const original = console.info;
   console.info = (msg) => lines.push(msg);
   try {
-    fn();
+    await fn();
   } finally {
     console.info = original;
   }
   return lines.join('\n');
 }
 
-// Issue #269 (achado da PR #268): install() usava fs.existsSync('.claude') para detectar a engine,
-// que também retorna true quando '.claude' existe como arquivo comum (não diretório) — um falso
-// positivo de detecção de engine.
-test('install: ".claude" existindo como arquivo comum (não diretório) não é detectado como engine', () => {
-  withTempDir((dir) => {
-    fs.writeFileSync(path.join(dir, '.claude'), 'não é um diretório');
-    const output = captureInfo(() => install(dir));
+test('install: nenhuma engine detectada + usuário confirma seleção vazia -> cancela sem erro', async () => {
+  await withTempDir(async (dir) => {
+    const detectEngines = () => [
+      { id: 'claude-code', name: 'Claude Code', detected: false },
+      { id: 'codex', name: 'Codex', detected: false },
+    ];
+    const runInstallPrompts = async (engines) => {
+      // Simula que o usuário não marcou nenhuma engine (checkbox nasceu vazio, pois
+      // nenhuma engine foi detectada) e confirmou assim mesmo.
+      assert.equal(engines.every((e) => e.detected === false), true);
+      return [];
+    };
+
+    const output = await captureInfo(() =>
+      install(dir, { detectEngines, runInstallPrompts }),
+    );
+
     assert.match(output, /Nenhuma engine detectada/);
+    assert.match(output, /Instalação cancelada/);
   });
 });
 
-test('install: ".claude" como diretório é detectado como engine', () => {
-  withTempDir((dir) => {
-    fs.mkdirSync(path.join(dir, '.claude'));
-    const output = captureInfo(() => install(dir));
-    assert.match(output, /Engine detectada: Claude Code/);
+test('install: engine detectada + usuário confirma seleção pré-marcada -> reporta selecionadas', async () => {
+  await withTempDir(async (dir) => {
+    const detectEngines = () => [{ id: 'claude-code', name: 'Claude Code', detected: true }];
+    const runInstallPrompts = async (engines) => engines.filter((e) => e.detected);
+
+    const output = await captureInfo(() =>
+      install(dir, { detectEngines, runInstallPrompts }),
+    );
+
+    assert.match(output, /Engines detectadas: Claude Code/);
+    assert.match(output, /Engines selecionadas: Claude Code/);
+  });
+});
+
+test('install: nunca instala sem a confirmação explícita do runInstallPrompts (seleção vazia = sem side effect)', async () => {
+  await withTempDir(async (dir) => {
+    const detectEngines = () => [{ id: 'claude-code', name: 'Claude Code', detected: true }];
+    // Mesmo com engine detectada, o usuário pode recusar explicitamente (runInstallPrompts
+    // retorna vazio) — install() precisa respeitar isso e não seguir adiante.
+    const runInstallPrompts = async () => [];
+
+    const output = await captureInfo(() =>
+      install(dir, { detectEngines, runInstallPrompts }),
+    );
+
+    assert.match(output, /Instalação cancelada/);
+    assert.doesNotMatch(output, /Engines selecionadas/);
   });
 });
