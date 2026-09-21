@@ -1,0 +1,12 @@
+{
+  "name": "vetor",
+  "version": "1.0.2",
+  "description": "Skills de automação de workflow: ideação → backlog → worktree isolado → fix autônomo → ship → guarda. Agnóstico a projeto.",
+  "author": { "name": "Vitor Tavares Chaves" },
+  "homepage": "https://github.com/Tavaressan/Vetor",
+  "repository": "https://github.com/Tavaressan/Vetor",
+  "license": "MIT",
+  "keywords": ["worktree", "ci", "github-issues", "automation", "workflow"],
+  "skills": "./skills",
+  "agents": "./agents"
+}
