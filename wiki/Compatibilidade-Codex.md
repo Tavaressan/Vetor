@@ -1,5 +1,10 @@
 # Compatibilidade — OpenAI Codex
 
+> **Nota (2026-09-21):** a data de investigação abaixo (2026-07-20/21) não bate com a referência a
+> "Resolvido (issue #251)" no texto — #251 só fechou em 2026-09-17. Ou seja, o conteúdo foi revisado
+> depois da data original sem atualizar o cabeçalho. O conteúdo em si foi conferido nesta data contra
+> o estado atual de `skills/*/SKILL.md` (zero referências a `$CLAUDE_PLUGIN_ROOT`) e segue válido.
+
 Investigação feita em 2026-07-20/21 contra a documentação pública do Codex CLI
 ([`developers.openai.com/codex`](https://developers.openai.com/codex/cli), espelhada em
 `learn.chatgpt.com/docs/*`), o CLI `codex` v0.144.6 instalado nesta máquina, e logs locais em

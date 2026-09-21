@@ -1,6 +1,6 @@
 ---
 name: issue-coordinator
-description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /coordinator [label]. Aceita --headless para execução não-interativa (rotinas/CI).
+description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /vetor:issue-coordinator [label]. Aceita --headless para execução não-interativa (rotinas/CI).
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -15,15 +15,15 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 ## Sintaxe
 
 ```
-/coordinator [label]
-/coordinator <n1>,<n2>,...
-/coordinator
-/coordinator --resume
-/coordinator [label] --headless
+/vetor:issue-coordinator [label]
+/vetor:issue-coordinator <n1>,<n2>,...
+/vetor:issue-coordinator
+/vetor:issue-coordinator --resume
+/vetor:issue-coordinator [label] --headless
 ```
 
 - `[label]`: label das issues a despachar (sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado)
-- `<n1>,<n2>,...`: lista de números de issue (ex.: `/coordinator 12,14,17`). Casa `^[0-9]+(,[0-9]+)*$`.
+- `<n1>,<n2>,...`: lista de números de issue (ex.: `/vetor:issue-coordinator 12,14,17`). Casa `^[0-9]+(,[0-9]+)*$`.
 - **sem argumento** ou **`--resume`**: modo de retomada — reconstrói o estado a partir dos
   worktrees/status files existentes (Fase 0).
 - `--headless`: execução **não-interativa**, para rotinas agendadas e CI. Combinável com qualquer
@@ -130,7 +130,7 @@ O restante do fluxo é idêntico nos três modos (número, label, descoberta din
 
 **Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label (ou a descoberta
 dinâmica) traz de volta, na mesma leva, issues abertas manualmente/via integração externa e issues
-geradas por `/retro` ou `/vetor:backlog-ideator` (label `ai-generated`), sem distinção. Antes de
+geradas por `/vetor:retro` ou `/vetor:backlog-ideator` (label `ai-generated`), sem distinção. Antes de
 montar o agrupamento por afinidade, particione o resultado usando o campo `labels` já retornado:
 
 - **Pedidas pelo usuário** (candidatas primárias): issues **sem** a label `ai-generated`.

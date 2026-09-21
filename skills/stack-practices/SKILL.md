@@ -18,7 +18,7 @@ que o `/vetor` já gera.
 ## Sintaxe
 
 ```
-/stack-practices [--refresh]
+/vetor:stack-practices [--refresh]
 ```
 
 - sem flag: só gera regras para libs que ainda não têm arquivo em
@@ -102,9 +102,9 @@ paths:
   - "<globs relevantes à lib, ex. '**/*.tsx' para uma lib de UI React>"
 ---
 
-> Gerado por `/stack-practices` a partir da documentação de <lib>@<versão> via Context7 em <data ISO>.
+> Gerado por `/vetor:stack-practices` a partir da documentação de <lib>@<versão> via Context7 em <data ISO>.
 > Conhecimento externo, não um fato observado neste repositório — pode ficar desatualizado.
-> Rode `/stack-practices --refresh` periodicamente. Editável — não sobrescrito sem `--refresh`.
+> Rode `/vetor:stack-practices --refresh` periodicamente. Editável — não sobrescrito sem `--refresh`.
 
 # Melhores práticas — <lib>@<versão>
 

@@ -31,7 +31,7 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 ## Sintaxe
 
 ```
-/fix-loop <descrição>
+/vetor:fix-loop-agent <descrição>
 ```
 
 - `<descrição>`: texto livre descrevendo o problema a reproduzir e corrigir (ex.: "cargo clippy warnings em embedding-service", "frontend build failing on import")
@@ -65,7 +65,7 @@ a ausência total do arquivo um sinal detectável de falha anômala.
   o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de ferramentas/libs
   (Context7)") antes de aplicar o fix.
 - `../shared/references/frontend-design-enforcement.md` — se a `<descrição>`
-  indicar UI/design de frontend, invoque a skill `frontend-design` antes de aplicar o fix (§3.b).
+  indicar UI/design de frontend, invoque a skill `vetor:design` antes de aplicar o fix (§3.b).
 - `../shared/references/tdd-conventions.md` — disciplina completa de TDD
   (bom teste, seams, anti-padrões, mocking) consumida pelo passo TDD de §3.b — não replique o texto
   aqui.
@@ -87,7 +87,7 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" in-worktree
 ```
 
-Se sair não-zero, **aborte**: `/fix-loop` deve rodar de dentro de um worktree.
+Se sair não-zero, **aborte**: `/vetor:fix-loop-agent` deve rodar de dentro de um worktree.
 
 ### 1 — Detectar módulos
 

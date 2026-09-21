@@ -15,13 +15,13 @@ Trate a issue como UI/design frontend se qualquer um dos sinais abaixo estiver p
 
 ## O que fazer
 
-1. Antes de implementar, invoque a skill `frontend-design` via `Skill({skill: "frontend-design"})`.
+1. Antes de implementar, invoque a skill `vetor:design` via `Skill({skill: "vetor:design"})`.
 2. Siga a orientação de direção estética/tipografia retornada pela skill ao implementar o
    componente/tela.
 3. Prossiga normalmente com TDD/KISS conforme `planning-conventions.md` §3, aplicando as escolhas de
    design à mudança.
 4. Depois que a implementação compilar e rodar, siga a skill `design`
-   (`Skill({skill: "design"})`, `skills/design/SKILL.md`) — o Frontend Self-Correction Loop
+   (`Skill({skill: "vetor:design"})`, `skills/design/SKILL.md`) — o Frontend Self-Correction Loop
    (Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done)
    que autocorrige problemas objetivos e escala decisões de produto/design, com degradação
    graciosa quando não há MCP de browser disponível.

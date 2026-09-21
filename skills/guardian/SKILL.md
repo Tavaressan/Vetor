@@ -15,7 +15,7 @@ Você é o guardião do Vetor. Sua missão é auditar e propor correções para 
 ## Sintaxe
 
 ```
-/guardian [--cron]
+/vetor:guardian [--cron]
 ```
 
 - Sem flags: modo manual — audita, propõe auto-fixes no plano de execução (`implementation_plan.md`) e os aplica após o "Proceed" do usuário.
@@ -241,15 +241,15 @@ auto-fixes do guardian. A issue criada é delegada ao fluxo humano existente
 **Auto-fix (modo --cron):** apenas reporta via `SendMessage` (segue a regra global da seção "Modo
 cron" abaixo) — **nunca** propõe `implementation_plan.md` nem cria issue.
 
-### Staleness de regras de melhores práticas (`/stack-practices`)
+### Staleness de regras de melhores práticas (`/vetor:stack-practices`)
 
 Sinalização leve, sem virar check numerado — reaproveita o padrão read-only já usado pelos checks
 acima. Se `.claude/rules/vetor/best-practices/*.md` existir, leia a data no cabeçalho de proveniência
-(linha `> Gerado por /stack-practices ... via Context7 em <data>`) de cada arquivo. Para os que
+(linha `> Gerado por /vetor:stack-practices ... via Context7 em <data>`) de cada arquivo. Para os que
 tiverem mais de 90 dias:
 
 **Finding:** regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere
-`/stack-practices --refresh`
+`/vetor:stack-practices --refresh`
 **Auto-fix:** nenhum — só sinaliza. A refresh consulta o Context7 de novo, o que exige julgamento
 sobre qual versão da lib está em uso agora; não é uma mutação mecânica que o guardian deva aplicar
 sozinho.

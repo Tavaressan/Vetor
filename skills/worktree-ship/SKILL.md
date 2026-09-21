@@ -15,7 +15,7 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 ## Sintaxe
 
 ```
-/worktree-ship [issue#]
+/vetor:worktree-ship [issue#]
 ```
 
 - `[issue#]`: opcional — número da issue GitHub para incluir `Closes #N` no PR
@@ -57,8 +57,8 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" in-worktree
 ```
 
-Se sair não-zero, **aborte**: `/worktree-ship` deve rodar de dentro de um worktree (use
-`/worktree-create` primeiro). Se passar, guarde a branch atual (`git branch --show-current`).
+Se sair não-zero, **aborte**: `/vetor:worktree-ship` deve rodar de dentro de um worktree (use
+`/vetor:worktree-create` primeiro). Se passar, guarde a branch atual (`git branch --show-current`).
 
 Este comando **nunca muda de diretório por conta própria** — quem o invoca de outro contexto (ex.:
 `issue-coordinator`, cujo cwd é o root) deve fazer `cd` para o worktree antes.

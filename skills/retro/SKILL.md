@@ -22,7 +22,7 @@ técnica do projeto ou decisões de arquitetura do projeto **não** entram aqui 
 ## Sintaxe
 
 ```
-/retro
+/vetor:retro
 ```
 
 Invocação manual, tipicamente ao final de uma sessão que usou uma ou mais skills do Vetor
@@ -123,7 +123,7 @@ Use a CLI `gh`:
   <corpo no formato de §2>
 
   ---
-  🤖 Gerado por `/retro` — sessão em <projeto atual, sem dados sensíveis>
+  🤖 Gerado por `/vetor:retro` — sessão em <projeto atual, sem dados sensíveis>
   EOF
   )"
   ```

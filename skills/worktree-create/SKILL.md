@@ -15,7 +15,7 @@ Você é o primitivo de criação de worktree do Vetor. Sua única responsabilid
 ## Sintaxe
 
 ```
-/worktree-create <type> <slug> [issue#]
+/vetor:worktree-create <type> <slug> [issue#]
 ```
 
 - `<type>`: obrigatório — um de `feat`, `fix`, `chore`, `refactor`

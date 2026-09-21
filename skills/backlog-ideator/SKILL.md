@@ -15,7 +15,7 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
 ## Sintaxe
 
 ```
-/backlog [tema]
+/vetor:backlog-ideator [tema]
 ```
 
 - `[tema]`: opcional — tema ou área para focar a ideação (ex.: "resiliência", "testes", "segurança", "frontend UX")
@@ -49,7 +49,7 @@ Você é o ideador de backlog do Vetor. Sua missão é propor issues GitHub bem 
 
 - **Avulsa:** o pedido já nomeia uma issue específica e usa fraseado imperativo/direto (ex.: "crie
   uma issue sobre X"). A formulação já é a aprovação explícita exigida em "Restrições".
-- **Lote (default):** invocação via `/backlog [tema]` sem pedido específico, ou pedido explícito de
+- **Lote (default):** invocação via `/vetor:backlog-ideator [tema]` sem pedido específico, ou pedido explícito de
   ideação/exploração.
 
 No modo **avulsa**:
@@ -249,7 +249,7 @@ O corpo pode ser rascunhado por um runtime disponível (ver `delegate-to-runtime
   Seam de Teste: <seam>
 
   ---
-  🤖 Gerado por `/backlog` — [Claude Code](https://claude.ai/code)
+  🤖 Gerado por `/vetor:backlog-ideator` — [Claude Code](https://claude.ai/code)
   EOF
   )" \
     --label "backlog,ai-generated,<módulo>,<tipo-mapeado>"

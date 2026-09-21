@@ -29,7 +29,7 @@ Você é a skill de design do Vetor. Cobre três responsabilidades sequenciais d
 ## Sintaxe
 
 ```
-/design [<diretório>]
+/vetor:design [<diretório>]
 ```
 
 - `<diretório>`: opcional — raiz do projeto a varrer para o Setup (modo de operação + import).
@@ -38,7 +38,7 @@ Você é a skill de design do Vetor. Cobre três responsabilidades sequenciais d
 O Loop (self-correction) não é tipicamente invocado por um comando de usuário — é consumido por
 `issue-worker`/`fix-loop-agent` (via `frontend-design-enforcement.md`) depois que a implementação de
 uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
-`Skill({skill: "design"})` para verificar uma tela de frontend já implementada.
+`Skill({skill: "vetor:design"})` para verificar uma tela de frontend já implementada.
 
 ---
 

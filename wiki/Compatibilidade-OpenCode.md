@@ -1,5 +1,13 @@
 # Compatibilidade — OpenCode
 
+> **Nota (2026-09-21):** a afirmação abaixo de que "as skills do Vetor (`skills/*/SKILL.md`)
+> referenciam `$CLAUDE_PLUGIN_ROOT` no corpo do texto" — usada para justificar manter as demais
+> skills bloqueadas para o OpenCode — **não é mais verdade**. A issue #251 (fechada em 2026-09-17,
+> depois desta investigação) removeu essas referências de todos os `SKILL.md`; confirmado por grep
+> nesta data (0 ocorrências). O bloqueio das 7+ skills restantes precisa ser revalidado contra a
+> razão real (o modelo de dispatch multi-processo do OpenCode, não mais o path de `$CLAUDE_PLUGIN_ROOT`)
+> antes de assumir que portar as demais é tão simples quanto foi para o Codex.
+
 Investigação feita em 2026-07-21 contra a **documentação oficial** (`opencode.ai/docs/plugins`,
 `/docs/agents`, `/docs/config`, `/docs/skills`), o **código-fonte real** (via Context7,
 `/anomalyco/opencode`) e o **CLI `opencode` v1.18.4 instalado neste ambiente** (`opencode --help`,
@@ -102,6 +110,23 @@ que foi feito para o Codex.
 OpenCode — copiá-los produziria skills inertes (`$CLAUDE_PLUGIN_ROOT` não definido), um `agents/`
 (plural) que o OpenCode não escaneia (ele usa `agent/`, singular) e hooks em JSON onde o OpenCode
 espera plugin TS.
+
+**Por que cópia direta em vez de pacote instalável (git+https) — decisão, não acidente.** O OpenCode
+também suporta registrar um plugin via spec de pacote em `opencode.json`
+(`"plugin"`/`"plugins": ["pkg@git+https://..."]`), resolvido em runtime por `Npm.add()` — confirmado
+via Context7 contra o código-fonte real (`anomalyco/opencode`,
+`packages/opencode/src/plugin/shared.ts`, consultado em 2026-09-21). O Vetor não usa esse caminho:
+`.opencode/plugin/*.ts` é descoberto por diretório, sem passar pelo resolver de pacote em nenhum
+momento (`packages/web/src/content/docs/plugins.mdx`, mesmo repo, mesma data — arquivos em
+`.opencode/plugin/`/`.opencode/plugins/` são carregados automaticamente, sem entrada em
+`opencode.json`). Isso evita, por construção, uma classe de bug de instalação específica do Windows
+documentada pelo projeto superpowers (`obra/superpowers`, `.opencode/INSTALL.md`, seção "Windows
+install issues", consultado em 2026-09-21): cache de URLs `git+https` e o Bun não encontrando
+`git.exe` no PATH mesmo funcionando em terminal normal — problema real o bastante para exigir um
+workaround documentado (`npm install --prefix` + path absoluto em vez do spec `git+https`) num
+projeto com base de usuários grande o suficiente para o padrão aparecer com frequência. Se o Vetor
+algum dia migrar a distribuição para OpenCode de cópia de arquivo para spec de pacote (ex.: para
+simplificar updates), reavaliar esta classe de bug antes — não é hipotético.
 
 **Verificado nesta issue contra o CLI `opencode` real instalado:** chamando `installFiles()`
 diretamente (mesmo código que `vetor install` executa) a partir de um checkout do monorepo, com

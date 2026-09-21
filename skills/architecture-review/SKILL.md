@@ -1,6 +1,6 @@
 ---
 name: architecture-review
-description: Survey periódico de dívida arquitetural — explora hot spots via histórico de commits, aplica o deletion test, gera relatório HTML comparável e aprofunda o candidato escolhido num loop de grilling. Use /architecture-review [foco]. Sempre manual e síncrona, nunca --cron.
+description: Survey periódico de dívida arquitetural — explora hot spots via histórico de commits, aplica o deletion test, gera relatório HTML comparável e aprofunda o candidato escolhido num loop de grilling. Use /vetor:architecture-review [foco]. Sempre manual e síncrona, nunca --cron.
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -17,7 +17,7 @@ candidatos comparáveis num relatório visual, e aprofundando com o usuário o c
 ## Sintaxe
 
 ```
-/architecture-review [foco]
+/vetor:architecture-review [foco]
 ```
 
 - `[foco]`: opcional — módulo, subsistema ou dor nomeados explicitamente (ex.: "módulo de billing",
