@@ -116,8 +116,16 @@ distribuição via marketplace/instalação de plugin (`~/.cursor/plugins/local`
 o mecanismo `vetor install` (cópia direta de arquivo) usado por este CLI. As duas rotas não se
 confundem: `.cursor-plugin/plugin.json` deste repositório é só um manifesto de referência para quem
 quiser instalar o Vetor como Cursor Plugin nativo (mesmo papel que `.codex-plugin/plugin.json` já
-cumpre para o Codex) — inclui apenas `skills` e `agents` (caminhos que funcionam sem tradução);
-`hooks` fica de fora do manifesto até a tradução de schema ser feita.
+cumpre para o Codex) — inclui apenas `skills`. `agents` fica de fora do manifesto de propósito: a
+tabela de descoberta de componentes (`cursor.com/docs/reference/plugins#cursor-plugin-component-discovery`)
+escaneia `agents/` por `.md`/`.mdc`/`.markdown`, e `agents/issue-worker.md`/`agents/code-review.md`
+deste repositório usam frontmatter do Claude Code (`tools`, `isolation`) — campos que o parser de
+agente do Cursor **não documenta reconhecer**, diferente do que está confirmado para skills (`name`/
+`description`, campos extras ignorados). Sem validar isso contra o parser real, incluir `agents` no
+manifesto do plugin seria uma alegação não verificada; o caminho `.cursor/agents/` via
+`vetor install` (writer, abaixo) já cobre a descoberta confirmada por `docs/subagents#file-locations`
+sem depender dessa inferência. `hooks` também fica de fora do manifesto até a tradução de schema ser
+feita.
 
 ## CLI e detecção
 
@@ -178,9 +186,11 @@ conhecida, documentada no comentário do writer, não escondida do usuário.
 
 Este repositório não tem o Cursor (editor ou CLI) instalado no ambiente onde esta investigação foi
 feita. A cobertura automatizada (`cli/test/installer-detector.test.js`,
-`cli/test/installer-writer.test.js`) verifica detecção e cópia de arquivo no formato e caminho
-documentados — não verifica que o Cursor real, ao abrir o projeto, de fato reconhece o
-`.cursor/skills/` e `.cursor/agents/` gerados. Procedimento para quem for validar manualmente:
+`cli/test/installer-writer.test.js`) verifica detecção (âncora de diretório e comando no PATH) e que
+`installFiles()` copia bytes para o caminho de destino documentado (`.cursor/skills/...`,
+`.cursor/agents/...`) — **não** verifica que o *conteúdo* dos arquivos reais (`skills/*/SKILL.md`,
+`agents/*.md`) satisfaz o parser de frontmatter do Cursor, nem que o Cursor real, ao abrir o
+projeto, de fato reconhece o que foi gerado. Procedimento para quem for validar manualmente:
 
 1.  Rode `vetor install` com Cursor selecionado em um projeto de teste.
 2.  Abra o projeto no Cursor (editor ou `cursor-agent`/`agent` CLI).

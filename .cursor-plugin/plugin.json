@@ -7,6 +7,5 @@
   "repository": "https://github.com/Tavaressan/Vetor",
   "license": "MIT",
   "keywords": ["worktree", "ci", "github-issues", "automation", "workflow"],
-  "skills": "./skills",
-  "agents": "./agents"
+  "skills": "./skills"
 }

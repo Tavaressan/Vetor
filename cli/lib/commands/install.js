@@ -5,8 +5,8 @@ const { runInstallPrompts: defaultRunInstallPrompts } = require('../installer/pr
 const { installFiles: defaultInstallFiles } = require('../installer/writer.js');
 
 /**
- * Comando `install`: detecta engines suportadas no projeto-alvo (Claude Code, Codex,
- * OpenCode, Antigravity, Cursor) e oferece seleção interativa
+ * Comando `install`: detecta engines suportadas no projeto-alvo (ver `ENGINES` em
+ * `installer/detector.js`) e oferece seleção interativa
  * com as engines detectadas pré-marcadas. A detecção é só sugestão inicial: nenhuma
  * engine é instalada sem confirmação explícita do usuário via `runInstallPrompts`.
  *
