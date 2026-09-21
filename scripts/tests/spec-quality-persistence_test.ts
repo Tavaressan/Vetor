@@ -25,19 +25,28 @@ async function git(args: string[], cwd: string): Promise<void> {
 Deno.test("validationPathFor deriva o path de persistência a partir do path da Spec (função pura)", () => {
   assertEquals(
     validationPathFor("docs/specs/authentication.md"),
-    ".claude/vetor/specs/authentication.validation.json",
+    ".claude/vetor/specs/docs-specs-authentication.validation.json",
   );
   assertEquals(
     validationPathFor("docs/specs/authentication.md", ".claude/vetor/specs"),
-    ".claude/vetor/specs/authentication.validation.json",
+    ".claude/vetor/specs/docs-specs-authentication.validation.json",
   );
 });
 
 Deno.test("validationPathFor normaliza separadores de path (Windows/POSIX)", () => {
   assertEquals(
     validationPathFor("docs\\specs\\authentication.md"),
-    ".claude/vetor/specs/authentication.validation.json",
+    ".claude/vetor/specs/docs-specs-authentication.validation.json",
   );
+});
+
+// #269: `validationPathFor` derivava o histórico só pelo basename da Spec — duas Specs com o
+// mesmo nome em pastas diferentes colidiam no mesmo arquivo de histórico, misturando os ciclos de
+// refinamento de Specs não relacionadas.
+Deno.test("validationPathFor não colide entre Specs de mesmo nome em pastas diferentes (#269)", () => {
+  const a = validationPathFor("docs/specs/auth/authentication.md");
+  const b = validationPathFor("docs/specs/billing/authentication.md");
+  assertEquals(a === b, false);
 });
 
 Deno.test("loadValidationState devolve null quando o arquivo não existe", async () => {
@@ -58,6 +67,34 @@ Deno.test("saveValidationState + loadValidationState fazem round-trip do histór
     assertEquals(loaded?.history.length, 1);
     assertEquals(loaded?.history[0].score, 54);
   } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+// #269: `dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")))` produzia
+// `Math.max(-1, -1) = -1` quando o path não tem separador, e `path.slice(0, -1)` cortava o último
+// caractere do path em vez de resultar em string vazia — criando um diretório espúrio (o path sem
+// o último char) e escrevendo o arquivo num lugar errado.
+Deno.test("saveValidationState com path sem separador não cria diretório espúrio (#269)", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  const cwdBefore = Deno.cwd();
+  Deno.chdir(tmpDir);
+  try {
+    const path = "authentication.validation.json";
+    await saveValidationState(path, {
+      specPath: "docs/specs/authentication.md",
+      history: [],
+    });
+    const loaded = await loadValidationState(path);
+    assertEquals(loaded?.specPath, "docs/specs/authentication.md");
+
+    // Nenhum diretório espúrio "authentication.validation.jso" (path sem o último char) deve ter
+    // sido criado.
+    const entries: string[] = [];
+    for await (const entry of Deno.readDir(tmpDir)) entries.push(entry.name);
+    assertEquals(entries, ["authentication.validation.json"]);
+  } finally {
+    Deno.chdir(cwdBefore);
     await Deno.remove(tmpDir, { recursive: true });
   }
 });
@@ -89,7 +126,7 @@ Deno.test("resolveDefaultHistoryPath resolve a partir da raiz do repositório gi
 
     const expected = `${
       repoRoot.replaceAll("\\", "/")
-    }/.claude/vetor/specs/authentication.validation.json`;
+    }/.claude/vetor/specs/docs-specs-authentication.validation.json`;
     assertEquals(fromRoot, expected);
     // A mesma Spec, resolvida a partir de um subdiretório do mesmo checkout, aponta para o mesmo
     // arquivo de histórico — sem isso, duas invocações do CLI em cwds diferentes do mesmo
@@ -104,7 +141,7 @@ Deno.test("resolveDefaultHistoryPath cai no path relativo quando cwd não é um 
   const tmpDir = await Deno.makeTempDir();
   try {
     const resolved = await resolveDefaultHistoryPath("docs/specs/authentication.md", tmpDir);
-    assertEquals(resolved, ".claude/vetor/specs/authentication.validation.json");
+    assertEquals(resolved, ".claude/vetor/specs/docs-specs-authentication.validation.json");
   } finally {
     await Deno.remove(tmpDir, { recursive: true });
   }

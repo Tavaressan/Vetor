@@ -54,7 +54,7 @@ export function validateSpecText(text: string, config?: unknown): QualityResult 
       scope: checkScope(parsed),
       edgeCases: checkEdgeCases(parsed),
     },
-    resolveThresholds(config as Parameters<typeof resolveThresholds>[0]),
+    resolveThresholds(config),
   );
 }
 

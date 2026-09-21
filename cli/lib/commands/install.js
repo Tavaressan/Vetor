@@ -8,8 +8,16 @@ const path = require('node:path');
  * de engine (Claude Code via `.claude/`) — a seleção interativa entre
  * múltiplas engines chega em issue futura (detecção completa de engines).
  */
+function isDirectory(targetPath) {
+  try {
+    return fs.statSync(targetPath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function install(cwd = process.cwd()) {
-  const claudeDetected = fs.existsSync(path.join(cwd, '.claude'));
+  const claudeDetected = isDirectory(path.join(cwd, '.claude'));
 
   if (claudeDetected) {
     console.info('Engine detectada: Claude Code (.claude/ encontrado).');

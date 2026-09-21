@@ -101,3 +101,30 @@ Deno.test("parseSpec retorna seções e requisitos vazios para texto vazio", () 
   assertEquals(parsed.requirements.length, 0);
   assertEquals(parsed.sections.size, 0);
 });
+
+// #269: o `raw` do último requisito parseado engolia todo o texto até EOF — não parava no próximo
+// H2 (só no próximo `### RF/RNF-`), contaminando `hasOpenMarker`/heurísticos de Clarity com
+// conteúdo de outras seções (ex.: "TBD" ou "⚠️ ABERTO" numa seção posterior não relacionada).
+Deno.test("parseSpec: raw do último requisito para no próximo H2, não engole seções subsequentes (#269)", () => {
+  const spec = `# Tema
+
+## Functional Requirements
+
+### RF-01 - Login
+
+**Priority:** Must
+
+**Description:**
+
+Usuário autentica.
+
+## Open Questions
+
+⚠️ ABERTO: decidir política de retry.
+`;
+  const parsed = parseSpec(spec);
+  const rf01 = parsed.requirements.find((r: ParsedRequirement) => r.id === "RF-01");
+  assertEquals(rf01?.hasOpenMarker, false);
+  assertEquals(rf01?.raw.includes("Open Questions"), false);
+  assertEquals(rf01?.raw.includes("retry"), false);
+});

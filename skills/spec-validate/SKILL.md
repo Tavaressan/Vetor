@@ -80,8 +80,11 @@ deno run -A "$SKILL_DIR/../../scripts/spec-validate.ts" <path> [--config <path-d
 - `--history`: opcional — sobrescreve onde o histórico de validação é persistido (default:
   derivado da raiz do repositório git + path da Spec, `<git-toplevel>/.claude/vetor/specs/
   <slug>.validation.json` — não do cwd do processo, para que duas invocações a partir de
-  subdiretórios diferentes do mesmo checkout encontrem o mesmo histórico). Use só em cenário de
-  teste/automação; em uso normal, deixe o CLI derivar o path sozinho.
+  subdiretórios diferentes do mesmo checkout encontrem o mesmo histórico). `<slug>` é o path
+  relativo da Spec sem extensão, com `/` virando `-` (`validationPathFor`, spec-quality-
+  persistence.ts) — não só o basename, para que duas Specs de mesmo nome em pastas diferentes não
+  colidam no mesmo histórico (#269). Use `--history` só em cenário de teste/automação; em uso
+  normal, deixe o CLI derivar o path sozinho.
 
 O CLI lê a Spec, faz o parsing heurístico (`spec-parser.ts`), roda os 5 dimension checkers
 (`spec-quality-checkers.ts`) e agrega o resultado no Quality Model (`spec-quality.ts`), imprimindo

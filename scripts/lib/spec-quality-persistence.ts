@@ -15,14 +15,26 @@ export interface ValidationState {
 
 /** Deriva o path de persistência a partir do path da Spec — função pura, sem tocar o filesystem
  * (testável sem risco de deixar artefato órfão em `.claude/vetor/specs/`, que é gitignored e por
- * isso não apareceria em `git status`). */
+ * isso não apareceria em `git status`).
+ *
+ * #269: usa o path relativo completo (sem extensão, `/` virando `-`), não só o basename — duas
+ * Specs com o mesmo nome em pastas diferentes (ex.: "docs/specs/auth/x.md" e
+ * "docs/specs/billing/x.md") precisam de arquivos de histórico distintos.
+ *
+ * Migração: essa mudança altera o nome do arquivo derivado para toda Spec fora da raiz do diretório
+ * de histórico (ex.: "docs/specs/x.md" → "docs-specs-x.validation.json", antes "x.validation.json").
+ * Um histórico já persistido com o nome antigo fica órfão (não é lido, não é migrado) — a próxima
+ * validação dessa Spec recomeça o histórico de refinamento do zero, resetando o contador de
+ * `MAX_REFINEMENT_CYCLES` (#222). Aceitável: o histórico é metadado informativo/gitignored, não
+ * conteúdo da Spec — perdê-lo uma vez não perde trabalho, só o contador de ciclos já percorridos. */
 export function validationPathFor(
   specPath: string,
   root = ".claude/vetor/specs",
 ): string {
-  const normalized = specPath.replaceAll("\\", "/");
-  const base = normalized.split("/").pop()!.replace(/\.[^./]+$/, "");
-  return `${root}/${base}.validation.json`;
+  const normalized = specPath.replaceAll("\\", "/").replace(/^\.?\/+/, "");
+  const withoutExt = normalized.replace(/\.[^./]+$/, "");
+  const slug = withoutExt.replaceAll("/", "-");
+  return `${root}/${slug}.validation.json`;
 }
 
 /**
@@ -64,7 +76,10 @@ export async function loadValidationState(path: string): Promise<ValidationState
 }
 
 export async function saveValidationState(path: string, state: ValidationState): Promise<void> {
-  const dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
+  // #269: `Math.max(-1, -1) = -1` quando o path não tem separador — `slice(0, -1)` cortava o
+  // último caractere do path em vez de resultar em string vazia, criando um diretório espúrio.
+  const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  const dir = separatorIndex === -1 ? "" : path.slice(0, separatorIndex);
   if (dir) await Deno.mkdir(dir, { recursive: true });
   await Deno.writeTextFile(path, JSON.stringify(state, null, 2) + "\n");
 }
