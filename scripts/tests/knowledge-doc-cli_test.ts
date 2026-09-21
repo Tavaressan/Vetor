@@ -254,6 +254,94 @@ Deno.test("find com identidade malformada falha com ERRO claro (não stack trace
   }
 });
 
+Deno.test("update-spec preserva id/type/project/created e bump em updated (issue #219)", async () => {
+  const dir = await tempDir();
+  try {
+    const created = await run(
+      [
+        "create-spec",
+        "--slug",
+        "checkout",
+        "--project",
+        "vetor",
+        "--status",
+        "draft",
+        "--root",
+        dir,
+      ],
+      { stdin: "# Checkout v1" },
+    );
+    assertEquals(created.code, 0);
+    const before = await Deno.readTextFile(`${dir}/specs/checkout.md`);
+    const createdDateMatch = before.match(/created: (\S+)/);
+    assertMatch(before, /created: \d{4}-\d{2}-\d{2}/);
+
+    const updated = await run(
+      ["update-spec", "--slug", "checkout", "--root", dir],
+      { stdin: "# Checkout v2" },
+    );
+    assertEquals(updated.code, 0, updated.stderr);
+    const { identity, path } = JSON.parse(updated.stdout);
+    assertEquals(identity, "spec:checkout");
+    assertEquals(path, "specs/checkout.md");
+
+    const after = await Deno.readTextFile(`${dir}/specs/checkout.md`);
+    assertMatch(after, /id: spec:checkout/);
+    assertMatch(after, /type: spec/);
+    assertMatch(after, /project: vetor/);
+    // status preservado (não resetado para draft/undefined) quando --status é omitido
+    assertMatch(after, /status: draft/);
+    // created nunca é substituído por um update — apenas `created` na criação é a verdade
+    assertMatch(after, new RegExp(`created: ${createdDateMatch![1]}`));
+    assertMatch(after, /# Checkout v2/);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("update-spec com --status altera o status explicitamente", async () => {
+  const dir = await tempDir();
+  try {
+    await run(
+      [
+        "create-spec",
+        "--slug",
+        "checkout",
+        "--project",
+        "vetor",
+        "--status",
+        "draft",
+        "--root",
+        dir,
+      ],
+      { stdin: "# Checkout v1" },
+    );
+    const updated = await run(
+      ["update-spec", "--slug", "checkout", "--root", dir, "--status", "approved"],
+      { stdin: "# Checkout v2" },
+    );
+    assertEquals(updated.code, 0, updated.stderr);
+    const after = await Deno.readTextFile(`${dir}/specs/checkout.md`);
+    assertMatch(after, /status: approved/);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("update-spec falha com ERRO claro (não stack trace) quando a identidade não existe", async () => {
+  const dir = await tempDir();
+  try {
+    const result = await run(
+      ["update-spec", "--slug", "inexistente", "--root", dir],
+      { stdin: "# Corpo" },
+    );
+    assertEquals(result.code, 1);
+    assertMatch(result.stderr, /^ERRO: /);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("fluxo completo do critério de aceite: busca prévia vazia, depois cria e confirma frontmatter", async () => {
   const dir = await tempDir();
   try {

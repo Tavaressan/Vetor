@@ -130,6 +130,33 @@ export async function createDocument(
 }
 
 /**
+ * Atualiza um documento existente (escolha `update` do fluxo de overwrite — issue #219),
+ * preservando `id`/`type`/`project`/`created` do frontmatter atual e só sobrescrevendo `status`
+ * quando explicitamente informado; `updated` sempre avança para a data de hoje. Delega a
+ * `provider.read` + `provider.update` — lança se a identidade não existir (mesmo contrato de
+ * `provider.update`), nunca cria uma entrada nova por engano.
+ */
+export async function updateDocument(
+  provider: KnowledgeProvider,
+  params: { type: string; slug: string; status?: string; body: string },
+): Promise<{ identity: string; path: string }> {
+  const identity = docIdentity(params.type, params.slug);
+  const path = pathForIdentity(identity);
+  const current = await provider.read(path);
+  const { frontmatter: currentFrontmatter } = parseFrontmatter(current);
+  const frontmatter = buildFrontmatter({
+    id: currentFrontmatter.id ?? identity,
+    type: currentFrontmatter.type ?? params.type,
+    project: currentFrontmatter.project ?? "",
+    status: params.status ?? currentFrontmatter.status ?? "draft",
+    created: currentFrontmatter.created ?? todayISO(),
+    updated: todayISO(),
+  });
+  await provider.update(path, `${frontmatter}${params.body}`);
+  return { identity, path };
+}
+
+/**
  * Localiza um documento pela sua identidade estável, resolvendo diretamente o path canônico
  * (não busca por texto) — evita falso-positivo de um documento que apenas *menciona* a
  * identidade em um link.

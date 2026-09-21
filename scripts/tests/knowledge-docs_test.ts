@@ -14,6 +14,7 @@ import {
   parseFrontmatter,
   pathForIdentity,
   slugify,
+  updateDocument,
 } from "../lib/knowledge-docs.ts";
 
 function tempProvider(): { dir: string; provider: FilesystemKnowledgeProvider } {
@@ -132,6 +133,77 @@ Deno.test("createDocument lança se já existir uma entrada na mesma identidade 
         status: "draft",
         body: "# v2",
       })
+    );
+  } finally {
+    cleanup(dir);
+  }
+});
+
+// --- updateDocument ---
+
+Deno.test("updateDocument preserva id/type/project/created e avança updated (issue #219)", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await createDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      project: "vetor",
+      status: "draft",
+      body: "# v1",
+    });
+    const rawBefore = await provider.read("specs/authentication.md");
+    const createdBefore = parseFrontmatter(rawBefore).frontmatter.created;
+
+    const { identity, path } = await updateDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      body: "# v2",
+    });
+    assertEquals(identity, "spec:authentication");
+    assertEquals(path, "specs/authentication.md");
+
+    const raw = await provider.read(path);
+    const { frontmatter, body } = parseFrontmatter(raw);
+    assertEquals(frontmatter.id, "spec:authentication");
+    assertEquals(frontmatter.type, "spec");
+    assertEquals(frontmatter.project, "vetor");
+    assertEquals(frontmatter.status, "draft"); // status preservado quando não informado
+    assertEquals(frontmatter.created, createdBefore); // created nunca é sobrescrito por update
+    assertMatch(frontmatter.updated, /^\d{4}-\d{2}-\d{2}$/);
+    assertEquals(body.trim(), "# v2");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("updateDocument com status explícito sobrescreve o status atual", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await createDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      project: "vetor",
+      status: "draft",
+      body: "# v1",
+    });
+    await updateDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      status: "approved",
+      body: "# v2",
+    });
+    const { frontmatter } = parseFrontmatter(await provider.read("specs/authentication.md"));
+    assertEquals(frontmatter.status, "approved");
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("updateDocument lança quando a identidade não existe — nunca cria por engano", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await assertRejects(() =>
+      updateDocument(provider, { type: "spec", slug: "nao-existe", body: "# v1" })
     );
   } finally {
     cleanup(dir);
