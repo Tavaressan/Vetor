@@ -273,9 +273,25 @@ pela branch) ou pelo retorno do `Agent()`.
      `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING` sem resolução bloqueia a transição; trate
      como pendência a reportar, não avance a onda para não repetir o branch skew que motivou esta
      seção.
-  2. O branch default (`$DEFAULT_BRANCH`) estiver sincronizado com esses merges — confirme com
-     `git fetch && git log origin/<default> -1` antes do primeiro dispatch de `O_{i+1}`, garantindo
-     que os novos worktrees (Fase 3) partam de um commit que já contém as mudanças de `O_i`.
+  2. O branch default (`$DEFAULT_BRANCH`) estiver sincronizado com esses merges. `git fetch && git
+     log origin/<default> -1` confirma que o *remoto* já tem os merges — mas não garante que o HEAD
+     *local* do root os tenha: `isolation: "worktree"` cria o novo worktree a partir do HEAD local
+     do root (não de `origin/$DEFAULT_BRANCH` diretamente). Complete a checagem comparando os dois
+     antes do primeiro dispatch de `O_{i+1}`:
+     ```bash
+     git fetch origin "$DEFAULT_BRANCH"
+     git rev-parse HEAD                       # HEAD local do root
+     git rev-parse "origin/$DEFAULT_BRANCH"   # último commit do remoto
+     ```
+     Se divergirem (root atrasado), rode `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root`
+     e **repita a comparação acima** — `sync-root` sai com código 0 mesmo quando recusa avançar (ex.:
+     mudanças locais pré-existentes não commitadas no root, alheias a este trabalho de coordenação —
+     causa raiz confirmada na issue #244); não trate o exit 0 como prova de que o HEAD avançou. Se,
+     mesmo após o `sync-root`, o root continuar atrasado (dirty state não resolvido ou branch não
+     mesclável), **não bloqueie o dispatch por conta disso**: essa condição é exatamente o motivo do
+     passo obrigatório abaixo em "Prompt de execução sequencial para o worker" — cada worker de
+     `O_{i+1}` sincroniza com `origin/$DEFAULT_BRANCH` por conta própria, como primeiro passo padrão
+     (não recuperação ad-hoc), então a divergência do root deixa de ser bloqueante para o dispatch.
 - Se, apesar da heurística da Fase 1, um worker de uma onda posterior reportar erro de compilação por
   dependência ausente de um grupo anterior ainda não mergeado, isso é sinal de dependência não
   detectada: pause o grupo, registre no relatório e corrija o agrupamento em ondas para a próxima
@@ -344,6 +360,19 @@ worker precisar de MCP, adicione-o à lista.
    > mensagem como *"Edit the worktree copy..."* ou qualquer bloqueio de escrita fora do worktree,
    > salve também uma cópia dentro do worktree em `.claude/vetor-status.md`. Se apenas a cópia local
    > foi gravada, sinalize no chat.
+5. **Sincronização com origin (obrigatória a partir de `O_2`).** Se este dispatch pertence a uma
+   onda `O_{i+1}` posterior à primeira, inclua no prompt, como **primeiro passo padrão logo após o
+   `git checkout -b`** — não como recuperação ad-hoc descoberta pelo próprio worker (issue #244):
+   > Antes de investigar o escopo da issue, rode `git fetch origin $DEFAULT_BRANCH` e compare com o
+   > seu HEAD (`git log origin/$DEFAULT_BRANCH -1` vs `git log HEAD -1`). Se o seu worktree nasceu
+   > de um commit anterior aos merges das ondas anteriores, sincronize agora (`git merge
+   > origin/$DEFAULT_BRANCH` ou `git rebase origin/$DEFAULT_BRANCH`) antes de procurar qualquer
+   > arquivo — issues desta onda podem depender de arquivos criados por PRs de ondas já mergeadas.
+   Isso vale mesmo que o coordinator já tenha checado a sincronia do root na Transição de onda: o
+   worktree é criado a partir do HEAD local do root no momento do dispatch (`isolation: "worktree"`
+   é controlado pelo harness, não pelo coordinator — não há como forçar a criação diretamente a
+   partir de `origin/$DEFAULT_BRANCH`), então essa instrução no prompt do worker é a rede de
+   segurança que não depende do root ter avançado a tempo.
 
 Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em alguma, para e marca
 `FAILED_MAX_ITERATIONS` especificando qual issue falhou.
