@@ -407,14 +407,25 @@ Contract já consolidado).
 designContractClaim, specificationClaim)` (e sua especialização `detectPrimaryActionConflict` para
 o caso mais comum, ação primária) compara os dois valores já extraídos pelo agente — a extração em
 si (ler o Design Contract e a Specification e identificar o valor relevante de cada um) é trabalho
-do agente, este módulo só compara e relata. Retorna `null` quando os valores são equivalentes
-(ignorando espaço/pontuação final/caixa); caso contrário, retorna um relato com os dois valores e
-suas origens (`source`) — **nunca** um veredito de qual lado está correto (sem campo
-`resolved`/`winner`).
+do agente, este módulo só compara e relata.
+
+Três resultados possíveis, dois deles com um discriminante estrutural `kind` (#259, #269 — nunca só
+uma diferença de texto em `message`):
+
+- **`null`**: os dois valores são equivalentes (ignorando espaço/pontuação final/caixa) e **nenhum**
+  dos dois está vazio — sem conflito, sem nada a relatar.
+- **`{ kind: "missingValue", ... }`**: um ou ambos os valores estão vazios/só-espaço após
+  normalização. Nunca retorna `null` nesse caso (mesmo quando os dois lados estão igualmente
+  vazios) — um `null` aqui seria um falso all-clear, já que o valor pode estar vazio porque a
+  extração falhou, não porque as duas fontes concordam.
+- **`{ kind: "conflict", ... }`**: os dois valores têm conteúdo concreto e divergem.
+
+Em ambos os casos não-`null`, o relato traz os dois valores e suas origens (`source`) — **nunca** um
+veredito de qual lado está correto (sem campo `resolved`/`winner`).
 
 **Exemplo do critério de aceite de #231:** Design Contract especifica ação primária "Criar
 worktree" (Hierarquia) e a Specification implica ação primária "Exportar relatório" (RF-03) → o
-agente reporta o conflito com as duas origens, nunca escolhe um dos dois.
+agente reporta o conflito (`kind: "conflict"`) com as duas origens, nunca escolhe um dos dois.
 
 Ao detectar um conflito, escale via `BLOCKED_WAITING` (`agent-status.template.md`), qualificando o
 motivo com o vocabulário já existente de Evidence State (`agent-status.template.md`, ver

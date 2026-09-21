@@ -16,9 +16,17 @@ export interface DecisionClaim {
   source: string;
 }
 
+/** Distingue as duas categorias que este módulo relata (#259, #269) — nunca uma mensagem de texto
+ * só, sempre um campo estruturado: `"missingValue"` quando um ou ambos os lados estão vazios (a
+ * extração pode ter falhado, não necessariamente as fontes concordam); `"conflict"` quando os dois
+ * lados têm valor concreto e divergente. */
+export type SpecDesignConflictKind = "missingValue" | "conflict";
+
 /** Relato de conflito entre Specification e Design Contract para um campo de decisão. Nunca inclui
  * um veredito de qual lado está correto — só os dois valores e suas origens. */
 export interface SpecDesignConflictReport {
+  /** Distingue "ausência de valor" (#259) de "conflito real" — nunca só o texto de `message`. */
+  kind: SpecDesignConflictKind;
   /** Nome do campo/decisão em conflito (ex.: "Ação primária"). */
   field: string;
   designContract: DecisionClaim;
@@ -51,6 +59,7 @@ export function detectFieldConflict(
   // Se um ou ambos os valores estão vazios (após normalização), é ausência de valor (issue #259)
   if (normalizedDC === "" || normalizedSpec === "") {
     return {
+      kind: "missingValue",
       field,
       designContract,
       specification,
@@ -65,6 +74,7 @@ export function detectFieldConflict(
   if (normalizedDC === normalizedSpec) return null;
 
   return {
+    kind: "conflict",
     field,
     designContract,
     specification,
