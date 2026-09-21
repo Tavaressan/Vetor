@@ -328,6 +328,61 @@ Deno.test("update-spec com --status altera o status explicitamente", async () =>
   }
 });
 
+Deno.test("update-spec preserva o link criado por create-spec --link (blocker code-review PR #280, issue #219)", async () => {
+  const dir = await tempDir();
+  try {
+    await Deno.mkdir(`${dir}/adr`, { recursive: true });
+    await Deno.writeTextFile(`${dir}/adr/other.md`, "# ADR Other");
+
+    const created = await run(
+      [
+        "create-spec",
+        "--slug",
+        "authentication",
+        "--project",
+        "vetor",
+        "--root",
+        dir,
+        "--link",
+        "adr/other.md",
+      ],
+      { stdin: "# Authentication v1" },
+    );
+    assertEquals(created.code, 0, created.stderr);
+
+    const before = await Deno.readTextFile(`${dir}/specs/authentication.md`);
+    assertMatch(before, /- Relacionado: adr\/other\.md/);
+
+    // update-spec com um rascunho novo que não menciona o link — reproduz exatamente o cenário
+    // relatado pelo code-review: a linha de link sumia sem aviso.
+    const updated = await run(
+      ["update-spec", "--slug", "authentication", "--root", dir],
+      { stdin: "# Authentication v2" },
+    );
+    assertEquals(updated.code, 0, updated.stderr);
+
+    const after = await Deno.readTextFile(`${dir}/specs/authentication.md`);
+    assertMatch(after, /- Relacionado: adr\/other\.md/);
+    assertMatch(after, /# Authentication v2/);
+
+    // Uma segunda rodada de update-spec não deve duplicar a linha preservada.
+    const updatedAgain = await run(
+      ["update-spec", "--slug", "authentication", "--root", dir],
+      { stdin: "# Authentication v3" },
+    );
+    assertEquals(updatedAgain.code, 0, updatedAgain.stderr);
+
+    const afterAgain = await Deno.readTextFile(`${dir}/specs/authentication.md`);
+    const occurrences = afterAgain
+      .split(/\r?\n/)
+      .filter((l) => l.trim() === "- Relacionado: adr/other.md");
+    assertEquals(occurrences.length, 1);
+    assertMatch(afterAgain, /# Authentication v3/);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("update-spec falha com ERRO claro (não stack trace) quando a identidade não existe", async () => {
   const dir = await tempDir();
   try {

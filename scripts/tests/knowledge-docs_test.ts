@@ -215,6 +215,79 @@ Deno.test("updateDocument lança quando o documento existente não tem frontmatt
   }
 });
 
+Deno.test("updateDocument preserva link (`- Relacionado:`) gravado no corpo por provider.link, mesmo sem o novo rascunho mencioná-lo (blocker code-review PR #280)", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await createDocument(provider, {
+      type: "adr",
+      slug: "other",
+      project: "vetor",
+      status: "active",
+      body: "# ADR Other",
+    });
+    await createDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      project: "vetor",
+      status: "draft",
+      body: "# v1",
+    });
+    await provider.link("specs/authentication.md", "adr/other.md");
+
+    const before = await provider.read("specs/authentication.md");
+    assertMatch(before, /- Relacionado: adr\/other\.md/);
+
+    // update-spec com um novo rascunho que não menciona o link — a implementação anterior
+    // sobrescrevia o corpo inteiro e apagava a linha de link silenciosamente.
+    await updateDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      body: "# v2 sem menção ao link",
+    });
+
+    const after = await provider.read("specs/authentication.md");
+    assertMatch(after, /- Relacionado: adr\/other\.md/);
+    assertMatch(after, /# v2 sem menção ao link/);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+Deno.test("updateDocument não duplica uma linha de link já presente no novo rascunho", async () => {
+  const { dir, provider } = tempProvider();
+  try {
+    await createDocument(provider, {
+      type: "adr",
+      slug: "other",
+      project: "vetor",
+      status: "active",
+      body: "# ADR Other",
+    });
+    await createDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      project: "vetor",
+      status: "draft",
+      body: "# v1",
+    });
+    await provider.link("specs/authentication.md", "adr/other.md");
+
+    await updateDocument(provider, {
+      type: "spec",
+      slug: "authentication",
+      body: "# v2\n\n- Relacionado: adr/other.md",
+    });
+
+    const after = await provider.read("specs/authentication.md");
+    const occurrences = after.split(/\r?\n/).filter((l) =>
+      l.trim() === "- Relacionado: adr/other.md"
+    );
+    assertEquals(occurrences.length, 1);
+  } finally {
+    cleanup(dir);
+  }
+});
+
 Deno.test("updateDocument lança quando a identidade não existe — nunca cria por engano", async () => {
   const { dir, provider } = tempProvider();
   try {
