@@ -36,7 +36,7 @@ function runInstallPrompts(
   const choices = buildEngineChoices(engines);
   const interactive = isTTY ?? input.isTTY ?? false;
 
-  output.write('Engines detectadas:\n');
+  output.write('Selecione as engines para instalar:\n');
   output.write(renderChoices(choices) + '\n');
 
   if (!interactive) {
