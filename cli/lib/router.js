@@ -29,7 +29,7 @@ function run(argv) {
     return;
   }
 
-  const entry = COMMANDS[command];
+  const entry = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
   if (!entry) {
     console.error(`Comando desconhecido: ${command}`);
     printHelp();
