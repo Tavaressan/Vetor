@@ -44,15 +44,20 @@ async function install(cwd = process.cwd(), options = {}) {
 
   console.info(`Engines selecionadas: ${selected.map((engine) => engine.name).join(', ')}.`);
 
-  const { copied, skipped, enginesSkipped = [] } = installFiles({
-    projectRoot: cwd,
-    engines: selected,
-  });
+  const {
+    copied,
+    skipped,
+    warnings = [],
+    enginesSkipped = [],
+  } = installFiles({ projectRoot: cwd, engines: selected });
   console.info(`${copied.length} arquivo(s) copiado(s).`);
   if (skipped.length > 0) {
     console.info(
       `${skipped.length} arquivo(s) não sobrescrito(s) (editado(s) pelo usuário ou não gerado(s) pelo instalador).`,
     );
+  }
+  for (const warning of warnings) {
+    console.info(`Aviso: ${warning}`);
   }
   // Issue #283: engine selecionada sem destino de arquivo confirmado (ex.: Antigravity) não
   // falha nem copia nada — mas precisa ser visível para o usuário, não silenciosa.

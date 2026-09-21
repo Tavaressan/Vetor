@@ -3,7 +3,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { hashFile, readManifest, writeManifest } = require('./manifest.js');
+const { hashFile, hashContent, readManifest, writeManifest } = require('./manifest.js');
+const { translateHooksForCursor } = require('./cursor-hooks.js');
 
 // Decisão de escopo (issue #255, revisada na #283): destino nativo por engine é o
 // diretório-âncora já usado pela própria detecção (detector.js usa `.claude`/`.opencode`/
@@ -13,12 +14,12 @@ const { hashFile, readManifest, writeManifest } = require('./manifest.js');
 // Cursor (#256, ver wiki/Compatibilidade-Cursor.md): `.cursor/skills/` e `.cursor/agents/`
 // são descobertos nativamente pelo Cursor sem tradução de formato (SKILL.md e agents/*.md já
 // são agnósticos de engine desde #251) — cópia direta funciona de verdade para essas duas
-// pastas. `hooks/` NÃO é copiado para o destino do Cursor (ver `ENGINE_EXCLUDED_SOURCE_DIRS`
-// abaixo): a wiki confirma que o Cursor só carrega hooks de projeto em `.cursor/hooks.json`
-// (arquivo único na raiz), nunca `.cursor/hooks/hooks.json` (diretório, o formato que este
-// writer produz para as demais engines) — copiar e reportar como `copied` seria enganoso,
-// já que o arquivo copiado é inerte. Tradução de schema de payload (camelCase, campos por
-// evento diferentes do Claude Code) e de caminho fica para trabalho futuro.
+// pastas. `hooks/` é tratado à parte (ver `installCursorHooks` abaixo, issue #284): o Cursor
+// só carrega hooks de projeto em `.cursor/hooks.json` (arquivo único na raiz, schema próprio
+// em camelCase), nunca `.cursor/hooks/hooks.json` (diretório, o formato que este writer copia
+// para as demais engines) — por isso `hooks/hooks.json` é traduzido em memória
+// (`cursor-hooks.js`) e gravado como arquivo único em vez de entrar no loop genérico de
+// `SOURCE_DIRS` abaixo.
 //
 // Redundância conhecida e aceita (YAGNI, achado #4 do code-review da PR #282): quando
 // Claude Code E Cursor estão ambos selecionados, `skills/`/`agents/` são copiados tanto
@@ -50,11 +51,15 @@ const ENGINE_DEST_DIR = {
 
 const SOURCE_DIRS = ['skills', 'agents', 'hooks'];
 
-// Diretórios de SOURCE_DIRS que não devem ser copiados para o destino de uma engine
-// específica, mesmo existindo na fonte, porque o resultado é comprovadamente inerte.
+// Diretórios de SOURCE_DIRS que não devem ser copiados (cópia genérica byte-a-byte) para o
+// destino de uma engine específica, mesmo existindo na fonte, porque o resultado é
+// comprovadamente inerte.
 //
-// - Cursor: `hooks/` copiado para `.cursor/hooks/...` (ver comentário acima e
-//   wiki/Compatibilidade-Cursor.md) — o Cursor só lê `.cursor/hooks.json` (arquivo único).
+// - Cursor: `hooks/` NÃO entra aqui — virou tradução dedicada (`installCursorHooks`, issue
+//   #284) em vez de exclusão pura. O loop genérico de SOURCE_DIRS trata `cursor`+`hooks`
+//   como caso especial (ver o `continue` dedicado abaixo) antes mesmo de chegar a esta
+//   lista, produzindo `.cursor/hooks.json` de verdade — colocar `cursor` aqui excluiria
+//   `hooks` antes desse caso especial rodar.
 // - OpenCode (#283): `skills/`, `agents/`, `hooks/` inteiros, porque o OpenCode tem
 //   árvore-fonte própria já traduzida para o seu formato (ver `ENGINE_NATIVE_SOURCE_DIR`
 //   abaixo) — copiar os genéricos produziria skills inertes (referenciam
@@ -63,7 +68,6 @@ const SOURCE_DIRS = ['skills', 'agents', 'hooks'];
 //   declarativo onde o OpenCode espera plugin TS (`tool.execute.before/after`). Ver
 //   wiki/Compatibilidade-OpenCode.md.
 const ENGINE_EXCLUDED_SOURCE_DIRS = {
-  cursor: ['hooks'],
   opencode: ['skills', 'agents', 'hooks'],
 };
 
@@ -169,19 +173,114 @@ function copyManagedFile({ sourceFile, destFile, manifestKey, manifest, engineId
 }
 
 /**
+ * Núcleo de idempotência compartilhado por cópia genérica de arquivo e por
+ * `installCursorHooks` (que grava conteúdo *traduzido*, não uma cópia byte-a-byte da fonte):
+ * - Arquivo ausente no destino: escreve e manifesta.
+ * - Arquivo presente e já manifestado com o mesmo hash do destino atual: seguro
+ *   sobrescrever (não foi editado pelo usuário desde a última instalação) — sincroniza
+ *   com a fonte/tradução, mesmo que o conteúdo produzido tenha mudado (isso é o "update
+ *   seguro").
+ * - Arquivo presente mas SEM entrada no manifesto, ou com hash divergente da entrada
+ *   manifestada: não foi gerado por este instalador ou foi editado pelo usuário — NUNCA
+ *   sobrescreve, só reporta como `skipped`.
+ *
+ * `contentHash` é o hash do conteúdo que `write()` vai efetivamente gravar (não
+ * necessariamente o hash dos bytes da fonte — ver `installCursorHooks`), para que uma segunda
+ * execução compare o destino contra o que este instalador realmente produziu.
+ */
+function writeManaged({ destFile, manifestKey, contentHash, write, engineId, manifest, copied, skipped }) {
+  const existingEntry = manifest.files[manifestKey];
+
+  if (fs.existsSync(destFile)) {
+    if (!existingEntry) {
+      // Arquivo existe no destino mas não consta no manifesto: não foi este
+      // instalador que o gerou. Nunca sobrescreve nem deleta.
+      skipped.push({ path: manifestKey, reason: 'unmanaged' });
+      return;
+    }
+
+    const destHash = hashFile(destFile);
+    if (destHash !== existingEntry.sha256) {
+      // Editado pelo usuário desde a última instalação: nunca sobrescreve sem sinalizar.
+      skipped.push({ path: manifestKey, reason: 'user-modified' });
+      return;
+    }
+  }
+
+  fs.mkdirSync(path.dirname(destFile), { recursive: true });
+  write();
+  manifest.files[manifestKey] = { sha256: contentHash, engine: engineId };
+  copied.push(manifestKey);
+}
+
+/**
+ * Traduz `<sourceRoot>/hooks/hooks.json` (formato Claude Code) para o schema nativo do Cursor
+ * e grava como arquivo único em `<destRootName>/hooks.json` (não `<destRootName>/hooks/...`,
+ * que o Cursor não descobre — ver `cursor-hooks.js` e wiki/Compatibilidade-Cursor.md, issue
+ * #284). Silenciosamente no-op se a fonte não existir (mesmo comportamento do loop genérico
+ * para uma `sourceDir` ausente). Outros arquivos de `hooks/` (ex.: `hooks-codex.json`) não são
+ * tocados — só `hooks.json` tem tradução para o Cursor.
+ */
+function installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, copied, skipped, warnings }) {
+  const sourceFile = path.join(sourceRoot, 'hooks', 'hooks.json');
+  if (!fs.existsSync(sourceFile)) return;
+
+  const destFile = path.join(projectRoot, destRootName, 'hooks.json');
+  const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
+
+  let sourceJson;
+  try {
+    sourceJson = JSON.parse(fs.readFileSync(sourceFile, 'utf8'));
+  } catch (error) {
+    // JSON inválido na fonte não pode derrubar toda a instalação (outras engines/dirs já
+    // processados no mesmo loop perderiam a entrada no manifesto, ver writeManifest só no
+    // final de installFiles) — reporta e segue.
+    skipped.push({ path: manifestKey, reason: 'invalid-source' });
+    warnings.push(`${manifestKey}: hooks/hooks.json não é JSON válido (${error.message})`);
+    return;
+  }
+
+  const { hooks: translated, dropped } = translateHooksForCursor(sourceJson);
+  const content = `${JSON.stringify(translated, null, 2)}\n`;
+
+  for (const { event, reason } of dropped) {
+    const description = reason === 'no-cursor-equivalent'
+      ? `evento "${event}" sem equivalente no Cursor — não incluído em ${manifestKey}`
+      : `matcher de "${event}" não é traduzível com fidelidade — hook mantido em ${manifestKey}, mas sem matcher (roda para todos os casos do evento)`;
+    warnings.push(`${description} — ver wiki/Compatibilidade-Cursor.md`);
+  }
+
+  writeManaged({
+    destFile,
+    manifestKey,
+    contentHash: hashContent(content),
+    write: () => fs.writeFileSync(destFile, content, 'utf8'),
+    engineId: 'cursor',
+    manifest,
+    copied,
+    skipped,
+  });
+}
+
+/**
  * Copia `skills/`, `agents/`, `hooks/` (fonte agnóstica de engine, #251) para o destino
  * nativo de cada engine selecionada — com tradução de formato/path por engine quando
  * necessário (ver `ENGINE_AGENT_FILE_MAP`, `ENGINE_NATIVE_SOURCE_DIR`,
  * `ENGINE_EXCLUDED_SOURCE_DIRS`) — gravando manifesto de hash SHA-256 por arquivo copiado
- * em `.vetor/install-manifest.json` no projeto-alvo.
+ * em `.vetor/install-manifest.json` no projeto-alvo. `hooks/` para o Cursor é tratado à
+ * parte por `installCursorHooks` (issue #284): não é uma cópia byte-a-byte, é uma tradução
+ * de schema + caminho de destino.
  *
- * Idempotente e seguro para update (ver `copyManagedFile`).
+ * Idempotente e seguro para update (ver `copyManagedFile`/`writeManaged`).
  *
  * Engine sem destino conhecido (ex.: Antigravity, #283 — sem âncora de projeto confirmada)
  * não é silenciosamente ignorada: entra em `enginesSkipped` para o chamador reportar ao
  * usuário.
  *
- * Retorna `{ copied, skipped, enginesSkipped }` com os paths relativos ao projeto-alvo.
+ * Retorna `{ copied, skipped, warnings, enginesSkipped }` com os paths relativos ao
+ * projeto-alvo. `warnings` cobre perdas parciais que não impedem a instalação (ex.: evento
+ * de hook sem tradução fiel para uma engine, ver `installCursorHooks`) — vazio quando não há
+ * nada a avisar.
  */
 function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() } = {}) {
   if (!projectRoot) {
@@ -191,6 +290,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   const manifest = readManifest(projectRoot);
   const copied = [];
   const skipped = [];
+  const warnings = [];
   const enginesSkipped = [];
 
   for (const engine of engines ?? []) {
@@ -234,6 +334,11 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
     for (const sourceDirName of SOURCE_DIRS) {
       if (excludedSourceDirs.includes(sourceDirName)) continue;
 
+      if (engine.id === 'cursor' && sourceDirName === 'hooks') {
+        installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, copied, skipped, warnings });
+        continue;
+      }
+
       const sourceDir = path.join(sourceRoot, sourceDirName);
       if (!fs.existsSync(sourceDir)) continue;
 
@@ -263,7 +368,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   }
 
   writeManifest(projectRoot, manifest);
-  return { copied, skipped, enginesSkipped };
+  return { copied, skipped, warnings, enginesSkipped };
 }
 
 module.exports = {

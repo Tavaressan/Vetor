@@ -32,7 +32,13 @@ function manifestPathFor(projectRoot) {
 }
 
 function hashFile(filePath) {
-  const content = fs.readFileSync(filePath);
+  return hashContent(fs.readFileSync(filePath));
+}
+
+/** Hash de conteúdo já em memória (ex.: bytes traduzidos, nunca lidos de volta do disco antes
+ * de gravar) — usado quando o arquivo gravado no destino não é uma cópia byte-a-byte da fonte
+ * (ex.: `.cursor/hooks.json` traduzido, ver `writer.js`/`cursor-hooks.js`, issue #284). */
+function hashContent(content) {
   return crypto.createHash('sha256').update(content).digest('hex');
 }
 
@@ -60,4 +66,11 @@ function writeManifest(projectRoot, manifest) {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 }
 
-module.exports = { MANIFEST_RELATIVE_PATH, manifestPathFor, hashFile, readManifest, writeManifest };
+module.exports = {
+  MANIFEST_RELATIVE_PATH,
+  manifestPathFor,
+  hashFile,
+  hashContent,
+  readManifest,
+  writeManifest,
+};

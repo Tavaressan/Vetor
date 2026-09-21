@@ -38,7 +38,16 @@ function makeFakeSourceRoot() {
   fs.writeFileSync(path.join(sourceRoot, 'agents', 'demo', 'agent.json'), '{}\n');
   fs.writeFileSync(path.join(sourceRoot, 'agents', 'demo', 'codex.toml'), 'name = "demo"\n');
   fs.mkdirSync(path.join(sourceRoot, 'hooks'), { recursive: true });
-  fs.writeFileSync(path.join(sourceRoot, 'hooks', 'hooks.json'), '{}\n');
+  fs.writeFileSync(
+    path.join(sourceRoot, 'hooks', 'hooks.json'),
+    JSON.stringify({
+      hooks: {
+        PreToolUse: [
+          { matcher: 'Bash|Edit|Write', hooks: [{ type: 'command', command: 'safety-check' }] },
+        ],
+      },
+    }) + '\n',
+  );
 
   // Árvore nativa do OpenCode (issue #283): já no formato/path que a engine espera —
   // `agent/` (singular), não `agents/`.
@@ -233,7 +242,11 @@ test('installFiles: copia skills/agents para ".cursor/" quando Cursor é selecio
         sourceRoot,
       });
 
-      assert.deepEqual(copied.sort(), ['.cursor/agents/demo.md', '.cursor/skills/demo/SKILL.md']);
+      assert.deepEqual(copied.sort(), [
+        '.cursor/agents/demo.md',
+        '.cursor/hooks.json',
+        '.cursor/skills/demo/SKILL.md',
+      ]);
       assert.ok(fs.existsSync(path.join(projectRoot, '.cursor', 'skills', 'demo', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(projectRoot, '.cursor', 'agents', 'demo.md')));
     } finally {
@@ -242,12 +255,12 @@ test('installFiles: copia skills/agents para ".cursor/" quando Cursor é selecio
   });
 });
 
-// Follow-up de code-review da PR #282 (issue #256): o Cursor só carrega hooks de projeto de
-// `.cursor/hooks.json` (arquivo único), nunca `.cursor/hooks/hooks.json` (diretório, o que
-// installFiles() produzia antes desta correção). Copiar e reportar como `copied` era
-// enganoso — o arquivo copiado é inerte. hooks/ não deve ir para o destino do Cursor,
-// mesmo existindo na fonte.
-test('installFiles: NÃO copia hooks/ para ".cursor/" quando Cursor é selecionada (caminho inerte)', () => {
+// Issue #284: o Cursor só carrega hooks de projeto de `.cursor/hooks.json` (arquivo único),
+// nunca `.cursor/hooks/hooks.json` (diretório, o formato bruto que installFiles() produzia
+// antes desta tradução — copiar e reportar como `copied` era enganoso, pois o arquivo copiado
+// era inerte). `hooks/hooks.json` agora é traduzido para o schema nativo do Cursor
+// (`cursor-hooks.js`) e gravado como arquivo único em `.cursor/hooks.json`.
+test('installFiles: traduz hooks/hooks.json para ".cursor/hooks.json" (schema nativo, arquivo único) quando Cursor é selecionada', () => {
   withTempDir((projectRoot) => {
     const sourceRoot = makeFakeSourceRoot();
     try {
@@ -257,18 +270,28 @@ test('installFiles: NÃO copia hooks/ para ".cursor/" quando Cursor é seleciona
         sourceRoot,
       });
 
+      // Nunca o caminho de diretório inerte, que o Cursor não descobre.
       assert.ok(!copied.includes('.cursor/hooks/hooks.json'));
       assert.ok(!skipped.some((s) => s.path === '.cursor/hooks/hooks.json'));
       assert.ok(!fs.existsSync(path.join(projectRoot, '.cursor', 'hooks')));
+
+      // Arquivo único na raiz de `.cursor/`, já traduzido.
+      assert.ok(copied.includes('.cursor/hooks.json'));
+      const hooksDest = path.join(projectRoot, '.cursor', 'hooks.json');
+      const translated = JSON.parse(fs.readFileSync(hooksDest, 'utf8'));
+      assert.equal(translated.version, 1);
+      assert.deepEqual(translated.hooks.preToolUse, [
+        { command: 'safety-check', matcher: 'Shell|Write' },
+      ]);
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
     }
   });
 });
 
-// Confirma que a exclusão é específica do Cursor: outras engines continuam copiando
-// hooks/ normalmente (ver ENGINE_EXCLUDED_SOURCE_DIRS em writer.js).
-test('installFiles: outras engines continuam copiando hooks/ normalmente (exclusão é só do Cursor)', () => {
+// Confirma que o tratamento é específico do Cursor: outras engines continuam copiando
+// hooks/hooks.json bruto normalmente (writer.js só traduz para o Cursor).
+test('installFiles: outras engines continuam copiando hooks/ bruto normalmente (tradução é só do Cursor)', () => {
   withTempDir((projectRoot) => {
     const sourceRoot = makeFakeSourceRoot();
     try {
@@ -283,6 +306,30 @@ test('installFiles: outras engines continuam copiando hooks/ normalmente (exclus
 
       assert.ok(copied.includes('.claude/hooks/hooks.json'));
       assert.ok(!copied.includes('.cursor/hooks/hooks.json'));
+      assert.ok(copied.includes('.cursor/hooks.json'));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Issue #284, achado do advisor: o conteúdo gravado em `.cursor/hooks.json` é uma TRADUÇÃO,
+// não uma cópia byte-a-byte da fonte — se o manifesto guardasse o hash da fonte em vez do hash
+// do que foi gravado, a segunda instalação nunca bateria o hash e reportaria
+// `user-modified` para sempre. Este teste prova que a segunda execução permanece idempotente.
+test('installFiles: hooks.json traduzido do Cursor é idempotente entre execuções (hash do conteúdo gravado, não da fonte)', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      installFiles({ projectRoot, engines: [{ id: 'cursor', name: 'Cursor', detected: false }], sourceRoot });
+      const secondRun = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.equal(secondRun.skipped.length, 0);
+      assert.ok(secondRun.copied.includes('.cursor/hooks.json'));
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
     }
@@ -312,6 +359,42 @@ test('installFiles: instalação Cursor-exclusiva não cria .claude/ (manifesto 
       );
       assert.ok(fs.existsSync(manifestPathFor(projectRoot)));
       assert.ok(manifestPathFor(projectRoot).split(path.sep).includes('.vetor'));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Issue #284, achado do advisor: translateHooksForCursor descarta eventos/matchers sem
+// equivalente fiel (WorktreeCreate, matcher de SubagentStop) e installCursorHooks calculava
+// isso mas jogava fora — a instalação nunca avisava o usuário que uma fração dos hooks não
+// tinha tradução, mesmo essa informação já existindo em memória. Este teste prova que o
+// resultado de installFiles agora carrega esses avisos.
+test('installFiles: reporta em "warnings" os eventos/matchers descartados na tradução de hooks para o Cursor', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vetor-writer-source-'));
+    try {
+      fs.mkdirSync(path.join(sourceRoot, 'hooks'), { recursive: true });
+      fs.writeFileSync(
+        path.join(sourceRoot, 'hooks', 'hooks.json'),
+        JSON.stringify({
+          hooks: {
+            SubagentStop: [
+              { matcher: 'vetor:issue-worker', hooks: [{ type: 'command', command: 'check-status' }] },
+            ],
+            WorktreeCreate: [{ hooks: [{ type: 'command', command: 'prepare-worktree' }] }],
+          },
+        }),
+      );
+
+      const { warnings } = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.ok(warnings.some((w) => w.includes('WorktreeCreate')));
+      assert.ok(warnings.some((w) => w.includes('SubagentStop')));
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
     }
@@ -350,6 +433,23 @@ test('installFiles: traduz agents/<nome>/codex.toml para .codex/agents/<nome>.to
   });
 });
 
+test('installFiles: sem eventos descartados, "warnings" vem vazio', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const { warnings } = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.deepEqual(warnings, []);
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 // Issue #283: OpenCode tem árvore-fonte própria (`opencode/`), já no formato nativo — não
 // os SOURCE_DIRS agnósticos (`skills/`/`agents/`/`hooks/`, que produziriam skills inertes
 // por referenciar `$CLAUDE_PLUGIN_ROOT`, e um `agents/` plural que o OpenCode não escaneia).
@@ -375,6 +475,34 @@ test('installFiles: copia a árvore opencode/ achatada para .opencode/ quando Op
       assert.ok(!copied.some((p) => p.startsWith('.opencode/agents/')));
       assert.ok(!copied.some((p) => p.startsWith('.opencode/hooks/')));
       assert.ok(!fs.existsSync(path.join(projectRoot, '.opencode', 'opencode')));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Issue #284, achado do advisor: hooks/hooks.json malformado não pode derrubar a instalação
+// inteira (skills/agents de outras engines já processadas no mesmo loop, ou até deste mesmo
+// engine se hooks/ não fosse o primeiro de SOURCE_DIRS) sem sequer chegar em writeManifest —
+// os arquivos já copiados ficariam em disco sem entrada no manifesto (permanentemente
+// "unmanaged"). JSON inválido em hooks.json vira "skipped", não uma exceção.
+test('installFiles: hooks/hooks.json malformado não derruba a instalação — reporta skipped e não impede o resto', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      fs.writeFileSync(path.join(sourceRoot, 'hooks', 'hooks.json'), '{ isto não é JSON válido');
+
+      const { copied, skipped } = installFiles({
+        projectRoot,
+        engines: [{ id: 'cursor', name: 'Cursor', detected: false }],
+        sourceRoot,
+      });
+
+      assert.ok(copied.includes('.cursor/skills/demo/SKILL.md'));
+      assert.ok(copied.includes('.cursor/agents/demo.md'));
+      assert.ok(!copied.includes('.cursor/hooks.json'));
+      assert.ok(skipped.some((s) => s.path === '.cursor/hooks.json' && s.reason === 'invalid-source'));
+      assert.ok(fs.existsSync(manifestPathFor(projectRoot)));
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
     }
