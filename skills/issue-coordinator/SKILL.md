@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.5.0"
+  version: "1.6.0"
 ---
 
 Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge, utilizando o fluxo nativo de planejamento.
@@ -70,6 +70,7 @@ A flag `--headless` substitui os quatro pontos de interação humana por decisõ
 
 | Fase | Interativo | Headless |
 |------|-----------|----------|
+| 2 — gate de Spec/design | `AskUserQuestion` por issue não-trivial sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
 | 2 — teto de workers | `AskUserQuestion` | Usa `N_rec` calculado, sem perguntar |
 | 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
 | 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
@@ -190,7 +191,70 @@ conciliação manual depois. Para evitar isso, organize os grupos em **ondas top
 
 ### 2 — Apresentar plano de dispatch e obter aprovação
 
-Monte o plano (conteúdo mínimo em `planning-conventions.md` §2.1):
+#### Gate de Spec/design (classificação de complexidade, antes do dispatch)
+
+Antes de montar a tabela do plano, classifique cada issue candidata da Fase 1 — vocabulário derivado
+da triagem equivalente de `spec/SKILL.md` §0.1 (Investigação/Confirmação rápida/Spec completa), mas
+aplicado aqui à decisão "despachar como está, ou sinalizar a falta de uma Spec antes de despachar":
+
+1. **Heurística de complexidade**, por issue (`gh issue view <N> --json body,labels`):
+   - **Módulos tocados**: quantos módulos de `.claude/vetor/module-test-map.md` têm o prefixo
+     mencionado no título/corpo da issue (ex.: `cli/`, `scripts/`). Mais de 1 é sinal de complexidade
+     — em projetos com poucos módulos mapeados este sinal tende a ficar em 0 ou 1 na maioria das
+     issues; nesse caso o sinal de "escopo já declarado" abaixo é quem decide a classificação.
+   - **Escopo já declarado**: o corpo já traz uma seção equivalente a "Escopo do trabalho" e um
+     "Critério de Aceite" com itens concretos (checklist, não frase vaga).
+   - **Label**: `feat`/`enhancement`/`refactor` tendem a não-trivial mesmo com escopo declarado;
+     `fix`/`chore`/`bug` com escopo declarado tendem a trivial. Ajuste esta lista ao vocabulário de
+     labels efetivamente usado no repositório-alvo (ex.: um projeto sem label `feat` própria, como
+     este mesmo repositório, usa `enhancement` para o equivalente).
+2. **Classificação**: `trivial` quando o escopo já está declarado **e** o nº de módulos tocados é
+   ≤ 1 **e** a label não é `feat`/`enhancement`/`refactor`; **não-trivial** em qualquer outro caso
+   (múltiplos módulos, ou escopo ausente/vago, ou `feat`/`enhancement`/`refactor` sem Critério de
+   Aceite explícito).
+3. **Spec associada**: verifique se a issue referencia uma Spec (`docs/specs/<slug>.md`, ver
+   `spec/SKILL.md` §6) no corpo ou em algum comentário.
+4. **Gate**: sinalize apenas issues `não-trivial` **sem** Spec associada — nunca issues `trivial`
+   (um bugfix que já chega com escopo claro não é bloqueado cegamente) nem issues `não-trivial` que já
+   têm Spec.
+
+**Fora de `--headless`:** para cada issue sinalizada, pergunte via `AskUserQuestion` (uma pergunta por
+issue, ou agrupada se houver mais de uma — `planning-conventions.md` §3 "Regra das 3 perguntas"),
+**antes de montar a tabela do plano**:
+
+```
+Issue #<N> parece não-trivial (<razão: múltiplos módulos | sem Escopo do trabalho/Critério de
+Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem Spec associada. Como prosseguir?
+
+1. Despachar mesmo assim — escopo confirmado nesta conversa
+2. Gerar Spec antes (/vetor:spec) — esta issue sai desta leva de dispatch
+3. Confirmar rapidamente 2-3 pontos agora (problema, resultado esperado, não-escopo) e seguir sem
+   Spec completa
+```
+
+- **Opções 1 ou 3**: a issue segue no plano normalmente; marque na coluna "Ação" da tabela (abaixo)
+  `Despachar (⚠️ sem Spec — confirmado pelo usuário)`. Na opção 3, inclua os 2-3 pontos confirmados
+  no prompt do worker da Fase 4, como contexto adicional (não substitui uma Spec — é só o mínimo de
+  escopo confirmado para o worker não inventar critério de aceite sozinho).
+- **Opção 2**: remova a issue desta leva de dispatch — ela não aparece como `Despachar`, e sim com
+  Ação `SKIPPED (aguardando Spec)` e coluna "Onda" `—` (nunca foi despachada, não pertence a onda
+  nenhuma). Se a issue sinalizada é a **Lead** do grupo, o grupo inteiro sai da leva (as Sequential
+  Issues do grupo ficam sem Lead para dar nome ao worktree/branch — voltam junto na próxima sessão);
+  se é uma **Sequential Issue**, apenas ela sai e o restante do grupo (Lead + demais Sequential) segue
+  normalmente. A issue (ou grupo) volta a ser candidata em uma sessão futura do coordinator, quando a
+  Spec existir (`/vetor:spec` roda fora deste fluxo, tipicamente numa sessão manual). **Um grupo
+  `SKIPPED` nunca é pendência para a transição de onda da Fase 4** — como não foi despachado, não há
+  branch skew a prevenir (as ondas ordenam merges de trabalho já despachado, não issues que nunca
+  saíram do plano); a transição de `O_i` para `O_{i+1}` ignora grupos `SKIPPED` de `O_i`.
+
+**Em `--headless`: nunca pergunte, nunca bloqueie.** Um gate síncrono aqui recriaria o mesmo deadlock
+por falta de interlocutor do worker preso em plan mode (issue #121 — ver `wiki/Decisoes-de-Design.md`).
+Marque a issue na coluna "Ação" como `Despachar (⚠️ sem Spec associada — sinalização não-bloqueante)` e
+prossiga o dispatch normalmente; a ausência de Spec fica registrada no relatório final (Fase 7), nunca
+impede o dispatch.
+
+Monte o plano (conteúdo mínimo em `planning-conventions.md` §2.1), já refletindo o resultado do gate
+acima na coluna "Ação":
 
 ```markdown
 # Plano de Execução Vetor — Coordinator
@@ -202,7 +266,8 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 | Onda | Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo Sugerido | Ação |
 |------|-------------------------|------------------------|-----------------|------|
 | O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | Despachar |
-| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar |
+| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
+| —    | <slug-4>                | #<N5> (Lead)           | —               | SKIPPED (aguardando Spec) |
 | O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet>  | Aguardar O_1 |
 ```
 
@@ -272,10 +337,12 @@ pela branch) ou pelo retorno do `Agent()`.
   cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
 - **Transição de onda.** Só inicie o dispatch de `O_{i+1}` depois que:
-  1. Todos os grupos de `O_i` tiverem chegado a `GREEN` e passado pela Fase 6 (merge) — um grupo de
-     `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING` sem resolução bloqueia a transição; trate
-     como pendência a reportar, não avance a onda para não repetir o branch skew que motivou esta
-     seção.
+  1. Todos os grupos de `O_i` **que foram efetivamente despachados** tiverem chegado a `GREEN` e
+     passado pela Fase 6 (merge) — um grupo de `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING`
+     sem resolução bloqueia a transição; trate como pendência a reportar, não avance a onda para não
+     repetir o branch skew que motivou esta seção. Um grupo `SKIPPED (aguardando Spec)` (gate de
+     Spec/design, Fase 2) **nunca** conta como pendência aqui — nunca foi despachado, então não há
+     branch/merge dele para a próxima onda esperar.
   2. O branch default (`$DEFAULT_BRANCH`) estiver sincronizado com esses merges. `git fetch && git
      log origin/<default> -1` confirma que o *remoto* já tem os merges — mas não garante que o HEAD
      *local* do root os tenha: `isolation: "worktree"` cria o novo worktree a partir do HEAD local
@@ -480,12 +547,15 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 | #42 | ✅ Merged | #87 | squash merged |
 | #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preserved |
 | #44 | ⏸️ Review required | #89 | awaiting human review |
+| #45 | ⏭️ SKIPPED (aguardando Spec) | — | gate de Spec/design, Fase 2 — usuário optou por gerar a Spec antes |
 
-Resumo: <N> merged, <M> falharam, <K> aguardando review.
+Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> aguardando Spec.
 ```
 
 **Em `--headless`, o relatório é a única saída da execução** — acrescente:
 - O plano de dispatch da Fase 2 (apenas registrado, não aprovado).
+- Para cada issue `não-trivial` sem Spec associada (gate de Spec/design, Fase 2): sinalizada, nunca
+  bloqueada — mesma marca `⚠️ sem Spec associada` da coluna "Ação" do plano.
 - O teto `N` usado e como foi calculado.
 - Para cada `GREEN`: branch e path do worktree, marcados como **prontos para ship**.
 - Para cada `BLOCKED_WAITING`: o bloqueio e a recomendação do worker.
@@ -521,3 +591,6 @@ O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido 
 - Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship, nunca
   auto-aprova permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
   relatório e pare — não improvise
+- O gate de Spec/design (Fase 2) nunca bloqueia o dispatch em `--headless` — vira sinalização
+  registrada no plano/relatório, nunca um `AskUserQuestion` síncrono (mesmo motivo do item acima:
+  deadlock por falta de interlocutor, issue #121)

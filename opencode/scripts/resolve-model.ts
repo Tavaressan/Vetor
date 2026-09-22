@@ -1,4 +1,4 @@
-// CLI invocado pelo issue-coordinator portado (opencode/skills/issue-coordinator/SKILL.md,
+// CLI invocado pelo issue-coordinator portado (opencode/agent/issue-coordinator.md,
 // issue #84) antes de montar cada comando `opencode run --dir ... --model <provider/model>`.
 //
 // Lê a lista de fallback ordenada de `.claude/vetor/config.json` (`modelFallback.<tier>`) e
@@ -43,6 +43,21 @@ function exists(path: string): boolean {
   }
 }
 
+/**
+ * Issue #307: no Git Bash do Windows, `$(pwd)` produz um path POSIX-style (`/c/Users/...`), não
+ * nativo (`C:\Users\...`). `Deno.Command`/`Deno.statSync` no Windows não resolvem esse formato —
+ * `git rev-parse` falha ao spawnar (`No such cwd`) e `Deno.statSync` trata `/c/...` como relativo à
+ * raiz da unidade atual, nunca encontrando o `config.json` real. Normaliza só no Windows (no
+ * Linux/macOS `/c/Users/x` já é um path absoluto legítimo, nunca deve ser reescrito).
+ */
+export function normalizeCwd(cwd: string): string {
+  if (Deno.build.os !== "windows") return cwd;
+  const match = cwd.match(/^\/([a-zA-Z])\/(.*)$/);
+  if (!match) return cwd;
+  const [, drive, rest] = match;
+  return `${drive.toUpperCase()}:/${rest}`;
+}
+
 function resolveFallbackList(root: string, input: Payload): string[] {
   if (input.fallback && input.fallback.length > 0) return input.fallback;
 
@@ -56,6 +71,12 @@ function resolveFallbackList(root: string, input: Payload): string[] {
     } catch {
       // config.json ilegível: cai no default embutido em vez de travar o dispatch.
     }
+  } else {
+    // Distingue "config.json ausente de fato" (comportamento normal no projeto-alvo sem
+    // modelFallback configurado) de um `cwd`/`root` mal resolvido — sem normalizeCwd() (acima) os
+    // dois casos eram indistinguíveis no stdout, exigindo instrumentação; a normalização resolve a
+    // causa raiz (issue #307), então o log serve só de confirmação, não de diagnóstico separado.
+    console.error(`config.json não encontrado em ${configPath} — usando default embutido`);
   }
 
   return DEFAULT_MODEL_FALLBACK[tier];
@@ -71,7 +92,7 @@ async function main() {
     input = {};
   }
 
-  const cwd = input.cwd ?? Deno.cwd();
+  const cwd = normalizeCwd(input.cwd ?? Deno.cwd());
   const worktree = await resolveWorktree(cwd);
   const root = worktree?.root ?? cwd;
 
