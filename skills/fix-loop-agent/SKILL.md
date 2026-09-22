@@ -181,17 +181,33 @@ Se **vermelho**:
    vermelha, não só a primeira; se o erro tiver causa óbvia (uma hipótese clara), o passo é rápido —
    não gere hesitação artificial nem rodada de perguntas (o loop é headless, nunca pergunta ao
    usuário).
-3. **TDD** (ver `tdd-conventions.md` para a disciplina completa — bom teste, seams, anti-padrões,
+
+   **Gatilho condicional de instrumentação por fronteira:** se a mesma assinatura de erro sobreviver
+   a 2 hipóteses consecutivas (ou seja, você está prestes a formular a 3ª hipótese para essa mesma
+   assinatura), pare de adivinhar às cegas — antes de escolher a 3ª hipótese, insira uma checagem
+   pontual de entrada/saída de dados (log ou assert do valor que entra e do valor que sai) na
+   fronteira do componente suspeito indicado pelas 2 tentativas anteriores. Use apenas essa fronteira,
+   não instrumente o sistema inteiro (ver `wiki/Decisoes-de-Design.md` para por que o protocolo
+   completo de instrumentar toda fronteira antes de qualquer hipótese não foi adotado como padrão
+   universal aqui). Formule a 3ª hipótese a partir da evidência coletada nessa checagem, não por
+   eliminação especulativa.
+3. **Nunca conserte só o sintoma**: antes de aplicar o fix (passo 5), cheque: "este é o ponto de
+   origem do problema, ou ele entra aqui vindo de outro lugar?". Se o valor/estado já chega errado
+   neste ponto — produzido por uma camada anterior (ex.: um `null` que devia ter sido validado ou
+   preenchido antes) — suba a correção até a origem, não até o primeiro ponto onde o erro se
+   manifestou. Este é um filtro rápido sobre a hipótese já escolhida no passo 2, não uma nova
+   investigação; se a hipótese já aponta para a origem, siga direto.
+4. **TDD** (ver `tdd-conventions.md` para a disciplina completa — bom teste, seams, anti-padrões,
    mocking): se for a primeira iteração (`i=1`) e os testes ainda não falharem para o bug relatado,
    escreva um teste de reprodução simples que quebre cobrindo a hipótese escolhida no passo 2 — uma
    fatia por vez (vertical slice), nunca todos os cenários de uma vez. Refactor não é parte deste
    ciclo: achados de arquitetura/refatoração ficam para o `code-review`, despachado depois pelo
    `worktree-ship`. Só altere o código do produto após o teste estar vermelho.
-4. **KISS/YAGNI**: aplique a menor alteração atômica que faz o teste passar — sem refatoração
+5. **KISS/YAGNI**: aplique a menor alteração atômica que faz o teste passar — sem refatoração
    especulativa fora de escopo.
-5. Commit: `fix: <descrição curta do fix>`
-6. Atualize o status file
-7. Continue para a próxima iteração
+6. Commit: `fix: <descrição curta do fix>`
+7. Atualize o status file
+8. Continue para a próxima iteração
 
 ### 4 — Após N=5 falhas (Handover de Falha)
 
