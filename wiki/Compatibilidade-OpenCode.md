@@ -263,9 +263,9 @@ do worktree (ele só enxerga o que existia no commit em que o worktree foi criad
 para configuração global ou ausente. Confirmado como causa de confusão numa das rodadas de validação
 da issue #299 (ver "Validação manual do coordinator" abaixo).
 
-**Resumo (atualizado 2026-09-22 — segunda revalidação da issue #299, pós-#311/#312 — ver "Validação
-manual do coordinator" abaixo):** isolamento de worktree por worker (`--dir`) é **verificado e
-resolvido** contra o CLI real instalado. Hooks de segurança são **reais e funcionais**
+**Resumo (atualizado 2026-09-22 — terceira revalidação da issue #299, pós-#311/#312/#313 — ver
+"Validação manual do coordinator" abaixo):** isolamento de worktree por worker (`--dir`) é
+**verificado e resolvido** contra o CLI real instalado. Hooks de segurança são **reais e funcionais**
 (reaproveitando os scripts Deno existentes). O `issue-coordinator` está **portado como agent**
 (`opencode/agent/issue-coordinator.md` — não skill; issue #82, correção de registro na #306) e
 **confirmado invocável e funcional de ponta a ponta até a Fase 4 (ponto de invocação do worker)**
@@ -276,12 +276,16 @@ tanto isoladamente quanto em vivo dentro do fluxo real do coordinator) usando o 
 `resolve-model.ts` sem assumir provider `anthropic` direto ([issue
 #312](https://github.com/Tavaressan/Vetor/issues/312), CORRIGIDA — exige `modelFallback`
 configurado, falha cedo e de forma acionável quando ausente). **A Fase 5 (monitoramento via status
-file) está bloqueada por um terceiro defeito independente, novo nesta rodada**: o `issue-worker`
-corretamente despachado não consegue ler `config.json` nem o próprio status file — ambos vivem em
-`<repo-root>/.claude/vetor/`, fora do worktree do worker, e o OpenCode auto-rejeita esse acesso como
+file), que bloqueava por um terceiro defeito independente, também está CORRIGIDA**: o `issue-worker`
+corretamente despachado não conseguia ler `config.json` nem o próprio status file — ambos vivem em
+`<repo-root>/.claude/vetor/`, fora do worktree do worker, e o OpenCode auto-rejeitava esse acesso como
 `external_directory` em modo não-interativo — [issue
-#313](https://github.com/Tavaressan/Vetor/issues/313), sem fix escolhido ainda (registra direções
-candidatas, nenhuma trivial como #311/#312). A Fase 6 (merge) não foi alcançada. As demais 7 skills
+#313](https://github.com/Tavaressan/Vetor/issues/313), CORRIGIDA via
+`opencode/scripts/ensure-external-directory-permission.ts`, chamado pela Fase 4 do coordinator antes
+de todo dispatch (ver "Terceira revalidação" abaixo para leitura **e** escrita confirmadas contra o
+CLI real, inclusive dentro do fluxo ao vivo do coordinator). A revalidação de ponta a ponta completa
+até a Fase 6 (merge) segue como trabalho futuro — não por um bloqueador de código conhecido, mas por
+limitação de tempo/estabilidade do modelo gratuito usado nas rodadas de validação. As demais 7 skills
 seguem bloqueadas pela mesma limitação de path do Codex (permanecem skills de propósito — não
 precisam de `--agent`, já que não são invocadas diretamente pelo usuário).
 
@@ -356,6 +360,81 @@ precisam de `--agent`, já que não são invocadas diretamente pelo usuário).
 > trivial (o path do status file é per-projeto, descoberto só em runtime; o frontmatter do agent é
 > estático — ver #313 para as direções candidatas). `Status: BLOCKED_WAITING` para o critério de
 > aceite "fluxo completo executado de ponta a ponta" desta issue (#299) até #313 ser resolvida.
+
+### Terceira revalidação (2026-09-22, mesmo dia — issue #313 CORRIGIDA)
+
+> **Direção escolhida: opção 2 da própria issue #313** — um `opencode.json` de projeto gerado/
+> mesclado de forma idempotente na raiz do repositório principal, com uma regra
+> `permission.external_directory` apontando para `<repo-root>/.claude/vetor/**`. Descartadas: opção 1
+> (reescrever `issue-worker.md`/`code-review.md` a cada dispatch — risco de corrida entre workers
+> paralelos editando o mesmo arquivo compartilhado); opção 3 (`--auto`/`--yolo` — flag global demais,
+> libera também `webfetch: ask`, que `issue-worker.md` define deliberadamente como "ask" para forçar
+> `BLOCKED_WAITING` em vez de fetch silencioso); opção 4 (mover o status file para dentro do
+> worktree — maior escopo, contraria o desenho documentado de polling cross-processo).
+>
+> **Achado não previsto na issue original, verificado empiricamente:** a resolução de
+> `opencode.json` pelo OpenCode é um **walk-up de diretório a partir do cwd**, independente de git —
+> confirmado rodando o CLI real contra um diretório de projeto que **não era sequer um repositório
+> git**. Isso torna a opção 2 estruturalmente superior à opção 1: o arquivo gerado na raiz do
+> repositório principal é visível para todo worker despachado em qualquer
+> `.claude/worktrees/<slug>` abaixo dele **sem precisar estar commitado nem propagado por `git
+> worktree add`** (que só propaga arquivos rastreados — ao contrário de `.opencode/agent/*.md`, que
+> precisa estar commitado para o worktree do worker enxergá-lo, conforme já documentado acima). Por
+> isso o `opencode.json` gerado é local/não-versionado: contém um path absoluto específico da
+> máquina, não portável entre clones — não deve ser commitado (mas também não precisa ser, para
+> funcionar).
+>
+> Implementado em `opencode/scripts/ensure-external-directory-permission.ts` (idempotente: só
+> escreve se a regra ainda não estiver presente; mescla sem apagar outras chaves de um
+> `opencode.json` existente — ex. `mcp`, outras regras de `external_directory` — e recusa
+> sobrescrever um arquivo existente ilegível em vez de arriscar destruir configuração do usuário).
+> Chamado por `opencode/agent/issue-coordinator.md` na Fase 4, antes de todo dispatch — inclusive
+> redespacho/`--resume`, onde a Fase 3 (que só roda uma vez por sessão) não roda de novo. Regressão
+> automatizada: `opencode/scripts/ensure-external-directory-permission_test.ts` (5 casos: criação,
+> merge não-destrutivo, idempotência, rejeição de JSON inválido existente, e o mesmo padrão de
+> normalização de `cwd` POSIX-style do Git Bash Windows já corrigido para `resolve-model.ts` na
+> issue #307).
+>
+> | Item | Resultado | Evidência |
+> |---|---|---|
+> | Leitura de `config.json` fora do worktree, sem regra | ❌ Reprodução confirmada | `opencode run --dir <sub> --agent <probe> "Leia <path externo>"` → `! permission requested: external_directory (...); auto-rejecting` — mesma assinatura do relatório original da #313 |
+> | Leitura de `config.json`/status file com a regra gerada pelo script, no shape de path real (`<repo-root>/.claude/worktrees/<slug>` — dois níveis abaixo do root) | ✅ PASS | `opencode run --dir ".claude/worktrees/slug" --agent <probe com o mesmo `permission.edit: allow` de `issue-worker.md`>` leu `.claude/vetor/config.json` e reportou o conteúdo exato |
+> | **Escrita do status file** (`.claude/vetor/status/<branch>.md`) — a validação que a issue #313 registra como nunca alcançada nas rodadas anteriores | ✅ PASS — nova evidência | Mesmo comando escreveu `Status: GREEN` em `.claude/vetor/status/test-branch.md`; conteúdo confirmado lendo o arquivo diretamente do disco (não só o relato do agente) |
+> | Controle negativo: escrita num path externo **fora** do glob permitido | ✅ Continua auto-rejeitando | Confirma que a regra é escopada ao pattern configurado, não uma liberação ampla |
+> | `ensure-external-directory-permission.ts` chamado dentro do fluxo **real** do `issue-coordinator` (não um script isolado) | ⚠️ PASS, achado colateral corrigido | Sessão ao vivo do coordinator (`opencode run --agent issue-coordinator "backlog --headless"` contra `Tavaressan/vetor-opencode-e2e-test-299`, rodando de um cwd sob mount MSYS sem letra de unidade — `/tmp/claude/...`, específico deste ambiente de sessão) executou Fases 1-3 normalmente, criou o worktree via `git worktree add`, mas a **primeira** tentativa da Fase 4 com o comando então documentado (`$(pwd)` cru) saiu `EXIT=1` (`writefile ... NotFound`) — `normalizeCwd()` (issue #307) só cobre o padrão `/<letra>/...`, não mounts MSYS arbitrários. O próprio agente coordinator diagnosticou a causa em texto e reexecutou com `cygpath -m`, chegando a `EXIT=0` com `opencode.json` real escrito. **Corrigido na documentação**: `issue-coordinator.md` agora usa `$(pwd -W 2>/dev/null \|\| pwd)` em vez de `$(pwd)` cru (builtin do Git Bash, resolve qualquer mount MSYS, não só drive letters) — reexecutado isoladamente com a forma corrigida contra o mesmo repositório de teste, `EXIT=0` confirmado sem precisar de `cygpath` manual. Teste de regressão do limite conhecido de `normalizeCwd()` em `opencode/scripts/lib/project_test.ts` |
+> | Fases 5-7 (worker dispatchado pelo coordinator real chega a `GREEN`, merge) | ⚠️ Não fechado nesta rodada | O dispatch real do `issue-worker` para a issue #1 do repo de teste foi dispatchado manualmente (mesmo comando que o coordinator monta) mas não completou dentro do tempo desta sessão — o modelo gratuito (`opencode/big-pickle`) já havia mostrado latência/instabilidade nas etapas anteriores desta mesma investigação (`Error: OpenCode's free tier can only be used from within OpenCode`, transitório, reproduzido em chamadas isoladas). Não é evidência de regressão do fix: a leitura/escrita do status file já foi comprovada tanto isoladamente (linha acima) quanto — na parte que rodou — dentro do fluxo real do coordinator |
+>
+> **Achado colateral corrigido nesta rodada (não é a issue #313 em si, mas foi descoberto ao validar
+> o fix dela contra o CLI real):** ao rodar a partir de um path sob um mount MSYS do Git Bash sem
+> letra de unidade (`/tmp/claude/...`, específico deste ambiente de sessão, não o caso comum de
+> `/c/Projetos/...`), a primeira tentativa da Fase 4 com o comando então documentado (`$(pwd)` cru)
+> falhou — `normalizeCwd()` (issue #307) só cobre o padrão POSIX-style `/<letra>/...`, não mounts
+> MSYS arbitrários. O próprio agente coordinator diagnosticou o problema em texto e recuperou usando
+> `cygpath -m` manualmente, mas isso não estava nas instruções — um worker/coordinator menos capaz de
+> improvisar teria parado ali. Corrigido trocando `$(pwd)` por `$(pwd -W 2>/dev/null || pwd)` nos dois
+> comandos de `issue-coordinator.md` (Fase 4) — `pwd -W`, builtin do Git Bash, resolve qualquer mount
+> MSYS para o path nativo, não só drive letters — sem precisar tocar `normalizeCwd()`. Reexecutado
+> isoladamente contra o mesmo repositório de teste com a forma corrigida: `EXIT=0` em ambos os
+> scripts, sem `cygpath` manual. Limite conhecido de `normalizeCwd()` documentado por teste de
+> regressão em `opencode/scripts/lib/project_test.ts` (mitigado no call site, não na função).
+>
+> **`code-review.md` herda a regra automaticamente, sem mudança própria (inferido do escopo da
+> config, não re-verificado isoladamente com o CLI real nesta rodada — uma tentativa de probar
+> `code-review.md` diretamente esbarrou na mesma instabilidade do modelo gratuito das Fases 5-7
+> abaixo).** `permission.external_directory` vive em `opencode.json`, configuração de **projeto**,
+> não no frontmatter do agent (`permission.edit`/`permission.bash`, que `code-review.md` define como
+> `deny` para tudo exceto `gh pr diff`/`gh pr comment`/`git log`/`git show`). São namespaces de
+> permissão independentes — a regra gerada pelo `ensure-external-directory-permission.ts` na Fase 4
+> se aplica a qualquer agent despachado no projeto, `code-review` incluso, sem precisar de uma edição
+> equivalente no frontmatter dele.
+>
+> **Conclusão:** issue #313 **CORRIGIDA e confirmada contra o CLI real** — leitura e escrita
+> cross-worktree do status file/`config.json`, a lacuna que bloqueava a Fase 5 do coordinator, estão
+> resolvidas. `normalizeCwd()` foi movido de `resolve-model.ts` para `opencode/scripts/lib/project.ts`
+> para ser reutilizável por `ensure-external-directory-permission.ts` sem o side-effect de importar o
+> `await main()` de nível de módulo de `resolve-model.ts`. A revalidação de ponta a ponta completa
+> (Fases 4-7, incluindo merge) segue como trabalho futuro — não por um bloqueador do Vetor, mas por
+> limitação de tempo/estabilidade do modelo gratuito usado nesta rodada de validação.
 
 O `issue-coordinator` portado nunca havia sido executado de ponta a ponta contra uma instalação
 real do OpenCode antes das validações das issues #299/#306 — o ambiente usado para portá-lo foi o

@@ -83,6 +83,10 @@ Fase 2.
 - `.opencode/scripts/resolve-model.ts` — fallback de modelo/provedor (issue #84): lê
   `modelFallback.<tier>` de `.claude/vetor/config.json` e `.claude/vetor/status/model-health.json`
   (issue #83), devolve no stdout o primeiro modelo saudável ou sai com código 1 se todos degraded
+- `.opencode/scripts/ensure-external-directory-permission.ts` — garante (idempotente) a regra
+  `permission.external_directory` em `<repo-root>/opencode.json` para `<repo-root>/.claude/vetor/**`
+  (issue #313), sem a qual todo dispatch de `issue-worker`/`code-review` auto-rejeita leitura/escrita
+  fora do worktree — ver Fase 4, "Permissão external_directory"
 - `.opencode/agent/issue-worker.md` — subagente/processo despachado por grupo de issues na Fase 4
 - Comandos de teste: `.claude/vetor/module-test-map.md`, ou auto-detecção a partir do CI na ausência dela
 - Procedimento de validação manual do porte contra uma instalação real do OpenCode:
@@ -326,10 +330,34 @@ teto `N` da Fase 2 e as ondas da Fase 1:
 `RUNNING`/`BLOCKED_WAITING`/`GREEN` (ainda não mergeado) em outro status file. Se colidir, alerte no
 chat e pule o dispatch.
 
-**Resolução de modelo/provedor (issue #84 — antes de montar o comando de dispatch).** Para o `tier`
-do grupo (Fase 2), rode:
+**Permissão `external_directory` para `.claude/vetor/` (issue #313 — antes de todo dispatch, inclusive
+redespacho/`--resume`).** O worker roda com `--dir <worktree>` (cwd fixado no worktree), mas
+`config.json`, `module-test-map.md` e o status file vivem em `<repo-root>/.claude/vetor/`, fora da
+árvore do worktree. Sem uma regra explícita, o OpenCode trata esse acesso como `external_directory`
+(default `"*": "ask"`) e, em `opencode run` não-interativo, **auto-rejeita** em vez de bloquear
+esperando input — o worker nunca chega a ler `config.json`, nem a escrever o próprio status file.
+⚠️ Use `$(pwd -W 2>/dev/null || pwd)`, não `$(pwd)` cru: no Git Bash do Windows, `pwd` sozinho pode
+devolver um mount MSYS sem letra de unidade (ex. `/tmp/...`), que o Deno nativo do Windows não
+resolve — `normalizeCwd()` (issue #307) só cobre o padrão `/<letra>/...`, não mounts arbitrários.
+`pwd -W` (builtin do Git Bash) devolve o path nativo direto, sem essa lacuna; confirmado contra o
+CLI real que o comando cru com `$(pwd)` falha (`writefile ... NotFound`) exatamente nesse cenário.
+Rode:
 ```bash
-echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd)"'"}' | deno run -A .opencode/scripts/resolve-model.ts
+echo '{"cwd": "'"$(pwd -W 2>/dev/null || pwd)"'"}' | deno run -A .opencode/scripts/ensure-external-directory-permission.ts
+```
+Isso garante (cria ou mescla, idempotente — seguro de chamar antes de todo dispatch, inclusive quando
+a Fase 3 não roda de novo) uma regra `permission.external_directory` em `<repo-root>/opencode.json`
+apontando para `<repo-root>/.claude/vetor/**`. **Não precisa estar commitado**: a resolução do
+OpenCode é um walk-up de diretório a partir do cwd do worker, independente de git — o arquivo é
+encontrado mesmo sem `git worktree add` propagá-lo (confirmado contra o CLI real, issue #313). Se o
+script sair com código 1 (`opencode.json` existente não é JSON válido), pare o dispatch deste grupo,
+reproduza a mensagem de erro no chat e não prossiga sem a regra — o worker despachado sem ela trava
+já na primeira leitura de `config.json`.
+
+**Resolução de modelo/provedor (issue #84 — antes de montar o comando de dispatch).** Para o `tier`
+do grupo (Fase 2), rode (mesma ressalva de `$(pwd -W ...)` acima, issue #313):
+```bash
+echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd -W 2>/dev/null || pwd)"'"}' | deno run -A .opencode/scripts/resolve-model.ts
 ```
 - **Código 0:** stdout traz o modelo/provedor saudável a usar (`<provider/model>`) — primeiro da
   lista `modelFallback.<tier>` que não estiver `degraded` e não expirado em `model-health.json`
