@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 Você é a skill de geração de Specs do Vetor. Sua missão é descobrir o contexto já existente no
@@ -62,15 +62,39 @@ estágio abaixo sinaliza explicitamente o que ainda não está implementado.
   passo 1 (mesmo critério de `backlog-ideator`: acima de ~80 linhas, delegue o resumo em vez de ler
   tudo nativamente).
 - `../shared/references/knowledge-provider-contract.md` — contrato do
-  Knowledge Provider consumido pelos passos 0, 1 (item 5) e 4 via `scripts/knowledge-doc.ts`.
+  Knowledge Provider consumido pelos passos 0.2, 1 (item 5) e 4 via `scripts/knowledge-doc.ts`.
 - `../../scripts/knowledge-doc.ts` — CLI que expõe `status`/`search-specs`/
-  `create-spec`/`update-spec`/`find` sobre o Knowledge Provider (ver passo 0).
+  `create-spec`/`update-spec`/`find` sobre o Knowledge Provider (ver passo 0.2).
 
 ---
 
 ## Comportamento
 
-### 0 — Knowledge Provider
+### 0 — Triagem de complexidade e Knowledge Provider
+
+**0.1 — Triagem de complexidade**
+
+Antes de investir no fluxo completo (passos 1-6), classifique o `<tema>` já confirmado (ver Sintaxe)
+em um de três níveis de processo — vocabulário adaptado dos níveis Spike/Bounded/Architectural da
+skill `brainstorming` do superpowers (`obra/superpowers`, MIT) ao vocabulário do Vetor:
+
+| Nível | Critério | O que muda no fluxo |
+|-------|----------|----------------------|
+| **Investigação** (Spike) | O tema é uma pergunta aberta ou exploração de viabilidade, sem uma capacidade concreta ainda decidida (ex.: "investigar como resolver X", "viabilidade de Y") — não há o que decompor nem um "sim/não" que baste virar Acceptance Criteria. | Rode o passo 1 (Context Discovery) normalmente para levantar o que já existe, mas **não gere o rascunho do passo 5 ainda**. Pare após o passo 2 e pergunte ao usuário se deseja (a) prosseguir mesmo assim, aceitando lacunas amplas (`⚠️ ABERTO` na maioria das seções), (b) tratar como Confirmação rápida assim que a decisão estiver mais clara, ou (c) encerrar aqui — investigação registrada, sem Spec gerada. |
+| **Confirmação rápida** (Bounded) | O tema já é uma capacidade atômica — mesmo critério de "tema grande" do passo 3, mas na negativa (nenhum sinal de múltiplos fluxos/personas/fronteiras) — e o contexto do passo 1 tende a bastar com poucas perguntas. | Pule o passo 3 (Decomposição, que já se aplicaria a temas atômicos) e resolva o passo 4 (Entrevista) com o mínimo de perguntas necessário — a "confirmação rápida de 2-3 pontos" é o limite de 3 perguntas já imposto ao passo 4. Siga direto ao passo 5 para um rascunho enxuto. |
+| **Spec completa** (Architectural) | O tema apresenta qualquer sinal de "tema grande" do passo 3 (múltiplos fluxos, múltiplas personas, capacidades separáveis, fronteiras/dependências entre partes). | Fluxo padrão, sem atalho: passos 1-6 completos, incluindo decomposição (passo 3) e entrevista por componente (passo 4). |
+
+Registre a classificação escolhida (1 linha, com a razão) antes de seguir para o passo 1 — não decida
+silenciosamente. Se a classificação for ambígua entre dois níveis, prefira o nível mais alto (mais
+rigor, nunca menos, na dúvida) e registre a ambiguidade em `Open Questions` no rascunho (passo 5.6).
+
+Esta triagem é interna ao fluxo de geração da Spec — decide **quanto** processo aplicar aqui dentro
+depois que o usuário já pediu uma Spec. Uma triagem equivalente, mas orientada a decidir **se** uma
+Spec é necessária antes do dispatch de implementação, acontece em `issue-coordinator` Fase 2 (gate de
+Spec/design) — ver `wiki/Arquitetura.md` e `wiki/Decisoes-de-Design.md`. As duas são independentes:
+esta skill nunca é invocada automaticamente por aquele gate, que apenas sinaliza a ausência de Spec.
+
+**0.2 — Knowledge Provider**
 
 A busca por Specs relacionadas (passo 1, item 5) e a persistência (passo 6) são feitas através de um
 **Knowledge Provider** — uma fonte de conhecimento do projeto, abstrata por design:
@@ -117,7 +141,7 @@ aplica depois que o tema estiver definido.
 3. **Arquitetura:** `ARCHITECTURE.md`, `docs/architecture/**`, ou qualquer `docs/*.md` cujo conteúdo
    trate de arquitetura
 4. **ADRs:** `docs/adr/**`, `docs/decisions/**`, ou arquivos que casem com `*ADR*.md`
-5. **Specs existentes:** se o Knowledge Provider estiver habilitado (passo 0), rode
+5. **Specs existentes:** se o Knowledge Provider estiver habilitado (passo 0.2), rode
    `deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" search-specs "<tema>"` — a busca
    prévia por Specs relacionadas antes de gerar uma nova; senão, `grep`/`find` direto em
    `docs/specs/**/*.md`. Em ambos os casos, o objetivo é o mesmo: evitar duplicar uma Spec já criada
@@ -452,7 +476,7 @@ Já existe uma Spec com a identidade "spec:<slug>" (<path>). O que deseja fazer?
 - Em qualquer uma das três opções, reporte ao usuário o resultado (identidade + path persistido, ou
   confirmação de que nada foi gravado).
 
-Quando o Knowledge Provider está desabilitado (passo 0), mantenha o comportamento anterior: **não
+Quando o Knowledge Provider está desabilitado (passo 0.2), mantenha o comportamento anterior: **não
 grava a Spec em disco** — o rascunho fica apenas na conversa, e 6.1-6.3 não se aplicam.
 
 ---
@@ -472,7 +496,7 @@ grava a Spec em disco** — o rascunho fica apenas na conversa, e 6.1-6.3 não s
   a checagem por identidade.
 - Nunca crie um link (`--link`) para um documento sem relação clara com o tema — vínculos
   indiscriminados são piores que a ausência de vínculo.
-- Nunca persista em disco quando o Knowledge Provider estiver desabilitado (passo 0) — apenas
+- Nunca persista em disco quando o Knowledge Provider estiver desabilitado (passo 0.2) — apenas
   apresente o rascunho na conversa.
 - Nunca omita uma categoria de busca do relatório do passo 2, mesmo quando vazia.
 - Nunca gere o rascunho (passo 5) sem antes apresentar a decomposição (passo 3) quando o tema for
