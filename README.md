@@ -27,6 +27,10 @@ npm install -g @tavaressan/vetor
 vetor install
 ```
 
+<div align="center">
+  <img src="assets/images/cli-banner.png" alt="vetor --help no terminal" width="600" />
+</div>
+
 Depois de qualquer uma das duas, rode **`/vetor`** no projeto-alvo: ele detecta o runtime, gera o mapeamento de testes e grava a configuração em `.claude/vetor/`.
 
 **Pré-requisitos:** [Deno](https://deno.com) e `gh` CLI autenticado no PATH, e Git com suporte a `git worktree`. *(Opcionais: `npx` para o MCP `chrome-devtools`, Docker com plugin `docker mcp` para o MCP `docker`, `agy`/`opencode`/`codex` para delegação agnóstica de runtime — ver `delegate-to-runtime.md`.)*
