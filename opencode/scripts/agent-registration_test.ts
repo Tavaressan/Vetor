@@ -56,7 +56,10 @@ Deno.test({
     const stdout = new TextDecoder().decode(out.stdout);
     // Linha de agente real, ex. "issue-coordinator (primary)" — não basta checar substring: o
     // JSON de permissões impresso logo abaixo de cada agente contém paths de external_directory que
-    // incluem "issue-coordinator" mesmo quando ele só existe como skill (falso positivo).
-    assertMatch(stdout, /^issue-coordinator \(/m);
+    // incluem "issue-coordinator" mesmo quando ele só existe como skill (falso positivo). O `mode`
+    // também é checado: a issue #306 pede explicitamente `mode: primary` (é o agent de entrada,
+    // invocado diretamente pelo usuário — diferente de `issue-worker`/`code-review`, despachados
+    // programaticamente pelo próprio coordinator).
+    assertMatch(stdout, /^issue-coordinator \(primary\)/m);
   },
 });
