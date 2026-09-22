@@ -150,19 +150,58 @@ projeto-alvo (ajuste o path do `docker-catalog.yaml` se for usar o servidor `doc
 cp -r opencode/. <projeto-alvo>/.opencode/
 ```
 
-**Resumo:** isolamento de worktree por worker é **verificado e resolvido** (via `opencode run
---dir`, testado contra o CLI real instalado). Hooks de segurança são **reais e funcionais**
-(reaproveitando os scripts Deno existentes). O `issue-coordinator` está **portado**
-(`opencode/skills/issue-coordinator/SKILL.md`) — hoje os dois subagentes nativos, o plugin de
-segurança e o coordinator estão prontos para uso; as demais 7 skills seguem bloqueadas pela mesma
-limitação de path do Codex.
+**Resumo (atualizado 2026-09-22 com resultado verificado da issue #299 — ver "Validação manual do
+coordinator" abaixo):** isolamento de worktree por worker é **verificado e resolvido** (via
+`opencode run --dir`, testado contra o CLI real instalado). Hooks de segurança são **reais e
+funcionais** — confirmado end-to-end no Windows contra o CLI real: `git push` bloqueado em branch
+protegida e escrita fora do worktree bloqueada, ambos via `opencode/plugin/vetor.ts`. Os dois
+subagentes nativos (`issue-worker`, `code-review`) estão **prontos para uso**. O `issue-coordinator`
+está **escrito** (`opencode/skills/issue-coordinator/SKILL.md`) mas **não está pronto para uso**: o
+CLI real não o reconhece como `--agent` (é uma skill, não um agent — [issue
+#306](https://github.com/Tavaressan/Vetor/issues/306)) e o fallback de modelo que ele invoca
+(`resolve-model.ts`) tem um bug de path específico do Windows que o faz ignorar `config.json`
+silenciosamente ([issue #307](https://github.com/Tavaressan/Vetor/issues/307)). As demais 7 skills
+seguem bloqueadas pela mesma limitação de path do Codex.
 
 ## Validação manual do coordinator
 
-O `issue-coordinator` portado nunca foi executado de ponta a ponta contra uma instalação real do
-OpenCode — o ambiente usado para portá-lo é o Claude Code, sem CLI `opencode` interativo. Este é o
-procedimento para quem for validá-lo (movido de `opencode/skills/issue-coordinator/SKILL.md` na
-issue #147: é documentação de desenvolvimento, não instrução de runtime).
+> **Resultado verificado (2026-09-22, issue #299) — `opencode` v1.18.32, Windows 11 (win32), Git
+> Bash.** Executado contra um repositório de teste jogável
+> (`Tavaressan/vetor-opencode-e2e-test-299`, não removível — o token `gh` em uso não tem escopo
+> `delete_repo`; documentado aqui em vez de removido). **Achado principal: `opencode run --agent
+> issue-coordinator "backlog"` não invoca o coordinator.** O CLI real imprime `! agent
+> "issue-coordinator" not found. Falling back to default agent` e executa o agente `build` genérico
+> em vez do procedimento portado — porque `opencode/skills/issue-coordinator/SKILL.md` vive em
+> `.opencode/skills/`, um diretório que o OpenCode descobre como **skill**, não como **agent**
+> (`opencode agent list` só lista o que está em `.opencode/agent/*.md`: `issue-worker`,
+> `code-review`). Isso não é específico do Windows — reproduziria em qualquer SO — mas é a razão
+> pela qual o item 3 abaixo (fluxo completo do coordinator) nunca chegou a rodar. Rastreado em
+> [issue #306](https://github.com/Tavaressan/Vetor/issues/306). Por causa disso, o critério de
+> aceite "procedimento executado de ponta a ponta" **não foi atingido**; o que segue é o resultado
+> item a item, incluindo o que foi possível validar isoladamente.
+>
+> | Item | Resultado | Evidência |
+> |---|---|---|
+> | 1. Setup do repositório de teste (`.opencode/` copiado + 2 issues com label `backlog`) | ✅ PASS | `Tavaressan/vetor-opencode-e2e-test-299`, issues #1 (Lead) e #2 (Sequential) |
+> | 2. `opencode run --agent issue-coordinator "backlog"` | ❌ FAIL | `! agent "issue-coordinator" not found. Falling back to default agent` — ver #306 |
+> | 3. Plano exibido antes do worktree / `git worktree add` serializado / dispatch de `issue-worker` por grupo / status file / `Ctrl+C` + `--resume` sem duplicar / merge na Fase 6 | ⛔ NOT_EXECUTED | Bloqueado pelo item 2 — sem o agent real invocado, nenhuma fase do procedimento roda. O sub-item `Ctrl+C` + `--resume` especificamente também seria de execução duvidosa neste ambiente (worker headless em `win32`, sem garantia de que um `SIGINT` via Git Bash chega como Ctrl+C real ao processo `opencode`) — não confirmado de nenhuma forma. |
+> | 4. Plugin de segurança (`opencode/plugin/vetor.ts`) bloqueia `git push` para branch protegida a partir de um worker não-`GREEN` | ✅ PASS | `opencode run --agent build -m opencode/nemotron-3.5-lightning-free "git push origin main"` dentro de um worktree real (`git worktree add`) com status file `Status: RUNNING` → `Error: ERROR: Push to protected branches (main, master, production) is prohibited by Vetor Safety Hook.` (via `tool.execute.before` → `deno run -A safety-check.ts`, não pela allowlist de `permission.bash` do agent — testado com o agent `build` genérico, sem a negação de `git push*` que `issue-worker.md` já tem embutida, para isolar o plugin) |
+> | 5. Plugin de segurança bloqueia escrita fora do worktree | ✅ PASS | Mesmo processo, tool `write` com path relativo `../../fora-do-worktree.txt` → `Error: ERROR: escrita fora do worktree bloqueada pelo Vetor Safety Hook: ../../fora-do-worktree.txt` |
+> | 6. Fallback de modelo (`resolve-model.ts`) — preferencial saudável / degraded / `until` expirado / todos degraded | ✅ PASS (com ressalva) | Ver bloco "Fallback de modelo/provedor" abaixo — os 4 casos passaram, mas só depois de corrigir um bug real descoberto no processo: [issue #307](https://github.com/Tavaressan/Vetor/issues/307) (`resolve-model.ts` ignora `config.json` quando `cwd` é POSIX-style, formato que `$(pwd)` no Git Bash produz por padrão no Windows — exatamente o comando documentado no `SKILL.md`) |
+>
+> **Conclusão:** os dois subagentes nativos (`issue-worker`, `code-review`) e o plugin de segurança
+> funcionam de ponta a ponta no Windows contra o CLI real. O `issue-coordinator` — a peça central do
+> fluxo — não é invocável como documentado; corrigir #306 é pré-requisito para uma validação
+> completa do item 3. `resolve-model.ts` funciona corretamente uma vez corrigido o formato de path
+> (#307), mas falha silenciosamente (sem erro, sem aviso) no caminho documentado hoje no `SKILL.md`
+> — risco concreto de o coordinator escolher um modelo/provider errado em produção no Windows sem
+> ninguém perceber.
+
+O `issue-coordinator` portado nunca havia sido executado de ponta a ponta contra uma instalação
+real do OpenCode antes da validação acima — o ambiente usado para portá-lo foi o Claude Code, sem
+CLI `opencode` interativo. Este é o procedimento original para quem for revalidá-lo após #306/#307
+(movido de `opencode/skills/issue-coordinator/SKILL.md` na issue #147: é documentação de
+desenvolvimento, não instrução de runtime).
 
 1. Crie/escolha um repositório de teste com `.opencode/` copiado (`cp -r opencode/. <repo>/.opencode/`)
    e ao menos 2 issues GitHub abertas com o label `backlog` (ou outro label de teste), idealmente uma
@@ -198,6 +237,26 @@ validar a integração completa (hook `event` → `model-health.json` → `resol
    escolher o preferencial original.
 4. Force **todos** os modelos do tier como `degraded` e confirme que o grupo fica `QUEUED` em vez
    de despachar — sem processo `opencode run` para ele até uma entrada expirar.
+
+**Resultado verificado (2026-09-22, issue #299)** — os 4 casos rodados diretamente contra
+`opencode/scripts/resolve-model.ts` (`deno run -A`, sem passar pelo coordinator — inviável por
+#306) no repositório de teste, com `.claude/vetor/config.json` configurando `modelFallback.simple:
+["openrouter/anthropic/claude-haiku-4.5", "openrouter/anthropic/claude-sonnet-4.5"]` (ajustado para
+o provider real disponível na credencial usada — `opencode auth list` mostrou só `OpenRouter`
+configurado neste ambiente, não `anthropic` direto):
+
+| Caso | `cwd` no payload | Resultado |
+|---|---|---|
+| Preferencial saudável | `C:/Users/.../vetor-opencode-e2e-test-299` | ✅ `openrouter/anthropic/claude-haiku-4.5` |
+| Preferencial `degraded` (`until` no futuro) | idem | ✅ `openrouter/anthropic/claude-sonnet-4.5` |
+| Entrada `degraded` com `until` expirado (`until: 1`) | idem | ✅ volta a `openrouter/anthropic/claude-haiku-4.5` |
+| Todos os modelos do tier `degraded` | idem | ✅ `exit 1` + `Todos os modelos da lista de fallback estão degraded: ...` no stderr |
+| Preferencial saudável | `/c/Users/.../vetor-opencode-e2e-test-299` (POSIX-style, o que `$(pwd)` no Git Bash devolve) | ❌ `anthropic/claude-haiku-4-5` (`DEFAULT_MODEL_FALLBACK` embutido — ignora silenciosamente o `config.json` real) |
+
+A última linha é o bug rastreado em [issue #307](https://github.com/Tavaressan/Vetor/issues/307):
+com `cwd` em formato POSIX-style (o que o comando documentado no `SKILL.md`, `"cwd": "'"$(pwd)"'"`,
+produz por padrão no Windows/Git Bash), o script cai silenciosamente no default embutido em vez do
+`config.json` real do projeto — sem erro, sem aviso.
 
 ---
 
