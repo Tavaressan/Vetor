@@ -33,10 +33,9 @@ Alavancas para manter o custo baixo no dispatch paralelo:
 └── plugin.json              # manifesto do plugin (Codex) — sem campo "skills" (ver Compatibilidade)
 opencode/                    # camada de compatibilidade (OpenCode) — `vetor install` copia para .opencode/ no projeto-alvo (issue #283)
 ├── agent/
-│   ├── issue-worker.md      # subagente (OpenCode) — instrui dispatch via `opencode run --dir`
-│   └── code-review.md       # subagente (OpenCode) — permission.edit: deny
-├── skills/issue-coordinator/
-│   └── SKILL.md              # coordinator portado (issue #82) — auto-contido, sem $CLAUDE_PLUGIN_ROOT
+│   ├── issue-worker.md         # subagente (OpenCode) — instrui dispatch via `opencode run --dir`
+│   ├── code-review.md          # subagente (OpenCode) — permission.edit: deny
+│   └── issue-coordinator.md    # agent primary (OpenCode) — coordinator portado (issue #82), auto-contido, sem $CLAUDE_PLUGIN_ROOT; vive em agent/ (não skills/) desde a #306 para ser reconhecido por `opencode agent list`/`--agent`
 ├── plugin/vetor.ts          # plugin real: tool.execute.before/after + event (rate-limit, #83)
 ├── scripts/                 # cópia de scripts/{safety-check,check-edit,vetor-status,vetor-checks,lib/*}
 │   ├── model-health.ts        # CLI: grava .claude/vetor/status/model-health.json (#83)
