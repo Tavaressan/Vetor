@@ -335,9 +335,15 @@ redespacho/`--resume`).** O worker roda com `--dir <worktree>` (cwd fixado no wo
 `config.json`, `module-test-map.md` e o status file vivem em `<repo-root>/.claude/vetor/`, fora da
 árvore do worktree. Sem uma regra explícita, o OpenCode trata esse acesso como `external_directory`
 (default `"*": "ask"`) e, em `opencode run` não-interativo, **auto-rejeita** em vez de bloquear
-esperando input — o worker nunca chega a ler `config.json`, nem a escrever o próprio status file. Rode:
+esperando input — o worker nunca chega a ler `config.json`, nem a escrever o próprio status file.
+⚠️ Use `$(pwd -W 2>/dev/null || pwd)`, não `$(pwd)` cru: no Git Bash do Windows, `pwd` sozinho pode
+devolver um mount MSYS sem letra de unidade (ex. `/tmp/...`), que o Deno nativo do Windows não
+resolve — `normalizeCwd()` (issue #307) só cobre o padrão `/<letra>/...`, não mounts arbitrários.
+`pwd -W` (builtin do Git Bash) devolve o path nativo direto, sem essa lacuna; confirmado contra o
+CLI real que o comando cru com `$(pwd)` falha (`writefile ... NotFound`) exatamente nesse cenário.
+Rode:
 ```bash
-echo '{"cwd": "'"$(pwd)"'"}' | deno run -A .opencode/scripts/ensure-external-directory-permission.ts
+echo '{"cwd": "'"$(pwd -W 2>/dev/null || pwd)"'"}' | deno run -A .opencode/scripts/ensure-external-directory-permission.ts
 ```
 Isso garante (cria ou mescla, idempotente — seguro de chamar antes de todo dispatch, inclusive quando
 a Fase 3 não roda de novo) uma regra `permission.external_directory` em `<repo-root>/opencode.json`
@@ -349,9 +355,9 @@ reproduza a mensagem de erro no chat e não prossiga sem a regra — o worker de
 já na primeira leitura de `config.json`.
 
 **Resolução de modelo/provedor (issue #84 — antes de montar o comando de dispatch).** Para o `tier`
-do grupo (Fase 2), rode:
+do grupo (Fase 2), rode (mesma ressalva de `$(pwd -W ...)` acima, issue #313):
 ```bash
-echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd)"'"}' | deno run -A .opencode/scripts/resolve-model.ts
+echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd -W 2>/dev/null || pwd)"'"}' | deno run -A .opencode/scripts/resolve-model.ts
 ```
 - **Código 0:** stdout traz o modelo/provedor saudável a usar (`<provider/model>`) — primeiro da
   lista `modelFallback.<tier>` que não estiver `degraded` e não expirado em `model-health.json`

@@ -401,18 +401,32 @@ precisam de `--agent`, já que não são invocadas diretamente pelo usuário).
 > | Leitura de `config.json`/status file com a regra gerada pelo script, no shape de path real (`<repo-root>/.claude/worktrees/<slug>` — dois níveis abaixo do root) | ✅ PASS | `opencode run --dir ".claude/worktrees/slug" --agent <probe com o mesmo `permission.edit: allow` de `issue-worker.md`>` leu `.claude/vetor/config.json` e reportou o conteúdo exato |
 > | **Escrita do status file** (`.claude/vetor/status/<branch>.md`) — a validação que a issue #313 registra como nunca alcançada nas rodadas anteriores | ✅ PASS — nova evidência | Mesmo comando escreveu `Status: GREEN` em `.claude/vetor/status/test-branch.md`; conteúdo confirmado lendo o arquivo diretamente do disco (não só o relato do agente) |
 > | Controle negativo: escrita num path externo **fora** do glob permitido | ✅ Continua auto-rejeitando | Confirma que a regra é escopada ao pattern configurado, não uma liberação ampla |
-> | `ensure-external-directory-permission.ts` chamado dentro do fluxo **real** do `issue-coordinator` (não um script isolado) | ✅ PASS | Sessão ao vivo do coordinator (`opencode run --agent issue-coordinator "backlog --headless"` contra `Tavaressan/vetor-opencode-e2e-test-299`) executou Fases 1-3 normalmente, criou o worktree via `git worktree add`, e rodou o script na Fase 4 — `EXIT=0`, `opencode.json` real escrito em `<repo-root>/opencode.json` com a regra esperada (confirmado lendo o arquivo gerado pelo processo real, não por um teste unitário) |
+> | `ensure-external-directory-permission.ts` chamado dentro do fluxo **real** do `issue-coordinator` (não um script isolado) | ⚠️ PASS, achado colateral corrigido | Sessão ao vivo do coordinator (`opencode run --agent issue-coordinator "backlog --headless"` contra `Tavaressan/vetor-opencode-e2e-test-299`, rodando de um cwd sob mount MSYS sem letra de unidade — `/tmp/claude/...`, específico deste ambiente de sessão) executou Fases 1-3 normalmente, criou o worktree via `git worktree add`, mas a **primeira** tentativa da Fase 4 com o comando então documentado (`$(pwd)` cru) saiu `EXIT=1` (`writefile ... NotFound`) — `normalizeCwd()` (issue #307) só cobre o padrão `/<letra>/...`, não mounts MSYS arbitrários. O próprio agente coordinator diagnosticou a causa em texto e reexecutou com `cygpath -m`, chegando a `EXIT=0` com `opencode.json` real escrito. **Corrigido na documentação**: `issue-coordinator.md` agora usa `$(pwd -W 2>/dev/null \|\| pwd)` em vez de `$(pwd)` cru (builtin do Git Bash, resolve qualquer mount MSYS, não só drive letters) — reexecutado isoladamente com a forma corrigida contra o mesmo repositório de teste, `EXIT=0` confirmado sem precisar de `cygpath` manual. Teste de regressão do limite conhecido de `normalizeCwd()` em `opencode/scripts/lib/project_test.ts` |
 > | Fases 5-7 (worker dispatchado pelo coordinator real chega a `GREEN`, merge) | ⚠️ Não fechado nesta rodada | O dispatch real do `issue-worker` para a issue #1 do repo de teste foi dispatchado manualmente (mesmo comando que o coordinator monta) mas não completou dentro do tempo desta sessão — o modelo gratuito (`opencode/big-pickle`) já havia mostrado latência/instabilidade nas etapas anteriores desta mesma investigação (`Error: OpenCode's free tier can only be used from within OpenCode`, transitório, reproduzido em chamadas isoladas). Não é evidência de regressão do fix: a leitura/escrita do status file já foi comprovada tanto isoladamente (linha acima) quanto — na parte que rodou — dentro do fluxo real do coordinator |
 >
-> **Nota de ambiente (não é bug do Vetor):** ao rodar a partir de um path sob um mount virtual do Git
-> Bash (`/tmp/claude/...`, específico deste ambiente de sessão, não o caso comum de
-> `/c/Projetos/...`), o próprio coordinator (em texto, durante a sessão ao vivo) diagnosticou e
-> corrigiu sozinho a normalização de `cwd`, usando `cygpath -m` antes de chamar
-> `ensure-external-directory-permission.ts`/`resolve-model.ts` — o padrão POSIX-style `/c/...` já
-> coberto por `normalizeCwd()` (issue #307) não cobre esse mount específico. Não é uma regressão:
-> `normalizeCwd()` continua correto para o caso real documentado (`$(pwd)` de um repositório em
-> `C:\...`), e o teste automatizado (`ignore: Deno.build.os !== "windows"`) cobre exatamente esse
-> caso.
+> **Achado colateral corrigido nesta rodada (não é a issue #313 em si, mas foi descoberto ao validar
+> o fix dela contra o CLI real):** ao rodar a partir de um path sob um mount MSYS do Git Bash sem
+> letra de unidade (`/tmp/claude/...`, específico deste ambiente de sessão, não o caso comum de
+> `/c/Projetos/...`), a primeira tentativa da Fase 4 com o comando então documentado (`$(pwd)` cru)
+> falhou — `normalizeCwd()` (issue #307) só cobre o padrão POSIX-style `/<letra>/...`, não mounts
+> MSYS arbitrários. O próprio agente coordinator diagnosticou o problema em texto e recuperou usando
+> `cygpath -m` manualmente, mas isso não estava nas instruções — um worker/coordinator menos capaz de
+> improvisar teria parado ali. Corrigido trocando `$(pwd)` por `$(pwd -W 2>/dev/null || pwd)` nos dois
+> comandos de `issue-coordinator.md` (Fase 4) — `pwd -W`, builtin do Git Bash, resolve qualquer mount
+> MSYS para o path nativo, não só drive letters — sem precisar tocar `normalizeCwd()`. Reexecutado
+> isoladamente contra o mesmo repositório de teste com a forma corrigida: `EXIT=0` em ambos os
+> scripts, sem `cygpath` manual. Limite conhecido de `normalizeCwd()` documentado por teste de
+> regressão em `opencode/scripts/lib/project_test.ts` (mitigado no call site, não na função).
+>
+> **`code-review.md` herda a regra automaticamente, sem mudança própria (inferido do escopo da
+> config, não re-verificado isoladamente com o CLI real nesta rodada — uma tentativa de probar
+> `code-review.md` diretamente esbarrou na mesma instabilidade do modelo gratuito das Fases 5-7
+> abaixo).** `permission.external_directory` vive em `opencode.json`, configuração de **projeto**,
+> não no frontmatter do agent (`permission.edit`/`permission.bash`, que `code-review.md` define como
+> `deny` para tudo exceto `gh pr diff`/`gh pr comment`/`git log`/`git show`). São namespaces de
+> permissão independentes — a regra gerada pelo `ensure-external-directory-permission.ts` na Fase 4
+> se aplica a qualquer agent despachado no projeto, `code-review` incluso, sem precisar de uma edição
+> equivalente no frontmatter dele.
 >
 > **Conclusão:** issue #313 **CORRIGIDA e confirmada contra o CLI real** — leitura e escrita
 > cross-worktree do status file/`config.json`, a lacuna que bloqueava a Fase 5 do coordinator, estão
