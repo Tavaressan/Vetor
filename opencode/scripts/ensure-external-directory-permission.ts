@@ -93,7 +93,6 @@ async function main() {
 
   const currentRule = config.permission?.external_directory?.[rulePath];
   if (currentRule === "allow") {
-    console.log(configPath);
     return;
   }
 
@@ -106,7 +105,6 @@ async function main() {
   };
 
   await Deno.writeTextFile(configPath, JSON.stringify(config, null, 2) + "\n");
-  console.log(configPath);
 }
 
 await main();
