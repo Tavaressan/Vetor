@@ -128,17 +128,40 @@ projeto com base de usuários grande o suficiente para o padrão aparecer com fr
 algum dia migrar a distribuição para OpenCode de cópia de arquivo para spec de pacote (ex.: para
 simplificar updates), reavaliar esta classe de bug antes — não é hipotético.
 
-**Verificado nesta issue contra o CLI `opencode` real instalado:** chamando `installFiles()`
-diretamente (mesmo código que `vetor install` executa) a partir de um checkout do monorepo, com
-OpenCode selecionado, `opencode agent list` dentro do projeto-alvo resultante lista `issue-worker
-(subagent)` e `code-review (subagent)` — confirma que o resultado da cópia é reconhecido pelo
-OpenCode de verdade, não só que o arquivo foi parar no path esperado. **Verificado só no layout de
-checkout de monorepo** (`defaultSourceRoot()` resolvendo a raiz do monorepo, via `plugin.json`) — o
-layout de pacote publicado (`templates/opencode/...`, sincronizado por
-`cli/scripts/sync-templates.js`) tem cobertura só por teste automatizado
-(`cli/test/pack.test.js`, `cli/test/sync-templates.test.js`,
-`cli/test/installer-writer.test.js`), não por execução do `opencode` real contra um pacote `npm
-pack`ado de verdade.
+**Verificado contra o CLI `opencode` real instalado, nos dois layouts de fonte (issue #254, depois
+#300):** chamando `installFiles()` diretamente (mesmo código que `vetor install` executa) a partir
+de um checkout do monorepo, com OpenCode selecionado, `opencode agent list` dentro do projeto-alvo
+resultante lista `issue-worker (subagent)` e `code-review (subagent)` — confirma que o resultado da
+cópia é reconhecido pelo OpenCode de verdade, não só que o arquivo foi parar no path esperado.
+
+A issue #300 fechou a lacuna que ficava registrada aqui ("verificado só no layout de checkout de
+monorepo"): `cli/test/pack.test.js` agora roda `npm pack` **real** (sem `--dry-run`), instala o
+tarball resultante via `npm install <tarball> --prefix <dir-temp>` num diretório **limpo, fora do
+monorepo** (não `npm link`, que reaponta para o working tree em vez do conteúdo empacotado), e só
+então chama `installFiles()`/`defaultSourceRoot()` **a partir do módulo carregado do pacote
+instalado**, não do source do repositório — o mesmo branch de `defaultSourceRoot()` que resolve
+`templates/` (sem `plugin.json` ao lado) e que antes só tinha cobertura contra fixture sintética.
+Com OpenCode selecionado nesse layout de pacote publicado, `opencode agent list` (CLI real,
+`v1.18.32` neste ambiente) volta a listar `issue-worker (subagent)` e `code-review (subagent)` —
+confirmando que o layout publicado produz o mesmo resultado reconhecido pelo OpenCode que o layout
+de monorepo. A mesma automação também instalou Claude Code (cópia direta de `skills/`/`agents/`,
+sem tradução de formato) e tentou Codex a partir do tarball real.
+
+**Gap concreto que permanece (não fechado por #300):** Codex não tem CLI disponível neste
+ambiente/sandbox (`codex --version` não resolve no PATH) — a tradução de formato
+(`.codex/agents/<nome>.toml`, achatado a partir de `agents/<nome>/codex.toml`) está coberta por
+teste automatizado e pelo `installFiles()` real do tarball instalado, mas **nunca foi validada
+contra o binário `codex` de verdade reconhecendo o resultado**. Ver `cli/test/pack.test.js` (a
+mesma suíte pula essa validação com um log explícito quando `codex` não está no PATH, em vez de
+simular o resultado) e o corpo da issue #300 para o procedimento manual pendente.
+
+**Achado colateral registrado nesta issue (#300), não corrigido (fora de escopo, YAGNI):**
+`vetor install`, rodado a partir do binário publicado com stdin em pipe (qualquer processo filho
+sem TTY — é o caso de qualquer automação não-interativa, incluindo `npx vetor@latest` disparado por
+outro script), sempre cai no ramo "sessão não-interativa" de `prompts.js` (`input.isTTY` nunca é
+verdadeiro num pipe) e termina sem selecionar nenhuma engine, mesmo com engines detectadas — "Nenhuma
+engine selecionada. Instalação cancelada." Comportamento real do binário publicado, verificado
+diretamente (`node bin/vetor.js install` com stdin vazio), não uma inferência.
 
 Depois, mescle o bloco `mcp` de `.opencode/mcp.jsonc` (copiado como referência, não fundido
 automaticamente — merge de JSON de config alheio fica fora de escopo) no `opencode.json` do
