@@ -36,6 +36,23 @@ em vez de usar a tool `task` in-process. Consequência prática: a classe de bug
 (cwd contaminado entre workers paralelos no Claude Code) **não se aplica** a esse modelo — cada
 worker é um processo isolado do SO, não uma chamada dentro da mesma sessão.
 
+**Achado colateral da investigação da #306, não corrigido aqui (fora de escopo — precisa issue
+própria).** O parágrafo acima descreve `--dir` como verificado — isso é verdade —, mas a combinação
+`--agent issue-worker`/`--agent code-review` especificamente **não é**: `issue-worker.md` e
+`code-review.md` têm `mode: subagent`, e contra o CLI real (`opencode` v1.18.32) `opencode run
+--agent code-review "<msg>"` responde `! agent "code-review" is a subagent, not a primary agent.
+Falling back to default agent` e executa a mensagem no agent `build`, não em `code-review` — mesma
+classe de sintoma do bug original da #306 (fallback silencioso para `build`), só que por um motivo
+diferente (`mode` errado para invocação direta via CLI, não localização errada de arquivo). Isso
+sugere que o mecanismo de dispatch de workers documentado aqui e em
+`opencode/agent/issue-coordinator.md` (`opencode run --dir <worktree> --agent issue-worker
+"<prompt>"`) pode não funcionar como escrito contra o CLI real — **não testado dentro desta
+investigação** (o escopo era #306/#307, não uma nova issue); precisa de validação e,
+provavelmente, de uma correção própria (talvez `mode: primary` também para `issue-worker`/
+`code-review`, já que ambos só são disparados como processo `opencode` isolado via `--dir`, nunca
+via `task` in-process do OpenCode — o caso de uso real de "subagent" na acepção do OpenCode não se
+aplica a eles).
+
 **Plugin de segurança — implementado, não só um template.** `opencode/plugin/vetor.ts` reimplementa
 as políticas de `scripts/safety-check.ts` (branch protegida, push/PR de worker não-`GREEN`, escrita
 fora do worktree) e `scripts/check-edit.ts` (typecheck pós-edição) via `tool.execute.before` /
@@ -63,7 +80,7 @@ quem lê o arquivo (`isHealthy` em `opencode/scripts/lib/model-health.ts`).
 
 **Fallback de modelo/provedor no coordinator (issue #84).** Antes de montar cada comando
 `opencode run --dir ... --model <provider/model>`, o `issue-coordinator` portado
-(`opencode/skills/issue-coordinator/SKILL.md`) roda `opencode/scripts/resolve-model.ts`, que lê a
+(`opencode/agent/issue-coordinator.md`) roda `opencode/scripts/resolve-model.ts`, que lê a
 lista ordenada `modelFallback.<simple|complex>` de `.claude/vetor/config.json` (default embutido no
 script se a chave não existir — `anthropic/claude-haiku-4-5` → `anthropic/claude-sonnet-4-5` para
 `simple`, ordem invertida para `complex`) e devolve o primeiro modelo não-`degraded`/não-expirado
@@ -81,25 +98,40 @@ e o grupo correspondente fica `QUEUED` em vez de ser despachado sabendo que vai 
   allow/ask/deny), usado em `opencode/agent/issue-worker.md` para negar `git push`/`gh pr
   create|ready|merge` como camada extra além do hook.
 
-**Skills — `issue-coordinator` portado (issue #82); as demais 7 seguem bloqueadas pelo mesmo
-motivo do Codex.** O formato `SKILL.md` do OpenCode é compatível (frontmatter `name`/`description`;
+**`issue-coordinator` portado como *agent*, não skill (issue #82, corrigido na #306); as demais 7
+skills seguem bloqueadas pelo mesmo motivo do Codex.** Distinção que importa de verdade no OpenCode:
+**skills não são invocáveis por `--agent`/CLI, só agents são.** `opencode agent list` e
+`opencode run --agent <nome>` só resolvem nomes registrados em `.opencode/agent/*.md` — um arquivo
+em `.opencode/skills/<nome>/SKILL.md` é descoberto como skill (ferramenta que outro agent pode
+consultar), nunca como agent invocável diretamente. Entre a issue #82 (porte inicial) e a #306
+(correção), `opencode/skills/issue-coordinator/SKILL.md` viveu no diretório errado: `opencode agent
+list` nunca o listava e `opencode run --agent issue-coordinator "<label>"` caía silenciosamente no
+agent `build` default, sem nenhuma fase do coordinator rodar — confirmado contra o CLI real
+(`opencode` v1.18.32) na investigação da #306. O arquivo foi movido (não duplicado) para
+`opencode/agent/issue-coordinator.md`, com frontmatter de agent (`description`, `mode: primary` — é
+o agent de entrada, invocado diretamente pelo usuário, ao contrário de `issue-worker`/`code-review`,
+despachados programaticamente pelo próprio coordinator —, `model`, `permission`), no mesmo formato
+de `opencode/agent/issue-worker.md` e `opencode/agent/code-review.md`. O corpo do procedimento não
+mudou; só o diretório e o frontmatter.
+
+O formato `SKILL.md`/agent `.md` do OpenCode é compatível com o Vetor (frontmatter simples;
 campos extras são ignorados) e o OpenCode até escaneia `.claude/skills/*/SKILL.md` nativamente —
 mas isso não ajudava por si só, porque as skills do Vetor (`skills/*/SKILL.md`) referenciam
 `$CLAUDE_PLUGIN_ROOT` no corpo do texto para localizar `scripts/` e
-`skills/shared/references/`, variável que o OpenCode não define. `opencode/skills/issue-coordinator/
-SKILL.md` é uma cópia auto-contida (sem `$CLAUDE_PLUGIN_ROOT` em nenhum ponto) que resolve todas as
-referências como caminho relativo à raiz do repositório onde `.opencode/` foi copiado — inclusive
-`.opencode/scripts/vetor-status.sh` e `.opencode/scripts/vetor-checks.sh` (cópias diretas de
-`scripts/vetor-status.sh`/`vetor-checks.sh`, adicionadas junto com o skill). O modelo de dispatch
-foi reescrito para o processo `opencode run --dir <worktree> --agent issue-worker`, já que não há
-`Agent()`/`isolation: "worktree"` nem `SendMessage` no OpenCode — a escalação de `BLOCKED_WAITING`
-e o acompanhamento de progresso acontecem por **polling do status file**
-(`.opencode/scripts/vetor-status.sh`), não por canal de mensagens entre processos. Ver
-`opencode/skills/issue-coordinator/SKILL.md`, seção "Validação manual", para o procedimento de teste
-contra uma instalação real do OpenCode (não executado nesta investigação por falta de CLI
-interativo disponível). Portar as 7 skills restantes (mesmo ajuste de referências, sem a
-complexidade adicional do modelo de dispatch multi-processo) segue como trabalho futuro — igual ao
-que foi feito para o Codex.
+`skills/shared/references/`, variável que o OpenCode não define. `opencode/agent/
+issue-coordinator.md` é uma cópia auto-contida (sem `$CLAUDE_PLUGIN_ROOT` em nenhum ponto) que
+resolve todas as referências como caminho relativo à raiz do repositório onde `.opencode/` foi
+copiado — inclusive `.opencode/scripts/vetor-status.sh` e `.opencode/scripts/vetor-checks.sh`
+(cópias diretas de `scripts/vetor-status.sh`/`vetor-checks.sh`, adicionadas junto com o coordinator).
+O modelo de dispatch foi reescrito para o processo `opencode run --dir <worktree> --agent
+issue-worker`, já que não há `Agent()`/`isolation: "worktree"` nem `SendMessage` no OpenCode — a
+escalação de `BLOCKED_WAITING` e o acompanhamento de progresso acontecem por **polling do status
+file** (`.opencode/scripts/vetor-status.sh`), não por canal de mensagens entre processos. Ver
+`opencode/agent/issue-coordinator.md`, seção "Validação manual", para o procedimento de teste
+contra uma instalação real do OpenCode. Portar as 7 skills restantes (mesmo ajuste de referências,
+sem a complexidade adicional do modelo de dispatch multi-processo) segue como trabalho futuro —
+igual ao que foi feito para o Codex; nenhuma delas precisa virar agent, já que não são invocadas
+diretamente por `--agent`.
 
 **Instalação automatizada via `vetor install` (issue #283).** `installFiles()`
 (`cli/lib/installer/writer.js`) agora copia a árvore `opencode/` inteira, achatada, para
@@ -133,6 +165,13 @@ simplificar updates), reavaliar esta classe de bug antes — não é hipotético
 de um checkout do monorepo, com OpenCode selecionado, `opencode agent list` dentro do projeto-alvo
 resultante lista `issue-worker (subagent)` e `code-review (subagent)` — confirma que o resultado da
 cópia é reconhecido pelo OpenCode de verdade, não só que o arquivo foi parar no path esperado.
+`installFiles()` copia `opencode/` inteiro genericamente (`ENGINE_NATIVE_SOURCE_DIR`, sem enumerar
+arquivo por arquivo — ver `cli/lib/installer/writer.js`), então a mesma verificação vale para
+`opencode/agent/issue-coordinator.md` depois da #306: `opencode agent list` passa a listar também
+`issue-coordinator (primary)`, confirmado manualmente com o mesmo mecanismo de cópia (`cp -r
+opencode/. <dir>/.opencode/` + `opencode agent list` real) durante a investigação da #306 — não
+repetido via `installFiles()`/pacote publicado nesta rodada (redundante com a verificação já
+descrita aqui para `issue-worker`/`code-review`, que exercitam o mesmo caminho de cópia).
 
 A issue #300 fechou a lacuna que ficava registrada aqui ("verificado só no layout de checkout de
 monorepo"). A verificação completa de ponta a ponta — `npm pack` real com o hook `prepack`
@@ -191,18 +230,27 @@ projeto-alvo (ajuste o path do `docker-catalog.yaml` se for usar o servidor `doc
 cp -r opencode/. <projeto-alvo>/.opencode/
 ```
 
-**Resumo:** isolamento de worktree por worker é **verificado e resolvido** (via `opencode run
---dir`, testado contra o CLI real instalado). Hooks de segurança são **reais e funcionais**
-(reaproveitando os scripts Deno existentes). O `issue-coordinator` está **portado**
-(`opencode/skills/issue-coordinator/SKILL.md`) — hoje os dois subagentes nativos, o plugin de
-segurança e o coordinator estão prontos para uso; as demais 7 skills seguem bloqueadas pela mesma
-limitação de path do Codex.
+**Resumo:** isolamento de worktree por worker (`--dir`) é **verificado e resolvido** contra o CLI
+real instalado. Hooks de segurança são **reais e funcionais** (reaproveitando os scripts Deno
+existentes). O `issue-coordinator` está **portado como agent** (`opencode/agent/
+issue-coordinator.md` — não skill; issue #82, correção de registro na #306) e **confirmado
+invocável** via `opencode agent list`/`--agent` contra o CLI real. `issue-worker`/`code-review`
+continuam listados corretamente por `opencode agent list`, mas a invocação direta via `--agent`
+**não foi confirmada** — achado desta investigação registrado acima ("Achado colateral da
+investigação da #306"), pendente de issue própria. As demais 7 skills seguem bloqueadas pela mesma
+limitação de path do Codex (permanecem skills de propósito — não precisam de `--agent`, já que não
+são invocadas diretamente pelo usuário).
 
 ## Validação manual do coordinator
 
-O `issue-coordinator` portado nunca foi executado de ponta a ponta contra uma instalação real do
-OpenCode — o ambiente usado para portá-lo é o Claude Code, sem CLI `opencode` interativo. Este é o
-procedimento para quem for validá-lo (movido de `opencode/skills/issue-coordinator/SKILL.md` na
+O `issue-coordinator` portado foi confirmado, contra o CLI `opencode` real (v1.18.32) instalado
+neste ambiente, em `opencode agent list` (aparece como `issue-coordinator (primary)`) e em `opencode
+run --agent issue-coordinator "<mensagem>"` (o header da sessão mostra `> issue-coordinator ·
+<model>` em vez de cair no `build` default — investigação da #306). O que **não** foi exercitado de
+ponta a ponta contra uma instalação real é o fluxo completo de dispatch (Fases 1-7, worktrees reais,
+workers paralelos) — o ambiente usado para portá-lo é o Claude Code, sem sessão interativa longa
+disponível no CLI `opencode`. Este é o procedimento para quem for validar o fluxo completo (movido
+de `opencode/skills/issue-coordinator/SKILL.md` na
 issue #147: é documentação de desenvolvimento, não instrução de runtime).
 
 1. Crie/escolha um repositório de teste com `.opencode/` copiado (`cp -r opencode/. <repo>/.opencode/`)

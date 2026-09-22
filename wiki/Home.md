@@ -25,5 +25,5 @@ não precisa estar no caminho de quem só quer começar.
 
 - **[Antigravity](Compatibilidade-Antigravity.md)** — proteção reduzida; não usar `/vetor:issue-coordinator`.
 - **[OpenAI Codex](Compatibilidade-Codex.md)** — skills funcionam sem tradução (agnósticas de engine desde #251); hooks com paridade estrutural, mas payload não verificado contra sessão real.
-- **[OpenCode](Compatibilidade-OpenCode.md)** — isolamento de worktree resolvido, `/vetor:issue-coordinator` portado (as demais skills seguem sem porte — motivo original ($CLAUDE_PLUGIN_ROOT) ficou desatualizado por #251, precisa revalidação).
+- **[OpenCode](Compatibilidade-OpenCode.md)** — isolamento de worktree resolvido, `/vetor:issue-coordinator` portado como **agent** (`opencode/agent/issue-coordinator.md`, não skill — só agents em `.opencode/agent/` são invocáveis via `--agent`/CLI; issue #306) (as demais skills seguem sem porte — motivo original ($CLAUDE_PLUGIN_ROOT) ficou desatualizado por #251, precisa revalidação).
 - **[Cursor](Compatibilidade-Cursor.md)** — skills/agentes compatíveis sem tradução (`.cursor/`), hooks traduzidos com gaps conhecidos (ver página).
