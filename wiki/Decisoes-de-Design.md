@@ -35,6 +35,29 @@ para `skills/shared/references/`.
 crescer mais rápido que o ganho de paralelismo, e o coordinator sinaliza isso — mas não impõe: o
 usuário pode escolher qualquer valor, inclusive acima de 8. Não há teto duro.
 
+**Por que o gate de Spec/design vive na Fase 2 do `issue-coordinator`, não em `spec/SKILL.md` (issue
+#298).** Comparado à skill `brainstorming` do superpowers (`obra/superpowers`, MIT), que bloqueia
+skills de implementação até aprovação humana explícita do design, o Vetor não tinha nenhum ponto do
+pipeline automatizado impedindo `worktree-create`/`fix-loop-agent`/`issue-coordinator` de rodar sobre
+uma issue sem Spec aprovada — `/vetor:spec` e `/vetor:spec-validate` existiam, mas seu uso antes de
+implementar era convenção de fluxo manual, não um gate enforced. A Fase 2 do coordinator foi escolhida
+como ponto do gate por ser o único estágio do pipeline automatizado com humano de fato na sessão antes
+do dispatch, e onde `AskUserQuestion` já é usado para outras decisões (teto de workers, aprovação do
+plano) — não introduz um novo padrão de interação. **Este gate é sobre se uma Spec é necessária antes
+do dispatch, nunca sobre a qualidade da Spec em si** — isso já é coberto pelo Quality Gate de
+`spec-validate` (`READY`/`NEEDS_REFINEMENT`/`INCOMPLETE`); os dois são independentes e não se
+substituem.
+
+**Por que o gate de Spec/design nunca bloqueia em `--headless` (issue #298).** Mesma razão já
+documentada para a Fase 6 (merge) logo abaixo: um `AskUserQuestion` síncrono sem interlocutor
+disponível recriaria o deadlock silencioso do worker preso em plan mode (issue #121). Em `--headless`,
+a classificação de complexidade ainda roda (custo desprezível, é heurística sobre texto já lido), mas
+o resultado vira apenas uma anotação não-bloqueante no plano e no relatório final
+(`⚠️ sem Spec associada`) — o dispatch sempre prossegue. A skill `spec/SKILL.md` §0.1 tem uma triagem
+de complexidade equivalente, mas interna à própria geração da Spec (decide quanto processo aplicar
+*depois* que o usuário já pediu uma Spec); as duas são deliberadamente independentes — nenhuma aciona
+a outra automaticamente, para não acoplar duas skills com ciclos de vida distintos.
+
 **Por que `--headless` nunca faz merge.** Entregar código à branch default sem revisão humana é
 precisamente o que um modo não supervisionado não deve decidir sozinho — ainda mais em repositórios
 sem required status check, onde não há barreira nenhuma depois do merge. Em headless, todo gate de
