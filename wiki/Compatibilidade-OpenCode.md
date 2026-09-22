@@ -36,6 +36,23 @@ em vez de usar a tool `task` in-process. Consequência prática: a classe de bug
 (cwd contaminado entre workers paralelos no Claude Code) **não se aplica** a esse modelo — cada
 worker é um processo isolado do SO, não uma chamada dentro da mesma sessão.
 
+**Achado colateral da investigação da #306, não corrigido aqui (fora de escopo — precisa issue
+própria).** O parágrafo acima descreve `--dir` como verificado — isso é verdade —, mas a combinação
+`--agent issue-worker`/`--agent code-review` especificamente **não é**: `issue-worker.md` e
+`code-review.md` têm `mode: subagent`, e contra o CLI real (`opencode` v1.18.32) `opencode run
+--agent code-review "<msg>"` responde `! agent "code-review" is a subagent, not a primary agent.
+Falling back to default agent` e executa a mensagem no agent `build`, não em `code-review` — mesma
+classe de sintoma do bug original da #306 (fallback silencioso para `build`), só que por um motivo
+diferente (`mode` errado para invocação direta via CLI, não localização errada de arquivo). Isso
+sugere que o mecanismo de dispatch de workers documentado aqui e em
+`opencode/agent/issue-coordinator.md` (`opencode run --dir <worktree> --agent issue-worker
+"<prompt>"`) pode não funcionar como escrito contra o CLI real — **não testado dentro desta
+investigação** (o escopo era #306/#307, não uma nova issue); precisa de validação e,
+provavelmente, de uma correção própria (talvez `mode: primary` também para `issue-worker`/
+`code-review`, já que ambos só são disparados como processo `opencode` isolado via `--dir`, nunca
+via `task` in-process do OpenCode — o caso de uso real de "subagent" na acepção do OpenCode não se
+aplica a eles).
+
 **Plugin de segurança — implementado, não só um template.** `opencode/plugin/vetor.ts` reimplementa
 as políticas de `scripts/safety-check.ts` (branch protegida, push/PR de worker não-`GREEN`, escrita
 fora do worktree) e `scripts/check-edit.ts` (typecheck pós-edição) via `tool.execute.before` /
@@ -213,14 +230,16 @@ projeto-alvo (ajuste o path do `docker-catalog.yaml` se for usar o servidor `doc
 cp -r opencode/. <projeto-alvo>/.opencode/
 ```
 
-**Resumo:** isolamento de worktree por worker é **verificado e resolvido** (via `opencode run
---dir`, testado contra o CLI real instalado). Hooks de segurança são **reais e funcionais**
-(reaproveitando os scripts Deno existentes). O `issue-coordinator` está **portado como agent**
-(`opencode/agent/issue-coordinator.md` — não skill; issue #82, correção de registro na #306) —
-hoje os dois subagentes nativos, o plugin de segurança e o coordinator estão prontos para uso e
-reconhecidos por `opencode agent list`/`--agent` contra o CLI real; as demais 7 skills seguem
-bloqueadas pela mesma limitação de path do Codex (permanecem skills de propósito — não precisam de
-`--agent`, já que não são invocadas diretamente pelo usuário).
+**Resumo:** isolamento de worktree por worker (`--dir`) é **verificado e resolvido** contra o CLI
+real instalado. Hooks de segurança são **reais e funcionais** (reaproveitando os scripts Deno
+existentes). O `issue-coordinator` está **portado como agent** (`opencode/agent/
+issue-coordinator.md` — não skill; issue #82, correção de registro na #306) e **confirmado
+invocável** via `opencode agent list`/`--agent` contra o CLI real. `issue-worker`/`code-review`
+continuam listados corretamente por `opencode agent list`, mas a invocação direta via `--agent`
+**não foi confirmada** — achado desta investigação registrado acima ("Achado colateral da
+investigação da #306"), pendente de issue própria. As demais 7 skills seguem bloqueadas pela mesma
+limitação de path do Codex (permanecem skills de propósito — não precisam de `--agent`, já que não
+são invocadas diretamente pelo usuário).
 
 ## Validação manual do coordinator
 
