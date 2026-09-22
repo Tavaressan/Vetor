@@ -61,6 +61,18 @@ opencode run --agent issue-coordinator "<label> --headless"
 Rode sempre a partir da **raiz do repositório principal** (não de dentro de um worktree) — os paths
 relativos abaixo assumem esse cwd.
 
+⚠️ **`opencode run` é um processo por chamada, sem estado entre chamadas.** Fora do modo
+`--headless`, a aprovação do plano (Fase 2, "Aprovação do plano" abaixo) chega numa segunda chamada
+— ela só enxerga o plano da primeira se for enviada com `-c`/`--continue` (continua a sessão mais
+recente) ou `--session <id>` (continua uma sessão específica), por exemplo:
+
+```
+opencode run -c --agent issue-coordinator "sim"
+```
+
+Sem `-c`/`--session`, a segunda chamada começa uma sessão nova, sem memória do plano exibido na
+Fase 2.
+
 ---
 
 ## Referências (self-contained, sem `$CLAUDE_PLUGIN_ROOT`)
@@ -269,6 +281,10 @@ Fora do headless — sem `ExitPlanMode` nem `implementation_plan.md` no OpenCode
 chat e aguarde resposta textual afirmativa explícita** (ex.: "sim", "prosseguir") antes de despachar
 qualquer processo `opencode run`. Trocas manuais de modelo/provedor ou teto valem na Fase 4.
 
+⚠️ A resposta de aprovação precisa ser enviada com `-c`/`--continue` (ou `--session <id>`) para
+continuar a **mesma sessão** do plano exibido — ver aviso em "Sintaxe" acima. Sem isso, `opencode
+run --agent issue-coordinator "sim"` começa uma sessão nova, sem contexto da Fase 2.
+
 ### 3 — Fase de criação (serializada)
 
 Para cada grupo aprovado:
@@ -318,9 +334,18 @@ echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd)"'"}' | deno run -A .opencode
 - **Código 0:** stdout traz o modelo/provedor saudável a usar (`<provider/model>`) — primeiro da
   lista `modelFallback.<tier>` que não estiver `degraded` e não expirado em `model-health.json`
   (escrito pelo hook `event`, issue #83). Se o preferencial estiver saudável, é ele mesmo.
-- **Código 1:** todos os modelos do tier estão `degraded` — **não despache este grupo**. Mantenha-o
-  `QUEUED`, registre no chat `⚠️ Grupo <slug> aguardando modelo saudável (todos os fallbacks de
-  "<tier>" degraded)` e tente de novo no próximo ciclo de monitoramento (Fase 5).
+- **Código 1:** todos os modelos do tier estão `degraded` (transitório) — **não despache este
+  grupo**. Mantenha-o `QUEUED`, registre no chat `⚠️ Grupo <slug> aguardando modelo saudável (todos
+  os fallbacks de "<tier>" degraded)` e tente de novo no próximo ciclo de monitoramento (Fase 5).
+- **Código 2 (issue #312):** `modelFallback.<tier>` não está configurado em
+  `.claude/vetor/config.json` do projeto-alvo (erro de configuração **permanente**, não
+  transitório — nunca trate como `QUEUED`, pois não muda sozinho num próximo ciclo). Pare o
+  dispatch de **todos** os grupos pendentes (o problema não é por grupo, é do projeto), reproduza a
+  mensagem de erro do script no chat/relatório final (Fase 7) e oriente o usuário a configurar
+  `modelFallback.simple`/`modelFallback.complex` em `.claude/vetor/config.json` com um
+  provider/modelo válido para o ambiente atual (`opencode models`/`opencode auth list` ajudam a
+  descobrir qual) antes de rodar o coordinator de novo. Grupos já despachados continuam normalmente;
+  não cancele workers em andamento.
 
 Só então monte o comando de dispatch (um processo em background por grupo, dentro do teto),
 usando o modelo resolvido:

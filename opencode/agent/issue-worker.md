@@ -1,6 +1,6 @@
 ---
 description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge — isso é responsabilidade do worktree-ship. Despachado pelo issue-coordinator, um processo `opencode run --dir` por issue.
-mode: subagent
+mode: primary
 model: anthropic/claude-haiku-4-5
 permission:
   edit: allow
