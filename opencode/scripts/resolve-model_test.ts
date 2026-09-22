@@ -94,6 +94,37 @@ Deno.test("resolve-model CLI - todos degraded sai com código 1 e sem stdout", a
   assertStringIncludes(result.stderr, "degraded");
 });
 
+// Issue #307: no Git Bash do Windows, `$(pwd)` produz um path POSIX-style (`/c/Users/...`), não
+// nativo (`C:\Users\...`). `resolveWorktree()` roda `git` com esse cwd via `Deno.Command`, que no
+// Windows falha ao spawnar (`Failed to spawn ... No such cwd`) para paths desse formato — cai
+// silenciosamente no `DEFAULT_MODEL_FALLBACK` embutido em vez do `config.json` real.
+function toPosixPath(nativePath: string): string {
+  return nativePath.replace(/^([A-Za-z]):\\/, (_, d) => `/${d.toLowerCase()}/`).replaceAll(
+    "\\",
+    "/",
+  );
+}
+
+Deno.test({
+  name: "resolve-model CLI - resolve config.json real mesmo com cwd POSIX-style (Git Bash Windows)",
+  ignore: Deno.build.os !== "windows",
+  fn: async () => {
+    const repo = await makeRepo();
+    await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
+    await Deno.writeTextFile(
+      `${repo}/.claude/vetor/config.json`,
+      JSON.stringify({
+        modelFallback: { simple: ["openai/gpt-5-mini", "anthropic/claude-haiku-4-5"] },
+      }),
+    );
+
+    const result = await runCli({ tier: "simple", cwd: toPosixPath(repo) });
+
+    assertEquals(result.code, 0);
+    assertEquals(result.stdout, "openai/gpt-5-mini");
+  },
+});
+
 Deno.test("resolve-model CLI - usa tier de config.json quando fallback não é passado", async () => {
   const repo = await makeRepo();
   await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
