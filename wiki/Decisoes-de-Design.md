@@ -92,6 +92,22 @@ mapeamento módulo → arquivos, para que o `code-review` despachado logo depois
 não precise re-derivá-lo. Formato e ciclo de vida em
 `skills/shared/references/touched-files-cache.md`; descartado no cleanup (passo 12).
 
+**Por que o `fix-loop-agent` não instrumenta toda fronteira antes de qualquer hipótese (issue #297).**
+A skill `systematic-debugging` do superpowers (`obra/superpowers`, MIT) roda, antes de formular
+qualquer hipótese, uma fase que instrumenta **todas** as fronteiras de componente do sistema (loga
+entrada/saída de dados, verifica propagação de config/ambiente) para localizar onde o problema
+realmente quebra, só então investiga o componente específico. Esse protocolo pressupõe uma sessão
+supervisionada por humano, com custo de sessão amortizado ao longo de uma investigação livre. O
+`fix-loop-agent` roda headless, pago por execução, sob orçamento agressivo de 5 iterações (issue
+#156) — instrumentar todo o sistema **antes** da 1ª hipótese consumiria orçamento sem ainda ter
+testado nada, o que não cabe nesse custo por iteração. A adaptação adotada é condicional e local, não
+universal: só dispara instrumentação (e só na fronteira do componente já apontado como suspeito pelas
+tentativas anteriores, não no sistema inteiro) quando a mesma assinatura de erro sobrevive a 2
+hipóteses consecutivas — sinal de que adivinhar às cegas parou de convergir. Ver
+`skills/fix-loop-agent/SKILL.md` §3.b para o gatilho e para a regra companheira "nunca conserte só o
+sintoma" (critério operacional: "este é o ponto de origem do problema, ou ele entra aqui vindo de
+outro lugar?").
+
 ---
 
 [← Wiki do Vetor](Home.md)

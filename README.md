@@ -90,7 +90,7 @@ O Vetor se inspira em outros projetos de skills/agentes de IA:
 
 - **[Reversa](https://github.com/sandeco/reversa)** — framework de engenharia reversa de especificações; a ideia de orquestrar times de agentes por fase (Discovery → Ideation → ...) espelhando skills em `.claude/skills/` ecoa no pipeline `spec → coordinator → fix-loop → ship → guardian` do Vetor.
 - **[Skills do Matt Pocock](https://github.com/mattpocock/skills)** — conjunto de skills reutilizáveis para agentes de código; o `/grill-me` de lá é a inspiração declarada para o "loop de grilling" usado em `/vetor:architecture-review`.
-- **[Superpowers](https://github.com/obra/superpowers)**, de Jesse Vincent — framework de skills que formaliza um fluxo brainstorm → plano → TDD → revisão → finalização; ecoa no pipeline `spec → coordinator → fix-loop → ship → guardian` do Vetor.
+- **[Superpowers](https://github.com/obra/superpowers)**, de Jesse Vincent — a skill `systematic-debugging`, que rastreia causa raiz por investigação socrática até a fonte do problema em vez de tratar o sintoma, é a inspiração declarada para a lógica de diagnóstico do `fix-loop-agent` do Vetor.
 
 ## Licença
 
