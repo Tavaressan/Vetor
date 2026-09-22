@@ -135,17 +135,35 @@ resultante lista `issue-worker (subagent)` e `code-review (subagent)` — confir
 cópia é reconhecido pelo OpenCode de verdade, não só que o arquivo foi parar no path esperado.
 
 A issue #300 fechou a lacuna que ficava registrada aqui ("verificado só no layout de checkout de
-monorepo"): `cli/test/pack.test.js` agora roda `npm pack` **real** (sem `--dry-run`), instala o
-tarball resultante via `npm install <tarball> --prefix <dir-temp>` num diretório **limpo, fora do
-monorepo** (não `npm link`, que reaponta para o working tree em vez do conteúdo empacotado), e só
-então chama `installFiles()`/`defaultSourceRoot()` **a partir do módulo carregado do pacote
-instalado**, não do source do repositório — o mesmo branch de `defaultSourceRoot()` que resolve
-`templates/` (sem `plugin.json` ao lado) e que antes só tinha cobertura contra fixture sintética.
-Com OpenCode selecionado nesse layout de pacote publicado, `opencode agent list` (CLI real,
-`v1.18.32` neste ambiente) volta a listar `issue-worker (subagent)` e `code-review (subagent)` —
-confirmando que o layout publicado produz o mesmo resultado reconhecido pelo OpenCode que o layout
-de monorepo. A mesma automação também instalou Claude Code (cópia direta de `skills/`/`agents/`,
-sem tradução de formato) e tentou Codex a partir do tarball real.
+monorepo"). A verificação completa de ponta a ponta — `npm pack` real com o hook `prepack`
+rodando de verdade (populando `cli/templates/` a partir de skills/agents/hooks/opencode da raiz),
+`npm install <tarball> --prefix <dir-temp>` num diretório **limpo, fora do monorepo** (não `npm
+link`, que reaponta para o working tree em vez do conteúdo empacotado), `installFiles()` chamado a
+partir do módulo carregado do **pacote instalado** e `opencode agent list` (CLI real, `v1.18.32`
+neste ambiente) listando `issue-worker (subagent)` e `code-review (subagent)` a partir do resultado
+— foi rodada manualmente uma vez durante a investigação desta issue, confirmando a cadeia completa.
+
+O teste automatizado que ficou (`cli/test/pack.test.js`) decompõe essa cadeia em vez de repeti-la
+por inteiro: o `npm pack` real do novo teste usa `--ignore-scripts` e reaproveita o `cli/templates/`
+já sincronizado pelos dois testes de conteúdo declarado que rodam antes dele, no mesmo arquivo — os
+que já disparam o prepack de verdade. Decisão deliberada, não descuido: rodar prepack uma terceira
+vez no mesmo arquivo, contra o `cli/templates/` real (não um fixture), mostrou-se uma corrida real
+contra `npm-publish-workflow.test.js` (arquivo diferente, executado em paralelo pelo runner de
+testes do Node) — ~50% de falha intermitente em execuções repetidas da suíte completa, medido
+durante esta issue. A partir daí o teste chama `defaultSourceRoot()`/`installFiles()` do pacote
+recém-instalado — o mesmo branch de `defaultSourceRoot()` que resolve `templates/` (sem
+`plugin.json` ao lado) e que antes só tinha cobertura contra fixture sintética — e roda `opencode
+agent list` real contra o resultado, para Claude Code, OpenCode e Codex.
+
+**Cobertura em CI:** `npm-publish.yml` roda `npm test` em `cli/` antes de todo publish real
+(inclusive o gate de #292) — a mecânica de empacotar/instalar o tarball e copiar para os destinos
+das três engines roda automaticamente ali. A validação de **runtime real** (`opencode agent list`)
+não: os runners `ubuntu-latest` do GitHub Actions não têm `opencode` nem `codex` no PATH, então
+`commandExists()` desvia para o log informativo em vez de rodar o CLI — mesmo comportamento de
+quando um dev roda `npm test` localmente sem essas CLIs instaladas. A confirmação com CLI real só
+acontece quando alguém roda a suíte (ou o procedimento manual acima) numa máquina com `opencode`
+instalado. `ci.yml` (checks de PR) não roda `cli && npm test` de forma alguma — só `deno
+fmt/lint/check/test` — comportamento anterior a esta issue, fora de escopo corrigir aqui.
 
 **Gap concreto que permanece (não fechado por #300):** Codex não tem CLI disponível neste
 ambiente/sandbox (`codex --version` não resolve no PATH) — a tradução de formato

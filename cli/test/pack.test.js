@@ -109,6 +109,19 @@ function withTempDir(prefix, fn) {
 test(
   'npm pack real (sem --dry-run) instalado num diretório limpo fora do monorepo expõe bin/lib/templates reais e resolve defaultSourceRoot() para templates/',
   () => {
+    // Pré-condição explícita: este teste usa `--ignore-scripts` (ver comentário acima) e por
+    // isso depende de `cli/templates/` já ter sido sincronizado pelo prepack real disparado
+    // pelos dois testes anteriores, neste mesmo arquivo. `npm test` (todos os arquivos de
+    // test/*.test.js) garante essa ordem; rodar só este teste isolado (ex.:
+    // `--test-name-pattern`) ou mover os testes acima para outro arquivo quebraria essa
+    // premissa silenciosamente — falharia mais abaixo como "arquivo ausente do pacote
+    // instalado", não como "pré-condição não satisfeita". Este assert torna o motivo óbvio.
+    assert.ok(
+      fs.existsSync(path.join(cliRoot, 'templates', 'skills', 'vetor', 'SKILL.md')),
+      'cli/templates/ não está sincronizado — este teste depende do prepack real disparado ' +
+        'pelos dois testes acima, no mesmo arquivo (ver --ignore-scripts abaixo)',
+    );
+
     withTempDir('vetor-e2e-pack-', (packDir) => {
       const output = execFileSync(
         'npm',
