@@ -39,6 +39,24 @@ Rules ficam no subdiretório `vetor/` para não pisar nas suas, e não são sobr
 - **`skills/shared/references/delegate-to-runtime.md`** — padrão opcional de delegação agnóstica de runtime (Gemini/OpenCode/Codex).
 - **`skills/shared/references/project-conventions.md`** — detecção de branch default e resolução do `module-test-map`, compartilhada por `fix-loop-agent`, `worktree-ship` e `worktree-create` (evita duplicar a mesma lógica três vezes).
 
+## Gate de Spec/design (issue-coordinator, Fase 2)
+
+Antes de despachar, a Fase 2 classifica cada issue candidata (`trivial`/`não-trivial`, heurística de
+nº de módulos tocados + presença de "Escopo do trabalho"/Critério de Aceite já detalhado no corpo) e,
+para issues `não-trivial` sem Spec associada (`docs/specs/<slug>.md`, ver `skills/spec/SKILL.md` §6),
+pergunta via `AskUserQuestion` como prosseguir — despachar mesmo assim, gerar Spec antes (issue sai da
+leva), ou confirmar rapidamente 2-3 pontos e seguir sem Spec completa. Issues `trivial` (bugfix com
+escopo já claro) nunca são bloqueadas. Este é o único ponto do pipeline automatizado com humano na
+sessão antes do dispatch — por isso o gate vive aqui, e não em `worktree-create`/`fix-loop-agent`
+(sem interlocutor). **Em `--headless` o gate nunca bloqueia**: vira apenas uma anotação no plano/
+relatório (`⚠️ sem Spec associada`), nunca um `AskUserQuestion` síncrono — ver
+`wiki/Decisoes-de-Design.md` para a razão (mesmo padrão de deadlock do worker preso em plan mode,
+issue #121).
+
+A skill `spec/SKILL.md` tem uma triagem equivalente e independente, interna à geração da própria Spec
+(§0.1 — Investigação/Confirmação rápida/Spec completa, quanto processo aplicar *dentro* de
+`/vetor:spec`); as duas nunca se acionam automaticamente uma à outra.
+
 ## Observabilidade
 
 Quando o `coordinator` despacha sub-agentes:
