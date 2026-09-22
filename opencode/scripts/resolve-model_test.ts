@@ -140,3 +140,40 @@ Deno.test("resolve-model CLI - usa tier de config.json quando fallback não é p
   assertEquals(result.code, 0);
   assertEquals(result.stdout, "openai/gpt-5-mini");
 });
+
+// Issue #312: o default embutido anterior assumia provider `anthropic` direto
+// (`anthropic/claude-haiku-4-5`), que falha com "Unexpected server error" do opencode real em
+// qualquer ambiente configurado só com outro provider (ex.: OpenRouter) — sem heurística confiável
+// para detectar o provider certo, a escolha (opção b da issue) é falhar cedo com mensagem acionável
+// em vez de devolver um modelo que pode não existir no ambiente do usuário.
+Deno.test(
+  "resolve-model CLI - sem config.json e sem fallback explícito falha cedo com mensagem acionável",
+  async () => {
+    const repo = await makeRepo();
+
+    const result = await runCli({ tier: "simple", cwd: repo });
+
+    assertEquals(result.code, 1);
+    assertEquals(result.stdout, "");
+    assertStringIncludes(result.stderr, "modelFallback.simple");
+    assertStringIncludes(result.stderr, "config.json");
+  },
+);
+
+Deno.test(
+  "resolve-model CLI - config.json presente mas sem modelFallback para o tier falha cedo",
+  async () => {
+    const repo = await makeRepo();
+    await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
+    await Deno.writeTextFile(
+      `${repo}/.claude/vetor/config.json`,
+      JSON.stringify({ runtime: "deno" }),
+    );
+
+    const result = await runCli({ tier: "complex", cwd: repo });
+
+    assertEquals(result.code, 1);
+    assertEquals(result.stdout, "");
+    assertStringIncludes(result.stderr, "modelFallback.complex");
+  },
+);
