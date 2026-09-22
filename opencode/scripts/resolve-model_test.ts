@@ -146,14 +146,20 @@ Deno.test("resolve-model CLI - usa tier de config.json quando fallback não é p
 // qualquer ambiente configurado só com outro provider (ex.: OpenRouter) — sem heurística confiável
 // para detectar o provider certo, a escolha (opção b da issue) é falhar cedo com mensagem acionável
 // em vez de devolver um modelo que pode não existir no ambiente do usuário.
+//
+// Código de saída 2, não 1: "não configurado" é um erro de configuração permanente, diferente de
+// "todos degraded" (transitório, código 1, que o coordinator interpreta como "mantenha QUEUED e
+// tente de novo"). Se "não configurado" também saísse com 1, o coordinator ficaria retentando um
+// grupo indefinidamente sem nunca mostrar a mensagem acionável — pior que o erro genérico que
+// substituiu.
 Deno.test(
-  "resolve-model CLI - sem config.json e sem fallback explícito falha cedo com mensagem acionável",
+  "resolve-model CLI - sem config.json e sem fallback explícito falha cedo (código 2) com mensagem acionável",
   async () => {
     const repo = await makeRepo();
 
     const result = await runCli({ tier: "simple", cwd: repo });
 
-    assertEquals(result.code, 1);
+    assertEquals(result.code, 2);
     assertEquals(result.stdout, "");
     assertStringIncludes(result.stderr, "modelFallback.simple");
     assertStringIncludes(result.stderr, "config.json");
@@ -161,7 +167,7 @@ Deno.test(
 );
 
 Deno.test(
-  "resolve-model CLI - config.json presente mas sem modelFallback para o tier falha cedo",
+  "resolve-model CLI - config.json presente mas sem modelFallback para o tier falha cedo (código 2)",
   async () => {
     const repo = await makeRepo();
     await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
@@ -172,7 +178,7 @@ Deno.test(
 
     const result = await runCli({ tier: "complex", cwd: repo });
 
-    assertEquals(result.code, 1);
+    assertEquals(result.code, 2);
     assertEquals(result.stdout, "");
     assertStringIncludes(result.stderr, "modelFallback.complex");
   },

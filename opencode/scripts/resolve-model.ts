@@ -3,9 +3,15 @@
 //
 // Lê a lista de fallback ordenada de `.claude/vetor/config.json` (`modelFallback.<tier>`) e
 // `.claude/vetor/status/model-health.json` (escrito pelo hook `event` da issue #83), e devolve
-// no stdout o primeiro modelo/provedor saudável da lista. Se todos estiverem `degraded` e não
-// expirados, sai com código 1 e nada no stdout — o coordinator interpreta isso como "não
-// despache este grupo agora, mantenha QUEUED" (ver critério de aceite da issue #84).
+// no stdout o primeiro modelo/provedor saudável da lista.
+//
+// Códigos de saída (distintos porque o coordinator reage diferente a cada um — issue #312):
+//   0 - sucesso, modelo/provedor saudável no stdout.
+//   1 - todos os modelos do tier estão `degraded` (transitório) — o coordinator mantém o grupo
+//       `QUEUED` e tenta de novo no próximo ciclo de monitoramento.
+//   2 - `modelFallback.<tier>` não configurado e nenhum `fallback` explícito foi passado (erro de
+//       configuração permanente, não transitório) — o coordinator NÃO deve reter o grupo em
+//       `QUEUED` esperando algo mudar sozinho; precisa escalar/parar e pedir configuração.
 //
 // Contrato de stdin:
 //   { tier?: "simple" | "complex"; fallback?: string[]; cwd?: string }
@@ -102,7 +108,7 @@ async function main() {
         `.claude/vetor/config.json com um provider/modelo válido para o ambiente atual (confira com ` +
         `"opencode models" e "opencode auth list") antes do primeiro dispatch.`,
     );
-    Deno.exit(1);
+    Deno.exit(2);
   }
 
   const health = readModelHealthFile(`${root}/.claude/vetor/status/model-health.json`);

@@ -334,9 +334,18 @@ echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd)"'"}' | deno run -A .opencode
 - **Código 0:** stdout traz o modelo/provedor saudável a usar (`<provider/model>`) — primeiro da
   lista `modelFallback.<tier>` que não estiver `degraded` e não expirado em `model-health.json`
   (escrito pelo hook `event`, issue #83). Se o preferencial estiver saudável, é ele mesmo.
-- **Código 1:** todos os modelos do tier estão `degraded` — **não despache este grupo**. Mantenha-o
-  `QUEUED`, registre no chat `⚠️ Grupo <slug> aguardando modelo saudável (todos os fallbacks de
-  "<tier>" degraded)` e tente de novo no próximo ciclo de monitoramento (Fase 5).
+- **Código 1:** todos os modelos do tier estão `degraded` (transitório) — **não despache este
+  grupo**. Mantenha-o `QUEUED`, registre no chat `⚠️ Grupo <slug> aguardando modelo saudável (todos
+  os fallbacks de "<tier>" degraded)` e tente de novo no próximo ciclo de monitoramento (Fase 5).
+- **Código 2 (issue #312):** `modelFallback.<tier>` não está configurado em
+  `.claude/vetor/config.json` do projeto-alvo (erro de configuração **permanente**, não
+  transitório — nunca trate como `QUEUED`, pois não muda sozinho num próximo ciclo). Pare o
+  dispatch de **todos** os grupos pendentes (o problema não é por grupo, é do projeto), reproduza a
+  mensagem de erro do script no chat/relatório final (Fase 7) e oriente o usuário a configurar
+  `modelFallback.simple`/`modelFallback.complex` em `.claude/vetor/config.json` com um
+  provider/modelo válido para o ambiente atual (`opencode models`/`opencode auth list` ajudam a
+  descobrir qual) antes de rodar o coordinator de novo. Grupos já despachados continuam normalmente;
+  não cancele workers em andamento.
 
 Só então monte o comando de dispatch (um processo em background por grupo, dentro do teto),
 usando o modelo resolvido:
