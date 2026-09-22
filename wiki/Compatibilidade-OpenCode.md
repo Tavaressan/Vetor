@@ -36,22 +36,28 @@ em vez de usar a tool `task` in-process. Consequência prática: a classe de bug
 (cwd contaminado entre workers paralelos no Claude Code) **não se aplica** a esse modelo — cada
 worker é um processo isolado do SO, não uma chamada dentro da mesma sessão.
 
-**Achado colateral da investigação da #306, não corrigido aqui (fora de escopo — precisa issue
-própria).** O parágrafo acima descreve `--dir` como verificado — isso é verdade —, mas a combinação
-`--agent issue-worker`/`--agent code-review` especificamente **não é**: `issue-worker.md` e
-`code-review.md` têm `mode: subagent`, e contra o CLI real (`opencode` v1.18.32) `opencode run
---agent code-review "<msg>"` responde `! agent "code-review" is a subagent, not a primary agent.
-Falling back to default agent` e executa a mensagem no agent `build`, não em `code-review` — mesma
+**Bug confirmado na investigação da #299 (rastreado em [issue
+#311](https://github.com/Tavaressan/Vetor/issues/311)): `issue-worker`/`code-review` não são
+invocáveis via `--agent`.** O parágrafo acima descreve `--dir` como verificado — isso é verdade —,
+mas a combinação `--agent issue-worker`/`--agent code-review` especificamente **não é**:
+`issue-worker.md` e `code-review.md` têm `mode: subagent`, e contra o CLI real (`opencode`
+v1.18.32) tanto `opencode run --agent issue-worker "<msg>"` quanto `opencode run --dir <worktree>
+--agent issue-worker "<msg>"` respondem `! agent "issue-worker" is a subagent, not a primary agent.
+Falling back to default agent` e executam a mensagem no agent `build`, não em `issue-worker` — mesma
 classe de sintoma do bug original da #306 (fallback silencioso para `build`), só que por um motivo
-diferente (`mode` errado para invocação direta via CLI, não localização errada de arquivo). Isso
-sugere que o mecanismo de dispatch de workers documentado aqui e em
-`opencode/agent/issue-coordinator.md` (`opencode run --dir <worktree> --agent issue-worker
-"<prompt>"`) pode não funcionar como escrito contra o CLI real — **não testado dentro desta
-investigação** (o escopo era #306/#307, não uma nova issue); precisa de validação e,
-provavelmente, de uma correção própria (talvez `mode: primary` também para `issue-worker`/
+diferente (`mode` errado para invocação direta via CLI, não localização errada de arquivo).
+Confirmado de duas formas na investigação da #299: isoladamente (comando acima, com e sem `--dir`)
+e **em vivo**, dentro do próprio fluxo do `issue-coordinator` rodando contra um repositório de teste
+real — o coordinator chegou a montar e disparar o comando de dispatch documentado
+(`opencode run --dir ".claude/worktrees/<slug>" --agent issue-worker --model "<provider/model>"
+"<prompt>"`), e o log do worker mostrou o mesmo fallback silencioso, nunca executando o procedimento
+de `issue-worker.md`. Isso significa que o mecanismo de dispatch de workers documentado aqui e em
+`opencode/agent/issue-coordinator.md` **não funciona como escrito contra o CLI real** — a Fase 4
+(dispatch) e, por consequência, as Fases 5–7 (monitoramento, merge) do coordinator ficam bloqueadas
+até a correção. Fix sugerido, registrado na issue: `mode: primary` para `issue-worker`/
 `code-review`, já que ambos só são disparados como processo `opencode` isolado via `--dir`, nunca
 via `task` in-process do OpenCode — o caso de uso real de "subagent" na acepção do OpenCode não se
-aplica a eles).
+aplica a eles.
 
 **Plugin de segurança — implementado, não só um template.** `opencode/plugin/vetor.ts` reimplementa
 as políticas de `scripts/safety-check.ts` (branch protegida, push/PR de worker não-`GREEN`, escrita
@@ -230,27 +236,62 @@ projeto-alvo (ajuste o path do `docker-catalog.yaml` se for usar o servidor `doc
 cp -r opencode/. <projeto-alvo>/.opencode/
 ```
 
-**Resumo:** isolamento de worktree por worker (`--dir`) é **verificado e resolvido** contra o CLI
-real instalado. Hooks de segurança são **reais e funcionais** (reaproveitando os scripts Deno
-existentes). O `issue-coordinator` está **portado como agent** (`opencode/agent/
+**Resumo (atualizado 2026-09-22 com o resultado verificado da issue #299 — ver "Validação manual do
+coordinator" abaixo):** isolamento de worktree por worker (`--dir`) é **verificado e resolvido**
+contra o CLI real instalado. Hooks de segurança são **reais e funcionais** (reaproveitando os
+scripts Deno existentes). O `issue-coordinator` está **portado como agent** (`opencode/agent/
 issue-coordinator.md` — não skill; issue #82, correção de registro na #306) e **confirmado
-invocável** via `opencode agent list`/`--agent` contra o CLI real. `issue-worker`/`code-review`
-continuam listados corretamente por `opencode agent list`, mas a invocação direta via `--agent`
-**não foi confirmada** — achado desta investigação registrado acima ("Achado colateral da
-investigação da #306"), pendente de issue própria. As demais 7 skills seguem bloqueadas pela mesma
-limitação de path do Codex (permanecem skills de propósito — não precisam de `--agent`, já que não
-são invocadas diretamente pelo usuário).
+invocável e funcional de ponta a ponta até a Fase 3** (listagem de issues, agrupamento de
+afinidade, plano exibido, aprovação via `-c`, `git worktree add` serializado) contra o CLI real.
+**A Fase 4 (dispatch de `issue-worker`) está bloqueada**: `issue-worker`/`code-review` continuam
+listados corretamente por `opencode agent list`, mas a invocação direta via `--agent` cai
+silenciosamente no agent `build` — [issue #311](https://github.com/Tavaressan/Vetor/issues/311),
+confirmada em vivo nesta rodada. Um segundo defeito independente, também descoberto nesta rodada,
+bloquearia o dispatch mesmo após corrigir #311 para quem só tem credencial OpenRouter configurada:
+o default embutido de `resolve-model.ts` assume provider `anthropic` direto — [issue
+#312](https://github.com/Tavaressan/Vetor/issues/312). As demais 7 skills seguem bloqueadas pela
+mesma limitação de path do Codex (permanecem skills de propósito — não precisam de `--agent`, já
+que não são invocadas diretamente pelo usuário).
 
 ## Validação manual do coordinator
 
-O `issue-coordinator` portado foi confirmado, contra o CLI `opencode` real (v1.18.32) instalado
-neste ambiente, em `opencode agent list` (aparece como `issue-coordinator (primary)`) e em `opencode
-run --agent issue-coordinator "<mensagem>"` (o header da sessão mostra `> issue-coordinator ·
-<model>` em vez de cair no `build` default — investigação da #306). O que **não** foi exercitado de
-ponta a ponta contra uma instalação real é o fluxo completo de dispatch (Fases 1-7, worktrees reais,
-workers paralelos) — o ambiente usado para portá-lo é o Claude Code, sem sessão interativa longa
-disponível no CLI `opencode`. Este é o procedimento para quem for validar o fluxo completo (movido
-de `opencode/skills/issue-coordinator/SKILL.md` na
+> **Resultado verificado (2026-09-22, issue #299, retomada pós-#306/#307) — `opencode` v1.18.32,
+> Windows 11 (win32), Git Bash.** Executado contra o mesmo repositório de teste jogável da rodada
+> anterior (`Tavaressan/vetor-opencode-e2e-test-299`, issues #1 Lead + #2 Sequential, label
+> `backlog`), clonado num path curto (`C:\tmp\e2e299`, não sob o scratchpad de sessão usado na
+> rodada anterior — ver item 7). Modelo usado para o coordinator: `opencode/big-pickle` (modelo
+> gratuito hospedado pelo próprio OpenCode — `openrouter/anthropic/claude-haiku-4.5` esbarrou em
+> limite de créditos da conta OpenRouter usada neste ambiente, "requested up to 32000 tokens, but
+> can only afford 8000"; não é um achado sobre o Vetor, é uma limitação da credencial de teste).
+>
+> | Item | Resultado | Evidência |
+> |---|---|---|
+> | 1. Setup do repositório de teste (`.opencode/` copiado + 2 issues com label `backlog`) | ✅ PASS | `Tavaressan/vetor-opencode-e2e-test-299`, issues #1 (Lead) e #2 (Sequential), reaproveitado da rodada anterior |
+> | 2. `opencode run --agent issue-coordinator "backlog"` invoca o coordinator de verdade | ✅ PASS | Header da sessão: `> issue-coordinator · big-pickle` (não mais fallback para `build` — #306 confirmada corrigida) |
+> | 3a. Fase 1 — lista issues e agrupa por afinidade | ✅ PASS | Identificou corretamente #2 como Sequential de #1 a partir do texto do body ("Issue Sequencial (relacionada a #1...)"), formou um único grupo `O_1` |
+> | 3b. Plano exibido antes do worktree / coordinator aguarda aprovação | ✅ PASS | Plano em tabela impresso no chat; `git worktree list` confirmado **sem nenhum worktree novo** antes da resposta de aprovação — o processo `opencode run` termina o turno em vez de prosseguir sozinho |
+> | 3c. Continuação da aprovação em `opencode run` (não-interativo) | ⚠️ Achado de documentação | A aprovação só chega à mesma sessão com `opencode run -c --agent issue-coordinator "sim"` (`-c`/`--continue`, testado e funcional); `issue-coordinator.md` não documenta isso na seção "Sintaxe"/"Aprovação do plano" — registrado dentro da [issue #311](https://github.com/Tavaressan/Vetor/issues/311) como achado secundário |
+> | 3d. `git worktree add` roda uma vez por grupo (serializado) | ✅ PASS | `.claude/worktrees/adicionar-contributing-md` criado na branch `chore/1-adicionar-contributing-md`, um único comando, sem `index lock` |
+> | 3e. Checagem de duplicidade + `resolve-model.ts` antes do dispatch | ✅ PASS | `bash .opencode/scripts/vetor-status.sh` rodou (sinalizou corretamente "worktree ativo sem status file", comportamento esperado antes do primeiro dispatch); `resolve-model.ts` saiu com código 0 e devolveu `anthropic/claude-haiku-4-5` — comportamento correto dado que **este repositório de teste não tem `.claude/vetor/config.json`** (usa o default embutido de propósito, não é regressão da #307) |
+> | 3f. Dispatch de `issue-worker` por grupo | ❌ FAIL | O comando `opencode run --dir ".claude/worktrees/<slug>" --agent issue-worker --model "anthropic/claude-haiku-4-5" "..."` foi montado e disparado exatamente como documentado, mas o worker real nunca roda — [issue #311](https://github.com/Tavaressan/Vetor/issues/311) (`mode: subagent` cai em `build`) **e**, mesmo isolando esse bug, [issue #312](https://github.com/Tavaressan/Vetor/issues/312) (`--model anthropic/claude-haiku-4-5` sem credencial `anthropic` direta configurada → `Unexpected server error` do próprio `opencode`, reproduzido isoladamente com o agent `build`) |
+> | 4. `.claude/vetor/status/<branch>.md` criado/atualizado pelo worker | ⛔ NOT_EXECUTED | Bloqueado pelo item 3f — sem o worker real rodando, nenhum status file é criado (só o `.log` do processo, com os dois erros acima) |
+> | 5. `Ctrl+C` + `--resume` sem duplicar dispatch | ⛔ NÃO EXECUTÁVEL neste ambiente | Mesma ressalva da rodada anterior: worker headless em `win32`/Git Bash, sem garantia de que `SIGINT` chega como Ctrl+C real ao processo `opencode` a partir deste harness não-interativo — não simulado |
+> | 6. Merge na Fase 6 | ⛔ NOT_EXECUTED | Bloqueado pelo item 3f — nenhum grupo chegou a `GREEN` |
+> | 7. Cleanup do worktree (`git worktree remove`) | ✅ PASS (contradiz a suspeita, não a caveat, da rodada anterior) | `git worktree remove ".claude/worktrees/adicionar-contributing-md" --force` funcionou sem erro num path curto (~65 caracteres, `.claude/worktrees/<slug>` na raiz de `C:\tmp\e2e299`). Confirma a ressalva já registrada na rodada anterior: o "Filename too long" observado ali era do path profundamente aninhado do scratchpad de sessão (~190 caracteres), não do mecanismo em si — com o layout de path que o próprio coordinator documenta (`.claude/worktrees/<slug>` na raiz do repo principal), o cleanup funciona |
+>
+> **Conclusão:** #306 está corrigida — o `issue-coordinator` é invocado de verdade e as Fases 1–3
+> funcionam de ponta a ponta contra o CLI real, incluindo o gate de aprovação (com a ressalva de
+> documentação do item 3c). A Fase 4 em diante permanece bloqueada por dois bugs novos e
+> independentes descobertos nesta rodada (#311, #312) — nenhum dos dois é específico de Windows; ambos
+> reproduziriam em qualquer SO com o mesmo `mode`/credencial. `Status: BLOCKED_WAITING` para o
+> critério de aceite "fluxo completo executado de ponta a ponta" desta issue (#299) até #311/#312
+> serem corrigidas e o item 5 (Ctrl+C/--resume) permanecer como limitação de ambiente documentada,
+> não como pendência de código.
+
+O `issue-coordinator` portado nunca havia sido executado de ponta a ponta contra uma instalação
+real do OpenCode antes das validações das issues #299/#306 — o ambiente usado para portá-lo foi o
+Claude Code, sem CLI `opencode` interativo. Este é o procedimento original para quem for revalidar o
+fluxo completo após #311/#312 (movido de `opencode/skills/issue-coordinator/SKILL.md` na
 issue #147: é documentação de desenvolvimento, não instrução de runtime).
 
 1. Crie/escolha um repositório de teste com `.opencode/` copiado (`cp -r opencode/. <repo>/.opencode/`)
