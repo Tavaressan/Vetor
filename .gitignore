@@ -2,6 +2,10 @@ AGENT_STATUS.md
 .claude/vetor/status/
 node_modules/
 
+# Gerado por opencode/scripts/ensure-external-directory-permission.ts (issue #313) com um path
+# absoluto específico da máquina — nunca commitar.
+/opencode.json
+
 # cli/templates/ é gerado por cli/scripts/sync-templates.js (hook prepack do npm) a
 # partir de skills/, agents/, hooks/ da raiz do monorepo — nunca editar manualmente
 # nem commitar o conteúdo sincronizado (issue #255, redespacho).
