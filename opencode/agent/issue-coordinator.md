@@ -61,6 +61,18 @@ opencode run --agent issue-coordinator "<label> --headless"
 Rode sempre a partir da **raiz do repositório principal** (não de dentro de um worktree) — os paths
 relativos abaixo assumem esse cwd.
 
+⚠️ **`opencode run` é um processo por chamada, sem estado entre chamadas.** Fora do modo
+`--headless`, a aprovação do plano (Fase 2, "Aprovação do plano" abaixo) chega numa segunda chamada
+— ela só enxerga o plano da primeira se for enviada com `-c`/`--continue` (continua a sessão mais
+recente) ou `--session <id>` (continua uma sessão específica), por exemplo:
+
+```
+opencode run -c --agent issue-coordinator "sim"
+```
+
+Sem `-c`/`--session`, a segunda chamada começa uma sessão nova, sem memória do plano exibido na
+Fase 2.
+
 ---
 
 ## Referências (self-contained, sem `$CLAUDE_PLUGIN_ROOT`)
@@ -268,6 +280,10 @@ Fase 3.
 Fora do headless — sem `ExitPlanMode` nem `implementation_plan.md` no OpenCode: **exiba o plano no
 chat e aguarde resposta textual afirmativa explícita** (ex.: "sim", "prosseguir") antes de despachar
 qualquer processo `opencode run`. Trocas manuais de modelo/provedor ou teto valem na Fase 4.
+
+⚠️ A resposta de aprovação precisa ser enviada com `-c`/`--continue` (ou `--session <id>`) para
+continuar a **mesma sessão** do plano exibido — ver aviso em "Sintaxe" acima. Sem isso, `opencode
+run --agent issue-coordinator "sim"` começa uma sessão nova, sem contexto da Fase 2.
 
 ### 3 — Fase de criação (serializada)
 

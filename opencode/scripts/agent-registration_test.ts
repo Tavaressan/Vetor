@@ -63,3 +63,30 @@ Deno.test({
     assertMatch(stdout, /^issue-coordinator \(primary\)/m);
   },
 });
+
+// Reprodução da issue #311: issue-worker e code-review tinham `mode: subagent` no frontmatter, mas
+// nunca são invocados via `task` in-process do OpenCode (não existe esse mecanismo com isolamento de
+// cwd) — o único uso real deles é como processo `opencode run --dir ... --agent <nome>` isolado,
+// disparado programaticamente pelo issue-coordinator/worktree-ship. Invocar um agent `mode: subagent`
+// diretamente via `--agent` cai silenciosamente no agent `build` default, ignorando por completo o
+// corpo do agent pedido. `mode: primary` (mesmo valor de issue-coordinator, pelo mesmo motivo) é o
+// frontmatter correto.
+Deno.test({
+  name: "opencode agent list reconhece issue-worker e code-review como primary (CLI real)",
+  ignore: !AVAILABLE,
+  fn: async () => {
+    const dir = await Deno.makeTempDir();
+    await copyDir(OPENCODE_SRC, `${dir}/.opencode`);
+
+    const out = await new Deno.Command("opencode", {
+      args: ["agent", "list"],
+      cwd: dir,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+
+    const stdout = new TextDecoder().decode(out.stdout);
+    assertMatch(stdout, /^issue-worker \(primary\)/m);
+    assertMatch(stdout, /^code-review \(primary\)/m);
+  },
+});
