@@ -128,17 +128,58 @@ projeto com base de usuários grande o suficiente para o padrão aparecer com fr
 algum dia migrar a distribuição para OpenCode de cópia de arquivo para spec de pacote (ex.: para
 simplificar updates), reavaliar esta classe de bug antes — não é hipotético.
 
-**Verificado nesta issue contra o CLI `opencode` real instalado:** chamando `installFiles()`
-diretamente (mesmo código que `vetor install` executa) a partir de um checkout do monorepo, com
-OpenCode selecionado, `opencode agent list` dentro do projeto-alvo resultante lista `issue-worker
-(subagent)` e `code-review (subagent)` — confirma que o resultado da cópia é reconhecido pelo
-OpenCode de verdade, não só que o arquivo foi parar no path esperado. **Verificado só no layout de
-checkout de monorepo** (`defaultSourceRoot()` resolvendo a raiz do monorepo, via `plugin.json`) — o
-layout de pacote publicado (`templates/opencode/...`, sincronizado por
-`cli/scripts/sync-templates.js`) tem cobertura só por teste automatizado
-(`cli/test/pack.test.js`, `cli/test/sync-templates.test.js`,
-`cli/test/installer-writer.test.js`), não por execução do `opencode` real contra um pacote `npm
-pack`ado de verdade.
+**Verificado contra o CLI `opencode` real instalado, nos dois layouts de fonte (issue #254, depois
+#300):** chamando `installFiles()` diretamente (mesmo código que `vetor install` executa) a partir
+de um checkout do monorepo, com OpenCode selecionado, `opencode agent list` dentro do projeto-alvo
+resultante lista `issue-worker (subagent)` e `code-review (subagent)` — confirma que o resultado da
+cópia é reconhecido pelo OpenCode de verdade, não só que o arquivo foi parar no path esperado.
+
+A issue #300 fechou a lacuna que ficava registrada aqui ("verificado só no layout de checkout de
+monorepo"). A verificação completa de ponta a ponta — `npm pack` real com o hook `prepack`
+rodando de verdade (populando `cli/templates/` a partir de skills/agents/hooks/opencode da raiz),
+`npm install <tarball> --prefix <dir-temp>` num diretório **limpo, fora do monorepo** (não `npm
+link`, que reaponta para o working tree em vez do conteúdo empacotado), `installFiles()` chamado a
+partir do módulo carregado do **pacote instalado** e `opencode agent list` (CLI real, `v1.18.32`
+neste ambiente) listando `issue-worker (subagent)` e `code-review (subagent)` a partir do resultado
+— foi rodada manualmente uma vez durante a investigação desta issue, confirmando a cadeia completa.
+
+O teste automatizado que ficou (`cli/test/pack.test.js`) decompõe essa cadeia em vez de repeti-la
+por inteiro: o `npm pack` real do novo teste usa `--ignore-scripts` e reaproveita o `cli/templates/`
+já sincronizado pelos dois testes de conteúdo declarado que rodam antes dele, no mesmo arquivo — os
+que já disparam o prepack de verdade. Decisão deliberada, não descuido: rodar prepack uma terceira
+vez no mesmo arquivo, contra o `cli/templates/` real (não um fixture), mostrou-se uma corrida real
+contra `npm-publish-workflow.test.js` (arquivo diferente, executado em paralelo pelo runner de
+testes do Node) — ~50% de falha intermitente em execuções repetidas da suíte completa, medido
+durante esta issue. A partir daí o teste chama `defaultSourceRoot()`/`installFiles()` do pacote
+recém-instalado — o mesmo branch de `defaultSourceRoot()` que resolve `templates/` (sem
+`plugin.json` ao lado) e que antes só tinha cobertura contra fixture sintética — e roda `opencode
+agent list` real contra o resultado, para Claude Code, OpenCode e Codex.
+
+**Cobertura em CI:** `npm-publish.yml` roda `npm test` em `cli/` antes de todo publish real
+(inclusive o gate de #292) — a mecânica de empacotar/instalar o tarball e copiar para os destinos
+das três engines roda automaticamente ali. A validação de **runtime real** (`opencode agent list`)
+não: os runners `ubuntu-latest` do GitHub Actions não têm `opencode` nem `codex` no PATH, então
+`commandExists()` desvia para o log informativo em vez de rodar o CLI — mesmo comportamento de
+quando um dev roda `npm test` localmente sem essas CLIs instaladas. A confirmação com CLI real só
+acontece quando alguém roda a suíte (ou o procedimento manual acima) numa máquina com `opencode`
+instalado. `ci.yml` (checks de PR) não roda `cli && npm test` de forma alguma — só `deno
+fmt/lint/check/test` — comportamento anterior a esta issue, fora de escopo corrigir aqui.
+
+**Gap concreto que permanece (não fechado por #300):** Codex não tem CLI disponível neste
+ambiente/sandbox (`codex --version` não resolve no PATH) — a tradução de formato
+(`.codex/agents/<nome>.toml`, achatado a partir de `agents/<nome>/codex.toml`) está coberta por
+teste automatizado e pelo `installFiles()` real do tarball instalado, mas **nunca foi validada
+contra o binário `codex` de verdade reconhecendo o resultado**. Ver `cli/test/pack.test.js` (a
+mesma suíte pula essa validação com um log explícito quando `codex` não está no PATH, em vez de
+simular o resultado) e o corpo da issue #300 para o procedimento manual pendente.
+
+**Achado colateral registrado nesta issue (#300), não corrigido (fora de escopo, YAGNI):**
+`vetor install`, rodado a partir do binário publicado com stdin em pipe (qualquer processo filho
+sem TTY — é o caso de qualquer automação não-interativa, incluindo `npx vetor@latest` disparado por
+outro script), sempre cai no ramo "sessão não-interativa" de `prompts.js` (`input.isTTY` nunca é
+verdadeiro num pipe) e termina sem selecionar nenhuma engine, mesmo com engines detectadas — "Nenhuma
+engine selecionada. Instalação cancelada." Comportamento real do binário publicado, verificado
+diretamente (`node bin/vetor.js install` com stdin vazio), não uma inferência.
 
 Depois, mescle o bloco `mcp` de `.opencode/mcp.jsonc` (copiado como referência, não fundido
 automaticamente — merge de JSON de config alheio fica fora de escopo) no `opencode.json` do
