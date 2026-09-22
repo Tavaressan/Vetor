@@ -277,7 +277,7 @@ que não são invocadas diretamente pelo usuário).
 > | 4. `.claude/vetor/status/<branch>.md` criado/atualizado pelo worker | ⛔ NOT_EXECUTED | Bloqueado pelo item 3f — sem o worker real rodando, nenhum status file é criado (só o `.log` do processo, com os dois erros acima) |
 > | 5. `Ctrl+C` + `--resume` sem duplicar dispatch | ⛔ NÃO EXECUTÁVEL neste ambiente | Mesma ressalva da rodada anterior: worker headless em `win32`/Git Bash, sem garantia de que `SIGINT` chega como Ctrl+C real ao processo `opencode` a partir deste harness não-interativo — não simulado |
 > | 6. Merge na Fase 6 | ⛔ NOT_EXECUTED | Bloqueado pelo item 3f — nenhum grupo chegou a `GREEN` |
-> | 7. Cleanup do worktree (`git worktree remove`) | ✅ PASS (contradiz a suspeita, não a caveat, da rodada anterior) | `git worktree remove ".claude/worktrees/adicionar-contributing-md" --force` funcionou sem erro num path curto (~65 caracteres, `.claude/worktrees/<slug>` na raiz de `C:\tmp\e2e299`). Confirma a ressalva já registrada na rodada anterior: o "Filename too long" observado ali era do path profundamente aninhado do scratchpad de sessão (~190 caracteres), não do mecanismo em si — com o layout de path que o próprio coordinator documenta (`.claude/worktrees/<slug>` na raiz do repo principal), o cleanup funciona |
+> | 7. Cleanup do worktree (`git worktree remove`) | ✅ PASS (confirma a ressalva da rodada anterior) | `git worktree remove ".claude/worktrees/adicionar-contributing-md" --force` funcionou sem erro num path curto (~65 caracteres, `.claude/worktrees/<slug>` na raiz de `C:\tmp\e2e299`). Confirma que o "Filename too long" observado na rodada anterior era do path profundamente aninhado do scratchpad de sessão (~190 caracteres), não do mecanismo em si — com o layout de path que o próprio coordinator documenta (`.claude/worktrees/<slug>` na raiz do repo principal), o cleanup funciona. Um único caso de sucesso num path curto não descarta problema de path-length em setups mais profundos; só estabelece que o layout documentado funciona |
 >
 > **Conclusão:** #306 está corrigida — o `issue-coordinator` é invocado de verdade e as Fases 1–3
 > funcionam de ponta a ponta contra o CLI real, incluindo o gate de aprovação (com a ressalva de
@@ -285,8 +285,9 @@ que não são invocadas diretamente pelo usuário).
 > independentes descobertos nesta rodada (#311, #312) — nenhum dos dois é específico de Windows; ambos
 > reproduziriam em qualquer SO com o mesmo `mode`/credencial. `Status: BLOCKED_WAITING` para o
 > critério de aceite "fluxo completo executado de ponta a ponta" desta issue (#299) até #311/#312
-> serem corrigidas e o item 5 (Ctrl+C/--resume) permanecer como limitação de ambiente documentada,
-> não como pendência de código.
+> serem corrigidas. O item 5 (Ctrl+C/--resume) permanece não exercitado neste harness (processo
+> `opencode` headless em `win32`/Git Bash, sem garantia de que `SIGINT` chega como Ctrl+C real) —
+> precisa de um terminal interativo para validar, independente de #311/#312.
 
 O `issue-coordinator` portado nunca havia sido executado de ponta a ponta contra uma instalação
 real do OpenCode antes das validações das issues #299/#306 — o ambiente usado para portá-lo foi o
