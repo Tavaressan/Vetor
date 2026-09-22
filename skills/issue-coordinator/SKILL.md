@@ -204,11 +204,14 @@ aplicado aqui à decisão "despachar como está, ou sinalizar a falta de uma Spe
      issues; nesse caso o sinal de "escopo já declarado" abaixo é quem decide a classificação.
    - **Escopo já declarado**: o corpo já traz uma seção equivalente a "Escopo do trabalho" e um
      "Critério de Aceite" com itens concretos (checklist, não frase vaga).
-   - **Label**: `feat`/`refactor` tendem a não-trivial mesmo com escopo declarado; `fix`/`chore`/`bug`
-     com escopo declarado tendem a trivial.
+   - **Label**: `feat`/`enhancement`/`refactor` tendem a não-trivial mesmo com escopo declarado;
+     `fix`/`chore`/`bug` com escopo declarado tendem a trivial. Ajuste esta lista ao vocabulário de
+     labels efetivamente usado no repositório-alvo (ex.: um projeto sem label `feat` própria, como
+     este mesmo repositório, usa `enhancement` para o equivalente).
 2. **Classificação**: `trivial` quando o escopo já está declarado **e** o nº de módulos tocados é
-   ≤ 1 **e** a label não é `feat`/`refactor`; **não-trivial** em qualquer outro caso (múltiplos
-   módulos, ou escopo ausente/vago, ou `feat`/`refactor` sem Critério de Aceite explícito).
+   ≤ 1 **e** a label não é `feat`/`enhancement`/`refactor`; **não-trivial** em qualquer outro caso
+   (múltiplos módulos, ou escopo ausente/vago, ou `feat`/`enhancement`/`refactor` sem Critério de
+   Aceite explícito).
 3. **Spec associada**: verifique se a issue referencia uma Spec (`docs/specs/<slug>.md`, ver
    `spec/SKILL.md` §6) no corpo ou em algum comentário.
 4. **Gate**: sinalize apenas issues `não-trivial` **sem** Spec associada — nunca issues `trivial`
@@ -221,7 +224,7 @@ issue, ou agrupada se houver mais de uma — `planning-conventions.md` §3 "Regr
 
 ```
 Issue #<N> parece não-trivial (<razão: múltiplos módulos | sem Escopo do trabalho/Critério de
-Aceite | feat/refactor sem escopo detalhado>) e não tem Spec associada. Como prosseguir?
+Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem Spec associada. Como prosseguir?
 
 1. Despachar mesmo assim — escopo confirmado nesta conversa
 2. Gerar Spec antes (/vetor:spec) — esta issue sai desta leva de dispatch
@@ -234,8 +237,15 @@ Aceite | feat/refactor sem escopo detalhado>) e não tem Spec associada. Como pr
   no prompt do worker da Fase 4, como contexto adicional (não substitui uma Spec — é só o mínimo de
   escopo confirmado para o worker não inventar critério de aceite sozinho).
 - **Opção 2**: remova a issue desta leva de dispatch — ela não aparece como `Despachar`, e sim com
-  Ação `SKIPPED (aguardando Spec)`. Ela volta a ser candidata em uma sessão futura do coordinator,
-  quando a Spec existir (`/vetor:spec` roda fora deste fluxo, tipicamente numa sessão manual).
+  Ação `SKIPPED (aguardando Spec)` e coluna "Onda" `—` (nunca foi despachada, não pertence a onda
+  nenhuma). Se a issue sinalizada é a **Lead** do grupo, o grupo inteiro sai da leva (as Sequential
+  Issues do grupo ficam sem Lead para dar nome ao worktree/branch — voltam junto na próxima sessão);
+  se é uma **Sequential Issue**, apenas ela sai e o restante do grupo (Lead + demais Sequential) segue
+  normalmente. A issue (ou grupo) volta a ser candidata em uma sessão futura do coordinator, quando a
+  Spec existir (`/vetor:spec` roda fora deste fluxo, tipicamente numa sessão manual). **Um grupo
+  `SKIPPED` nunca é pendência para a transição de onda da Fase 4** — como não foi despachado, não há
+  branch skew a prevenir (as ondas ordenam merges de trabalho já despachado, não issues que nunca
+  saíram do plano); a transição de `O_i` para `O_{i+1}` ignora grupos `SKIPPED` de `O_i`.
 
 **Em `--headless`: nunca pergunte, nunca bloqueie.** Um gate síncrono aqui recriaria o mesmo deadlock
 por falta de interlocutor do worker preso em plan mode (issue #121 — ver `wiki/Decisoes-de-Design.md`).
@@ -257,7 +267,7 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 |------|-------------------------|------------------------|-----------------|------|
 | O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | Despachar |
 | O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
-| O_1  | <slug-4>                | #<N5> (Lead)           | —               | SKIPPED (aguardando Spec) |
+| —    | <slug-4>                | #<N5> (Lead)           | —               | SKIPPED (aguardando Spec) |
 | O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet>  | Aguardar O_1 |
 ```
 
@@ -327,10 +337,12 @@ pela branch) ou pelo retorno do `Agent()`.
   cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
 - **Transição de onda.** Só inicie o dispatch de `O_{i+1}` depois que:
-  1. Todos os grupos de `O_i` tiverem chegado a `GREEN` e passado pela Fase 6 (merge) — um grupo de
-     `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING` sem resolução bloqueia a transição; trate
-     como pendência a reportar, não avance a onda para não repetir o branch skew que motivou esta
-     seção.
+  1. Todos os grupos de `O_i` **que foram efetivamente despachados** tiverem chegado a `GREEN` e
+     passado pela Fase 6 (merge) — um grupo de `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING`
+     sem resolução bloqueia a transição; trate como pendência a reportar, não avance a onda para não
+     repetir o branch skew que motivou esta seção. Um grupo `SKIPPED (aguardando Spec)` (gate de
+     Spec/design, Fase 2) **nunca** conta como pendência aqui — nunca foi despachado, então não há
+     branch/merge dele para a próxima onda esperar.
   2. O branch default (`$DEFAULT_BRANCH`) estiver sincronizado com esses merges. `git fetch && git
      log origin/<default> -1` confirma que o *remoto* já tem os merges — mas não garante que o HEAD
      *local* do root os tenha: `isolation: "worktree"` cria o novo worktree a partir do HEAD local
@@ -535,8 +547,9 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 | #42 | ✅ Merged | #87 | squash merged |
 | #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preserved |
 | #44 | ⏸️ Review required | #89 | awaiting human review |
+| #45 | ⏭️ SKIPPED (aguardando Spec) | — | gate de Spec/design, Fase 2 — usuário optou por gerar a Spec antes |
 
-Resumo: <N> merged, <M> falharam, <K> aguardando review.
+Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> aguardando Spec.
 ```
 
 **Em `--headless`, o relatório é a única saída da execução** — acrescente:
