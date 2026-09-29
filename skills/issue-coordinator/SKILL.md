@@ -556,11 +556,11 @@ Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> aguardando Spec.
 que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resultados reportados —
 **nenhum grupo do plano aprovado deve ficar sem uma linha de resultado**. Resultados válidos
 dependem do modo:
-- **Interativo**: `Merged`, `CI failed`, `Review required`, `BLOCKED_WAITING`, `SKIPPED (aguardando
+- **Interativo**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SKIPPED (aguardando
   Spec)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
   despachado" e pergunte ao usuário via `AskUserQuestion` se deve despachar agora.
-- **`--headless`**: `Merged`, `CI failed`, `Review required`, `BLOCKED_WAITING`, `SKIPPED
-  (aguardando Spec)`, ou `GREEN (pronto para ship)` — esta última status aparece para grupos que
+- **`--headless`**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SKIPPED
+  (aguardando Spec)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
   atingiram verde em modo headless (sem merge nessa fase). Se houver discrepância, apenas reporte o
   grupo como "não despachado" no campo de observações; não pergunte nem redespache.
 
