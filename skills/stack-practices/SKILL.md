@@ -61,15 +61,24 @@ frameworks web, ORMs, a lib de UI principal — nunca toda dependência declarad
 transitivas. Uma rule por utilitário/dependência transitiva infla o contexto sem ganho; o escopo
 é deliberadamente restrito ao mesmo allowlist do detector.
 
+**Pacotes irmãos (regra única, vale para todos os passos).** Pacotes que compartilham a mesma
+documentação formam um **grupo** e, daqui em diante, contam como **uma** lib: uma resolução e uma
+query (feitas com o nome do líder), um único arquivo `<líder>.md`. Grupos reconhecidos — lista
+fechada, no formato `membro → líder`; qualquer outro pacote é independente: `react-dom → react`.
+
+- O grupo entra na lista se qualquer membro foi detectado. O arquivo é sempre `<líder>.md`, mesmo
+  que só um membro esteja no projeto. A versão instalada do grupo é a do líder; se o líder não foi
+  detectado, a do primeiro membro detectado.
+- No cabeçalho e no título do passo 4, `<lib>@<versão-instalada>` vira a lista dos membros
+  detectados, cada um com a sua versão instalada (ex.: `react@19.2.8, react-dom@19.2.8`).
+- Falha ou "sem fonte oficial" no passo 3 pula o grupo inteiro — nunca só um membro.
+
 Sem `--refresh`, filtre a lista às libs que ainda **não** têm arquivo em
-`.claude/rules/vetor/best-practices/<lib>.md`. Com `--refresh`, mantenha a lista inteira.
+`.claude/rules/vetor/best-practices/<lib>.md` (`<lib>` = o líder, no caso de um grupo — assim um
+irmão já coberto não reaparece como candidato). Com `--refresh`, mantenha a lista inteira.
 
 Se a lista resultante estiver vazia (nenhuma lib estrutural detectada, ou todas já têm regra e não
 foi passado `--refresh`), reporte e pare — nada a fazer.
-
-**Pacotes irmãos com mesma documentação** (ex.: `react` e `react-dom` compartilham `/reactjs/react.dev`):
-agrupe numa única regra ou permita apontar o library ID de outra lib do mesmo grupo. O cabeçalho
-de proveniência deve registrar **tanto a versão instalada quanto a versão de docs consultada** (passo 4).
 
 ### 2 — Checar disponibilidade do Context7
 
@@ -120,7 +129,8 @@ Para cada lib da lista do passo 1:
    Descarte os demais snippets por inteiro, incluindo texto editorial anexado a eles. Se nenhum
    snippet sobrar: **não grave regra** para a lib e registre "sem fonte oficial na versão
    <versão-docs>" no passo 6. Nunca preencha com snippets descartados nem com conhecimento
-   pré-treinado.
+   pré-treinado. Sem arquivo gravado, a lib volta como candidata na próxima execução (filtro do
+   passo 1) — comportamento esperado, igual ao de uma falha de resolução.
 
 Se a resolução ou a query falharem por outro motivo (lib não indexada, erro transiente),
 **pule só aquela lib** — reporte a falha no resultado e continue com as demais. Uma lib com erro
@@ -153,8 +163,6 @@ Regras:
   localmente". `.claude/rules/vetor/best-practices/` é um diretório à parte.
 - **O cabeçalho registra a versão instalada e a versão de docs consultada**; se divergirem, o
   passo 6 reporta a divergência.
-- **Pacotes irmãos com mesma fonte de docs** (ex.: `react`/`react-dom`): agrupe numa única regra
-  ou permita apontar o library ID de outra lib do grupo.
 - `<data ISO>` é a data da consulta, não uma data fixa — usada depois pelo guardian para medir
   staleness (passo 5).
 - Bullets refletem só o que a fonte (Context7) disse — nunca elaboração ou inferência do agente
