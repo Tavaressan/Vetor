@@ -74,7 +74,7 @@ fact-checking. A coluna de criticidade é **[Opinião]** do autor.
 | Endpoint | Custo |
 |----------|-------|
 | `/assess` (checagem rápida) | 1 crédito |
-| `/verify` (verificação com fontes) | 10 créditos por afirmação (5 com `depth: "low"`, via API) |
+| `/verify` (verificação com fontes) | 10 créditos por afirmação (5 com `depth: "low"`) |
 | `/ask` (pergunta de acompanhamento) | 1 crédito |
 | `/extract` (lista as afirmações de um texto) | grátis, até 1.000 por dia por conta |
 | `/review` (revisão de rascunho) | soma das checagens que executa (1 por checagem rápida, 10 por verificação) |
@@ -112,7 +112,7 @@ fact-checking. A coluna de criticidade é **[Opinião]** do autor.
 - Claims enviadas pela API são privadas por padrão.
 - Por padrão o Lenz guarda as claims enviadas, a análise e os logs de requisição "for as long as
   your account exists". Só contas **Pro e Scale** configuram o período de retenção (a menor opção é
-  a retenção zero). O plano Free não configura.
+  a retenção zero). Os planos Free e Plus não configuram.
 - "The claim text you submit is sent to third-party AI models for analysis" (por exemplo, Google
   Gemini), e esses provedores "may have their own data retention policies".
 - A retenção configurada cobre todos os canais da conta, incluindo "connected AI assistants".
@@ -198,18 +198,18 @@ embarcado é igual (§3).
 | # | Justificativa | Natureza | Base |
 |---|---------------|----------|------|
 | 1 | O Lenz verifica contra a web aberta. As saídas do Vetor falam do repositório do usuário; para a maior parte delas o Lenz não tem o que confirmar. | **[Fato]** + **[Inferência]** | README do lenz-mcp (§4) |
-| 2 | Embarcar por padrão enviaria conteúdo do projeto a modelos de terceiros, com retenção indefinida por padrão no plano Free, sem que o usuário tenha escolhido. | **[Fato]** + **[Inferência]** | lenz.io/privacy (§2.4) |
-| 3 | Exige conta Lenz (gratuita), e o `context7` embarcado não exige nada. Com OAuth, o aviso de "precisa de autenticação" apareceria para todo usuário que não usa o Lenz. | **[Fato]** + **[Inferência]** | §2.3 e §3 |
+| 2 | Um skill que chamasse o Lenz automaticamente enviaria conteúdo do projeto a modelos de terceiros; nos planos Free e Plus a retenção não pode ser limitada (padrão: enquanto a conta existir). | **[Fato]** + **[Inferência]** | lenz.io/privacy (§2.4) |
+| 3 | Exige conta Lenz (gratuita), e o `context7` embarcado não exige nada. Com OAuth, o aviso de "precisa de autenticação" apareceria para todo usuário que não usa o Lenz. Em modo não interativo o Claude Code não roda o login OAuth (§2.3) e os workers do Vetor são headless (`agents/issue-worker.md`), então dependeriam de um login prévio numa sessão interativa. | **[Fato]** + **[Inferência]** | §2.3 e §3 |
 | 4 | O valor incremental sobre os gates humanos não foi demonstrado. | **[Não verificado]** | §4 |
 
 **Custo × benefício:**
 
-- **Custo** — **[Fato]** dinheiro baixo: o Free cobre 100 checagens rápidas ou 10 verificações por
-  mês; o Plus (US$ 7,99) dá 500 créditos. **[Fato]** fricção: conta, retenção padrão e aviso de
-  autenticação. **[Inferência]** uma verificação profunda de 10 afirmações usa a franquia mensal
-  inteira do Free.
+- **Custo** — **[Fato]** o Free custa US$ 0 e cobre 100 checagens rápidas ou 10 verificações por
+  mês; o Plus custa US$ 7,99 e dá 500 créditos. **[Fato]** exige conta, e a retenção padrão é
+  indefinida. **[Inferência]** uma verificação profunda de 10 afirmações usa a franquia mensal
+  inteira do Free. **[Opinião]** o custo em dinheiro é baixo.
 - **Benefício** — **[Não verificado]**. O encaixe é incerto (justificativa 1) e não foi medido.
-- **[Opinião]** Com custo baixo e benefício não demonstrado, não vale embarcar por padrão. A decisão
+- **[Opinião]** Com custo em dinheiro baixo e benefício não demonstrado, não vale embarcar por padrão. A decisão
   é barata de reverter: nada é embarcado, então não há nada a desfazer. Confiança moderada; ela cai
   se aparecer evidência de encaixe (critério C abaixo).
 
