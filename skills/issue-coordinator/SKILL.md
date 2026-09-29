@@ -537,6 +537,11 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 `sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se
 imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de descartar trabalho.
 
+**Checkpoint de fechamento de onda (issue #246).** Antes de declarar a sessão concluída, confirme
+que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resultados reportados no
+Coordinator Report — **nenhum grupo do plano aprovado deve ficar sem uma linha de resultado**
+(Merged/Failed/Blocked/SKIPPED). Se houver discrepância, investigue antes de finalizar.
+
 Após todos os agentes terminarem (ou timeout de 90 minutos):
 
 ```
