@@ -168,11 +168,11 @@ Closes #<issue#>
 🤖 Desenvolvido com [Claude Code](https://claude.ai/code)
 ```
 
-Anexe `Closes #<issue#>` (se fornecida) e a nota do rodapé ao final. Crie o PR draft:
+Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente). Grave o corpo num arquivo temporário e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell (issue #334):
 ```bash
 gh pr create \
   --title "<type>(<slug>): <resumo dos commits>" \
-  --body "<descrição gerada e validada>" \
+  --body-file "<path-do-arquivo-de-corpo>" \
   --draft \
   --base "$DEFAULT_BRANCH"
 ```
@@ -218,14 +218,25 @@ gh pr checks <PR-number>
 
 Para cada falha detectada:
 
-**8.a — Circuit breaker de infraestrutura (antes de ler logs)**
+Verifique se a falha possui `run-id` do GitHub Actions (`gh pr checks <PR-number> --json name,link,state`).
+
+**8.a — Falha em check externo sem run-id (Vercel, Netlify etc. — issue #340)**
+
+Para provedores de deploy e checks externos sem execução do GitHub Actions:
+1. Identifique o check externo: extraia link e descrição de erro no `gh pr checks`.
+2. Se a CLI do provedor (ex.: `npx vercel inspect <id> --logs`) estiver instalada e autenticada, consulte os logs; caso contrário, solicite o trecho de erro ao operador via `AskUserQuestion`.
+3. Dica: se o build passa localmente mas falha no provedor externo, teste remover temporariamente o `.env.local` para reproduzir ausência de variáveis de ambiente.
+4. Para retentar o check externo após ajuste, faça um commit vazio e envie:
+   `git commit --allow-empty -m "ci: retry external check" && git push origin <branch>`, e volte ao passo 7.
+
+**8.b — Circuit breaker de infraestrutura (GitHub Actions com run-id)**
 
 ```bash
 deno run -A scripts/detect-infra-failure.ts <run-id>
 ```
 
 Se retornar exit 0 (JSON com `isInfrastructureFailure: true`), nenhum fix de código resolve:
-- **Pule** inteiramente as iterações de fix (§8.b).
+- **Pule** inteiramente as iterações de fix (§8.c).
 - Escreva o status file:
   ```markdown
   Status: BLOCKED_INFRA
@@ -235,7 +246,7 @@ Se retornar exit 0 (JSON com `isInfrastructureFailure: true`), nenhum fix de có
 - **Escale** via `AskUserQuestion`: `⚠️ Falha de infraestrutura detectada no CI (billing/outage). Não é possível resolver com fix de código. Deseja aguardar a resolução ou prosseguir sem CI (merge manual)?`
 - **Pare.** Não consuma iterações de fix-loop.
 
-**8.b — Erro de código (só se não for infraestrutura)**
+**8.c — Erro de código (só se não for infraestrutura)**
 
 ```bash
 gh run view <run-id> --log-failed
@@ -361,9 +372,8 @@ localização é do harness). Se invocado pelo `issue-coordinator` (modo headles
 automaticamente:
 ```bash
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree "<path-do-worktree>"
-git branch -d <branch>
-rm -f .claude/vetor/status/<branch>.md
-rm -f .claude/vetor/status/<branch>-touched-files.json
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" delete-merged-branch "<branch>"
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" clean-status "<branch>"
 ```
 
 Se a checagem falhar, **pare o cleanup** e não prossiga com `git branch -d`/remoção dos arquivos de
@@ -371,13 +381,19 @@ status/cache — há dois motivos distintos de falha:
 
 - **Worktree filho ativo dentro do path alvo**: mostre os paths e preserve worktree pai, branch e
   arquivos de status/cache até os filhos serem realocados.
-- **Diretório residual em disco após `git worktree remove`** (issue #157): o `git worktree remove`
+- **Diretório residual em disco após `git worktree remove`** (issues #157, #324): o `git worktree remove`
   desregistrou o worktree do git (não aparece mais em `git worktree list`) mas falhou ao apagar o
-  diretório — no Windows, tipicamente por `Filename too long` (artefatos como `build/`, `.gradle/`,
-  `node_modules/` estouram o limite de 260 caracteres). `safe-remove-worktree` já tenta uma remoção
-  com prefixo de path longo nesse caso; se mesmo assim restar, ela sai não-zero citando o path
-  residual. Reporte o path ao operador para remoção manual — não tente forçar via `rm -rf` por conta
-  própria, o diretório pode conter uncommitted work relevante para inspeção.
+  diretório — no Windows, por `Filename too long` ou `Permission denied` transitório. `safe-remove-worktree`
+  reconsulta o git: como o worktree já foi desregistrado, tenta a remoção segura do resíduo (inclusive
+  com prefixo de path longo `\\?\`); se mesmo assim restar, ela sai não-zero citando o path residual
+  para remoção manual, sem alegar falsamente uncommitted work (issue #324).
+
+- **Remoção segura de branch e status**:
+  - `delete-merged-branch <branch>` apaga a branch local apenas se confirmada como `MERGED` no GitHub
+    ou se sua árvore for idêntica à branch default, contornando a recusa de `git branch -d` para squash
+    e sem acionar o bloqueio incondicional de `-D` (issue #341).
+  - `clean-status <branch>` normaliza o nome da branch (`/` substituída por `-`) e apaga o status `.md`,
+    a sentinela `.md.stopguard` e o cache `-touched-files.json` (issue #344).
 
 Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
 branch, status file e cache de arquivos tocados).

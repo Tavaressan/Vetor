@@ -38,8 +38,20 @@ if [[ "$COMMAND" =~ $ship_re ]]; then
     branch=$(git branch --show-current 2>/dev/null)
     root=$(cd "$(dirname "$common_dir")" 2>/dev/null && pwd)
     status_file="$root/.claude/vetor/status/${branch//\//-}.md"
-    if [ -n "$branch" ] && [ -n "$root" ] && [ -f "$status_file" ]; then
-      status=$(sed -n 's/^Status: *//p' "$status_file" | head -1)
+    local_status_file="$(git rev-parse --show-toplevel 2>/dev/null)/.claude/vetor-status.md"
+    status=""
+    if [ -n "$root" ] && [ -f "$status_file" ]; then
+      status=$(sed -n 's/^Status: *//p' "$status_file" | head -1 | tr -d '\r')
+    fi
+    # Issue #323: se o arquivo do root não for GREEN, consulta o fallback local gravado pelo worker
+    if [ "$status" != "GREEN" ] && [ -f "$local_status_file" ]; then
+      local_status=$(sed -n 's/^Status: *//p' "$local_status_file" | head -1 | tr -d '\r')
+      if [ "$local_status" = "GREEN" ]; then
+        status="GREEN"
+      fi
+    fi
+
+    if [ -n "$branch" ] && [ -n "$status" ]; then
       if [ "$status" != "GREEN" ]; then
         echo "ERROR: worker não-GREEN (Status: ${status:-desconhecido}) — push/PR bloqueado pelo Vetor Safety Hook." >&2
         echo "Registre BLOCKED_WAITING no status file se precisar de intervenção; o worktree-ship faz a entrega após GREEN." >&2

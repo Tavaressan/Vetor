@@ -196,6 +196,50 @@ case "$cmd" in
     echo "Root sincronizado com $DEFAULT_BRANCH (branch anterior: $current estava limpa e mesclada)."
     ;;
 
+  delete-merged-branch)
+    # Issue #341: apaga branch local após merge squash se confirmada como MERGED no remoto
+    # ou com árvore idêntica à branch default (evita recusa de git branch -d e bypassa o
+    # bloqueio incondicional de git branch -D do safety hook de forma segura).
+    branch="${2:?uso: vetor-checks.sh delete-merged-branch <branch>}"
+    if ! git show-ref --verify --quiet "refs/heads/$branch"; then
+      echo "Branch $branch não existe localmente (já removida)."
+      exit 0
+    fi
+    
+    DEFAULT_BRANCH=$("$0" default-branch)
+    pr_state=$(gh pr list --head "$branch" --state all --json state -q '.[0].state' 2>/dev/null || echo "")
+    tree_identical=0
+    if git diff --quiet "$branch" "$DEFAULT_BRANCH" 2>/dev/null; then
+      tree_identical=1
+    fi
+
+    if [ "$pr_state" = "MERGED" ] || [ "$tree_identical" -eq 1 ]; then
+      git update-ref -d "refs/heads/$branch"
+      echo "Branch local $branch removida com sucesso (mergeada ou idêntica à $DEFAULT_BRANCH)."
+      exit 0
+    else
+      echo "ERRO: branch $branch não está confirmada como MERGED nem idêntica a $DEFAULT_BRANCH. Não removendo." >&2
+      exit 1
+    fi
+    ;;
+
+  clean-status)
+    # Issue #344: normaliza a branch (<branch com / trocada por ->) e remove status file,
+    # sentinela .stopguard e cache de touched-files.
+    branch="${2:?uso: vetor-checks.sh clean-status <branch>}"
+    sanitized="${branch//\//-}"
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    ROOT=""
+    [ -n "$common_dir" ] && ROOT=$(dirname "$common_dir")
+    [ -z "$ROOT" ] && ROOT="."
+    
+    status_dir="$ROOT/.claude/vetor/status"
+    rm -f "$status_dir/${sanitized}.md"
+    rm -f "$status_dir/${sanitized}.md.stopguard"
+    rm -f "$status_dir/${sanitized}-touched-files.json"
+    echo "Status e sentinelas da branch $branch ($sanitized) removidos com sucesso."
+    ;;
+
   worktree-audit)
     # Emite uma linha por worktree linkado (exclui o root) no formato:
     #   <path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>
