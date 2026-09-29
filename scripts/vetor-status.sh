@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
 # Tabela de monitoramento do issue-coordinator, construída de fontes externas
-# (status files + git worktree list) — não de estado em memória. Rodar no root.
+# (status files + git worktree list) — não de estado em memória. Pode rodar no root
+# ou de dentro de qualquer worktree (issue #339).
 #
 # Uso: vetor-status.sh
 # Saída: tabela markdown com uma linha por status file em .claude/vetor/status/.
 #        Worktree correspondente removido manualmente -> "cancelled (worktree removed)".
+#        Worktree recém-despachado -> "aguardando worktree" (issue #347).
 #        Worktree sem status file -> ⚠️ WARNING (possível falha anômala, issue #72).
 
 set -uo pipefail
 
-STATUS_DIR=".claude/vetor/status"
+# Resolve o root do repositório principal (suporta execução de dentro de worktrees — issue #339)
+REPO_ROOT=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //')
+if [ -z "$REPO_ROOT" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+fi
+
+STATUS_DIR="${REPO_ROOT}/.claude/vetor/status"
 
 # Branch principal (main worktree) — excluída da lista de workers ativos.
-default_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+default_branch=$(git worktree list --porcelain 2>/dev/null | sed -n '3s#^branch refs/heads/##p')
+if [ -z "$default_branch" ]; then
+  default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || git symbolic-ref --short HEAD 2>/dev/null || echo "")
+fi
 
 # Branches com worktree ativo (workers), sanitizadas com a mesma convenção dos status files (/ -> -).
 # Exclui a branch principal do repositório.
@@ -64,7 +75,13 @@ for f in "$STATUS_DIR"/*.md; do
   if printf '%s\n' "$active" | grep -qx "$name"; then
     wt="ativo"
   else
-    wt="cancelled (worktree removed)"
+    # Issue #347: status recém-criado pelo coordinator antes do harness criar o worktree
+    raw_iter_n=$(printf '%s' "$iter" | sed -n 's#^[⚠️ ]*\([0-9][0-9]*\)/.*#\1#p')
+    if [ "$status" = "RUNNING" ] && { [ -z "$raw_iter_n" ] || [ "$raw_iter_n" -le 1 ]; }; then
+      wt="aguardando worktree"
+    else
+      wt="cancelled (worktree removed)"
+    fi
   fi
   seen_branches="${seen_branches}${name}
 "
