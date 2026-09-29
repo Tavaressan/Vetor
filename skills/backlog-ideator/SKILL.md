@@ -99,8 +99,9 @@ Qualquer evidência ao vivo é âncora válida — não se limita a Sentry/Datad
 uma dessas durante a sessão (não precisa buscar ativamente), use-a para propor issue `fix` ou
 `chore`. **Para issues `fix`, é obrigatório citar o comando/fonte exato que reproduz o problema.**
 
-Se houver MCP de observabilidade disponível (`mcp__sentry__*`, `mcp__datadog__*` — ver
-`mcp-availability.md`), use-o para obter os erros não resolvidos mais frequentes em produção e
+Se houver MCP de observabilidade disponível (standalone `mcp__<server>__*` ou empacotado em
+plugin `mcp__plugin_<plugin>_<server>__*` para sentry ou datadog — ver `mcp-availability.md` e
+`scripts/lib/mcp.ts`), use-o para obter os erros não resolvidos mais frequentes em produção e
 ancore issues `fix` neles, incluindo stacktraces. Sem MCP, prossiga normalmente.
 
 ### 2.b — Investigação estruturada (grilling)
