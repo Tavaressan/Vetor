@@ -73,8 +73,15 @@ de proveniência deve registrar **tanto a versão instalada quanto a versão de 
 
 ### 2 — Checar disponibilidade do Context7
 
-Siga o mecanismo de `mcp-availability.md`: procure por qualquer ferramenta contendo `context7`
-(substring, case-insensitive) — ex.: `mcp__context7__` ou `mcp__plugin_vetor_context7__`.
+Siga o mecanismo de `mcp-availability.md`: procure as ferramentas `resolve-library-id` e
+`query-docs` cujo **segmento de servidor** case com `context7` — `mcp__context7__…` (standalone) ou
+`mcp__plugin_<plugin>_context7__…` (empacotado), nunca por substring solta. Com mais de um segmento
+correspondente, escolha pela ordem de preferência do item 4 daquele documento.
+
+Guarde o prefixo completo escolhido (ex.: `mcp__context7__` ou `mcp__plugin_vetor_context7__`) como
+`<ctx7>`. O passo 3 usa **somente** `<ctx7>resolve-library-id` e `<ctx7>query-docs` — nunca um
+prefixo fixo. Se as ferramentas estiverem diferidas, carregue-as antes com `ToolSearch`
+(`select:<ctx7>resolve-library-id,<ctx7>query-docs`).
 
 **Se não disponível:** não gere nenhuma regra para as libs afetadas. Reporte a limitação no
 resultado final ("Context7 indisponível — nenhuma regra de melhores práticas gerada para: <libs>")
@@ -82,25 +89,46 @@ e pare. **Nunca** escreva melhor prática com base no conhecimento pré-treinado
 fallback — o risco de estar desatualizado para a versão exata em uso é exatamente o que esta skill
 existe para evitar.
 
-**Se houver múltiplos Context7:** prefira o do plugin vetor (`mcp__plugin_vetor_context7__`).
-
 ### 3 — Consultar o Context7 por lib
 
 Para cada lib da lista do passo 1:
 
-1. `mcp__context7__resolve-library-id` para achar o library ID a partir do nome (e, se disponível
-   na resposta, restrinja pela versão detectada no passo 1).
-2. `mcp__context7__query-docs` com uma pergunta específica e escopada, no estilo "práticas atuais
-   recomendadas e APIs deprecated para `<lib>` versão `<versão>`" — nunca uma pergunta genérica que
-   force o Context7 a devolver um resumo raso.
+1. **Resolver o library ID versionado.** Chame `<ctx7>resolve-library-id` com o nome da lib.
+   Percorra os resultados na ordem devolvida e fique com o primeiro que (a) não seja `/websites/*`
+   (site indexado — nunca produz `Source` em tag, ver item 3) e (b) liste em `Versions` ao menos uma
+   *versão de release*. Não são release: entradas `__branch__*` e pré-releases (`-canary`, `-rc`,
+   `-beta`, `-alpha`, `-next`). Escolha a versão nesta ordem: a igual à instalada (`v<V>` ou
+   `<V>`); senão a maior versão de release menor que a instalada e da mesma major (ex.: instalada
+   16.3.6, indexada até `v16.2.9` → `v16.2.9`); se a instalada for `unknown`, a maior de release
+   listada. O ID consultado é `/<org>/<projeto>/<versão-docs>` e `<versão-docs>` é esse sufixo.
+   Sem resultado que atenda (a) e (b), ou sem versão escolhível: pule a lib e registre "sem fonte
+   oficial na versão <V-instalada>" no passo 6 — não consulte o ID sem versão.
+2. **Consultar.** `<ctx7>query-docs` com o ID versionado e uma pergunta específica e escopada, no
+   estilo "práticas atuais recomendadas e APIs deprecated para `<lib>` versão `<versão-docs>`" —
+   nunca uma pergunta genérica que force o Context7 a devolver um resumo raso.
+3. **Filtro de Source.** Cada snippet devolvido traz uma linha `Source: <URL>`. Aceite o snippet só
+   se a URL for `https://github.com/<org>/<projeto>/blob/<versão-docs>/<caminho>` (ou
+   `/tree/<versão-docs>/…`), com `<org>/<projeto>` e `<versão-docs>` idênticos aos do ID consultado.
+   Isso define os dois critérios:
+   - **Oficial** = arquivo do repositório do mantenedor (o `<org>/<projeto>` do library ID). Não
+     contam: agregadores (`/websites/*`, deepwiki), blogs, gists, fóruns, repositórios de outra org
+     nem snippet sem `Source`. Um site de documentação do mantenedor (ex.: `nextjs.org/docs/…`)
+     também não passa, ainda que seja do mantenedor: a URL não fixa versão.
+   - **Na tag da versão consultada** = o ref após `blob/`/`tree/` é exatamente `<versão-docs>`. Não
+     contam `blob/main/`, `blob/canary/`, qualquer outro branch, outra versão nem SHA.
 
-Se a resolução ou a query falharem para uma lib específica (lib não indexada, erro transiente),
+   Descarte os demais snippets por inteiro, incluindo texto editorial anexado a eles. Se nenhum
+   snippet sobrar: **não grave regra** para a lib e registre "sem fonte oficial na versão
+   <versão-docs>" no passo 6. Nunca preencha com snippets descartados nem com conhecimento
+   pré-treinado.
+
+Se a resolução ou a query falharem por outro motivo (lib não indexada, erro transiente),
 **pule só aquela lib** — reporte a falha no resultado e continue com as demais. Uma lib com erro
 nunca bloqueia a geração das regras das outras.
 
 ### 4 — Gravar a regra
 
-Para cada lib com resposta do Context7, escreva `.claude/rules/vetor/best-practices/<lib>.md`:
+Para cada lib com ao menos um snippet aceito pelo filtro de Source (passo 3, item 3), escreva `.claude/rules/vetor/best-practices/<lib>.md`:
 
 ```markdown
 ---
@@ -129,7 +157,10 @@ Regras:
   ou permita apontar o library ID de outra lib do grupo.
 - `<data ISO>` é a data da consulta, não uma data fixa — usada depois pelo guardian para medir
   staleness (passo 5).
-- **Bullets só incluem snippets cujo `Source` aponte para a documentação oficial da lib na tag da versão consultada** — descartar texto editorial, comentários ou trechos sem `Source` oficial.
+- Bullets refletem só o que a fonte (Context7) disse — nunca elaboração ou inferência do agente
+  além do que a resposta retornou.
+- **Source oficial na tag da versão consultada** (regra adicional — não substitui a anterior): só
+  entram bullets de snippets aceitos pelo filtro de Source do passo 3 (item 3).
 - Sem `--refresh`, nunca sobrescreva um arquivo já existente para a mesma lib.
 
 ### 5 — Sinalizar staleness no guardian (referência cruzada)
@@ -146,6 +177,8 @@ Ao final, resuma:
 - Libs com regra gerada/atualizada nesta execução, com a versão instalada e a versão de docs consultada.
 - **Divergências de versão** (versão instalada ≠ versão de docs indexada) — sinalize explicitamente.
 - Libs puladas por falha de resolução/query no Context7 (passo 3).
+- Libs sem regra por "sem fonte oficial na versão X" (passo 3: sem ID versionado utilizável ou
+  nenhum snippet aceito pelo filtro de Source), com a versão X.
 - Se o Context7 não estava disponível: a lista completa de libs sem regra por esse motivo (passo 2).
 
 ---
