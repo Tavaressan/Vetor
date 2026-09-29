@@ -119,8 +119,9 @@ Para cada lib da lista do passo 1:
    se a URL for `https://github.com/<org>/<projeto>/blob/<versão-docs>/<caminho>` (ou
    `/tree/<versão-docs>/…`), com `<org>/<projeto>` e `<versão-docs>` idênticos aos do ID consultado.
    Isso define os dois critérios:
-   - **Oficial** = arquivo do repositório do mantenedor (o `<org>/<projeto>` do library ID). Não
-     contam: agregadores (`/websites/*`, deepwiki), blogs, gists, fóruns, repositórios de outra org
+   - **Oficial** = arquivo do repositório do mantenedor (o `<org>/<projeto>` do library ID — a
+     skill confia na atribuição do Context7, não verifica a origem do repositório por conta
+     própria). Não contam: agregadores (`/websites/*`, deepwiki), blogs, gists, fóruns, repositórios de outra org
      nem snippet sem `Source`. Um site de documentação do mantenedor (ex.: `nextjs.org/docs/…`)
      também não passa, ainda que seja do mantenedor: a URL não fixa versão.
    - **Na tag da versão consultada** = o ref após `blob/`/`tree/` é exatamente `<versão-docs>`. Não
