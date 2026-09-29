@@ -81,14 +81,19 @@ case "$cmd" in
     # The caller MUST pass origin/$DEFAULT_BRANCH (not local $DEFAULT_BRANCH) to avoid
     # Stale branch references in worktrees (issue #70).
     # Exclude script/test files that define or test the regex to avoid false positives (issue #108, #109)
-    # Also exclude console.log(JSON.stringify(...)) which is intentional structured output in CLI wrappers (issue #245)
+    # console.log(JSON.stringify(...)) é saída estruturada intencional de CLI wrappers (issue #245).
+    # A exclusão vale só para o padrão de console.log: o awk remove essa assinatura de uma cópia da
+    # linha antes de casar os padrões, então it.only/fit(/etc. (e outro console.log) na mesma linha
+    # continuam sendo detectados, e a linha original é a que aparece no relatório.
+    # Trade-off conhecido: um console.log(JSON.stringify(state)) esquecido como debug num arquivo
+    # comum também passa — o scan não distingue debug esquecido de saída de CLI.
     hits=$(git diff "$base" -U0 -- '*.ts' '*.sh' '*.js' '*.tsx' '*.jsx' \
       ':!scripts/vetor-checks.sh' ':!scripts/tests/vetor-checks_test.ts' ':!skills/**/*.md' \
       ':!.opencode/scripts/vetor-checks.sh' ':!.opencode/skills/**/*.md' \
       ':!opencode/scripts/vetor-checks.sh' ':!opencode/skills/**/*.md' 2>/dev/null \
       | grep -E '^\+' | grep -vE '^\+\+\+' \
-      | grep -nE 'console\.log|var_dump|fit\(|fdescribe\(|it\.only' 2>/dev/null \
-      | grep -vE 'console\.log\(JSON\.stringify\(' || true)
+      | awk '{ l = $0; gsub(/console\.log\(JSON\.stringify\(/, "", l)
+               if (l ~ /console\.log|var_dump|fit\(|fdescribe\(|it\.only/) print NR ":" $0 }' || true)
     if [ -n "$hits" ]; then
       echo "FALHA: padrões de debug/teste exclusivo no diff (remova antes do push):" >&2
       echo "$hits" >&2
