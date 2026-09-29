@@ -67,16 +67,22 @@ Sem `--refresh`, filtre a lista às libs que ainda **não** têm arquivo em
 Se a lista resultante estiver vazia (nenhuma lib estrutural detectada, ou todas já têm regra e não
 foi passado `--refresh`), reporte e pare — nada a fazer.
 
+**Pacotes irmãos com mesma documentação** (ex.: `react` e `react-dom` compartilham `/reactjs/react.dev`):
+agrupe numa única regra ou permita apontar o library ID de outra lib do mesmo grupo. O cabeçalho
+de proveniência deve registrar **tanto a versão instalada quanto a versão de docs consultada** (passo 4).
+
 ### 2 — Checar disponibilidade do Context7
 
-Siga o mecanismo de `mcp-availability.md`: procure por qualquer ferramenta com prefixo
-`mcp__context7__` (direta ou diferida via `ToolSearch`).
+Siga o mecanismo de `mcp-availability.md`: procure por qualquer ferramenta contendo `context7`
+(substring, case-insensitive) — ex.: `mcp__context7__` ou `mcp__plugin_vetor_context7__`.
 
 **Se não disponível:** não gere nenhuma regra para as libs afetadas. Reporte a limitação no
 resultado final ("Context7 indisponível — nenhuma regra de melhores práticas gerada para: <libs>")
 e pare. **Nunca** escreva melhor prática com base no conhecimento pré-treinado do agente como
 fallback — o risco de estar desatualizado para a versão exata em uso é exatamente o que esta skill
 existe para evitar.
+
+**Se houver múltiplos Context7:** prefira o do plugin vetor (`mcp__plugin_vetor_context7__`).
 
 ### 3 — Consultar o Context7 por lib
 
@@ -102,11 +108,11 @@ paths:
   - "<globs relevantes à lib, ex. '**/*.tsx' para uma lib de UI React>"
 ---
 
-> Gerado por `/vetor:stack-practices` a partir da documentação de <lib>@<versão> via Context7 em <data ISO>.
+> Gerado por `/vetor:stack-practices` a partir da documentação de <lib>@<versão-instalada> (docs consultadas: <versão-docs>) via Context7 em <data ISO>.
 > Conhecimento externo, não um fato observado neste repositório — pode ficar desatualizado.
 > Rode `/vetor:stack-practices --refresh` periodicamente. Editável — não sobrescrito sem `--refresh`.
 
-# Melhores práticas — <lib>@<versão>
+# Melhores práticas — <lib>@<versão-instalada> (docs: <versão-docs>)
 
 - <bullet curto e citável, só o que o Context7 retornou como prática atual documentada>
 - <...>
@@ -117,10 +123,13 @@ Regras:
   rules factuais de `scripts/lib/rules.ts` — nunca escreva regra de melhor prática no mesmo arquivo
   `.claude/rules/vetor/<runtime>.md` gerado pelo `/vetor`, cuja regra de ouro é "só fato observado
   localmente". `.claude/rules/vetor/best-practices/` é um diretório à parte.
+- **O cabeçalho registra a versão instalada e a versão de docs consultada**; se divergirem, o
+  passo 6 reporta a divergência.
+- **Pacotes irmãos com mesma fonte de docs** (ex.: `react`/`react-dom`): agrupe numa única regra
+  ou permita apontar o library ID de outra lib do grupo.
 - `<data ISO>` é a data da consulta, não uma data fixa — usada depois pelo guardian para medir
   staleness (passo 5).
-- Bullets refletem só o que a fonte (Context7) disse — nunca elaboração ou inferência do agente
-  além do que a resposta retornou.
+- **Bullets só incluem snippets cujo `Source` aponte para a documentação oficial da lib na tag da versão consultada** — descartar texto editorial, comentários ou trechos sem `Source` oficial.
 - Sem `--refresh`, nunca sobrescreva um arquivo já existente para a mesma lib.
 
 ### 5 — Sinalizar staleness no guardian (referência cruzada)
@@ -134,7 +143,8 @@ extra aqui, além de manter a data no cabeçalho (passo 4) precisa e atualizada 
 
 Ao final, resuma:
 - Libs detectadas no passo 1 e quais já tinham regra (puladas, sem `--refresh`).
-- Libs com regra gerada/atualizada nesta execução, com a versão consultada.
+- Libs com regra gerada/atualizada nesta execução, com a versão instalada e a versão de docs consultada.
+- **Divergências de versão** (versão instalada ≠ versão de docs indexada) — sinalize explicitamente.
 - Libs puladas por falha de resolução/query no Context7 (passo 3).
 - Se o Context7 não estava disponível: a lista completa de libs sem regra por esse motivo (passo 2).
 

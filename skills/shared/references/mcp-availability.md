@@ -11,18 +11,23 @@ Ferramentas de servidores MCP aparecem no seu namespace de ferramentas com o pre
 lista de ferramentas disponíveis, ou listadas por nome entre as ferramentas diferidas (que você
 carrega via `ToolSearch` antes de chamar).
 
-**Verificar disponibilidade é simplesmente olhar se algum nome com esse prefixo existe** — não é
+**Quando o MCP vem empacotado dentro de um plugin (ex.: vetor), o prefixo real inclui o nome do plugin:**
+`mcp__plugin_<plugin>_<server>__<tool>` (ex.: `mcp__plugin_vetor_context7__query-docs`).
+
+**Verificar disponibilidade é simplesmente olhar se algum nome com o sufixo/relevante existe** — não é
 necessário rodar comando, nem tentar a chamada MCP "para ver se funciona":
 
 1. Procure na sua lista de ferramentas (diretas + diferidas, listadas em `<system-reminder>` no
-   início da conversa e sempre que atualizadas) por qualquer nome começando com `mcp__<server>__`,
-   onde `<server>` é o servidor relevante para a tarefa (sentry/observabilidade,
-   banco de dados).
+   início da conversa e sempre que atualizadas) por qualquer nome contendo o identificador do servidor
+   (ex.: `context7`, `sentry`, `docker`, `chrome-devtools`) — **case-insensitive, substring match**.
+   - Para MCPs standalone: prefixo `mcp__<server>__`
+   - Para MCPs de plugin: prefixo `mcp__plugin_<plugin>_<server>__`
 2. **Se existir:** o MCP está disponível. Se a ferramenta estiver na lista de diferidas, carregue-a
    primeiro com `ToolSearch({query: "select:<tool_name>"})` antes de chamá-la.
-3. **Se não existir nenhum nome com esse prefixo:** o MCP não está configurado nesta sessão — vá
+3. **Se não existir nenhum nome correspondente:** o MCP não está configurado nesta sessão — vá
    direto para o fallback documentado na skill (CLI `gh`, query SQL manual, etc.). Não gaste uma
    chamada tentando invocar uma ferramenta MCP inexistente só para descobrir que falha.
+4. **Quando houver múltiplos servidores para o mesmo serviço** (ex.: Context7 standalone + Context7 via plugin vetor): **prefira o servidor do próprio plugin** (`mcp__plugin_vetor_context7__` sobre `mcp__context7__`), pois ele compartilha o ciclo de vida e configuração do plugin.
 
 ## Por que não "tentar e capturar erro"
 
@@ -46,10 +51,13 @@ correta é estática (olhar a lista), não uma tentativa em runtime.
 Use antes de afirmar comportamento de uma ferramenta, biblioteca, framework, SDK ou API externa —
 não confie só no conhecimento pré-treinado do agente, que pode estar desatualizado.
 
-- **Com MCP (obrigatório):** `mcp__context7__resolve-library-id` para achar o library ID, depois
-  `mcp__context7__query-docs` com uma pergunta específica e escopada a um único conceito.
+- **Com MCP (obrigatório):** procure por ferramenta contendo `context7` (substring, case-insensitive) —
+  ex.: `mcp__context7__resolve-library-id` ou `mcp__plugin_vetor_context7__resolve-library-id`.
+  Use a encontrada para achar o library ID, depois `query-docs` com uma pergunta específica
+  e escopada a um único conceito.
 - **Sem MCP (fallback):** siga sem o MCP, sinalizando a limitação no resultado entregue ao usuário —
   não bloqueia a skill.
+- **Se houver múltiplos Context7:** prefira o do plugin vetor (`mcp__plugin_vetor_context7__`).
 
 ### Documentação do próprio Claude Code (`claude-code-docs`)
 

@@ -196,3 +196,9 @@ export function detectStructuralDeps(dir: string): StructuralDependency[] {
     ...detectFromCargoToml(dir, seen),
   ];
 }
+
+if (import.meta.main) {
+  const dir = Deno.args[0] ?? ".";
+  const deps = detectStructuralDeps(dir);
+  console.log(JSON.stringify(deps, null, 2));
+}
