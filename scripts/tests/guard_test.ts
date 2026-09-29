@@ -71,3 +71,18 @@ Deno.test("sem HOME resolvido, a exceção de ~/.claude/projects/ não se aplica
     false,
   );
 });
+
+Deno.test("escrita no scratchpad da sessão ou temp é permitida — issue #342", () => {
+  assertEquals(
+    isWriteAllowed("/session/scratchpad/pr-portfolio.md", WORKTREE, ROOT),
+    true,
+  );
+  assertEquals(
+    isWriteAllowed("C:\\Users\\dev\\AppData\\Local\\Temp\\scratch\\body.md", WORKTREE, ROOT),
+    true,
+  );
+  assertEquals(
+    isWriteAllowed("/tmp/body.md", WORKTREE, ROOT),
+    true,
+  );
+});

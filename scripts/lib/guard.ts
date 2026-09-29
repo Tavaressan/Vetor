@@ -60,5 +60,20 @@ export function isWriteAllowed(
     if (isWithin(target, claudeProjectsDir)) return true;
   }
 
+  // Issue #342: scratchpad da sessão e diretórios temporários do harness ficam fora do
+  // repositório e não contaminam workers paralelos nem a raiz (follow-up da #155).
+  const segments = normalizedTarget.split("/");
+  if (segments.some((s) => s === "scratchpad" || s === "scratch")) {
+    return true;
+  }
+
+  for (const envVar of ["TMPDIR", "TEMP", "TMP"]) {
+    const tmp = Deno.env.get(envVar);
+    if (tmp && isWithin(target, tmp)) return true;
+  }
+  if (isWithin(target, "/tmp") || isWithin(target, "/var/tmp")) {
+    return true;
+  }
+
   return false;
 }

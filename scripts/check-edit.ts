@@ -96,12 +96,90 @@ function exists(path: string): boolean {
   }
 }
 
+function localBin(dir: string, name: string): string | null {
+  const bin = Deno.build.os === "windows"
+    ? `${dir}/node_modules/.bin/${name}.cmd`
+    : `${dir}/node_modules/.bin/${name}`;
+  return exists(bin) ? bin : null;
+}
+
 /** tsc local do projeto. Sem ele instalado, não há typecheck a fazer. */
 function localTsc(dir: string): string | null {
-  const bin = Deno.build.os === "windows"
-    ? `${dir}/node_modules/.bin/tsc.cmd`
-    : `${dir}/node_modules/.bin/tsc`;
-  return exists(bin) ? bin : null;
+  return localBin(dir, "tsc");
+}
+
+/** Detecta se o diretório do projeto usa Next.js. */
+export function isNextProject(dir: string): boolean {
+  if (
+    exists(`${dir}/next.config.js`) ||
+    exists(`${dir}/next.config.mjs`) ||
+    exists(`${dir}/next.config.ts`)
+  ) {
+    return true;
+  }
+  if (exists(`${dir}/package.json`)) {
+    try {
+      const pkg = JSON.parse(Deno.readTextFileSync(`${dir}/package.json`)) as {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      return Boolean(pkg.dependencies?.next || pkg.devDependencies?.next);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+export const NEXT_FALSE_POSITIVE_TYPES = ["LayoutProps", "PageProps", "RouteContext"];
+
+/**
+ * Filtra diagnósticos falsos positivos de tipos globais gerados pelo Next.js (issue #345).
+ * Em Next.js App Router, tipos como LayoutProps, PageProps e RouteContext são gerados
+ * dinamicamente por next typegen / build e podem acusar TS2304/TS2552 em tsc puro.
+ */
+export function filterNextDiagnostics(output: string): string {
+  const lines = output.split(/\r?\n/);
+  const blocks: string[][] = [];
+  let currentBlock: string[] = [];
+
+  const isErrorHeader = (line: string): boolean => {
+    return /:\d+(:\d+)?\s*-\s*error\s+TS\d+:/i.test(line) ||
+      /\(\d+,\d+\):\s*error\s+TS\d+:/i.test(line);
+  };
+
+  for (const line of lines) {
+    if (isErrorHeader(line)) {
+      if (currentBlock.length > 0) {
+        blocks.push(currentBlock);
+      }
+      currentBlock = [line];
+    } else {
+      currentBlock.push(line);
+    }
+  }
+  if (currentBlock.length > 0) {
+    blocks.push(currentBlock);
+  }
+
+  const validBlocks = blocks.filter((block) => {
+    const text = block.join("\n");
+    const isFalsePositive = NEXT_FALSE_POSITIVE_TYPES.some((typeName) =>
+      text.includes(`Cannot find name '${typeName}'`) ||
+      text.includes(`Cannot find name "${typeName}"`) ||
+      (text.includes(`'${typeName}'`) && text.includes("error TS2304")) ||
+      (text.includes(`'${typeName}'`) && text.includes("error TS2552"))
+    );
+    return !isFalsePositive;
+  });
+
+  const remaining = validBlocks
+    .map((b) => b.filter((l) => !/^Found \d+ errors?/.test(l.trim())).join("\n").trim())
+    .filter((b) => b.length > 0)
+    .join("\n\n")
+    .trim();
+
+  return remaining;
 }
 
 async function main() {
@@ -136,12 +214,26 @@ async function main() {
     const tsc = localTsc(dir);
     if (!tsc) quiet();
 
+    const isNext = isNextProject(dir);
+    if (isNext) {
+      const nextBin = localBin(dir, "next");
+      if (nextBin) {
+        // Tenta gerar os tipos globais do Next.js antes do tsc (issue #345)
+        await runWithTimeout(nextBin, ["typegen"], dir);
+      }
+    }
+
     const result = await runWithTimeout(tsc, ["--noEmit"], dir);
-    if (result && result.code !== 0 && result.output) emit(result.output);
+    if (result && result.code !== 0 && result.output) {
+      const output = isNext ? filterNextDiagnostics(result.output) : result.output;
+      if (output) emit(output);
+    }
     quiet();
   }
 
   quiet();
 }
 
-await main();
+if (import.meta.main) {
+  await main();
+}
