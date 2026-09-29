@@ -61,7 +61,7 @@ Deno.test("entrypoint: diretório com package.json imprime as deps estruturais e
   });
 });
 
-Deno.test("entrypoint: sem argumento usa \".\" (cwd) como default", async () => {
+Deno.test("entrypoint: sem argumento usa o diretório atual (cwd) como default", async () => {
   await withTempDir(async (dir) => {
     await Deno.writeTextFile(
       `${dir}/package.json`,
