@@ -81,12 +81,14 @@ case "$cmd" in
     # The caller MUST pass origin/$DEFAULT_BRANCH (not local $DEFAULT_BRANCH) to avoid
     # Stale branch references in worktrees (issue #70).
     # Exclude script/test files that define or test the regex to avoid false positives (issue #108, #109)
+    # Also exclude console.log(JSON.stringify(...)) which is intentional structured output in CLI wrappers (issue #245)
     hits=$(git diff "$base" -U0 -- '*.ts' '*.sh' '*.js' '*.tsx' '*.jsx' \
       ':!scripts/vetor-checks.sh' ':!scripts/tests/vetor-checks_test.ts' ':!skills/**/*.md' \
       ':!.opencode/scripts/vetor-checks.sh' ':!.opencode/skills/**/*.md' \
       ':!opencode/scripts/vetor-checks.sh' ':!opencode/skills/**/*.md' 2>/dev/null \
       | grep -E '^\+' | grep -vE '^\+\+\+' \
-      | grep -nE 'console\.log|var_dump|fit\(|fdescribe\(|it\.only' 2>/dev/null || true)
+      | grep -nE 'console\.log|var_dump|fit\(|fdescribe\(|it\.only' 2>/dev/null \
+      | grep -vE 'console\.log\(JSON\.stringify\(' || true)
     if [ -n "$hits" ]; then
       echo "FALHA: padrões de debug/teste exclusivo no diff (remova antes do push):" >&2
       echo "$hits" >&2
