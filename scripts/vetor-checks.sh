@@ -132,32 +132,46 @@ case "$cmd" in
     git worktree remove "$target"
     remove_status=$?
 
-    # git worktree remove DESREGISTRA o worktree e só então tenta apagar o diretório. No
-    # Windows, artefatos de build (build/, .gradle/, node_modules/) costumam estourar o limite
-    # de 260 caracteres e a exclusão falha com "Filename too long", deixando um diretório órfão
-    # que nenhuma outra checagem detecta (issue #157).
-    #
-    # O fallback abaixo só pode rodar quando remove_status -eq 0: nesse caso o git já
-    # desregistrou o worktree e o diretório em disco é resíduo seguro de remover. Se
-    # remove_status != 0, o git recusou a remoção inteira (ex.: worktree sujo, sem --force) —
-    # o worktree segue registrado e o diretório pode conter trabalho não commitado; forçar a
-    # exclusão nesse caso apagaria dados e deixaria metadata do git órfã (achado do code review
-    # da PR #169).
-    if [ "$remove_status" -eq 0 ] && [ -d "$target" ]; then
-      case "$(uname -s 2>/dev/null)" in
-        MINGW*|MSYS*|CYGWIN*)
-          # Contorna o limite de path do Windows com o prefixo \\?\, que aceita paths > 260 chars.
-          win_path=$(cygpath -w "$target" 2>/dev/null) || win_path=""
-          if [ -n "$win_path" ]; then
-            cmd //c rd /s /q "\\\\?\\$win_path" 2>/dev/null
+    # Issue #324: git worktree remove pode sair != 0 mesmo tendo desregistrado o worktree
+    # (ex.: falha ao apagar o diretório por Permission Denied transitório no Windows).
+    # Reconsulta se o worktree ainda está registrado no git.
+    still_registered=0
+    target_real=$(cd "$target" 2>/dev/null && pwd -P || echo "$target")
+    while IFS= read -r line; do
+      case "$line" in
+        "worktree "*)
+          wt_candidate="${line#worktree }"
+          wt_candidate_real=$(cd "$wt_candidate" 2>/dev/null && pwd -P || echo "$wt_candidate")
+          if [ "$wt_candidate" = "$target" ] || [ "$wt_candidate_real" = "$target_real" ]; then
+            still_registered=1
+            break
           fi
           ;;
       esac
-    fi
+    done < <(git worktree list --porcelain)
 
-    if [ "$remove_status" -ne 0 ]; then
+    if [ "$still_registered" -eq 1 ]; then
       echo "ERRO: git worktree remove recusou remover '$target' (worktree ainda registrado — possível uncommitted work). Resolva manualmente (git worktree remove --force, se apropriado) antes de prosseguir." >&2
       exit 1
+    fi
+
+    # Se já foi desregistrado do git, o diretório em disco é resíduo seguro de remover:
+    if [ -d "$target" ]; then
+      rmdir "$target" 2>/dev/null || true
+      if [ -d "$target" ]; then
+        case "$(uname -s 2>/dev/null)" in
+          MINGW*|MSYS*|CYGWIN*)
+            # Contorna o limite de path do Windows com o prefixo \\?\, que aceita paths > 260 chars.
+            win_path=$(cygpath -w "$target" 2>/dev/null) || win_path=""
+            if [ -n "$win_path" ]; then
+              cmd //c rd /s /q "\\\\?\\$win_path" 2>/dev/null || true
+            fi
+            ;;
+          *)
+            rm -rf "$target" 2>/dev/null || true
+            ;;
+        esac
+      fi
     fi
 
     if [ -d "$target" ]; then
@@ -169,6 +183,8 @@ case "$cmd" in
   sync-root)
     # Tenta retornar a raiz do repo para a branch default se a branch atual estiver limpa
     # e sem commits locais pendentes vs remote (ou sem remote tracker caso já deletada).
+    # Issue #322: quando o root já está na branch default, faz fetch e ff-only para que
+    # a onda seguinte não nasça defasada em relação a origin/$DEFAULT_BRANCH.
     common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
     ROOT=""
     [ -n "$common_dir" ] && ROOT=$(dirname "$common_dir")
@@ -177,22 +193,41 @@ case "$cmd" in
     
     DEFAULT_BRANCH=$("$0" default-branch)
     current=$(git branch --show-current 2>/dev/null)
-    [ -z "$current" ] || [ "$current" = "$DEFAULT_BRANCH" ] && exit 0
-    
+    [ -z "$current" ] && exit 0
+
     # 1. Verifica se tem uncommitted changes
     if ! git diff-index --quiet HEAD --; then
-      echo "AVISO: root tem mudanças pendentes na branch $current. Não mudando para $DEFAULT_BRANCH." >&2
+      echo "AVISO: root tem mudanças pendentes na branch $current. Não sincronizando." >&2
+      exit 0
+    fi
+
+    # Se já está na branch default:
+    if [ "$current" = "$DEFAULT_BRANCH" ]; then
+      git fetch origin "$DEFAULT_BRANCH" >/dev/null 2>&1 || true
+      if git merge-base --is-ancestor HEAD "origin/$DEFAULT_BRANCH" 2>/dev/null; then
+        if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$DEFAULT_BRANCH" 2>/dev/null)" ]; then
+          git merge --ff-only "origin/$DEFAULT_BRANCH" >/dev/null 2>&1
+          echo "Root em $DEFAULT_BRANCH sincronizado com origin/$DEFAULT_BRANCH (fast-forward)."
+        else
+          echo "Root já está em $DEFAULT_BRANCH e atualizado com origin/$DEFAULT_BRANCH."
+        fi
+      elif git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD 2>/dev/null; then
+        echo "Root já está em $DEFAULT_BRANCH (à frente de origin/$DEFAULT_BRANCH)."
+      else
+        echo "AVISO: root em $DEFAULT_BRANCH divergiu de origin/$DEFAULT_BRANCH." >&2
+      fi
       exit 0
     fi
     
-    # 2. Verifica se a branch tem commits que não estão na default
+    # 2. Se está em outra branch, verifica se tem commits que não estão na default
     if ! git merge-base --is-ancestor HEAD "origin/$DEFAULT_BRANCH" 2>/dev/null; then
       echo "AVISO: root está na branch $current que possui commits não integrados em origin/$DEFAULT_BRANCH. Não mudando para $DEFAULT_BRANCH." >&2
       exit 0
     fi
     
     git checkout "$DEFAULT_BRANCH" >/dev/null 2>&1
-    git pull origin "$DEFAULT_BRANCH" >/dev/null 2>&1
+    git fetch origin "$DEFAULT_BRANCH" >/dev/null 2>&1 || true
+    git merge --ff-only "origin/$DEFAULT_BRANCH" >/dev/null 2>&1 || git pull origin "$DEFAULT_BRANCH" >/dev/null 2>&1
     echo "Root sincronizado com $DEFAULT_BRANCH (branch anterior: $current estava limpa e mesclada)."
     ;;
 
