@@ -51,10 +51,12 @@ Os comandos de teste vêm de `.claude/vetor/module-test-map.md` ou, na ausência
 auto-detecção a partir do CI — cada primitivo já consome essa referência, sempre resolvendo o
 arquivo a partir do root do repositório (`vetor-checks.sh repo-root`), nunca do `cwd` do worktree
 (issue #160), pois arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: uma entrada
-`.claude/`) não são materializados em worktrees linkados. Se `git check-ignore -q .claude` indicar
-que `.claude/` está ignorado no projeto-alvo, você pode opcionalmente injetar os comandos de teste
-já resolvidos diretamente no prompt de cada worker despachado, como reforço redundante — a fonte de
-verdade continua sendo a resolução via root em `project-conventions.md`.
+`.claude/`) ou arquivos untracked (não versionados) não são materializados em worktrees linkados.
+Se `git check-ignore -q .claude` indicar que `.claude/` está ignorado no projeto-alvo, ou se
+`git ls-files --error-unmatch .claude/vetor/module-test-map.md` indicar que o arquivo não está
+rastreado no git (issue #327), injete os comandos de teste já resolvidos diretamente no prompt de
+cada worker despachado, como reforço redundante — a fonte de verdade continua sendo a resolução
+via root em `project-conventions.md`.
 Regras de economia de tokens e delegação a um runtime externo disponível (Gemini/OpenCode/Codex):
 `../shared/references/planning-conventions.md` e
 `../shared/references/delegate-to-runtime.md`.
@@ -285,13 +287,15 @@ origens.
 Cada subagente paralelo é uma instância Claude completa, sem contexto compartilhado — é o maior
 driver de custo agregado do coordinator.
 
-1. **Recomendação** `N_rec` = `min(nº de grupos da Fase 1, maxConcurrentWorkers de
-   .claude/vetor/config.json se existir — senão 5)`. Acima de ~8 workers, custo agregado e ruído de
-   monitoramento tendem a crescer mais rápido que o ganho de paralelismo: se `N_rec` > 8, sinalize
-   isso na pergunta. É recomendação, não limite — a decisão é do usuário.
+1. **Recomendação** `N_rec` = `min(largura da maior onda, maxConcurrentWorkers de
+   .claude/vetor/config.json se existir — senão 5)`. A largura da maior onda é o número máximo de
+   grupos que podem rodar em paralelo dentro de uma mesma onda (grupos de ondas distintas nunca rodam
+   juntos — Fase 4). Acima de ~8 workers, custo agregado e ruído de monitoramento tendem a crescer
+   mais rápido que o ganho de paralelismo: se `N_rec` > 8, sinalize isso na pergunta. É
+   recomendação, não limite — a decisão é do usuário.
 2. **Em `--headless`:** adote `N = N_rec` sem perguntar e registre no relatório qual valor foi usado
    e como foi calculado. Fora do headless, **pergunte via `AskUserQuestion`** (uma única vez por sessão):
-   - `"<N_rec> (Recomendado)"` — justifique em 1 linha (nº de grupos, custo por worker, alerta se > 8)
+   - `"<N_rec> (Recomendado)"` — justifique em 1 linha (largura da onda, custo por worker, alerta se > 8)
    - `"1 — serializado"` — mais lento, mais previsível, menor custo
    - `"<maxConcurrentWorkers de config.json>"` — só se existir e for diferente de `N_rec`
    - O usuário pode responder valor customizado ("Other"), **inclusive acima de 8** — respeite-o.
@@ -303,7 +307,9 @@ driver de custo agregado do coordinator.
 
 **Em `--headless`: pule esta seção** — inclua o plano no relatório final (Fase 7) e siga para a Fase 3.
 
-- **No Claude Code:** apresente o plano e conclua com `ExitPlanMode`.
+- **No Claude Code:** se a sessão já estiver em plan mode, apresente o plano e conclua com
+  `ExitPlanMode`. Se a sessão **não** estiver em plan mode, aprove via `AskUserQuestion` (ou chame
+  `EnterPlanMode` antes).
 - **No Antigravity/Gemini:** gere/atualize `implementation_plan.md` com `request_feedback: true` e
   `user_facing: true`, e aguarde `request_feedback: false` ou "Proceed".
 - Sem nenhum dos dois: exiba o plano no chat e aguarde resposta afirmativa explícita.
@@ -336,6 +342,12 @@ pela branch) ou pelo retorno do `Agent()`.
 - Dentro da onda corrente: quando um worker ativo atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou for
   cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
+- **Checagem de timeout da sessão.** Antes de despachar um novo grupo `QUEUED` ou iniciar uma nova
+  onda (`O_{i+1}`), verifique se o timeout global (default 90 minutos, ou `maxSessionMinutes` em
+  `.claude/vetor/config.json`) foi atingido considerando apenas tempo ativo de coordenação (excluindo
+  esperas por decisão humana via `AskUserQuestion` — issue #343). Ao atingir o teto: não despache novos
+  grupos nem novas ondas; permita que workers ativos terminem suas iterações e que grupos `GREEN` já
+  autorizados realizem ship normalmente.
 - **Transição de onda.** Só inicie o dispatch de `O_{i+1}` depois que:
   1. Todos os grupos de `O_i` **que foram efetivamente despachados** tiverem chegado a `GREEN` e
      passado pela Fase 6 (merge) — um grupo de `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING`
@@ -443,6 +455,11 @@ worker precisar de MCP, adicione-o à lista.
    é controlado pelo harness, não pelo coordinator — não há como forçar a criação diretamente a
    partir de `origin/$DEFAULT_BRANCH`), então essa instrução no prompt do worker é a rede de
    segurança que não depende do root ter avançado a tempo.
+6. **Comandos de teste pré-resolvidos (se module-test-map untracked/ignorado):** Se `git check-ignore -q .claude`
+   indicar que `.claude/` está ignorado ou se `! git ls-files --error-unmatch .claude/vetor/module-test-map.md >/dev/null 2>&1`
+   indicar que o mapa de testes não está commitado (issue #327), injete explicitamente os comandos de
+   teste resolvidos para os módulos da issue no prompt do worker, evitando que ele fique sem referências
+   de teste no worktree.
 
 Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em alguma, para e marca
 `FAILED_MAX_ITERATIONS` especificando qual issue falhou.
@@ -537,7 +554,7 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 `sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se
 imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de descartar trabalho.
 
-Após todos os agentes terminarem (ou timeout de 90 minutos):
+Após todos os agentes terminarem (ou atingido o timeout de 90 minutos / `maxSessionMinutes`):
 
 ```
 ## Coordinator Report
@@ -570,7 +587,13 @@ Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> aguardando Spec.
   deve registrar `BLOCKED_WAITING` (não decidir sozinho continuar) e escalar ao coordinator via os
   blocos `Blocked on`/`Options`/`Recommendation` do status file, em vez de estourar para 6+.
 - **worktree-ship:** máximo 3 tentativas de fix de CI
-- **Coordinator:** timeout global de 90 minutos (este sim, hard cap real)
+- **Coordinator:** timeout global de 90 minutos (este sim, hard cap real) — configurável via
+  `maxSessionMinutes` em `.claude/vetor/config.json` (default 90). O teto restringe **novos
+  dispatches e o início de novas ondas**: ao atingir o timeout, nenhum novo grupo é despachado e
+  nenhuma nova onda é iniciada. Porém, grupos ativos podem concluir sua iteração corrente e ships de
+  grupos já em `GREEN` (ou já autorizados pelo usuário) podem prosseguir até a conclusão (issue #343).
+  Para a contagem do timeout, considere apenas o tempo ativo de coordenação, excluindo períodos de
+  espera por decisões humanas (`AskUserQuestion` ou aprovação de plano).
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
 - `vetor-status.sh` destaca com `⚠️` na tabela qualquer `Iteration: N/5` com `N` acima do orçamento —
   sinal de que o agente não escalou como deveria; trate como candidato a redispatch/intervenção.

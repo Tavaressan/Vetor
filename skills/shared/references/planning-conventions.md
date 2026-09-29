@@ -54,20 +54,21 @@ Exemplo para Coordinator:
 
 #### Para skills de implementação de código (`fix-loop-agent`, `issue-worker`, e similares)
 
-* **No Claude Code**: use o plan mode nativo — apresente o plano acima e conclua com `ExitPlanMode`
-  para pedir aprovação do usuário. Este é o caminho de primeira classe no Claude Code para código,
-  não um fallback.
+* **No Claude Code**: use o plan mode nativo se a sessão já estiver em plan mode — apresente o plano
+  acima e conclua com `ExitPlanMode` para pedir aprovação do usuário. Se a sessão **não** estiver em
+  plan mode, aprove via `AskUserQuestion` (ou chame `EnterPlanMode` antes).
 * **No Antigravity/Gemini**: salve o plano no artefato `implementation_plan.md` definindo
   `request_feedback: true` nos metadados. O agente interromperá a chamada até o clique em "Proceed".
 
-#### Para skills de orquestração/ideação (`backlog-ideator`, `issue-coordinator`, `guardian`)
+#### Para skills de orquestração/ideação (`backlog-ideator`, `issue-coordinator`, `guardian`, `retro`)
 
 Estas skills realizam mutações estruturais (criar issues, orquestrar subagentes) mas **não implementam
 código de produto**. Para elas:
 
-* **No Claude Code**: exiba o plano no chat e aguarde uma resposta textual afirmativa do usuário
-  (ex.: "sim", "prosseguir"). **Não use `ExitPlanMode`** — a ferramenta a desaconselha explicitamente
-  para tarefas fora do escopo de escrita de código.
+* **No Claude Code**: se a sessão já estiver em plan mode, conclua com `ExitPlanMode`. Se a sessão
+  **não** estiver em plan mode, aprove via `AskUserQuestion` (ou exiba o plano no chat e aguarde uma
+  resposta textual afirmativa do usuário, ex.: "sim", "prosseguir") — nunca chame `ExitPlanMode`
+  fora de plan mode (issue #326).
 * **No Antigravity/Gemini**: salve o plano no artefato `implementation_plan.md` definindo
   `request_feedback: true` nos metadados. O agente interromperá a chamada até o clique em "Proceed".
 

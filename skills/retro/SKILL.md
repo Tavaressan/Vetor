@@ -104,8 +104,9 @@ Se encontrar equivalente, não proponha criar de novo — anote como "já rastre
 
 Apresente a lista de issues candidatas (após remover duplicatas) e obtenha aprovação seguindo o
 mecanismo do ecossistema atual (`../shared/references/planning-conventions.md`
-§2.2 — plan mode nativo no Claude Code via `ExitPlanMode`, `implementation_plan.md` com
-`request_feedback: true` no Antigravity, ou confirmação no chat).
+§2.2 — plan mode nativo no Claude Code via `ExitPlanMode` se a sessão já estiver em plan mode, ou
+`AskUserQuestion` caso não esteja, `implementation_plan.md` com `request_feedback: true` no
+Antigravity, ou confirmação no chat).
 
 **Pare** até a aprovação. O usuário pode aprovar todas, algumas, ou nenhuma.
 

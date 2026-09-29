@@ -137,6 +137,7 @@ Ao final, resuma:
 - Libs com regra gerada/atualizada nesta execução, com a versão consultada.
 - Libs puladas por falha de resolução/query no Context7 (passo 3).
 - Se o Context7 não estava disponível: a lista completa de libs sem regra por esse motivo (passo 2).
+- **Lembrete de commit:** Recomende ao usuário commitar os arquivos gerados em `.claude/rules/vetor/best-practices/` (ou ofereça o commit). Workers rodam em worktrees isolados que só herdam arquivos rastreados no git — regras untracked não ficam disponíveis para eles (issue #327).
 
 ---
 
