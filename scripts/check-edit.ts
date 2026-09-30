@@ -164,12 +164,10 @@ export function filterNextDiagnostics(output: string): string {
 
   const validBlocks = blocks.filter((block) => {
     const text = block.join("\n");
-    const isFalsePositive = NEXT_FALSE_POSITIVE_TYPES.some((typeName) =>
-      text.includes(`Cannot find name '${typeName}'`) ||
-      text.includes(`Cannot find name "${typeName}"`) ||
-      (text.includes(`'${typeName}'`) && text.includes("error TS2304")) ||
-      (text.includes(`'${typeName}'`) && text.includes("error TS2552"))
-    );
+    const isFalsePositive = NEXT_FALSE_POSITIVE_TYPES.some((typeName) => {
+      const exactMatch = new RegExp(`error TS(?:2304|2552):.*['"]${typeName}['"]`);
+      return exactMatch.test(text);
+    });
     return !isFalsePositive;
   });
 

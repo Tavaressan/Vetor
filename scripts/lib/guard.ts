@@ -62,9 +62,16 @@ export function isWriteAllowed(
 
   // Issue #342: scratchpad da sessão e diretórios temporários do harness ficam fora do
   // repositório e não contaminam workers paralelos nem a raiz (follow-up da #155).
+  // Segurança: o check de segmento só vale dentro da raiz do repo, home ou temp —
+  // não libera caminhos arbitrários que por acaso tenham um diretório chamado "scratch".
   const segments = normalizedTarget.split("/");
   if (segments.some((s) => s === "scratchpad" || s === "scratch")) {
-    return true;
+    if (
+      isWithin(target, root) ||
+      (home && isWithin(target, home))
+    ) {
+      return true;
+    }
   }
 
   for (const envVar of ["TMPDIR", "TEMP", "TMP"]) {

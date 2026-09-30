@@ -72,17 +72,28 @@ Deno.test("sem HOME resolvido, a exceção de ~/.claude/projects/ não se aplica
   );
 });
 
-Deno.test("escrita no scratchpad da sessão ou temp é permitida — issue #342", () => {
+Deno.test("escrita no scratchpad dentro do repo/home ou temp é permitida — issue #342", () => {
+  // scratch dentro da raiz do repo — permitido
   assertEquals(
-    isWriteAllowed("/session/scratchpad/pr-portfolio.md", WORKTREE, ROOT),
+    isWriteAllowed("/repo/scratch/pr-portfolio.md", WORKTREE, ROOT),
     true,
   );
+  // scratchpad dentro da home — permitido
   assertEquals(
-    isWriteAllowed("C:\\Users\\dev\\AppData\\Local\\Temp\\scratch\\body.md", WORKTREE, ROOT),
+    isWriteAllowed("/home/user/scratchpad/draft.md", WORKTREE, ROOT, "/home/user"),
     true,
   );
+  // /tmp — permitido via check explícito
   assertEquals(
     isWriteAllowed("/tmp/body.md", WORKTREE, ROOT),
     true,
+  );
+});
+
+Deno.test("escrita em scratch fora do repo/home/temp é bloqueada", () => {
+  // scratch em caminho arbitrário global — bloqueado
+  assertEquals(
+    isWriteAllowed("/other-project/scratch/index.ts", WORKTREE, ROOT, ""),
+    false,
   );
 });
