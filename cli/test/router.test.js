@@ -88,11 +88,20 @@ test('vetor status --help exibe ajuda do comando e não executa o status', () =>
   assert.match(result.stdout, /Mostra o status da instalação por engine/);
 });
 
+test('vetor install --help exibe ajuda do comando incluindo as opções --engines e --yes', () => {
+  const result = spawnSync(process.execPath, [binPath, 'install', '--help'], { encoding: 'utf8' });
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Uso: vetor install/);
+  assert.match(result.stdout, /--engines/);
+  assert.match(result.stdout, /-y, --yes/);
+});
+
 test('vetor uninstall --help exibe ajuda do comando e não executa o uninstall', () => {
   const result = spawnSync(process.execPath, [binPath, 'uninstall', '--help'], { encoding: 'utf8' });
   assert.equal(result.status, 0);
   assert.match(result.stdout, /Uso: vetor uninstall/);
   assert.match(result.stdout, /Remove os arquivos instalados pelo Vetor/);
+  assert.match(result.stdout, /-y, --yes/);
 });
 
 test('vetor <cmd> com flag não declarada reporta erro amigável, exit 1 e não executa o comando', () => {

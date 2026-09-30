@@ -185,3 +185,67 @@ test('install: execFileSync vetor install inclui o banner antes de "Engines dete
     assert.ok(bannerIndex < detectedIndex, 'banner deve aparecer antes da detecção de engines');
   });
 });
+
+test('install: options.yes e options.engines pula runInstallPrompts e chama installFiles diretamente', async () => {
+  await withTempDir(async (dir) => {
+    let promptsCalled = false;
+    const runInstallPrompts = async () => {
+      promptsCalled = true;
+      return [];
+    };
+    let receivedEngines;
+    const installFiles = ({ engines }) => {
+      receivedEngines = engines;
+      return { copied: ['test-file'], skipped: [] };
+    };
+
+    const output = await captureInfo(() =>
+      install(dir, {
+        yes: true,
+        engines: 'claude-code,codex',
+        runInstallPrompts,
+        installFiles,
+      }),
+    );
+
+    assert.equal(promptsCalled, false, 'runInstallPrompts não deve ser chamado');
+    assert.ok(receivedEngines);
+    assert.equal(receivedEngines.length, 2);
+    assert.equal(receivedEngines[0].id, 'claude-code');
+    assert.equal(receivedEngines[1].id, 'codex');
+    assert.match(output, /Engines selecionadas: Claude Code, Codex/);
+    assert.match(output, /1 arquivo\(s\) copiado\(s\)/);
+  });
+});
+
+test('install: options.yes e options.engines com id inválido emite erro e seta exitCode 1', async () => {
+  await withTempDir(async (dir) => {
+    const errorLines = [];
+    const origError = console.error;
+    const origExitCode = process.exitCode;
+    console.error = (msg) => errorLines.push(msg);
+
+    try {
+      process.exitCode = 0;
+      let installFilesCalled = false;
+      await install(dir, {
+        yes: true,
+        engines: 'invalida',
+        installFiles: () => {
+          installFilesCalled = true;
+          return { copied: [], skipped: [] };
+        },
+      });
+
+      assert.equal(installFilesCalled, false);
+      assert.equal(process.exitCode, 1);
+      const errMsg = errorLines.join('\n');
+      assert.match(errMsg, /Engine inválida: invalida/);
+      assert.match(errMsg, /Engines disponíveis:/);
+    } finally {
+      console.error = origError;
+      process.exitCode = origExitCode;
+    }
+  });
+});
+
