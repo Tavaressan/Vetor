@@ -13,8 +13,9 @@ pr="${1:?uso: vetor-merge.sh <pr-number>}"
 # Sai do modo draft se necessário (não falha se o PR já está ready).
 gh pr ready "$pr" 2>/dev/null || true
 
-pr_data=$(gh pr view "$pr" --json title,body,headRefName 2>/dev/null || echo "")
-pr_title=$(printf '%s' "$pr_data" | sed -n 's/.*"title":"\([^"]*\)".*/\1/p' 2>/dev/null || gh pr view "$pr" --json title -q .title 2>/dev/null || echo "")
+# Issue #325: repassa subject/body originais no squash para evitar que commits
+# intermediários com Refs #N fechem issues prematuramente.
+pr_title=$(gh pr view "$pr" --json title -q .title 2>/dev/null || echo "")
 pr_body=$(gh pr view "$pr" --json body -q .body 2>/dev/null || echo "")
 head_branch=$(gh pr view "$pr" --json headRefName -q .headRefName 2>/dev/null || echo "")
 
@@ -37,7 +38,7 @@ fi
 state=$(gh pr view "$pr" --json state -q .state 2>/dev/null || echo "UNKNOWN")
 
 if [ "$state" = "MERGED" ]; then
-  # Issue #325: como gh pr merge abortou no cleanup local, a remoção da branch remota
+  # Issue #338: como gh pr merge abortou no cleanup local, a remoção da branch remota
   # também pode não ter acontecido. Apaga a branch remota explicitamente se ainda existir.
   if [ -n "$head_branch" ]; then
     git push origin --delete "$head_branch" 2>/dev/null || true
