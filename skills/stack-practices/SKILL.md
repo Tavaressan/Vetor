@@ -61,16 +61,36 @@ frameworks web, ORMs, a lib de UI principal — nunca toda dependência declarad
 transitivas. Uma rule por utilitário/dependência transitiva infla o contexto sem ganho; o escopo
 é deliberadamente restrito ao mesmo allowlist do detector.
 
+**Pacotes irmãos (regra única, vale para todos os passos).** Pacotes que compartilham a mesma
+documentação formam um **grupo** e, daqui em diante, contam como **uma** lib: uma resolução e uma
+query (feitas com o nome do líder), um único arquivo `<líder>.md`. Grupos reconhecidos — lista
+fechada, no formato `membro → líder`; qualquer outro pacote é independente: `react-dom → react`.
+
+- O grupo entra na lista se qualquer membro foi detectado. O arquivo é sempre `<líder>.md`, mesmo
+  que só um membro esteja no projeto. A versão instalada do grupo é a do líder; se o líder não foi
+  detectado, a do primeiro membro detectado.
+- No cabeçalho e no título do passo 4, `<lib>@<versão-instalada>` vira a lista dos membros
+  detectados, cada um com a sua versão instalada (ex.: `react@19.2.8, react-dom@19.2.8`).
+- Falha ou "sem fonte oficial" no passo 3 pula o grupo inteiro — nunca só um membro.
+
 Sem `--refresh`, filtre a lista às libs que ainda **não** têm arquivo em
-`.claude/rules/vetor/best-practices/<lib>.md`. Com `--refresh`, mantenha a lista inteira.
+`.claude/rules/vetor/best-practices/<lib>.md` (`<lib>` = o líder, no caso de um grupo — assim um
+irmão já coberto não reaparece como candidato). Com `--refresh`, mantenha a lista inteira.
 
 Se a lista resultante estiver vazia (nenhuma lib estrutural detectada, ou todas já têm regra e não
 foi passado `--refresh`), reporte e pare — nada a fazer.
 
 ### 2 — Checar disponibilidade do Context7
 
-Siga o mecanismo de `mcp-availability.md`: procure por qualquer ferramenta com prefixo
-`mcp__context7__` (direta ou diferida via `ToolSearch`).
+Siga o mecanismo de `mcp-availability.md`: procure as ferramentas `resolve-library-id` e
+`query-docs` cujo **segmento de servidor** case com `context7` — `mcp__context7__…` (standalone) ou
+`mcp__plugin_<plugin>_context7__…` (empacotado), nunca por substring solta. Com mais de um segmento
+correspondente, escolha pela ordem de preferência do item 4 daquele documento.
+
+Guarde o prefixo completo escolhido (ex.: `mcp__context7__` ou `mcp__plugin_vetor_context7__`) como
+`<ctx7>`. O passo 3 usa **somente** `<ctx7>resolve-library-id` e `<ctx7>query-docs` — nunca um
+prefixo fixo. Se as ferramentas estiverem diferidas, carregue-as antes com `ToolSearch`
+(`select:<ctx7>resolve-library-id,<ctx7>query-docs`).
 
 **Se não disponível:** não gere nenhuma regra para as libs afetadas. Reporte a limitação no
 resultado final ("Context7 indisponível — nenhuma regra de melhores práticas gerada para: <libs>")
@@ -82,19 +102,44 @@ existe para evitar.
 
 Para cada lib da lista do passo 1:
 
-1. `mcp__context7__resolve-library-id` para achar o library ID a partir do nome (e, se disponível
-   na resposta, restrinja pela versão detectada no passo 1).
-2. `mcp__context7__query-docs` com uma pergunta específica e escopada, no estilo "práticas atuais
-   recomendadas e APIs deprecated para `<lib>` versão `<versão>`" — nunca uma pergunta genérica que
-   force o Context7 a devolver um resumo raso.
+1. **Resolver o library ID versionado.** Chame `<ctx7>resolve-library-id` com o nome da lib.
+   Percorra os resultados na ordem devolvida e fique com o primeiro que (a) não seja `/websites/*`
+   (site indexado — nunca produz `Source` em tag, ver item 3) e (b) liste em `Versions` ao menos uma
+   *versão de release*. Não são release: entradas `__branch__*` e pré-releases (`-canary`, `-rc`,
+   `-beta`, `-alpha`, `-next`). Escolha a versão nesta ordem: a igual à instalada (`v<V>` ou
+   `<V>`); senão a maior versão de release menor que a instalada e da mesma major (ex.: instalada
+   16.3.6, indexada até `v16.2.9` → `v16.2.9`); se a instalada for `unknown`, a maior de release
+   listada. O ID consultado é `/<org>/<projeto>/<versão-docs>` e `<versão-docs>` é esse sufixo.
+   Sem resultado que atenda (a) e (b), ou sem versão escolhível: pule a lib e registre "sem fonte
+   oficial na versão <V-instalada>" no passo 6 — não consulte o ID sem versão.
+2. **Consultar.** `<ctx7>query-docs` com o ID versionado e uma pergunta específica e escopada, no
+   estilo "práticas atuais recomendadas e APIs deprecated para `<lib>` versão `<versão-docs>`" —
+   nunca uma pergunta genérica que force o Context7 a devolver um resumo raso.
+3. **Filtro de Source.** Cada snippet devolvido traz uma linha `Source: <URL>`. Aceite o snippet só
+   se a URL for `https://github.com/<org>/<projeto>/blob/<versão-docs>/<caminho>` (ou
+   `/tree/<versão-docs>/…`), com `<org>/<projeto>` e `<versão-docs>` idênticos aos do ID consultado.
+   Isso define os dois critérios:
+   - **Oficial** = arquivo do repositório do mantenedor (o `<org>/<projeto>` do library ID — a
+     skill confia na atribuição do Context7, não verifica a origem do repositório por conta
+     própria). Não contam: agregadores (`/websites/*`, deepwiki), blogs, gists, fóruns, repositórios de outra org
+     nem snippet sem `Source`. Um site de documentação do mantenedor (ex.: `nextjs.org/docs/…`)
+     também não passa, ainda que seja do mantenedor: a URL não fixa versão.
+   - **Na tag da versão consultada** = o ref após `blob/`/`tree/` é exatamente `<versão-docs>`. Não
+     contam `blob/main/`, `blob/canary/`, qualquer outro branch, outra versão nem SHA.
 
-Se a resolução ou a query falharem para uma lib específica (lib não indexada, erro transiente),
+   Descarte os demais snippets por inteiro, incluindo texto editorial anexado a eles. Se nenhum
+   snippet sobrar: **não grave regra** para a lib e registre "sem fonte oficial na versão
+   <versão-docs>" no passo 6. Nunca preencha com snippets descartados nem com conhecimento
+   pré-treinado. Sem arquivo gravado, a lib volta como candidata na próxima execução (filtro do
+   passo 1) — comportamento esperado, igual ao de uma falha de resolução.
+
+Se a resolução ou a query falharem por outro motivo (lib não indexada, erro transiente),
 **pule só aquela lib** — reporte a falha no resultado e continue com as demais. Uma lib com erro
 nunca bloqueia a geração das regras das outras.
 
 ### 4 — Gravar a regra
 
-Para cada lib com resposta do Context7, escreva `.claude/rules/vetor/best-practices/<lib>.md`:
+Para cada lib com ao menos um snippet aceito pelo filtro de Source (passo 3, item 3), escreva `.claude/rules/vetor/best-practices/<lib>.md`:
 
 ```markdown
 ---
@@ -102,11 +147,11 @@ paths:
   - "<globs relevantes à lib, ex. '**/*.tsx' para uma lib de UI React>"
 ---
 
-> Gerado por `/vetor:stack-practices` a partir da documentação de <lib>@<versão> via Context7 em <data ISO>.
+> Gerado por `/vetor:stack-practices` a partir da documentação de <lib>@<versão-instalada> (docs consultadas: <versão-docs>) via Context7 em <data ISO>.
 > Conhecimento externo, não um fato observado neste repositório — pode ficar desatualizado.
 > Rode `/vetor:stack-practices --refresh` periodicamente. Editável — não sobrescrito sem `--refresh`.
 
-# Melhores práticas — <lib>@<versão>
+# Melhores práticas — <lib>@<versão-instalada> (docs: <versão-docs>)
 
 - <bullet curto e citável, só o que o Context7 retornou como prática atual documentada>
 - <...>
@@ -117,10 +162,14 @@ Regras:
   rules factuais de `scripts/lib/rules.ts` — nunca escreva regra de melhor prática no mesmo arquivo
   `.claude/rules/vetor/<runtime>.md` gerado pelo `/vetor`, cuja regra de ouro é "só fato observado
   localmente". `.claude/rules/vetor/best-practices/` é um diretório à parte.
+- **O cabeçalho registra a versão instalada e a versão de docs consultada**; se divergirem, o
+  passo 6 reporta a divergência.
 - `<data ISO>` é a data da consulta, não uma data fixa — usada depois pelo guardian para medir
   staleness (passo 5).
 - Bullets refletem só o que a fonte (Context7) disse — nunca elaboração ou inferência do agente
   além do que a resposta retornou.
+- **Source oficial na tag da versão consultada** (regra adicional — não substitui a anterior): só
+  entram bullets de snippets aceitos pelo filtro de Source do passo 3 (item 3).
 - Sem `--refresh`, nunca sobrescreva um arquivo já existente para a mesma lib.
 
 ### 5 — Sinalizar staleness no guardian (referência cruzada)
@@ -134,8 +183,11 @@ extra aqui, além de manter a data no cabeçalho (passo 4) precisa e atualizada 
 
 Ao final, resuma:
 - Libs detectadas no passo 1 e quais já tinham regra (puladas, sem `--refresh`).
-- Libs com regra gerada/atualizada nesta execução, com a versão consultada.
+- Libs com regra gerada/atualizada nesta execução, com a versão instalada e a versão de docs consultada.
+- **Divergências de versão** (versão instalada ≠ versão de docs indexada) — sinalize explicitamente.
 - Libs puladas por falha de resolução/query no Context7 (passo 3).
+- Libs sem regra por "sem fonte oficial na versão X" (passo 3: sem ID versionado utilizável ou
+  nenhum snippet aceito pelo filtro de Source), com a versão X.
 - Se o Context7 não estava disponível: a lista completa de libs sem regra por esse motivo (passo 2).
 
 ---
