@@ -377,6 +377,8 @@ pulando dispatch duplicado`) e **pule** o dispatch desse grupo.
 **Antes de invocar `Agent()`, o coordenador DEVE criar o status file** (path da Fase 3) com
 `Status: RUNNING` — o sandbox de isolamento pode impedir o worker de criar arquivo fora do worktree.
 Exemplo: `echo -e "# Agent Status - <branch>\nStatus: RUNNING\nIteration: 1/5 (Issue #<M>)" > <path>`.
+Enquanto o harness inicializa o worktree, `vetor-status.sh` classifica o grupo como `aguardando worktree`
+(e não como `cancelled`, issue #347).
 
 ```javascript
 Agent({
@@ -456,8 +458,10 @@ bash "$SKILL_DIR/../../scripts/vetor-status.sh"
 ```
 
 O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
-manualmente → `cancelled (worktree removed)`; não recrie) e com `gh pr list --state all`, e imprime
-a tabela. Reproduza-a no chat acrescentando os grupos `QUEUED`, e adicione a coluna `Onda` (Fase 1)
+manualmente → `cancelled (worktree removed)`; recém-despachado → `aguardando worktree`, issue #347)
+e com `gh pr list --state all`, e imprime a tabela. O script resolve o root do repositório
+automaticamente, podendo rodar no root ou dentro de qualquer worktree sem falso alarme (issue #339).
+Reproduza-a no chat acrescentando os grupos `QUEUED`, e adicione a coluna `Onda` (Fase 1)
 a cada linha — o script não conhece o DAG, então essa coluna vem do plano da Fase 2 mantido em
 memória pelo coordinator. Grupos `QUEUED` de uma onda posterior aparecem como
 `QUEUED (aguardando O_i)` para deixar explícita a razão de não terem sido despachados mesmo havendo
