@@ -168,7 +168,7 @@ Closes #<issue#>
 🤖 Desenvolvido com [Claude Code](https://claude.ai/code)
 ```
 
-Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente). Grave o corpo num arquivo temporário e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell (issue #334):
+Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente, issue #338). Grave o corpo num arquivo temporário e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell (issue #334):
 ```bash
 gh pr create \
   --title "<type>(<slug>): <resumo dos commits>" \
@@ -344,9 +344,11 @@ Aguardando aprovação antes de prosseguir com merge.
 bash "$SKILL_DIR/../../scripts/vetor-merge.sh" <PR-number>
 ```
 
-O script faz `gh pr ready` + `gh pr merge --squash --delete-branch` e verifica o estado real do PR
-quando o `gh` sai não-zero (erro de cleanup local da branch não é falha de merge):
-- **exit 0** — PR mergeado. Siga para o passo 11.
+O script faz `gh pr ready` + `gh pr merge --squash --delete-branch`, passando `--subject` e
+`--body` do PR (garantindo que o corpo do PR seja a única fonte autoritativa de fechamento de issues
+no squash, issue #338). Verifica o estado real do PR quando o `gh` sai não-zero e, em caso de merge no
+remoto com falha apenas no cleanup local, apaga a branch remota explicitamente (issue #325):
+- **exit 0** — PR mergeado e branch remota verificada/removida. Siga para o passo 11.
 - **exit 3** — merge não aconteceu. Rode `git merge "$DEFAULT_BRANCH"` localmente no worktree e siga
   `../shared/references/conflict-resolution.md`. Resolvido e verde, volte ao
   passo 7.
