@@ -48,6 +48,8 @@ if [[ "$COMMAND" =~ $ship_re ]]; then
       local_status=$(sed -n 's/^Status: *//p' "$local_status_file" | head -1 | tr -d '\r')
       if [ "$local_status" = "GREEN" ]; then
         status="GREEN"
+      elif [ -z "$status" ] && [ -n "$local_status" ]; then
+        status="$local_status"
       fi
     fi
 
