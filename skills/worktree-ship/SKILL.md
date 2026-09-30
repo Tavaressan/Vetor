@@ -350,9 +350,10 @@ aprovação explícita via `AskUserQuestion`** e só repita após o "sim". **Nun
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 ```
 
-Volta ao root e sincroniza com a branch default. (Só numa sessão manual em que você entrou no
-worktree com `EnterWorktree` é preciso sair com `ExitWorktree` antes.) Confirme pela mensagem de
-sucesso.
+Volta ao root e sincroniza com a branch default. Se o root já estiver na branch default, faz
+`git fetch` e `git merge --ff-only` com `origin/<default>` para evitar defasagem entre ondas de dispatch
+(issue #322). (Só numa sessão manual em que você entrou no worktree com `EnterWorktree` é preciso sair
+com `ExitWorktree` antes.) Confirme pela mensagem de sucesso.
 
 ### 12 — Cleanup
 
@@ -371,13 +372,12 @@ status/cache — há dois motivos distintos de falha:
 
 - **Worktree filho ativo dentro do path alvo**: mostre os paths e preserve worktree pai, branch e
   arquivos de status/cache até os filhos serem realocados.
-- **Diretório residual em disco após `git worktree remove`** (issue #157): o `git worktree remove`
+- **Diretório residual em disco após `git worktree remove`** (issues #157, #324): o `git worktree remove`
   desregistrou o worktree do git (não aparece mais em `git worktree list`) mas falhou ao apagar o
-  diretório — no Windows, tipicamente por `Filename too long` (artefatos como `build/`, `.gradle/`,
-  `node_modules/` estouram o limite de 260 caracteres). `safe-remove-worktree` já tenta uma remoção
-  com prefixo de path longo nesse caso; se mesmo assim restar, ela sai não-zero citando o path
-  residual. Reporte o path ao operador para remoção manual — não tente forçar via `rm -rf` por conta
-  própria, o diretório pode conter uncommitted work relevante para inspeção.
+  diretório — no Windows, por `Filename too long` ou `Permission denied` transitório. `safe-remove-worktree`
+  reconsulta o git: como o worktree já foi desregistrado, tenta a remoção segura do resíduo (inclusive
+  com prefixo de path longo `\\?\`); se mesmo assim restar, ela sai não-zero citando o path residual
+  para remoção manual, sem alegar falsamente uncommitted work (issue #324).
 
 Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
 branch, status file e cache de arquivos tocados).
