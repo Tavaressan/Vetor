@@ -189,6 +189,7 @@ Ao final, resuma:
 - Libs sem regra por "sem fonte oficial na versão X" (passo 3: sem ID versionado utilizável ou
   nenhum snippet aceito pelo filtro de Source), com a versão X.
 - Se o Context7 não estava disponível: a lista completa de libs sem regra por esse motivo (passo 2).
+- **Lembrete de commit:** Recomende ao usuário commitar os arquivos gerados em `.claude/rules/vetor/best-practices/` (ou ofereça o commit). Workers rodam em worktrees isolados que só herdam arquivos rastreados no git — regras untracked não ficam disponíveis para eles (issue #327).
 
 ---
 

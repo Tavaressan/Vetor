@@ -156,7 +156,7 @@ Arquivos configurados:
 
 Próximos passos recomendados:
 1. Abra e revise o arquivo `.claude/vetor/module-test-map.md` para garantir que os comandos de teste headless e os mapeamentos de pasta de seu projeto estejam 100% corretos.
-2. Revise e **commite** `.claude/rules/vetor/`. Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — uma rule não commitada não chega até eles.
+2. Revise e **commite** os arquivos de configuração e regras (`.claude/vetor/config.json`, `.claude/vetor/module-test-map.md` e `.claude/rules/vetor/`). Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — arquivos untracked não chegam até eles e deixam os workers sem mapa de testes nem regras (issue #327). Avise ou ofereça o commit caso ainda estejam untracked no git.
 3. (Opcional) Crie a pasta `.claude/vetor/docs/` e adicione guias de arquitetura, padrões do projeto e gaps em markdown. O comando `/vetor:backlog` lerá automaticamente estes arquivos para propor issues altamente contextualizadas.
 4. (Opcional) Rode `/vetor:stack-practices` para gerar regras de melhores práticas da stack detectada (via Context7).
 ```
