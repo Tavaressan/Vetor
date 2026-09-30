@@ -225,7 +225,7 @@ case "$cmd" in
       exit 0
     fi
     
-    git checkout "$DEFAULT_BRANCH" >/dev/null 2>&1
+    git checkout "$DEFAULT_BRANCH" >/dev/null 2>&1 || { echo "ERRO: Falha ao mudar para a branch $DEFAULT_BRANCH." >&2; git checkout "$current" >/dev/null 2>&1; exit 1; }
     git fetch origin "$DEFAULT_BRANCH" >/dev/null 2>&1 || true
     git merge --ff-only "origin/$DEFAULT_BRANCH" >/dev/null 2>&1 || git pull origin "$DEFAULT_BRANCH" >/dev/null 2>&1
     echo "Root sincronizado com $DEFAULT_BRANCH (branch anterior: $current estava limpa e mesclada)."
