@@ -22,3 +22,10 @@ test('vetor sem argumentos também lista os comandos', () => {
   assert.match(output, /status/);
   assert.match(output, /uninstall/);
 });
+
+test('vetor --help lista as opções globais incluindo --version e -v', () => {
+  const output = execFileSync(process.execPath, [binPath, '--help'], { encoding: 'utf8' });
+  assert.match(output, /--version/);
+  assert.match(output, /-v/);
+});
+

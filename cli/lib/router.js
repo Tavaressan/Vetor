@@ -5,6 +5,7 @@ const { update } = require('./commands/update.js');
 const { status } = require('./commands/status.js');
 const { uninstall } = require('./commands/uninstall.js');
 const { printBanner } = require('./banner.js');
+const { version } = require('../package.json');
 
 const COMMANDS = {
   install: { fn: install, description: 'Instala o Vetor no projeto atual', flags: {} },
@@ -53,6 +54,10 @@ function printHelp() {
   for (const [name, { description }] of Object.entries(COMMANDS)) {
     console.info(`  ${name.padEnd(12)} ${description}`);
   }
+  console.info('');
+  console.info('Opções:');
+  console.info('  -h, --help       Mostra esta mensagem de ajuda');
+  console.info('  -v, --version    Mostra a versão instalada');
 }
 
 function printCommandHelp(name, entry) {
@@ -130,6 +135,11 @@ function parseCommandArgs(command, entry, rawArgs) {
 
 function run(argv, callerOptions = {}) {
   const [command, ...args] = argv;
+
+  if (command === '--version' || command === '-v') {
+    console.log(version);
+    return;
+  }
 
   if (!command || command === '--help' || command === '-h') {
     printHelp();
