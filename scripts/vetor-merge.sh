@@ -13,7 +13,21 @@ pr="${1:?uso: vetor-merge.sh <pr-number>}"
 # Sai do modo draft se necessário (não falha se o PR já está ready).
 gh pr ready "$pr" 2>/dev/null || true
 
-if gh pr merge "$pr" --squash --delete-branch; then
+# Issue #325: repassa subject/body originais no squash para evitar que commits
+# intermediários com Refs #N fechem issues prematuramente.
+pr_title=$(gh pr view "$pr" --json title -q .title 2>/dev/null || echo "")
+pr_body=$(gh pr view "$pr" --json body -q .body 2>/dev/null || echo "")
+head_branch=$(gh pr view "$pr" --json headRefName -q .headRefName 2>/dev/null || echo "")
+
+merge_args=("$pr" "--squash" "--delete-branch")
+if [ -n "$pr_title" ]; then
+  merge_args+=("--subject" "$pr_title")
+fi
+if [ -n "$pr_body" ]; then
+  merge_args+=("--body" "$pr_body")
+fi
+
+if gh pr merge "${merge_args[@]}"; then
   exit 0
 fi
 
@@ -24,7 +38,12 @@ fi
 state=$(gh pr view "$pr" --json state -q .state 2>/dev/null || echo "UNKNOWN")
 
 if [ "$state" = "MERGED" ]; then
-  echo "PR #$pr mergeado no remoto; o erro veio apenas do cleanup local da branch (benigno)."
+  # Issue #338: como gh pr merge abortou no cleanup local, a remoção da branch remota
+  # também pode não ter acontecido. Apaga a branch remota explicitamente se ainda existir.
+  if [ -n "$head_branch" ]; then
+    git push origin --delete "$head_branch" 2>/dev/null || true
+  fi
+  echo "PR #$pr mergeado no remoto; branch remota verificada/removida."
   exit 0
 fi
 
