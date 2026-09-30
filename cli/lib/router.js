@@ -8,10 +8,23 @@ const { printBanner } = require('./banner.js');
 const { version } = require('../package.json');
 
 const COMMANDS = {
-  install: { fn: install, description: 'Instala o Vetor no projeto atual', flags: {} },
+  install: {
+    fn: install,
+    description: 'Instala o Vetor no projeto atual',
+    flags: {
+      engines: { type: 'string', description: 'Lista de IDs de engines separadas por vírgula' },
+      yes: { short: 'y', type: 'boolean', description: 'Confirma a instalação sem prompts interativos' },
+    },
+  },
   update: { fn: update, description: 'Atualiza a instalação existente a partir do manifesto', flags: {} },
   status: { fn: status, description: 'Mostra o status da instalação por engine', flags: {} },
-  uninstall: { fn: uninstall, description: 'Remove os arquivos instalados pelo Vetor', flags: {} },
+  uninstall: {
+    fn: uninstall,
+    description: 'Remove os arquivos instalados pelo Vetor',
+    flags: {
+      yes: { short: 'y', type: 'boolean', description: 'Confirma a desinstalação sem prompts interativos' },
+    },
+  },
 };
 
 function toCamelCase(str) {
@@ -24,7 +37,8 @@ function normalizeFlags(flags = {}) {
     const def = typeof rawDef === 'string' ? { description: rawDef } : (rawDef || {});
     const cleanName = rawKey.replace(/^--?/, '');
     const longFlag = `--${cleanName}`;
-    const shortFlag = def.short || def.alias;
+    const rawShort = def.short || def.alias;
+    const shortFlag = rawShort ? (rawShort.startsWith('-') ? rawShort : `-${rawShort}`) : undefined;
     const prop = def.property || toCamelCase(cleanName);
     const type = def.type || 'boolean';
     const description = def.description || '';

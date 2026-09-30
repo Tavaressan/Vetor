@@ -68,7 +68,9 @@ async function uninstall(cwd = process.cwd(), options = {}) {
   }
 
   console.info(`${entries.length} arquivo(s) gerenciado(s) encontrado(s).`);
-  const confirmed = await confirm('Remover todos os arquivos instalados pelo Vetor?', { input, output });
+  const confirmed = options.yes
+    ? true
+    : await confirm('Remover todos os arquivos instalados pelo Vetor?', { input, output });
   if (!confirmed) {
     console.info('Desinstalação cancelada.');
     return;
