@@ -137,7 +137,7 @@ function run(argv, callerOptions = {}) {
   const [command, ...args] = argv;
 
   if (command === '--version' || command === '-v') {
-    console.log(version);
+    console.info(version);
     return;
   }
 
