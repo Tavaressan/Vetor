@@ -218,6 +218,59 @@ Deno.test("debug-scan detecta padrão adicionado no diff — issue #93", async (
   }
 });
 
+Deno.test("debug-scan aceita console.log(JSON.stringify(...)) como saída de CLI — issue #245", async () => {
+  const repo = await makeRepo();
+  try {
+    await Deno.writeTextFile(`${repo}/app.ts`, "export const value = 1;\n");
+    await git(["add", "app.ts"], repo);
+    await git(["commit", "-q", "-m", "initial"], repo);
+    await Deno.writeTextFile(
+      `${repo}/app.ts`,
+      "export const value = 1;\nconsole.log(JSON.stringify(result, null, 2));\n",
+    );
+
+    const result = await runVetorChecks(repo, "debug-scan", "main");
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("debug-scan continua detectando console.log com string solta — issue #245", async () => {
+  const repo = await makeRepo();
+  try {
+    await Deno.writeTextFile(`${repo}/app.ts`, "export const value = 1;\n");
+    await git(["add", "app.ts"], repo);
+    await git(["commit", "-q", "-m", "initial"], repo);
+    await Deno.writeTextFile(`${repo}/app.ts`, 'export const value = 1;\nconsole.log("debug");\n');
+
+    const result = await runVetorChecks(repo, "debug-scan", "main");
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, 'console.log("debug")');
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("debug-scan detecta it.only na mesma linha de console.log(JSON.stringify(...)) — issue #245", async () => {
+  const repo = await makeRepo();
+  try {
+    await Deno.writeTextFile(`${repo}/app.ts`, "export const value = 1;\n");
+    await git(["add", "app.ts"], repo);
+    await git(["commit", "-q", "-m", "initial"], repo);
+    await Deno.writeTextFile(
+      `${repo}/app.ts`,
+      'export const value = 1;\nconsole.log(JSON.stringify(x)); it.only("t", () => {});\n',
+    );
+
+    const result = await runVetorChecks(repo, "debug-scan", "main");
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, "it.only");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
 Deno.test("debug-scan usa origin quando a branch local está desatualizada — issue #70", async () => {
   const root = await Deno.realPath(await Deno.makeTempDir());
   const source = `${root}/source`;
