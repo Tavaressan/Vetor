@@ -138,3 +138,50 @@ test('install: nunca instala sem a confirmação explícita do runInstallPrompts
     assert.doesNotMatch(output, /Engines selecionadas/);
   });
 });
+
+test('install: exibe o banner do Vetor antes da lista de engines detectadas — issue #317', async () => {
+  await withTempDir(async (dir) => {
+    let bannerCalled = false;
+    let bannerCalledBeforeDetect = false;
+    let detectCalled = false;
+
+    const printBanner = () => {
+      bannerCalled = true;
+      bannerCalledBeforeDetect = !detectCalled;
+    };
+    const detectEngines = () => {
+      detectCalled = true;
+      return [{ id: 'claude-code', name: 'Claude Code', detected: true }];
+    };
+    const runInstallPrompts = async () => [];
+
+    await install(dir, { printBanner, detectEngines, runInstallPrompts });
+
+    assert.equal(bannerCalled, true, 'printBanner deveria ter sido chamado');
+    assert.equal(bannerCalledBeforeDetect, true, 'printBanner deve ser chamado antes da detecção');
+  });
+});
+
+test('install: execFileSync vetor install inclui o banner antes de "Engines detectadas" — issue #317', () => {
+  const { execFileSync } = require('node:child_process');
+  const binPath = path.join(__dirname, '..', 'bin', 'vetor.js');
+  const { LOGO_LINES } = require('../lib/banner.js');
+
+  withTempDir((dir) => {
+    const output = execFileSync(process.execPath, [binPath, 'install'], {
+      cwd: dir,
+      encoding: 'utf8',
+      input: '',
+    });
+
+    for (const line of LOGO_LINES) {
+      assert.ok(output.includes(line), `banner ausente do stdout: ${line}`);
+    }
+
+    const bannerIndex = output.indexOf(LOGO_LINES[0]);
+    const detectedIndex = output.search(/(Engines detectadas|Nenhuma engine detectada)/);
+    assert.ok(bannerIndex >= 0, 'banner não encontrado no stdout');
+    assert.ok(detectedIndex >= 0, 'mensagem de engines detectadas não encontrada');
+    assert.ok(bannerIndex < detectedIndex, 'banner deve aparecer antes da detecção de engines');
+  });
+});

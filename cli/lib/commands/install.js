@@ -3,6 +3,7 @@
 const { detectEngines: defaultDetectEngines } = require('../installer/detector.js');
 const { runInstallPrompts: defaultRunInstallPrompts } = require('../installer/prompts.js');
 const { installFiles: defaultInstallFiles } = require('../installer/writer.js');
+const { printBanner: defaultPrintBanner } = require('../banner.js');
 
 /**
  * Comando `install`: detecta engines suportadas no projeto-alvo (ver `ENGINES` em
@@ -16,15 +17,18 @@ const { installFiles: defaultInstallFiles } = require('../installer/writer.js');
  * por arquivo para updates seguros mais tarde. Engine sem destino de arquivo confirmado
  * (`enginesSkipped`) é reportada ao usuário em vez de silenciosamente ignorada.
  *
- * `detectEngines`/`runInstallPrompts`/`installFiles`/`input`/`output` são injetáveis para
- * testes.
+ * `detectEngines`/`runInstallPrompts`/`installFiles`/`printBanner`/`input`/`output` são
+ * injetáveis para testes.
  */
 async function install(cwd = process.cwd(), options = {}) {
   const detectEngines = options.detectEngines ?? defaultDetectEngines;
   const runInstallPrompts = options.runInstallPrompts ?? defaultRunInstallPrompts;
   const installFiles = options.installFiles ?? defaultInstallFiles;
+  const printBanner = options.printBanner ?? defaultPrintBanner;
   const input = options.input ?? process.stdin;
   const output = options.output ?? process.stdout;
+
+  printBanner();
 
   const engines = detectEngines(cwd);
   const detectedNames = engines.filter((engine) => engine.detected).map((engine) => engine.name);
