@@ -76,8 +76,7 @@ for f in "$STATUS_DIR"/*.md; do
     wt="ativo"
   else
     # Issue #347: status recém-criado pelo coordinator antes do harness criar o worktree
-    raw_iter_n=$(printf '%s' "$iter" | sed -n 's#^[⚠️ ]*\([0-9][0-9]*\)/.*#\1#p')
-    if [ "$status" = "RUNNING" ] && { [ -z "$raw_iter_n" ] || [ "$raw_iter_n" -le 1 ]; }; then
+    if [ "$status" = "RUNNING" ] && { [ -z "$iter_n" ] || [ "$iter_n" -le 1 ]; }; then
       wt="aguardando worktree"
     else
       wt="cancelled (worktree removed)"
