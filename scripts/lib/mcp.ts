@@ -25,7 +25,7 @@ export function matchesMcpServer(toolName: string, serverName: string): boolean 
   // 2. Formato empacotado em plugin: mcp__plugin_<plugin>_<server>__<tool>
   // O prefixo mcp__plugin_ é seguido pelo identificador do plugin, depois "_" e o nome do servidor,
   // finalizando com "__" antes da ferramenta.
-  const pluginPattern = new RegExp(`^mcp__plugin_[^_]+_${escapeRegex(serverName)}__`);
+  const pluginPattern = new RegExp(`^mcp__plugin_.+?_${escapeRegex(serverName)}__`);
   if (pluginPattern.test(toolName)) {
     return true;
   }

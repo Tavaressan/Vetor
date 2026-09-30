@@ -30,6 +30,10 @@ Deno.test("matchesMcpServer: detecta MCP empacotado em plugin (mcp__plugin_<plug
     matchesMcpServer("mcp__plugin_custom_docker__ps", "docker"),
     true,
   );
+  assertEquals(
+    matchesMcpServer("mcp__plugin_vetor_cli_chrome-devtools__take_screenshot", "chrome-devtools"),
+    true,
+  );
 });
 
 Deno.test("matchesMcpServer: não produz falso positivo por substring solta — issue #336", () => {
