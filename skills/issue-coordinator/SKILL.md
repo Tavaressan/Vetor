@@ -556,6 +556,18 @@ Após todos os agentes terminarem (ou timeout de 90 minutos):
 Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> aguardando Spec.
 ```
 
+**Checkpoint de fechamento de onda (issue #246).** Após montar o Coordinator Report acima, confirme
+que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resultados reportados —
+**nenhum grupo do plano aprovado deve ficar sem uma linha de resultado**. Resultados válidos
+dependem do modo:
+- **Interativo**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SKIPPED (aguardando
+  Spec)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
+  despachado" e pergunte ao usuário via `AskUserQuestion` se deve despachar agora.
+- **`--headless`**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SKIPPED
+  (aguardando Spec)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
+  atingiram verde em modo headless (sem merge nessa fase). Se houver discrepância, apenas reporte o
+  grupo como "não despachado" no campo de observações; não pergunte nem redespache.
+
 **Em `--headless`, o relatório é a única saída da execução** — acrescente:
 - O plano de dispatch da Fase 2 (apenas registrado, não aprovado).
 - Para cada issue `não-trivial` sem Spec associada (gate de Spec/design, Fase 2): sinalizada, nunca
