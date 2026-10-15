@@ -113,6 +113,73 @@ Deno.test("safe-remove-worktree reporta diretório residual quando git worktree 
   }
 });
 
+Deno.test({
+  name:
+    "safe-remove-worktree não alega uncommitted work quando o git desregistra mas falha ao apagar o diretório — issue #324",
+  // No Windows o chmod 0o000 não impede a leitura: o git vê arquivos não rastreados e recusa a
+  // remoção inteira, que é outro cenário (coberto pelo teste da PR #169 abaixo).
+  ignore: Deno.build.os === "windows",
+  fn: testResidualAfterUnregister,
+});
+
+async function testResidualAfterUnregister() {
+  // O git sai != 0 depois de já ter desregistrado o worktree; a mensagem tem que ser a de
+  // resíduo em disco, nunca a de "ainda registrado".
+  const repo = await makeRepo();
+  const worktree = `${repo}/wt-residual`;
+  const lockedDir = `${worktree}/locked`;
+
+  try {
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "wt-residual", worktree], repo);
+    await Deno.mkdir(`${lockedDir}/sub`, { recursive: true });
+    await Deno.writeTextFile(`${lockedDir}/sub/file.txt`, "x");
+    await Deno.chmod(lockedDir, 0o000);
+
+    const result = await runVetorChecks(repo, "safe-remove-worktree", worktree);
+
+    assertEquals(result.code, 1);
+    assertEquals(result.stderr.includes("ainda registrado"), false);
+    assertStringIncludes(result.stderr, "desregistrou");
+    const list = await git(["worktree", "list"], repo);
+    assertEquals(list.includes("wt-residual"), false);
+  } finally {
+    await Deno.chmod(lockedDir, 0o755).catch(() => {});
+    await Deno.remove(repo, { recursive: true });
+  }
+}
+
+Deno.test("sync-root faz fast-forward quando o root já está na branch default e defasado — issue #322", async () => {
+  const base = await Deno.realPath(await Deno.makeTempDir());
+  const remote = `${base}/remote.git`;
+  const other = `${base}/other`;
+  const root = `${base}/root`;
+
+  try {
+    await git(["init", "-q", "--bare", "-b", "main", remote], base);
+    await Deno.mkdir(other);
+    await git(["init", "-q", "-b", "main"], other);
+    await git(["config", "user.email", "test@example.com"], other);
+    await git(["config", "user.name", "Test"], other);
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], other);
+    await git(["remote", "add", "origin", remote], other);
+    await git(["push", "-q", "-u", "origin", "main"], other);
+    await git(["clone", "-q", remote, root], base);
+
+    // origin/main avança a partir de outro clone; o root fica para trás na própria default.
+    await git(["commit", "-q", "--allow-empty", "-m", "segundo"], other);
+    await git(["push", "-q", "origin", "main"], other);
+    const remoteHead = await git(["rev-parse", "HEAD"], other);
+
+    const result = await runVetorChecks(root, "sync-root");
+
+    assertEquals(result.code, 0);
+    assertEquals(await git(["rev-parse", "HEAD"], root), remoteHead);
+  } finally {
+    await Deno.remove(base, { recursive: true });
+  }
+});
+
 Deno.test("safe-remove-worktree nunca força exclusão quando git worktree remove recusa (uncommitted work) — achado do code review da PR #169", async () => {
   // git worktree remove recusa remover um worktree com mudanças não commitadas (sem --force).
   // Nesse caso remove_status != 0 e o worktree segue REGISTRADO — o fallback de diretório
