@@ -265,7 +265,7 @@ do worktree (ele só enxerga o que existia no commit em que o worktree foi criad
 para configuração global ou ausente. Confirmado como causa de confusão numa das rodadas de validação
 da issue #299 (ver "Validação manual do coordinator" abaixo).
 
-> **Atualização 2026-10-15 (opencode 1.19.0):** a quarta revalidação (seção "Validação manual do coordinator") encontrou um bloqueador novo na Fase 5. No 1.19.0, o worker despachado com `--dir <worktree>` não carrega o `opencode.json` da raiz, então a regra da #313 não se aplicava (#389). **Corrigido no mesmo dia** — o script passa a gravar a regra também em `<worktree>/opencode.json` (seção "Correção da #389").
+> **Atualização 2026-10-15 (opencode 1.19.0):** a quarta revalidação (seção "Validação manual do coordinator") encontrou um bloqueador novo na Fase 5. No 1.19.0, o worker despachado com `--dir <worktree>` não carrega o `opencode.json` da raiz, então a regra da #313 não se aplicava (#389). **Corrigido no mesmo dia** — o script passa a gravar a regra também em `<worktree>/opencode.json` (seção "Correção da #389"). A quinta revalidação, no mesmo dia, executou o fluxo **ponta a ponta** (dispatch → GREEN → merge → limpeza) no Windows; ver a ressalva dos agentes globais (#392).
 
 **Resumo (atualizado 2026-09-22 — terceira revalidação da issue #299, pós-#311/#312/#313 — ver
 "Validação manual do coordinator" abaixo):** isolamento de worktree por worker (`--dir`) é
@@ -471,6 +471,20 @@ precisam de `--agent`, já que não são invocadas diretamente pelo usuário).
 > | Idem, depois de rodar o script com `"worktree": ".claude/worktrees/contributing-doc"` | `{"C:/tmp/e2e-oc/.claude/vetor/**":"allow"}`; `git status --porcelain` do worktree vazio |
 > | `opencode run --dir <worktree> --agent issue-worker`: lê `config.json` e grava `.claude/vetor/status/probe-389.md` | ✅ `→ Read` e `← Write`; conteúdo conferido no disco |
 > | Controle negativo: mesma sondagem sem `<worktree>/opencode.json` | ❌ `external_directory (C:\tmp\e2e-oc\.claude\vetor\*); auto-rejecting`, como no relatório original |
+
+### Quinta revalidação (2026-10-15 — opencode 1.19.0, após a correção da #389): ponta a ponta ✅
+
+> **Ambiente:** o mesmo da quarta revalidação (Windows 11, Git Bash, opencode 1.19.0, `C:\tmp\e2e-oc`, modelo gratuito `opencode/deepseek-v4.1-flash-free`). O repo de teste foi zerado (worktree e branch antigos removidos), e o `.opencode/` foi atualizado com `vetor update` a partir da branch da correção da #389 e commitado (`5782a80`).
+>
+> | Fase | Resultado | Evidência |
+> |---|---|---|
+> | 1-3: listagem, afinidade (#2 Sequential de #1), plano, aprovação via `--session <id>`, `git worktree add` | ✅ PASS | Worktree `.claude/worktrees/contributing-md`, branch `chore/1-contributing-md` |
+> | 4: permissão + modelo + dispatch | ⚠️ PASS após redespacho | O 1º dispatch foi auto-rejeitado: o coordinator chamou o script **sem** `worktree`. Causa (**fato**, `opencode debug agent`): o OpenCode carregou cópias **globais** antigas dos agentes (`~/.opencode/agent/*.md`, de 2026-09-22) no lugar das do projeto (#392). O coordinator se corrigiu, chamou com `"worktree"` e redespachou |
+> | 5: worker lê `config.json`, grava o status file, `GREEN` | ✅ PASS | Status file com `Status: GREEN`; #1 e #2 resolvidas na iteração 1 (commits `d115b5d`, `74e1f28`) |
+> | 6: teste → `git push` → `gh pr create` → `gh pr merge --squash` | ✅ PASS | PR #3 do repo de teste **MERGED** (2026-10-15T23:27:32Z); issues #1 e #2 fechadas pelo merge |
+> | 6.4/7: `safe-remove-worktree`, `vetor-status.sh`, `sync-root`, Coordinator Report | ✅ PASS | `safe-remove-worktree` EXIT=0 (worktree removido); `sync-root` → "Root em main sincronizado com origin/main (fast-forward)" (#322); relatório com 2 issues merged e 0 falhas |
+>
+> **Conclusão:** é o primeiro fluxo completo do coordinator portado executado **ponta a ponta no Windows** contra o CLI real, do dispatch ao merge e à limpeza. Ressalva: por causa da #392, rodou com os prompts globais antigos de `issue-coordinator`/`issue-worker` e os scripts atualizados do projeto. O texto novo da Fase 4 (passar `worktree`) não foi seguido literalmente, mas o comando que o coordinator improvisou é exatamente o que ele prescreve.
 
 O `issue-coordinator` portado nunca havia sido executado de ponta a ponta contra uma instalação
 real do OpenCode antes das validações das issues #299/#306 — o ambiente usado para portá-lo foi o
