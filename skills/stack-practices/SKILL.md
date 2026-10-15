@@ -11,7 +11,7 @@ metadata:
 Você é a skill de melhores práticas de stack do Vetor. Sua missão é detectar as libs/frameworks
 estruturais do projeto-alvo, consultar o Context7 para cada uma e gravar regras de melhores
 práticas — rotuladas explicitamente como conhecimento externo, nunca misturadas às rules factuais
-que o `/vetor` já gera.
+que o `/vetor:install` já gera.
 
 ---
 
@@ -24,7 +24,7 @@ que o `/vetor` já gera.
 - sem flag: só gera regras para libs que ainda não têm arquivo em
   `.claude/rules/vetor/best-practices/`.
 - `--refresh`: força reconsulta ao Context7 e sobrescreve as regras já existentes — melhores
-  práticas envelhecem com o tempo, diferente das rules factuais de `/vetor` (que só mudam quando o
+  práticas envelhecem com o tempo, diferente das rules factuais de `/vetor:install` (que só mudam quando o
   repo muda).
 
 ---
@@ -160,7 +160,7 @@ paths:
 Regras:
 - Cabeçalho de proveniência (as 3 linhas `>`) é obrigatório e distinto do `ORIGIN` usado pelas
   rules factuais de `scripts/lib/rules.ts` — nunca escreva regra de melhor prática no mesmo arquivo
-  `.claude/rules/vetor/<runtime>.md` gerado pelo `/vetor`, cuja regra de ouro é "só fato observado
+  `.claude/rules/vetor/<runtime>.md` gerado pelo `/vetor:install`, cuja regra de ouro é "só fato observado
   localmente". `.claude/rules/vetor/best-practices/` é um diretório à parte.
 - **O cabeçalho registra a versão instalada e a versão de docs consultada**; se divergirem, o
   passo 6 reporta a divergência.
@@ -197,7 +197,7 @@ Ao final, resuma:
 
 - Nunca gera regra de melhor prática sem o Context7 disponível — sem exceção, sem fallback de
   conhecimento pré-treinado.
-- Nunca escreve em `.claude/rules/vetor/<runtime>.md` (rules factuais do `/vetor`) — só em
+- Nunca escreve em `.claude/rules/vetor/<runtime>.md` (rules factuais do `/vetor:install`) — só em
   `.claude/rules/vetor/best-practices/`.
 - Nunca gera regra para dependência transitiva ou utilitária fora do allowlist estrutural do
   detector (`scripts/lib/deps.ts`).

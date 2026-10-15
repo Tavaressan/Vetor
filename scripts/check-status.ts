@@ -1,6 +1,6 @@
 // Guarda do status file (hook SubagentStop, matcher vetor:issue-worker).
 //
-// O issue-coordinator agrega o andamento dos workers lendo <root>/.claude/vetor/status/.
+// O coordinator agrega o andamento dos workers lendo <root>/.claude/vetor/status/.
 // Um worker que termina sem escrever o seu status file some do painel sem deixar rastro.
 // Aqui, se o status estiver ausente ou ainda RUNNING, o worker é impedido de encerrar e
 // volta a trabalhar — com o motivo no contexto.
@@ -118,7 +118,7 @@ async function main() {
   block(
     `O status file do worker não está em estado terminal (${observed}).\n` +
       `Escreva ${statusFile} com um Status entre GREEN, FAILED_MAX_ITERATIONS ou ` +
-      "BLOCKED_WAITING antes de encerrar — o issue-coordinator depende dele para agregar o " +
+      "BLOCKED_WAITING antes de encerrar — o coordinator depende dele para agregar o " +
       "resultado. O formato está em skills/shared/references/agent-status.template.md." +
       prepareNote,
   );

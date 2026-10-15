@@ -52,7 +52,7 @@ Exemplo para Coordinator:
 
 ### 2.2 Mecanismo de aprovação por ecossistema
 
-#### Para skills de implementação de código (`fix-loop-agent`, `issue-worker`, e similares)
+#### Para skills de implementação de código (`fix`, `issue-worker`, e similares)
 
 * **No Claude Code**: use o plan mode nativo se a sessão já estiver em plan mode — apresente o plano
   acima e conclua com `ExitPlanMode` para pedir aprovação do usuário. Se a sessão **não** estiver em
@@ -60,7 +60,7 @@ Exemplo para Coordinator:
 * **No Antigravity/Gemini**: salve o plano no artefato `implementation_plan.md` definindo
   `request_feedback: true` nos metadados. O agente interromperá a chamada até o clique em "Proceed".
 
-#### Para skills de orquestração/ideação (`backlog-ideator`, `issue-coordinator`, `guardian`, `retro`)
+#### Para skills de orquestração/ideação (`backlog`, `coordinator`, `guardian`, `retro`)
 
 Estas skills realizam mutações estruturais (criar issues, orquestrar subagentes) mas **não implementam
 código de produto**. Para elas:
@@ -82,7 +82,7 @@ textual afirmativa do usuário (ex.: "sim", "prosseguir") antes de prosseguir co
 ## 3. Equilíbrio de Princípios: YAGNI, KISS e DRY
 
 Regras não-óbvias de escrita de código, consumidas por referência pelos prompts do `issue-worker`
-e do `fix-loop-agent` (não replique estes parágrafos nas skills):
+e do `fix` (não replique estes parágrafos nas skills):
 
 * **Regra das 3 perguntas**: só pergunte quando houver ambiguidade crítica de arquitetura/escopo,
   e nunca mais de 3 perguntas objetivas num único turno. Se o prompt/requisitos já bastam,

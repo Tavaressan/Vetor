@@ -1,5 +1,5 @@
 // Reprodução da issue #306: `opencode agent list` só reconhece agents definidos em
-// .opencode/agent/*.md. `issue-coordinator` vivia em .opencode/skills/issue-coordinator/SKILL.md —
+// .opencode/agent/*.md. `issue-coordinator` vivia em .opencode/skills/coordinator/SKILL.md —
 // um diretório diferente, descoberto como skill, não como agent — e por isso nunca era listado nem
 // invocável via `opencode run --agent issue-coordinator "<label>"` (caía silenciosamente no agent
 // `build` default).
@@ -67,7 +67,7 @@ Deno.test({
 // Reprodução da issue #311: issue-worker e code-review tinham `mode: subagent` no frontmatter, mas
 // nunca são invocados via `task` in-process do OpenCode (não existe esse mecanismo com isolamento de
 // cwd) — o único uso real deles é como processo `opencode run --dir ... --agent <nome>` isolado,
-// disparado programaticamente pelo issue-coordinator/worktree-ship. Invocar um agent `mode: subagent`
+// disparado programaticamente pelo issue-coordinator/ship. Invocar um agent `mode: subagent`
 // diretamente via `--agent` cai silenciosamente no agent `build` default, ignorando por completo o
 // corpo do agent pedido. `mode: primary` (mesmo valor de issue-coordinator, pelo mesmo motivo) é o
 // frontmatter correto.

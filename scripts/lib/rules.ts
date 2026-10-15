@@ -17,7 +17,7 @@ export interface RuleFile {
 export const RULES_DIR = ".claude/rules/vetor";
 
 const ORIGIN =
-  "> Gerado por `/vetor` a partir do que foi detectado neste repositório. Editável — o Vetor não sobrescreve sem `--force`.";
+  "> Gerado por `/vetor:install` a partir do que foi detectado neste repositório. Editável — o Vetor não sobrescreve sem `--force`.";
 
 function render(paths: string[], title: string, lines: string[]): string {
   const globs = paths.map((p) => `  - "${p}"`).join("\n");

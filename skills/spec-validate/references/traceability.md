@@ -77,13 +77,13 @@ RF-02
 Task: Implement email verification
 ```
 
-O `issue-coordinator` (`skills/issue-coordinator/SKILL.md`) já despacha issues do GitHub para
+O `coordinator` (`skills/coordinator/SKILL.md`) já despacha issues do GitHub para
 workers isolados; a extensão futura é a **origem** dessas issues poder ser um requisito de Spec
 (`RF-NN`) em vez de uma issue criada manualmente. Para isso, cada task despachada precisaria
 referenciar o `id` do requisito que a originou — por exemplo, um campo `sourceRequirement: RF-01`
 na issue do GitHub ou no corpo da task.
 
-**Não implementado nesta issue** — geraria uma mudança grande no `issue-coordinator` (que hoje só
+**Não implementado nesta issue** — geraria uma mudança grande no `coordinator` (que hoje só
 conhece issues do GitHub, não requisitos de Spec) fora do escopo de #223. O que fica pronto é a
 garantia de que `RF-01` é um identificador estável o bastante para ser citado por uma task futura
 sem risco de a referência quebrar quando a Spec evoluir (ver item 1).

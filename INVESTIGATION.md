@@ -129,7 +129,7 @@ O script `scripts/session-check.sh` é um wrapper bash que:
 
 ### Problema Relatado
 
-Durante uma sessão de `/vetor:issue-coordinator`, o `SessionStart` hook avisa que Deno não está no PATH, mas o dispatch de um worker falha depois com `deno: command not found` quando o hook tenta executar `prepare-worktree.ts`. Isso ocorre porque:
+Durante uma sessão de `/vetor:coordinator`, o `SessionStart` hook avisa que Deno não está no PATH, mas o dispatch de um worker falha depois com `deno: command not found` quando o hook tenta executar `prepare-worktree.ts`. Isso ocorre porque:
 
 1. O hook `session-check.sh` (bash) consegue emitir aviso
 2. Mas os demais hooks (`prepare-worktree.ts`, `safety-check.ts`, etc.) rodam com `deno run -A` **direto** em hooks.json

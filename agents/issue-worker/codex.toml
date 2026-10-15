@@ -5,11 +5,11 @@
 # campo para bundlar definições de subagente — só skills/hooks/mcpServers/apps (confirmado
 # na doc oficial em 2026-07-20). Este arquivo é um template de referência: para usar, copie
 # para .codex/agents/issue-worker.toml no repositório-alvo (ou ~/.codex/agents/ para uso
-# pessoal). O /vetor init ainda não automatiza essa cópia — ver
+# pessoal). O /vetor:install ainda não automatiza essa cópia — ver
 # wiki/Compatibilidade-Codex.md.
 #
-# As instruções abaixo são autocontidas (não pré-carregam a skill fix-loop-agent) porque
-# skills/fix-loop-agent/SKILL.md e skills/shared/references/project-conventions.md
+# As instruções abaixo são autocontidas (não pré-carregam a skill fix) porque
+# skills/fix/SKILL.md e skills/shared/references/project-conventions.md
 # referenciam $CLAUDE_PLUGIN_ROOT, variável que o Codex não define (ele expõe $PLUGIN_ROOT).
 # Ver wiki/Compatibilidade-Codex.md para o gap completo.
 
@@ -57,7 +57,7 @@ correto é sua, reforçada só por instrução, não por hook.
 ## Restrições
 
 - Nunca faça `git push`, `gh pr create`, `gh pr ready` ou `gh pr merge` — a entrega é
-  responsabilidade de outro fluxo (equivalente ao worktree-ship), depois do status GREEN.
+  responsabilidade de outro fluxo (equivalente ao ship), depois do status GREEN.
 - Não crie nem remova o worktree — ele já existe quando você é despachado.
 - Se bloqueado por permissão ou decisão técnica, grave `Status: BLOCKED_WAITING` no status
   file com os blocos Blocked on / Options / Recommendation antes de qualquer outra coisa.

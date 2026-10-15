@@ -1,6 +1,6 @@
 ---
 name: worktree-create
-description: Criação headless de worktree — sem prompts interativos, todos os parâmetros via args. Primitivo usado pelo issue-coordinator e disponível como slash command standalone.
+description: Criação headless de worktree — sem prompts interativos, todos os parâmetros via args. Primitivo usado pelo coordinator e disponível como slash command standalone.
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -109,7 +109,7 @@ deno run -A "$SKILL_DIR/../../scripts/prepare-worktree.ts" --path .claude/worktr
 O script é tolerante a falhas: avisa em stderr e sai com 0 mesmo se a preparação falhar. Prossiga
 normalmente — o worker instala o que faltar.
 
-> No fluxo do `issue-coordinator`, o worktree é criado pelo harness (`isolation: "worktree"`) e a
+> No fluxo do `coordinator`, o worktree é criado pelo harness (`isolation: "worktree"`) e a
 > preparação roda sozinha via hook `WorktreeCreate`. Esta chamada só é necessária aqui, no uso
 > standalone do skill.
 
@@ -138,5 +138,5 @@ Path: .claude/worktrees/<slug>
 
 - Nunca faça perguntas ao usuário — todos os parâmetros vêm dos args
 - Nunca entre em um worktree existente — sempre aborte com erro se houver conflito
-- Nunca faça push ou crie PR — isso é responsabilidade do `worktree-ship`
-- Se invocado como primitivo por outro skill (ex.: `issue-coordinator`), o `EnterWorktree` afeta apenas a sessão local do invocador
+- Nunca faça push ou crie PR — isso é responsabilidade do `ship`
+- Se invocado como primitivo por outro skill (ex.: `coordinator`), o `EnterWorktree` afeta apenas a sessão local do invocador

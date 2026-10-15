@@ -22,23 +22,23 @@ fact-checking. A coluna de criticidade é **[Opinião]** do autor.
 | Skill/Comando | Tipo de Saída | Criticidade |
 |--------------|---------------|-------------|
 | `/vetor:spec` | Specs estruturadas (RF/RNF, Acceptance Criteria, Edge Cases) | **Alta** — specs viram contrato de implementação |
-| `/vetor:backlog-ideator` | Issues GitHub geradas por ideação | Média — passam por aprovação humana antes de criar |
+| `/vetor:backlog` | Issues GitHub geradas por ideação | Média — passam por aprovação humana antes de criar |
 | `/vetor:architecture-review` | Relatório de dívida arquitetural, achados, recomendações | **Alta** — base para decisões técnicas |
-| agente `code-review` (despachado pelo `worktree-ship`) | Achados consultivos sobre o diff da PR (bugs, arquitetura, segurança) | **Alta** — feedback direto em PRs |
-| `/vetor:issue-coordinator` | Planos de dispatch, relatórios de status | Baixa — operacional, não decisório |
+| agente `code-review` (despachado pelo `ship`) | Achados consultivos sobre o diff da PR (bugs, arquitetura, segurança) | **Alta** — feedback direto em PRs |
+| `/vetor:coordinator` | Planos de dispatch, relatórios de status | Baixa — operacional, não decisório |
 
 **Gates humanos existentes** (fonte: arquivos do próprio repositório):
 
 - **[Fato]** Specs: o rascunho é mostrado ao usuário, que decide se o salva
   (`skills/spec/SKILL.md` §6).
-- **[Fato]** Issues do `backlog-ideator`: nunca são criadas sem aprovação explícita do usuário
-  (`skills/backlog-ideator/SKILL.md`, "Restrições"). O `issue-coordinator --headless` não pede
-  aprovação do plano (`skills/issue-coordinator/SKILL.md`, seção "Modo headless").
+- **[Fato]** Issues do `backlog`: nunca são criadas sem aprovação explícita do usuário
+  (`skills/backlog/SKILL.md`, "Restrições"). O `coordinator --headless` não pede
+  aprovação do plano (`skills/coordinator/SKILL.md`, seção "Modo headless").
 - **[Fato]** O agente `code-review` é **consultivo**: publica comentário na PR e nunca bloqueia o
-  merge (`agents/code-review.md`; `skills/worktree-ship/SKILL.md` §8.5). Não é gate de aprovação
+  merge (`agents/code-review.md`; `skills/ship/SKILL.md` §8.5). Não é gate de aprovação
   humana.
 - **[Fato]** O fluxo de entrega para em review humano só quando o GitHub reporta `reviewDecision`
-  igual a `REVIEW_REQUIRED` ou `CHANGES_REQUESTED` (`skills/worktree-ship/SKILL.md` §9).
+  igual a `REVIEW_REQUIRED` ou `CHANGES_REQUESTED` (`skills/ship/SKILL.md` §9).
   **[Não verificado]** se um dado repositório de destino exige review (configuração do GitHub) —
   não foi consultado.
 
@@ -159,9 +159,9 @@ do Claude Code (§2.3). **[Não verificado]** na prática, pois não foi testado
 | Gate Atual | Natureza | Cobertura | Limitação |
 |------------|----------|-----------|-----------|
 | Aprovação humana de Specs | Gate humano | Todo rascunho é mostrado ao usuário antes de ser salvo | Depende da atenção do revisor **[Opinião]** |
-| Aprovação humana de Issues | Gate humano | `backlog-ideator` nunca cria sem aprovação; o `issue-coordinator --headless` não pede aprovação do plano | Idem |
+| Aprovação humana de Issues | Gate humano | `backlog` nunca cria sem aprovação; o `coordinator --headless` não pede aprovação do plano | Idem |
 | Agente `code-review` em PRs | **Consultivo, não é gate** | Só roda com mudança de código-fonte (PRs só de docs, lockfile ou config são puladas); publica comentário; nunca bloqueia merge | Não impede nada por si só; quem age é o humano |
-| Review humano no PR (`reviewDecision`) | Gate humano, condicional | O `worktree-ship` para quando o GitHub exige review | **[Não verificado]** se o repositório de destino exige |
+| Review humano no PR (`reviewDecision`) | Gate humano, condicional | O `ship` para quando o GitHub exige review | **[Não verificado]** se o repositório de destino exige |
 | Lenz (adicional) | Automatizado | Fact-checking multi-modelo contra a web aberta | Ver §5 |
 
 **Valor incremental:**
@@ -260,7 +260,7 @@ Cada gatilho apenas **reabre a decisão**; nenhum implica integrar.
 | Planos | "Pagos" | Plus US$ 7,99, Pro US$ 99, Scale US$ 399 (lenz.io/plans) |
 | Autenticação | "`LENZ_API_KEY`" | OAuth (sem chave) ou chave de API gratuita; `LENZ_API_KEY` é o segundo caminho (README do lenz-mcp) |
 | Gate "Code review em PRs" | Tratado como aprovação humana | Consultivo, nunca bloqueia merge (`agents/code-review.md`) |
-| Gate de Specs | "`ExitPlanMode`" | Rascunho mostrado ao usuário, que decide salvar (`skills/spec/SKILL.md` §6); `ExitPlanMode` é do plano do `issue-coordinator` |
+| Gate de Specs | "`ExitPlanMode`" | Rascunho mostrado ao usuário, que decide salvar (`skills/spec/SKILL.md` §6); `ExitPlanMode` é do plano do `coordinator` |
 | Critério de reavaliação | "Tier gratuito ou preço público" (já cumprido em 2026-09-29) | Substituído pelos gatilhos A, B e C (§5) |
 
 ---

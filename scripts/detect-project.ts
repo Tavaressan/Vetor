@@ -125,7 +125,7 @@ export function renderMap(root: ProjectInfo, modules: Module[]): string {
   return `# Module Test Map — Auto-Gerado
 
 Gerado pela auto-detecção do Vetor (runtime: **${root.runtime}**).
-Revise os comandos: eles são executados de forma headless pelo \`fix-loop-agent\` e pelo \`worktree-ship\`.
+Revise os comandos: eles são executados de forma headless pelo \`fix\` e pelo \`ship\`.
 
 ---
 
@@ -194,7 +194,7 @@ function main() {
   const force = Deno.args.includes("--force");
   const mapExisted = exists(MAP_FILE);
   // A guarda é por arquivo: um map preexistente não impede a geração das rules, senão
-  // quem já rodou o /vetor antes só as receberia com --force — que destruiria o map.
+  // quem já rodou o /vetor:install antes só as receberia com --force — que destruiria o map.
   const mapSkipped = mapExisted && !force;
 
   Deno.mkdirSync(TARGET_DIR, { recursive: true });

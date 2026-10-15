@@ -3,7 +3,7 @@ import { assertEquals } from "@std/assert";
 Deno.test("BLOCKED_WAITING escalation references the Evidence State vocabulary (issue #215)", async () => {
   const baseDir = Deno.cwd();
   const templatePath = `${baseDir}/skills/shared/references/agent-status.template.md`;
-  const fixLoopPath = `${baseDir}/skills/fix-loop-agent/SKILL.md`;
+  const fixLoopPath = `${baseDir}/skills/fix/SKILL.md`;
 
   const templateContent = await Deno.readTextFile(templatePath);
   const fixLoopContent = await Deno.readTextFile(fixLoopPath);
@@ -17,7 +17,7 @@ Deno.test("BLOCKED_WAITING escalation references the Evidence State vocabulary (
   assertEquals(
     fixLoopContent.includes("evidence-state.md"),
     true,
-    "fix-loop-agent/SKILL.md should reference evidence-state.md when guiding BLOCKED_WAITING escalation",
+    "fix/SKILL.md should reference evidence-state.md when guiding BLOCKED_WAITING escalation",
   );
 
   // Vocabulário mínimo esperado ao qualificar o motivo do bloqueio.

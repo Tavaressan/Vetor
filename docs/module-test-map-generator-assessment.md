@@ -35,7 +35,7 @@ O `detectProject` atual já resolve a detecção de runtime. Para automação co
 
 **Trigger points (onde regenerar):**
 1. **Hook `post-checkout` / `post-merge`** — regenera após mudar de branch
-2. **`/vetor` skill** — já chama `detect-project.ts --force`; pode-se adicionar chamada sem `--force`
+2. **`/vetor:install` skill** — já chama `detect-project.ts --force`; pode-se adicionar chamada sem `--force`
 3. **`worktree-create`** — regenera no worktree novo (já parcialmente faz via `prepare-worktree.ts`)
 4. **Watcher em tempo real** — desnecessário; re-gravação em batch é suficiente
 
@@ -121,7 +121,7 @@ config.json (data layer — runtime, testCommand, modules)
 project-conventions.md (reference layer — instruções para agents)
 ```
 
-O `fix-loop-agent` e `worktree-ship` já leem `project-conventions.md` que instrui a usar `module-test-map.md`. Não há acoplamento direto com o gerador — é desacoplamento correto.
+O `fix` e `ship` já leem `project-conventions.md` que instrui a usar `module-test-map.md`. Não há acoplamento direto com o gerador — é desacoplamento correto.
 
 ---
 
@@ -149,13 +149,13 @@ O `fix-loop-agent` e `worktree-ship` já leem `project-conventions.md` que instr
 ### Milestone 4: Hook de regeneração (1 dia)
 
 - [ ] Adicionar chamada a `detect-project.ts` no `worktree-create` (já parcial)
-- [ ] Adicionar chamada no `/vetor` skill (já existe com `--force`)
+- [ ] Adicionar chamada no `/vetor:install` skill (já existe com `--force`)
 - [ ] Documentar quando regenerar vs. quando pular
 
 ### Milestone 5: Integração e teste end-to-end (2 dias)
 
 - [ ] Testar cenário: criar módulo novo → regenerar mapa → verificar comando correto
-- [ ] Testar cenário: módulo sem testes → verificar skip no worktree-ship
+- [ ] Testar cenário: módulo sem testes → verificar skip no ship
 - [ ] Testar cenário: override manual → verificar preservação
 - [ ] Testar cenário: monorepo com 5+ módulos → verificar performance
 

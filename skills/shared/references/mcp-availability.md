@@ -53,14 +53,14 @@ Cada servidor abaixo casa pelas duas formas de segmento (ver "O mecanismo corret
 `context7`, `chrome-devtools` e `docker` (`.mcp.json`) — numa sessão com o vetor, o nome real
 desses três é `mcp__plugin_vetor_<server>__`.
 
-| Observabilidade (Sentry/Datadog) | `mcp__sentry__` / `mcp__datadog__` (ou `mcp__plugin_<plugin>_sentry__` / `mcp__plugin_<plugin>_datadog__`) | `backlog-ideator` §2.a (opcional) |
+| Observabilidade (Sentry/Datadog) | `mcp__sentry__` / `mcp__datadog__` (ou `mcp__plugin_<plugin>_sentry__` / `mcp__plugin_<plugin>_datadog__`) | `backlog` §2.a (opcional) |
 | Banco de dados | `mcp__<db>__` (ou `mcp__plugin_<plugin>_<db>__`; o nome `<db>` depende do MCP configurado) | `guardian` (auditoria de schema/queries) |
 | Docker | `mcp__docker__` (ou `mcp__plugin_<plugin>_docker__`; **não** `mcp__MCP_DOCKER__`) | `guardian` (auditoria de saúde de containers) |
-| Browser (chrome-devtools) | `mcp__chrome-devtools__` (ou `mcp__plugin_<plugin>_chrome-devtools__`) | `fix-loop-agent` (reproduzir bug de UI antes do fix), `worktree-ship` (checagem e2e leve antes do PR) |
-| Pesquisa web (Exa) | `mcp__exa__` (ou `mcp__plugin_<plugin>_exa__`) | `backlog-ideator` (pesquisar padrões/arquitetura antes de propor issue), `fix-loop-agent` (pesquisar mensagem de erro/documentação de uma lib externa), `issue-worker` (checar docs de API externa durante a implementação) |
-| Documentação de ferramentas/libs (Context7) | `mcp__context7__` (ou `mcp__plugin_<plugin>_context7__`) | **Obrigatório quando disponível** (ver issue vetor#163) — qualquer skill que precise pesquisar comportamento de uma ferramenta/lib/framework/API externa (`issue-worker`, `fix-loop-agent`, `guardian`, `backlog-ideator`) |
+| Browser (chrome-devtools) | `mcp__chrome-devtools__` (ou `mcp__plugin_<plugin>_chrome-devtools__`) | `fix` (reproduzir bug de UI antes do fix), `ship` (checagem e2e leve antes do PR) |
+| Pesquisa web (Exa) | `mcp__exa__` (ou `mcp__plugin_<plugin>_exa__`) | `backlog` (pesquisar padrões/arquitetura antes de propor issue), `fix` (pesquisar mensagem de erro/documentação de uma lib externa), `issue-worker` (checar docs de API externa durante a implementação) |
+| Documentação de ferramentas/libs (Context7) | `mcp__context7__` (ou `mcp__plugin_<plugin>_context7__`) | **Obrigatório quando disponível** (ver issue vetor#163) — qualquer skill que precise pesquisar comportamento de uma ferramenta/lib/framework/API externa (`issue-worker`, `fix`, `guardian`, `backlog`) |
 | Documentação do próprio Claude Code (`claude-code-docs`) | `mcp__claude-code-docs__` (ou `mcp__plugin_<plugin>_claude-code-docs__`) | **Obrigatório quando disponível** (ver issue vetor#164) — qualquer skill que precise responder sobre o funcionamento do próprio Claude Code (hooks, slash commands, MCP, permissões, SDK) (`vetor` (setup), `retro`) |
-| Memória ai-memory | `mcp__ai-memory__` | `fix-loop-agent` / `issue-worker` (consulta preventiva e registro opcional de gotchas; ver `memory-gotchas.md`) |
+| Memória ai-memory | `mcp__ai-memory__` | `fix` / `issue-worker` (consulta preventiva e registro opcional de gotchas; ver `memory-gotchas.md`) |
 
 ### Documentação de ferramentas/libs (Context7)
 
@@ -117,7 +117,7 @@ interface). Não invoque para módulos puramente backend/CLI.
 
 - **Com MCP:** navegue até a página relevante (`mcp__chrome-devtools__navigate_page`), reproduza o
   cenário (`click`/`fill`/`fill_form`) e capture evidência (`take_screenshot`,
-  `list_console_messages`, `list_network_requests`) antes de propor o fix. No `worktree-ship`, use o
+  `list_console_messages`, `list_network_requests`) antes de propor o fix. No `ship`, use o
   mesmo fluxo como checagem e2e leve (navegar pelo fluxo alterado e conferir ausência de erros de
   console) antes de abrir o PR — nunca como substituto dos testes automatizados do módulo.
 - **Sem MCP (fallback):** prossiga sem reprodução visual — baseie o diagnóstico/fix na descrição do

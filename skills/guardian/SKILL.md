@@ -84,7 +84,7 @@ Se nada for encontrado, reporte "skipped (no migrations dir)" e siga adiante.
 Se encontrado, verifique a sequência **completa** (ex.: convenção Flyway `V<N>__<descrição>.sql`):
 
 ```bash
-# duplicatas de versão — mecanismo compartilhado com o worktree-ship §2.b
+# duplicatas de versão — mecanismo compartilhado com o ship §2.b
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" migrations
 ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 ```
@@ -124,7 +124,7 @@ inspeção manual do operador antes de apagar.
 
 ### 4 — Auditoria de worktrees (idade, tamanho, PR, uncommitted)
 
-Responde "o que sobrou e por quê?" — o cleanup do `worktree-ship` (passo 12) só roda no caminho
+Responde "o que sobrou e por quê?" — o cleanup do `ship` (passo 12) só roda no caminho
 feliz; execuções que falham no CI, ficam em revisão ou são abandonadas deixam worktree órfão.
 
 ```bash
@@ -227,7 +227,7 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" architectural-risk
 
 O script resolve os módulos tocados via `git log --since="7 days ago" --name-only`, mapeados pela
 tabela "Detecção de módulo por arquivos alterados" do `module-test-map.md` (mesma resolução usada
-por `fix-loop-agent` — sempre a partir do repo-root, nunca do `cwd`, ver `project-conventions.md`).
+por `fix` — sempre a partir do repo-root, nunca do `cwd`, ver `project-conventions.md`).
 Para cada módulo tocado, mede fan-in via `grep -rlE "(import|require).*['\"].*<módulo>"` (heurística
 textual, sem AST). Emite uma linha por módulo: `<módulo>|<fan-in>|<candidate:yes/no>` —
 `candidate=yes` quando fan-in > 10 (heurística ajustável, **não** é hard cap — mesmo espírito das
@@ -239,7 +239,7 @@ revisão de design (deletion test: dificilmente removível/refazível sem espalh
 **Auto-fix (modo manual):** propõe no plano "Criar issue de revisão de design para `<módulo>`"
 (label `ai-generated`) — só executa `gh issue create` após aprovação explícita, igual aos demais
 auto-fixes do guardian. A issue criada é delegada ao fluxo humano existente
-(`backlog-ideator`/`issue-coordinator`), nunca refatorada pelo guardian.
+(`backlog`/`coordinator`), nunca refatorada pelo guardian.
 **Auto-fix (modo --cron):** apenas reporta via `SendMessage` (segue a regra global da seção "Modo
 cron" abaixo) — **nunca** propõe `implementation_plan.md` nem cria issue.
 

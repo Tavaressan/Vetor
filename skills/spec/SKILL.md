@@ -21,7 +21,7 @@ identidade estável, path previsível em `docs/specs/<slug>.md` por padrão, ove
 — sempre `update`/`create-new`/`cancel`, ver passo 6). Validação de qualidade (Quality Gate,
 rastreabilidade — Handoff #203) chega em outra issue; overwrite avançado (versionamento, merge de
 rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra (issue #225); consumo
-automático da Spec pelo `issue-coordinator` (geração de código) não é escopo desta skill — cada
+automático da Spec pelo `coordinator` (geração de código) não é escopo desta skill — cada
 estágio abaixo sinaliza explicitamente o que ainda não está implementado.
 
 ---
@@ -59,7 +59,7 @@ estágio abaixo sinaliza explicitamente o que ainda não está implementado.
   precisar de uma pergunta direta ao usuário.
 - `../shared/references/delegate-to-runtime.md` — uso opcional de um
   runtime externo disponível (Gemini/OpenCode/Codex) para resumir documentação extensa encontrada no
-  passo 1 (mesmo critério de `backlog-ideator`: acima de ~80 linhas, delegue o resumo em vez de ler
+  passo 1 (mesmo critério de `backlog`: acima de ~80 linhas, delegue o resumo em vez de ler
   tudo nativamente).
 - `../shared/references/knowledge-provider-contract.md` — contrato do
   Knowledge Provider consumido pelos passos 0.2, 1 (item 5) e 4 via `scripts/knowledge-doc.ts`.
@@ -90,7 +90,7 @@ rigor, nunca menos, na dúvida) e registre a ambiguidade em `Open Questions` no 
 
 Esta triagem é interna ao fluxo de geração da Spec — decide **quanto** processo aplicar aqui dentro
 depois que o usuário já pediu uma Spec. Uma triagem equivalente, mas orientada a decidir **se** uma
-Spec é necessária antes do dispatch de implementação, acontece em `issue-coordinator` Fase 2 (gate de
+Spec é necessária antes do dispatch de implementação, acontece em `coordinator` Fase 2 (gate de
 Spec/design) — ver `wiki/Arquitetura.md` e `wiki/Decisoes-de-Design.md`. As duas são independentes:
 esta skill nunca é invocada automaticamente por aquele gate, que apenas sinaliza a ausência de Spec.
 
@@ -394,7 +394,7 @@ entrega:
 - Knowledge Provider além de filesystem (ex.: Obsidian, issue #225);
 - geração de código a partir da Spec — esta skill só produz o documento; consumi-lo para gerar
   Issues/Tasks/Worktree/Implementation é responsabilidade de um estágio posterior do workflow (ex.:
-  `issue-coordinator`), fora do escopo desta skill.
+  `coordinator`), fora do escopo desta skill.
 
 **Path previsível (issue #219):** com o Knowledge Provider `filesystem` (default, sem config
 adicional), toda Spec é persistida em `docs/specs/<slug>.md` — o mesmo `<slug>` usado na identidade

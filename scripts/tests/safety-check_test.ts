@@ -120,7 +120,7 @@ Deno.test("coordinator pode escrever no scratchpad, na raiz e em arquivos de rel
         tool_name: "Write",
         tool_input: { file_path: target },
         cwd: worktreePath,
-        agent_type: "vetor:issue-coordinator",
+        agent_type: "vetor:coordinator",
       });
       assertEquals(code, 0, stderr);
     }
@@ -481,9 +481,9 @@ Deno.test("cwd contaminado: mesmo agent_id e mesmo worktree em chamadas repetida
 });
 
 Deno.test("cwd contaminado: redispatch via cd explícito (sem subagent_type/agent_type) não é bloqueado por agent_id reciclado — issue #151", async () => {
-  // Reprodução do padrão descrito na issue #151: o issue-coordinator redespacha um worker cujo
+  // Reprodução do padrão descrito na issue #151: o coordinator redespacha um worker cujo
   // worktree já existe usando um Agent() genérico, sem `subagent_type` (logo sem `agent_type` no
-  // payload do hook) e com um `cd` explícito para o worktree — ver issue-coordinator/SKILL.md
+  // payload do hook) e com um `cd` explícito para o worktree — ver coordinator/SKILL.md
   // Fase 4. Nesse modo, o harness não garante `agent_id` único por worktree/instância (ao
   // contrário do dispatch nativo com `isolation: "worktree"`), então o mesmo `agent_id` pode
   // legitimamente aparecer associado a worktrees diferentes ao longo da sessão — não deve ser

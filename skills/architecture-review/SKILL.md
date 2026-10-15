@@ -55,7 +55,7 @@ candidatos comparáveis num relatório visual, e aprofundando com o usuário o c
 ### 0 — Modo de operação
 
 Esta skill é **sempre invocação manual e síncrona** — nunca aceita `--cron`, nunca é despachada pelo
-`issue-coordinator` (não há `subagent_type` correspondente; se você foi despachado por um coordinator
+`coordinator` (não há `subagent_type` correspondente; se você foi despachado por um coordinator
 ou rodando headless sem interlocutor, pare e reporte que esta skill exige sessão interativa). Não
 produz `implementation_plan.md` — não é um mecanismo de auto-fix, é uma sessão exploratória com o
 usuário.
@@ -144,7 +144,7 @@ implementação não).
 `.claude/vetor/docs/CONTEXT.md`, resolva e registre-o durante a rodada — mecanismo idêntico ao de
 `grilling-conventions.md` §5 (lazy, nunca criado preventivamente).
 
-**Oferta de ADR:** diferente do `backlog-ideator` (que não oferece ADR — #177 decisão 7), esta skill
+**Oferta de ADR:** diferente do `backlog` (que não oferece ADR — #177 decisão 7), esta skill
 oferece porque decisão arquitetural é o próprio caso de uso central. Ofereça um ADR quando:
 1. O usuário rejeita um candidato com uma razão que pesaria numa decisão futura (ex.: "não, porque
    sempre vamos precisar trocar esse driver"), **ou**
@@ -166,22 +166,22 @@ silenciosamente.
 ### 4 — Encerramento
 
 Ao final da Fase 3 (ou da Fase 2, se o usuário não escolher nenhum candidato), pergunte ao usuário se
-deseja que o `backlog-ideator` proponha uma issue formal para o candidato trabalhado (modo avulsa,
+deseja que o `backlog` proponha uma issue formal para o candidato trabalhado (modo avulsa,
 uma única proposta). **Nunca crie a issue você mesmo** — apenas ofereça o encaminhamento.
 
 ---
 
 ## Restrições
 
-- Nunca aceita `--cron` e nunca é despachada pelo `issue-coordinator` — é sempre síncrona, manual,
+- Nunca aceita `--cron` e nunca é despachada pelo `coordinator` — é sempre síncrona, manual,
   com humano no loop.
 - Nunca produz `implementation_plan.md` — não é um mecanismo de auto-fix.
 - Nunca cria issue, PR ou commit por conta própria. Ao final, apenas pergunta se o usuário quer que o
-  `backlog-ideator` proponha uma issue (§4).
+  `backlog` proponha uma issue (§4).
 - O relatório HTML é sempre escrito em `$TMPDIR`, nunca no repositório do projeto-alvo.
 - ADR é sempre apresentada para aprovação antes de gravar — nunca um write silencioso.
 - Fora do escopo desta skill (issue #185): agendamento automático (`CronCreate`) para lembrar de
-  rodar periodicamente — fica recomendação de uso, não mecanismo; integração com `issue-coordinator`/
+  rodar periodicamente — fica recomendação de uso, não mecanismo; integração com `coordinator`/
   dispatch paralelo; sub-agentes paralelos de "design-it-twice" (explorar duas interfaces
   alternativas simultaneamente) — pode ser mencionado ao usuário como próximo passo manual, não
   implementado aqui.

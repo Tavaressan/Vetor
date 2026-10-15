@@ -1,7 +1,7 @@
 # Disciplina de TDD (Vetor)
 
 Fonte única da disciplina de TDD do Vetor — consumida por referência (sem replicar texto) por
-`planning-conventions.md` §3, `fix-loop-agent/SKILL.md` §3.b e `agents/issue-worker.md`. Adapta o
+`planning-conventions.md` §3, `fix/SKILL.md` §3.b e `agents/issue-worker.md`. Adapta o
 conjunto `engineering/tdd/SKILL.md` + `tests.md` + `mocking.md` de Matt Pocock
 (github.com/mattpocock/skills) ao modo **headless** do Vetor — sem sessão síncrona de confirmação
 com o usuário.
@@ -22,22 +22,22 @@ seu comportamento externo, o teste está acoplado à implementação, não ao co
 ## 2. Seams (adaptado ao modo headless)
 
 O mattpocock exige confirmar o *seam* (ponto de encaixe do teste, i.e. qual interface pública
-testar) com o usuário antes de escrever o teste. `issue-worker` e `fix-loop-agent` rodam headless,
+testar) com o usuário antes de escrever o teste. `issue-worker` e `fix` rodam headless,
 sem interlocutor disponível para essa confirmação síncrona.
 
 **Adaptação — campo da issue primeiro**: antes de inferir, verifique se a issue original já declara
 o seam (`gh issue view <N>` — bloco `## Contexto`, campo `Seam de Teste:`, preenchido pelo
-`backlog-ideator` e confirmado pelo usuário no checkpoint de aprovação da criação da issue). Se
+`backlog` e confirmado pelo usuário no checkpoint de aprovação da criação da issue). Se
 presente, use-o diretamente — não infira do zero. Isso cobre issues criadas pelo `/backlog`, cuja
 confirmação síncrona já aconteceu enquanto havia humano no loop, antes da implementação headless.
 
 **Fallback — inferência automática**: se o campo estiver ausente (issue criada manualmente, por
-versão anterior do `backlog-ideator`, ou fora dele), infira o seam automaticamente a partir da
+versão anterior do `backlog`, ou fora dele), infira o seam automaticamente a partir da
 interface pública já mapeada no módulo (`module-test-map.md` — comando headless e módulo associado
 ao path alterado). Se o seam correto for ambíguo (ex.: módulo sem interface pública clara, ou o path
 alterado não mapeia para nenhum módulo conhecido), o worker registra `Status: BLOCKED_WAITING`
 (mecanismo já existente em `agent-status.template.md`) em vez de inventar uma interação síncrona
-nova — reaproveita a escalação que o `issue-coordinator` já sabe tratar.
+nova — reaproveita a escalação que o `coordinator` já sabe tratar.
 
 ## 3. Três anti-padrões nomeados
 
@@ -53,7 +53,7 @@ Evite estes três padrões ao escrever o teste de reprodução:
 3. **Horizontal slicing** — escrever todos os testes de todos os cenários antes de implementar
    qualquer um deles. Regra oposta obrigatória: **vertical slice** (também chamado *tracer bullet*)
    — um teste, uma implementação mínima que o faz passar, repete. Isso já é, na prática, o que o
-   loop do `fix-loop-agent` §3.b faz iteração a iteração; esta seção só nomeia a regra
+   loop do `fix` §3.b faz iteração a iteração; esta seção só nomeia a regra
    explicitamente.
 
 ## 4. Regras do loop vermelho-verde
@@ -64,10 +64,10 @@ Evite estes três padrões ao escrever o teste de reprodução:
 - **Uma fatia por vez**: um teste por iteração (vertical slice, ver §3.3). Não acumule múltiplos
   cenários não relacionados num único teste nem escreva testes para comportamento ainda não
   implementado.
-- **Refactor não é parte deste ciclo**: o ciclo vermelho-verde do `fix-loop-agent`/`issue-worker` não
+- **Refactor não é parte deste ciclo**: o ciclo vermelho-verde do `fix`/`issue-worker` não
   deve tentar refatorar código adjacente ou melhorar arquitetura durante o fix. Achados de
   refatoração/arquitetura ficam para o `code-review`, agente separado despachado depois pelo
-  `worktree-ship` (ver issue #178) — é o estágio dedicado a esse tipo de achado.
+  `ship` (ver issue #178) — é o estágio dedicado a esse tipo de achado.
 
 ## 5. Mocking
 

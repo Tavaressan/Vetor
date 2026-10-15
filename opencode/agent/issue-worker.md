@@ -1,5 +1,5 @@
 ---
-description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge — isso é responsabilidade do worktree-ship. Despachado pelo issue-coordinator, um processo `opencode run --dir` por issue.
+description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge — isso é responsabilidade do ship. Despachado pelo issue-coordinator, um processo `opencode run --dir` por issue.
 mode: primary
 model: anthropic/claude-haiku-4-5
 permission:
@@ -58,7 +58,7 @@ registre `BLOCKED_WAITING`** no status file — não prossiga adivinhando o dire
 - **Nunca** faça `git push`, `gh pr create`, `gh pr ready` ou `gh pr merge` — bloqueado tanto por
   `permission.bash` acima quanto pelo plugin `opencode/plugin/vetor.ts` (`tool.execute.before`)
   enquanto seu status file não estiver `GREEN`. Se sua tarefa parecer exigir isso, registre
-  `BLOCKED_WAITING`; o `worktree-ship` faz a entrega depois do `GREEN`.
+  `BLOCKED_WAITING`; o `ship` faz a entrega depois do `GREEN`.
 - Não crie nem remova o worktree — ele já existe quando você é despachado.
 - Se bloqueado por permissão ou decisão técnica, grave `Status: BLOCKED_WAITING` no status file
   (blocos `Blocked on` / `Options` / `Recommendation`) antes de qualquer outra coisa.

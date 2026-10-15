@@ -67,8 +67,8 @@ todo provider as oferece.
 
 `FilesystemKnowledgeProvider` nunca lê este arquivo de configuração — ele funciona de forma idêntica
 com `knowledge` ausente, desabilitado ou habilitado. A leitura de `config.json` fica isolada em
-`detectKnowledgeState()`, usada apenas para reportar o estado na inicialização do `/vetor` (ver
-`skills/vetor/SKILL.md` §2 e §3).
+`detectKnowledgeState()`, usada apenas para reportar o estado na inicialização do `/vetor:install` (ver
+`skills/install/SKILL.md` §2 e §3).
 
 ## Estado reportado na inicialização
 

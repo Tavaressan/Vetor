@@ -92,7 +92,7 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
       `ERROR: worker não-GREEN (Status: ${
         status || "desconhecido"
       }) — push/PR bloqueado pelo Vetor Safety Hook.\n` +
-        "Registre BLOCKED_WAITING no status file se precisar de intervenção; o worktree-ship faz a entrega após GREEN.",
+        "Registre BLOCKED_WAITING no status file se precisar de intervenção; o ship faz a entrega após GREEN.",
     );
   }
 }

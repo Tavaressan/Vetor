@@ -3,8 +3,8 @@
 Referência compartilhada para economizar tokens delegando **tarefas mecânicas e de baixo
 risco** a um CLI externo de IA. Padrão: **o runtime delegado rascunha, Claude valida.**
 
-Consumida por `worktree-ship`, `fix-loop-agent`, `backlog-ideator`, `guardian` e
-`issue-coordinator`.
+Consumida por `ship`, `fix`, `backlog`, `guardian` e
+`coordinator`.
 
 Generaliza o antigo acoplamento a um único CLI (`agy` — Google Antigravity/Gemini CLI): a
 delegação agora suporta qualquer runtime candidato (Gemini/`agy`, OpenCode/`opencode`,
@@ -55,7 +55,7 @@ anexo de arquivo (ex.: `-f/--file` do `opencode`) se a tarefa permitir.
 em todas as tarefas de §4. Se preferir `agy`, consulte a linha da tabela do §1 para limitações e alternativas.)
 
 Ausência do bloco `delegation` (ou do `config.json` inteiro) nunca é erro — mesmo contrato do
-bloco `knowledge` (ver `skills/vetor/SKILL.md`).
+bloco `knowledge` (ver `skills/install/SKILL.md`).
 
 ## 2. Algoritmo de seleção
 
@@ -73,11 +73,11 @@ Com `available` (lista detectada) e `preferred` (config, pode ser `null`):
    ambiguidade entre runtimes a resolver, então não é necessário perguntar (a anuência explícita
    só é exigida "quando houver mais de um runtime viável e nenhuma preferência registrada").
 4. **Sem `preferred`, `available` com 2+ candidatos (ambíguo):**
-   - **Sessão interativa** (há interlocutor, ex.: `issue-coordinator` fora de `--headless`):
+   - **Sessão interativa** (há interlocutor, ex.: `coordinator` fora de `--headless`):
      pergunte ao usuário qual runtime usar (mecanismo de seleção interativa da skill, quando
      disponível). Ofereça salvar a escolha em `delegation.preferredRuntime` para não perguntar de
      novo.
-   - **Sessão headless** (`fix-loop-agent`, `issue-worker`, `guardian`, `backlog-ideator` sem
+   - **Sessão headless** (`fix`, `issue-worker`, `guardian`, `backlog` sem
      interlocutor): **critério de desempate documentado é sempre inline** — nunca escolha
      silenciosamente entre candidatos não consentidos. Isso é intencional mesmo que sacrifique
      uma oportunidade de economia de tokens: é o preço de não assumir uma preferência que
@@ -134,7 +134,7 @@ negação de permissão, saída vazia/corrompida) — não só ausência do bin�
    simplicidade do "sem retry" evita loops de tentativa em CLIs com falhas erráticas.
 2. **Use o fallback inline imediatamente** — monte a descrição, o resumo ou o rascunho
    manualmente usando o template padrão fornecido na skill (ex.: template de PR padrão em §6 do
-   `worktree-ship`).
+   `ship`).
 3. **Prossiga sem atraso** — evita I/O desnecessário e mensagens de erro em sessões com
    auto-mode restritivo.
 
@@ -157,11 +157,11 @@ gh run view <run-id> --log-failed \
   | $DELEGATE "Resuma a causa raiz das falhas neste log de CI em até 15 linhas, citando arquivo:linha quando houver. Não invente; se não houver causa clara, diga isso."
 ```
 
-O Claude lê o resumo e **decide o fix**. Usado por `worktree-ship` (monitorar CI) e
-`fix-loop-agent` (avaliar resultado dos testes).
+O Claude lê o resumo e **decide o fix**. Usado por `ship` (monitorar CI) e
+`fix` (avaliar resultado dos testes).
 
 ### 4.2. Rascunhar texto de issues
-Em `backlog-ideator`, gere a primeira versão do corpo da issue:
+Em `backlog`, gere a primeira versão do corpo da issue:
 
 ```bash
 $DELEGATE "Escreva o corpo de uma issue GitHub (descrição + critério de aceite verificável) para: <tema>. Conciso, em PT-BR."
@@ -171,7 +171,7 @@ O Claude **revisa e ancora** o rascunho na documentação do projeto antes de cr
 `gh issue create`.
 
 ### 4.3. Rascunhar mensagens de commit e relatórios
-Mensagens de commit (`fix-loop-agent`, `worktree-ship`) e o relatório do `guardian`:
+Mensagens de commit (`fix`, `ship`) e o relatório do `guardian`:
 
 ```bash
 git diff --staged | $DELEGATE "Escreva uma mensagem de commit conventional commits (uma linha de subject + corpo opcional) para este diff."
@@ -180,7 +180,7 @@ git diff --staged | $DELEGATE "Escreva uma mensagem de commit conventional commi
 O Claude valida o rascunho antes de usar.
 
 ### 4.4. Rascunhar corpo/descrição de Pull Request
-Em `worktree-ship`, gere a primeira versão da descrição do Pull Request com base no diff acumulado da branch em relação à branch default do projeto:
+Em `ship`, gere a primeira versão da descrição do Pull Request com base no diff acumulado da branch em relação à branch default do projeto:
 
 ```bash
 git diff "$DEFAULT_BRANCH"...HEAD | $DELEGATE "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
@@ -189,7 +189,7 @@ git diff "$DEFAULT_BRANCH"...HEAD | $DELEGATE "Escreva uma descrição concisa e
 O Claude **revisa e formata** a descrição antes de passá-la ao comando `gh pr create --body`.
 
 ### 4.5. Análise de afinidade e agrupamento de issues
-Em `issue-coordinator`, delegue a varredura e o agrupamento preliminar de issues em lote:
+Em `coordinator`, delegue a varredura e o agrupamento preliminar de issues em lote:
 
 ```bash
 gh issue list --label <label> --state open --json number,title,labels,body \
@@ -199,7 +199,7 @@ gh issue list --label <label> --state open --json number,title,labels,body \
 O Claude **valida a afinidade**, resolve eventuais erros do rascunho e constrói a tabela final de dispatch.
 
 ### 4.6. Geração de Changelog de Sessão
-No `issue-coordinator`, delegue a criação do changelog consolidado a partir do histórico de commits da sessão. **Sempre limite o range** (a regra de 100 linhas de `planning-conventions.md` §1.1 vale para histórico de git também) — `origin/main...HEAD` sozinho não é suficiente como limite: uma branch de longa duração e nunca rebaseada pode produzir um range enorme. Use um cap numérico fixo além do range:
+No `coordinator`, delegue a criação do changelog consolidado a partir do histórico de commits da sessão. **Sempre limite o range** (a regra de 100 linhas de `planning-conventions.md` §1.1 vale para histórico de git também) — `origin/main...HEAD` sozinho não é suficiente como limite: uma branch de longa duração e nunca rebaseada pode produzir um range enorme. Use um cap numérico fixo além do range:
 
 ```bash
 git log origin/main...HEAD --oneline -200 | $DELEGATE "Com base nestes commits, crie um Changelog em markdown em PT-BR organizado pelas seções: Melhorias (features), Correções (fixes) e Outros."
@@ -217,7 +217,7 @@ ls "$MIGRATIONS_DIR" | $DELEGATE "Examine esta listagem de arquivos de migration
 O Claude **avalia os findings apontados** e os compila no relatório da auditoria.
 
 ### 4.8. Resumo Conceitual da Arquitetura
-No `backlog-ideator`, envie arquivos longos de documentação para obter uma síntese executiva de apoio à ideação:
+No `backlog`, envie arquivos longos de documentação para obter uma síntese executiva de apoio à ideação:
 
 ```bash
 cat ARCHITECTURE.md docs/*.md | $DELEGATE "Gere um resumo arquitetural consolidado deste projeto contendo os principais padrões de design e módulos, para que um agente possa compreender a estrutura do sistema rapidamente."
@@ -230,7 +230,7 @@ O Claude **usa este sumário como âncora conceitual** sem precisar ler dezenas 
 ## 5. Guardrail (invariante — não negociável, independe do runtime)
 
 **NUNCA delegue a nenhum runtime externo:**
-- Aplicação de correções de código / geração de diffs (`fix-loop-agent`)
+- Aplicação de correções de código / geração de diffs (`fix`)
 - Resolução de conflitos de merge
 - Decisão de fazer (ou não) merge
 

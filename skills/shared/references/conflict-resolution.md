@@ -1,6 +1,6 @@
 # Resolução de conflitos de merge
 
-Procedimento compartilhado, usado pelo `worktree-ship` (passos 2 e 10) quando `git merge` da branch
+Procedimento compartilhado, usado pelo `ship` (passos 2 e 10) quando `git merge` da branch
 default deixa arquivos conflitantes.
 
 ## Princípio geral — Resolver por intenção
@@ -74,7 +74,7 @@ remova os marcadores.
 
 1. Execute os testes do módulo correspondente via `module-test-map`.
 2. **Verde:** commite (`merge branch '$DEFAULT_BRANCH' and resolve conflicts`), `git push origin <branch>`.
-3. **Vermelho:** chame o `fix-loop-agent` localmente. Se as iterações estourarem sem verde, aborte o
+3. **Vermelho:** chame o `fix` localmente. Se as iterações estourarem sem verde, aborte o
    merge, preserve o worktree e alerte o usuário.
 
 ⚠️ **Nunca rode `git stash` (ou `git checkout` para outro branch) enquanto um merge está em conflito
@@ -91,4 +91,4 @@ git show "origin/$DEFAULT_BRANCH:<path>"
 Se `MERGE_HEAD` já foi perdido por engano, refaça o merge do zero (`git merge --abort` se ainda
 houver estado parcial recuperável, ou `git merge -s ours "origin/$DEFAULT_BRANCH" -m "merge branch
 '$DEFAULT_BRANCH' and resolve conflicts"` para registrar o segundo pai sem alterar a árvore já
-resolvida) antes de prosseguir para o passo 2 do `worktree-ship`.
+resolvida) antes de prosseguir para o passo 2 do `ship`.

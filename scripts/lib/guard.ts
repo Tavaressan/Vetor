@@ -2,7 +2,7 @@
 //
 // Com até 5 workers em paralelo, um Edit/Write apontando para fora do worktree contamina
 // o trabalho dos outros. A única exceção é o status file, escrito na raiz de propósito
-// (é por ele que o issue-coordinator agrega o andamento).
+// (é por ele que o coordinator agrega o andamento).
 
 /** Resolve `.`/`..` e uniformiza separadores. Não toca no disco: o alvo pode não existir. */
 export function normalizePath(path: string): string {

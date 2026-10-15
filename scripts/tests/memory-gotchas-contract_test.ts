@@ -4,7 +4,7 @@ const root = new URL("../../", import.meta.url);
 const reference = await Deno.readTextFile(
   new URL("skills/shared/references/memory-gotchas.md", root),
 );
-const fixLoop = await Deno.readTextFile(new URL("skills/fix-loop-agent/SKILL.md", root));
+const fixLoop = await Deno.readTextFile(new URL("skills/fix/SKILL.md", root));
 const issueWorker = await Deno.readTextFile(new URL("agents/issue-worker.md", root));
 
 Deno.test("issue #370: consulta e registro de gotchas são opcionais e não bloqueiam o fluxo", () => {

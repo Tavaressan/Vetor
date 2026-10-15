@@ -4,7 +4,7 @@ paths:
   - "**/*.tsx"
 ---
 
-> Gerado por `/vetor` a partir do que foi detectado neste repositório. Editável — o Vetor não sobrescreve sem `--force`.
+> Gerado por `/vetor:install` a partir do que foi detectado neste repositório. Editável — o Vetor não sobrescreve sem `--force`.
 
 # Convenções Deno (detectadas)
 
