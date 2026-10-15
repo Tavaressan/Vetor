@@ -19,6 +19,14 @@
 // repositório principal, em vez de reescrever um `.md` de agent compartilhado (opção 1 da issue,
 // descartada por risco de corrida entre workers paralelos editando o mesmo arquivo).
 //
+// Issue #389 — a premissa do walk-up acima não vale no opencode 1.19.0: com `--dir <worktree>`, a
+// config resolvida (`opencode debug config` rodado no worktree) não traz a regra gravada só na
+// raiz, e o worker volta a ser auto-rejeitado. Por isso, quando recebe `worktree`, o script grava
+// a mesma regra também em `<worktree>/opencode.json` — arquivo que o 1.19 carrega — e põe
+// `/opencode.json` no `info/exclude` do repositório (compartilhado pelos worktrees), para o worker
+// não commitar um path absoluto da máquina. Se o projeto versiona `opencode.json`, o script recusa
+// (código 1): mesclar ali alteraria um arquivo rastreado do usuário dentro do worktree.
+//
 // Idempotente por desenho: seguro de chamar a cada dispatch (Fase 3 e Fase 4, inclusive
 // redespacho/`--resume`, onde a Fase 3 não roda de novo) sem the coordinator precisar rastrear se
 // já rodou. Nunca sobrescreve um `opencode.json` existente às cegas — mescla preservando outras
@@ -26,19 +34,22 @@
 // arquivo existente não for JSON válido, em vez de arriscar destruir configuração do usuário.
 //
 // Contrato de stdin:
-//   { cwd?: string }
-// Sem `cwd`, usa `Deno.cwd()`.
+//   { cwd?: string, worktree?: string }
+// Sem `cwd`, usa `Deno.cwd()`. `worktree` (absoluto ou relativo a `cwd`) é o diretório que o
+// worker recebe em `--dir`.
 //
 // Códigos de saída:
-//   0 - regra presente (criada, mesclada, ou já estava correta) — stdout traz o path do
-//       opencode.json.
-//   1 - opencode.json existente não é JSON válido; nada foi escrito.
+//   0 - regra presente (criada, mesclada, ou já estava correta) na raiz e, se informado, no
+//       worktree.
+//   1 - opencode.json existente não é JSON válido, ou `<worktree>/opencode.json` é versionado;
+//       a mensagem de stderr diz o que fazer.
 
 import { normalizeCwd, readJson } from "./lib/project.ts";
 import { resolveWorktree } from "./lib/status.ts";
 
 interface Payload {
   cwd?: string;
+  worktree?: string;
 }
 
 interface OpencodeConfig {
@@ -59,23 +70,30 @@ function exists(path: string): boolean {
   }
 }
 
-async function main() {
-  const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
+async function git(args: string[], cwd: string): Promise<{ success: boolean; stdout: string }> {
+  const out = await new Deno.Command("git", { args, cwd, stdout: "piped", stderr: "null" })
+    .output();
+  return { success: out.success, stdout: new TextDecoder().decode(out.stdout).trim() };
+}
 
-  let input: Payload;
+/** Acrescenta `pattern` ao `info/exclude` compartilhado pelos worktrees, se ainda não estiver lá. */
+async function ensureExcluded(worktreeDir: string, pattern: string): Promise<void> {
+  const { stdout: excludePath } = await git(
+    ["rev-parse", "--path-format=absolute", "--git-path", "info/exclude"],
+    worktreeDir,
+  );
+  let current = "";
   try {
-    input = raw.trim() ? JSON.parse(raw) : {};
+    current = await Deno.readTextFile(excludePath);
   } catch {
-    input = {};
+    await Deno.mkdir(excludePath.replace(/[\\/][^\\/]+$/, ""), { recursive: true });
   }
+  if (current.split(/\r?\n/).some((line) => line.trim() === pattern)) return;
+  const separator = current === "" || current.endsWith("\n") ? "" : "\n";
+  await Deno.writeTextFile(excludePath, `${current}${separator}${pattern}\n`);
+}
 
-  const cwd = normalizeCwd(input.cwd ?? Deno.cwd());
-  const worktree = await resolveWorktree(cwd);
-  const root = worktree?.root ?? cwd;
-
-  const configPath = `${root}/opencode.json`;
-  const rulePath = `${root}/.claude/vetor/**`;
-
+async function ensureRule(configPath: string, rulePath: string): Promise<void> {
   let config: OpencodeConfig;
   if (exists(configPath)) {
     try {
@@ -105,6 +123,41 @@ async function main() {
   };
 
   await Deno.writeTextFile(configPath, JSON.stringify(config, null, 2) + "\n");
+}
+
+async function main() {
+  const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
+
+  let input: Payload;
+  try {
+    input = raw.trim() ? JSON.parse(raw) : {};
+  } catch {
+    input = {};
+  }
+
+  const cwd = normalizeCwd(input.cwd ?? Deno.cwd());
+  const worktree = await resolveWorktree(cwd);
+  const root = worktree?.root ?? cwd;
+  const rulePath = `${root}/.claude/vetor/**`;
+
+  await ensureRule(`${root}/opencode.json`, rulePath);
+
+  if (!input.worktree) return;
+  const worktreeArg = normalizeCwd(input.worktree);
+  const worktreeDir = /^([A-Za-z]:)?[\\/]/.test(worktreeArg)
+    ? worktreeArg
+    : `${cwd}/${worktreeArg}`;
+  if ((await git(["ls-files", "--error-unmatch", "opencode.json"], worktreeDir)).success) {
+    console.error(
+      `${worktreeDir}/opencode.json é versionado no projeto — recuse alterá-lo (o worker o ` +
+        `commitaria com um path absoluto desta máquina). Adicione manualmente ` +
+        `"permission.external_directory": { "${rulePath}": "allow" } a um opencode.json não ` +
+        `versionado que o worker carregue, ou rode o worker de forma interativa (issue #389).`,
+    );
+    Deno.exit(1);
+  }
+  await ensureRule(`${worktreeDir}/opencode.json`, rulePath);
+  await ensureExcluded(worktreeDir, "/opencode.json");
 }
 
 await main();

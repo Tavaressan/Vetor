@@ -265,7 +265,7 @@ do worktree (ele só enxerga o que existia no commit em que o worktree foi criad
 para configuração global ou ausente. Confirmado como causa de confusão numa das rodadas de validação
 da issue #299 (ver "Validação manual do coordinator" abaixo).
 
-> **Atualização 2026-10-15 (opencode 1.19.0):** a quarta revalidação (seção "Validação manual do coordinator") encontrou um bloqueador novo na Fase 5. No 1.19.0, o worker despachado com `--dir <worktree>` não carrega o `opencode.json` da raiz, então a regra da #313 não se aplica (#389).
+> **Atualização 2026-10-15 (opencode 1.19.0):** a quarta revalidação (seção "Validação manual do coordinator") encontrou um bloqueador novo na Fase 5. No 1.19.0, o worker despachado com `--dir <worktree>` não carrega o `opencode.json` da raiz, então a regra da #313 não se aplicava (#389). **Corrigido no mesmo dia** — o script passa a gravar a regra também em `<worktree>/opencode.json` (seção "Correção da #389").
 
 **Resumo (atualizado 2026-09-22 — terceira revalidação da issue #299, pós-#311/#312/#313 — ver
 "Validação manual do coordinator" abaixo):** isolamento de worktree por worker (`--dir`) é
@@ -458,6 +458,19 @@ precisam de `--agent`, já que não são invocadas diretamente pelo usuário).
 > | Fases 6-7 (ship/merge serializado e relatório) | ⏸ Não alcançado | Bloqueado pela Fase 5 |
 >
 > **Conclusão:** o critério da #299 ("fluxo completo executado de ponta a ponta") e o da #294 (issue até `GREEN` e merge via `opencode run` real) **seguem não cumpridos**. Há um bloqueador do Vetor no 1.19.0 (#389) e a instabilidade do modelo gratuito. Para a próxima rodada: corrigir a #389 e usar um provedor com crédito ou um modelo estável.
+
+### Correção da #389 (2026-10-15, mesmo dia — opencode 1.19.0)
+
+> **Causa confirmada:** `opencode debug config` rodado **dentro do worktree** devolve `permission.external_directory: null` quando a regra existe só em `<repo-root>/opencode.json`. A "inconsistência" da rodada anterior também se explica: durante a depuração, o coordinator criou um `opencode.json` dentro do worktree às 22:33:58Z. O worker rejeitado tinha rodado antes disso (22:28Z), e as sondagens que passaram rodaram depois (22:38Z).
+>
+> **Correção (opção 1 da issue):** `ensure-external-directory-permission.ts` aceita `worktree` no stdin e grava a mesma regra também em `<worktree>/opencode.json`. Também põe `/opencode.json` no `info/exclude` do repositório, compartilhado pelos worktrees, e recusa (código 1) se o projeto versionar `opencode.json`. O coordinator passa o worktree em todo dispatch e redespacho.
+>
+> | Verificação (CLI real, `C:\tmp\e2e-oc`) | Resultado |
+> |---|---|
+> | `opencode debug config` no worktree, regra só na raiz | `external_directory: null` |
+> | Idem, depois de rodar o script com `"worktree": ".claude/worktrees/contributing-doc"` | `{"C:/tmp/e2e-oc/.claude/vetor/**":"allow"}`; `git status --porcelain` do worktree vazio |
+> | `opencode run --dir <worktree> --agent issue-worker`: lê `config.json` e grava `.claude/vetor/status/probe-389.md` | ✅ `→ Read` e `← Write`; conteúdo conferido no disco |
+> | Controle negativo: mesma sondagem sem `<worktree>/opencode.json` | ❌ `external_directory (C:\tmp\e2e-oc\.claude\vetor\*); auto-rejecting`, como no relatório original |
 
 O `issue-coordinator` portado nunca havia sido executado de ponta a ponta contra uma instalação
 real do OpenCode antes das validações das issues #299/#306 — o ambiente usado para portá-lo foi o

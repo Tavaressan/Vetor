@@ -84,9 +84,10 @@ Fase 2.
   `modelFallback.<tier>` de `.claude/vetor/config.json` e `.claude/vetor/status/model-health.json`
   (issue #83), devolve no stdout o primeiro modelo saudável ou sai com código 1 se todos degraded
 - `.opencode/scripts/ensure-external-directory-permission.ts` — garante (idempotente) a regra
-  `permission.external_directory` em `<repo-root>/opencode.json` para `<repo-root>/.claude/vetor/**`
-  (issue #313), sem a qual todo dispatch de `issue-worker`/`code-review` auto-rejeita leitura/escrita
-  fora do worktree — ver Fase 4, "Permissão external_directory"
+  `permission.external_directory` para `<repo-root>/.claude/vetor/**` em `<repo-root>/opencode.json`
+  e em `<worktree>/opencode.json` (issues #313, #389), sem a qual todo dispatch de
+  `issue-worker`/`code-review` auto-rejeita leitura/escrita fora do worktree — ver Fase 4,
+  "Permissão external_directory"
 - `.opencode/agent/issue-worker.md` — subagente/processo despachado por grupo de issues na Fase 4
 - Comandos de teste: `.claude/vetor/module-test-map.md`, ou auto-detecção a partir do CI na ausência dela
 - Procedimento de validação manual do porte contra uma instalação real do OpenCode:
@@ -341,18 +342,21 @@ devolver um mount MSYS sem letra de unidade (ex. `/tmp/...`), que o Deno nativo 
 resolve — `normalizeCwd()` (issue #307) só cobre o padrão `/<letra>/...`, não mounts arbitrários.
 `pwd -W` (builtin do Git Bash) devolve o path nativo direto, sem essa lacuna; confirmado contra o
 CLI real que o comando cru com `$(pwd)` falha (`writefile ... NotFound`) exatamente nesse cenário.
-Rode:
+Rode, passando o worktree que o worker vai receber em `--dir`:
 ```bash
-echo '{"cwd": "'"$(pwd -W 2>/dev/null || pwd)"'"}' | deno run -A .opencode/scripts/ensure-external-directory-permission.ts
+echo '{"cwd": "'"$(pwd -W 2>/dev/null || pwd)"'", "worktree": ".claude/worktrees/<slug>"}' | deno run -A .opencode/scripts/ensure-external-directory-permission.ts
 ```
 Isso garante (cria ou mescla, idempotente — seguro de chamar antes de todo dispatch, inclusive quando
-a Fase 3 não roda de novo) uma regra `permission.external_directory` em `<repo-root>/opencode.json`
-apontando para `<repo-root>/.claude/vetor/**`. **Não precisa estar commitado**: a resolução do
-OpenCode é um walk-up de diretório a partir do cwd do worker, independente de git — o arquivo é
-encontrado mesmo sem `git worktree add` propagá-lo (confirmado contra o CLI real, issue #313). Se o
-script sair com código 1 (`opencode.json` existente não é JSON válido), pare o dispatch deste grupo,
-reproduza a mensagem de erro no chat e não prossiga sem a regra — o worker despachado sem ela trava
-já na primeira leitura de `config.json`.
+a Fase 3 não roda de novo) uma regra `permission.external_directory` apontando para
+`<repo-root>/.claude/vetor/**` em `<repo-root>/opencode.json` **e** em `<worktree>/opencode.json`.
+O segundo é obrigatório a partir do opencode 1.19.0 (issue #389): com `--dir <worktree>`, a config
+resolvida pelo worker não inclui o `opencode.json` da raiz (`opencode debug config` rodado no
+worktree mostra a regra ausente), então só a regra da raiz deixava o worker auto-rejeitado. O script
+também põe `/opencode.json` no `info/exclude` do repositório, para o worker não commitar o arquivo
+(ele traz um path absoluto da máquina). Se o script sair com código 1 (`opencode.json` existente não
+é JSON válido, ou o projeto versiona `opencode.json`), pare o dispatch deste grupo, reproduza a
+mensagem de erro no chat e não prossiga sem a regra — o worker despachado sem ela trava já na
+primeira leitura de `config.json`.
 
 **Resolução de modelo/provedor (issue #84 — antes de montar o comando de dispatch).** Para o `tier`
 do grupo (Fase 2), rode (mesma ressalva de `$(pwd -W ...)` acima, issue #313):
@@ -390,7 +394,8 @@ status file, nunca o processo do SO (pode ter sido lançado em outra sessão do 
 
 ⚠️ **Redespacho de worktree existente** (retomada, resposta a `BLOCKED_WAITING`, ou redespacho após
 `FAILED_MAX_ITERATIONS`): **não** rode `git worktree add` de novo — reaproveite o worktree existente
-(`git worktree list` para confirmar o path) e dispare só o `opencode run --dir <path-existente>
+(`git worktree list` para confirmar o path), rode de novo o `ensure-external-directory-permission.ts`
+acima com `"worktree": "<path-existente>"` e dispare só o `opencode run --dir <path-existente>
 --agent issue-worker "..."`.
 
 ### 5 — Monitoramento (via polling de arquivo)
