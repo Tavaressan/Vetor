@@ -243,6 +243,31 @@ auto-fixes do guardian. A issue criada é delegada ao fluxo humano existente
 **Auto-fix (modo --cron):** apenas reporta via `SendMessage` (segue a regra global da seção "Modo
 cron" abaixo) — **nunca** propõe `implementation_plan.md` nem cria issue.
 
+### 10 — Frescor da cartografia Graphify (issue #376)
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/guardian-knowledge.ts"
+```
+
+Rode no repo-root. O check compara o mtime de `graphify-out/graph.json` e
+`graphify-out/GRAPH_REPORT.md` com os commits em `HEAD` posteriores ao artefato mais antigo
+(`git rev-list --count --since=<mtime> HEAD`). Mais de **5 commits** gera aviso para regenerar a
+cartografia. Se algum artefato não existir, reporte como informativo/skipped — ausência nunca falha a
+auditoria.
+
+**Finding:** Graphify desatualizado (`<N>` commits desde os artefatos; limiar: 5)
+**Auto-fix:** nenhum — apenas reporta.
+
+### 11 — Saúde do servidor ai-memory (issue #376)
+
+O mesmo comando do Check 10 lê `.mcp.json` no repo-root. Se `mcpServers.ai-memory` estiver
+declarado com `type: "http"`, reaproveita `scripts/ai-memory-check.ts` para executar `initialize`,
+`tools/list` e `memory_status`; conexão recusada, erro MCP ou ferramenta ausente gera aviso. Sem
+declaração HTTP válida, reporte como informativo — não falha a auditoria.
+
+**Finding:** servidor ai-memory indisponível ou sem `memory_status`
+**Auto-fix:** nenhum — apenas reporta.
+
 ### Staleness de regras de melhores práticas (`/vetor:stack-practices`)
 
 Sinalização leve, sem virar check numerado — reaproveita o padrão read-only já usado pelos checks
