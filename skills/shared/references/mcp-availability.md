@@ -60,6 +60,7 @@ desses três é `mcp__plugin_vetor_<server>__`.
 | Pesquisa web (Exa) | `mcp__exa__` (ou `mcp__plugin_<plugin>_exa__`) | `backlog-ideator` (pesquisar padrões/arquitetura antes de propor issue), `fix-loop-agent` (pesquisar mensagem de erro/documentação de uma lib externa), `issue-worker` (checar docs de API externa durante a implementação) |
 | Documentação de ferramentas/libs (Context7) | `mcp__context7__` (ou `mcp__plugin_<plugin>_context7__`) | **Obrigatório quando disponível** (ver issue vetor#163) — qualquer skill que precise pesquisar comportamento de uma ferramenta/lib/framework/API externa (`issue-worker`, `fix-loop-agent`, `guardian`, `backlog-ideator`) |
 | Documentação do próprio Claude Code (`claude-code-docs`) | `mcp__claude-code-docs__` (ou `mcp__plugin_<plugin>_claude-code-docs__`) | **Obrigatório quando disponível** (ver issue vetor#164) — qualquer skill que precise responder sobre o funcionamento do próprio Claude Code (hooks, slash commands, MCP, permissões, SDK) (`vetor` (setup), `retro`) |
+| Memória ai-memory | `mcp__ai-memory__` | `fix-loop-agent` / `issue-worker` (consulta preventiva e registro opcional de gotchas; ver `memory-gotchas.md`) |
 
 ### Documentação de ferramentas/libs (Context7)
 

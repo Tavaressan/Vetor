@@ -64,6 +64,8 @@ a ausência total do arquivo um sinal detectável de falha anômala.
   capturar evidência. Se o erro envolver comportamento de uma ferramenta/lib/framework/API externa,
   o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de ferramentas/libs
   (Context7)") antes de aplicar o fix.
+- `../shared/references/memory-gotchas.md` — consulta opcional de `gotchas/` e `decisions/` no
+  diagnóstico e registro opcional de aprendizado no Green; ausência/falha do MCP não bloqueia o loop.
 - `../shared/references/frontend-design-enforcement.md` — se a `<descrição>`
   indicar UI/design de frontend, invoque a skill `vetor:design` antes de aplicar o fix (§3.b).
 - `../shared/references/tdd-conventions.md` — disciplina completa de TDD
@@ -89,7 +91,11 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" in-worktree
 
 Se sair não-zero, **aborte**: `/vetor:fix-loop-agent` deve rodar de dentro de um worktree.
 
-### 1 — Detectar módulos
+### 1 — Diagnóstico e detectar módulos
+
+Identifique os arquivos e módulos afetados e faça a consulta preventiva de memória descrita em
+`memory-gotchas.md` antes de iniciar o ciclo de fix. A consulta é opcional: ausência ou falha do MCP
+não interrompe o fluxo.
 
 ```bash
 git diff "$DEFAULT_BRANCH" --name-only
@@ -167,6 +173,8 @@ Se **verde** (todos os testes passaram):
 {"status": "green", "iterations": <i>, "module": "<módulo>"}
 ```
 Atualize o status file com `Status: GREEN` e **pare**.
+No encerramento Green, siga o registro opcional de aprendizado em `memory-gotchas.md`; falha ou
+indisponibilidade da memória não altera o estado Green nem impede o encerramento.
 
 Se **vermelho**:
 1. Leia a saída de erro (opcionalmente condensada por um runtime de delegação disponível — ver
