@@ -202,7 +202,7 @@ function existsDir(path: string): boolean {
 
 // --- Detecção do estado do Knowledge Provider (usada por /vetor na inicialização) ---
 
-export type KnowledgeStatus = "filesystem" | "obsidian" | "disabled";
+export type KnowledgeStatus = "filesystem" | "obsidian" | "ai-memory" | "disabled";
 
 export interface KnowledgeState {
   status: KnowledgeStatus;
@@ -239,6 +239,9 @@ export function detectKnowledgeState(
   }
   if (knowledge?.provider === "obsidian") {
     return { status: "obsidian", label: "✓ Obsidian" };
+  }
+  if (knowledge?.provider === "ai-memory") {
+    return { status: "ai-memory", label: "✓ ai-memory" };
   }
   return { status: "filesystem", label: "✓ Filesystem" };
 }
@@ -458,5 +461,160 @@ export class ObsidianKnowledgeProvider implements KnowledgeProvider {
     if (content.split(/\r?\n/).some((l) => l.trim() === line)) return;
     const separator = content.endsWith("\n") || content === "" ? "" : "\n";
     await this.update(source, `${content}${separator}\n${line}\n`);
+  }
+}
+
+// --- AiMemoryKnowledgeProvider (issue #368) ---
+
+export interface AiMemoryMcpClient {
+  callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
+}
+
+/** O cliente deve usar este erro exclusivamente para falhas de conexão/timeout. */
+export class AiMemoryUnavailableError extends Error {
+  constructor(message = "MCP ai-memory indisponível") {
+    super(message);
+    this.name = "AiMemoryUnavailableError";
+  }
+}
+
+export interface AiMemoryKnowledgeConfig {
+  workspace: string;
+  project: string;
+  fallback?: FilesystemKnowledgeProvider;
+}
+
+function aiMemoryPage(value: unknown): { path: string; body: string } {
+  if (typeof value === "object" && value !== null && "path" in value && "body" in value) {
+    const page = value as { path: unknown; body: unknown };
+    if (typeof page.path === "string" && typeof page.body === "string") {
+      return { path: page.path, body: page.body };
+    }
+  }
+  throw new Error("AiMemoryKnowledgeProvider: resposta inválida de memory_read_page");
+}
+
+/** Provider ai-memory. O workspace e project são sempre enviados em chamadas de escopo. */
+export class AiMemoryKnowledgeProvider implements KnowledgeProvider {
+  private readonly fallback: FilesystemKnowledgeProvider;
+  warning: string | undefined;
+
+  constructor(
+    private readonly client: AiMemoryMcpClient | undefined,
+    private readonly config: AiMemoryKnowledgeConfig,
+    private readonly warn: (message: string) => void = (message) => console.warn(message),
+  ) {
+    if (!config.workspace || !config.project) {
+      throw new Error("AiMemoryKnowledgeProvider: workspace e project são obrigatórios");
+    }
+    this.fallback = config.fallback ?? new FilesystemKnowledgeProvider();
+  }
+
+  private scoped(args: Record<string, unknown> = {}): Record<string, unknown> {
+    return { ...args, workspace: this.config.workspace, project: this.config.project };
+  }
+
+  private async call(name: string, args: Record<string, unknown>): Promise<unknown> {
+    if (!this.client) throw new AiMemoryUnavailableError("cliente MCP não configurado");
+    return await this.client.callTool(name, this.scoped(args));
+  }
+
+  private async run<T>(
+    op: string,
+    action: () => Promise<T>,
+    fallback: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      const result = await action();
+      this.warning = undefined;
+      return result;
+    } catch (err) {
+      if (!(err instanceof AiMemoryUnavailableError)) throw err;
+      this.warning =
+        `AiMemoryKnowledgeProvider: ${err.message}; usando FilesystemKnowledgeProvider (${op}).`;
+      this.warn(this.warning);
+      return await fallback();
+    }
+  }
+
+  search(query: string): Promise<KnowledgeSearchResult[]> {
+    return this.run("search", async () => {
+      const result = await this.call("memory_query", { query, limit: 100 });
+      const hits = Array.isArray(result) ? result : (result as { hits?: unknown[] })?.hits ?? [];
+      return hits.flatMap((hit) => {
+        if (typeof hit !== "object" || hit === null) return [];
+        const item = hit as { path?: unknown; snippet?: unknown };
+        if (typeof item.path !== "string") return [];
+        return [{ path: item.path, excerpt: typeof item.snippet === "string" ? item.snippet : "" }];
+      }).filter((item) =>
+        item.path.toLowerCase().includes(query.toLowerCase()) ||
+        item.excerpt.toLowerCase().includes(query.toLowerCase())
+      );
+    }, () => this.fallback.search(query));
+  }
+
+  // deno-lint-ignore require-await
+  async read(path: string): Promise<string> {
+    assertSafeRelativePath(path);
+    return this.run(
+      "read",
+      async () => aiMemoryPage(await this.call("memory_read_page", { path })).body,
+      () => this.fallback.read(path),
+    );
+  }
+
+  // deno-lint-ignore require-await
+  async create(path: string, content: string): Promise<void> {
+    assertSafeRelativePath(path);
+    return this.run("create", async () => {
+      try {
+        await this.call("memory_read_page", { path });
+        throw new Error(`KnowledgeProvider: entrada já existe: "${path}"`);
+      } catch (err) {
+        if (
+          !(err instanceof AiMemoryUnavailableError) &&
+          !(err instanceof Error && /not found|não encontrada|does not exist/i.test(err.message))
+        ) throw err;
+      }
+      await this.call("memory_write_page", { path, body: content });
+    }, () => this.fallback.create(path, content));
+  }
+
+  // deno-lint-ignore require-await
+  async update(path: string, content: string): Promise<void> {
+    assertSafeRelativePath(path);
+    return this.run("update", async () => {
+      await this.call("memory_read_page", { path });
+      await this.call("memory_write_page", { path, body: content });
+    }, () => this.fallback.update(path, content));
+  }
+
+  // deno-lint-ignore require-await
+  async list(path = ""): Promise<string[]> {
+    if (path) assertSafeRelativePath(path);
+    return this.run("list", async () => {
+      // ai-memory não oferece listagem por prefixo; memory_recent limita a janela a 100 páginas.
+      const result = await this.call("memory_recent", { limit: 100 });
+      const pages = Array.isArray(result) ? result : (result as { pages?: unknown[] })?.pages ?? [];
+      return pages.flatMap((page) =>
+        typeof page === "object" && page !== null && "path" in page && typeof page.path === "string"
+          ? [page.path]
+          : []
+      )
+        .filter((pagePath) => !path || pagePath.startsWith(`${path.replace(/\/$/, "")}/`));
+    }, () => this.fallback.list(path));
+  }
+
+  async link(source: string, target: string): Promise<void> {
+    assertSafeRelativePath(source);
+    assertSafeRelativePath(target);
+    const content = await this.read(source);
+    await this.read(target);
+    const line = linkLine(target);
+    if (content.split(/\r?\n/).some((entry) => entry.trim() === line)) return;
+    await this.update(
+      source,
+      `${content}${content.endsWith("\n") || content === "" ? "" : "\n"}\n${line}\n`,
+    );
   }
 }

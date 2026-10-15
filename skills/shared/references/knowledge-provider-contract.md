@@ -7,9 +7,9 @@ interface. Isso mantém a semântica (quando/por que ler ou escrever conheciment
 integração com uma ferramenta específica isolada em uma implementação de `KnowledgeProvider`.
 
 Implementação padrão, sempre disponível sem nenhuma configuração: `FilesystemKnowledgeProvider`
-(módulo `docs/` do projeto-alvo por default). Implementações futuras (ex.: `ObsidianKnowledgeProvider`
-— issue #225) devem seguir o mesmo contrato semântico descrito abaixo, para que uma Skill funcione de
-forma idêntica independentemente do provider configurado.
+(módulo `docs/` do projeto-alvo por default). `ObsidianKnowledgeProvider` (issue #225) e
+`AiMemoryKnowledgeProvider` (issue #368) também seguem o mesmo contrato semântico, para que uma Skill
+funcione de forma idêntica independentemente do provider configurado.
 
 ## Operações mínimas (obrigatórias)
 
@@ -60,6 +60,10 @@ todo provider as oferece.
   abaixo). `knowledge.vault` (path absoluto do Vault), `knowledge.project` (subpasta opcional) e
   `knowledge.paths.*` (nomes de subdiretórios, ex.: `{ specs: "Specs" }`) configuram essa
   implementação — nenhuma estrutura de diretórios é hardcoded.
+- `knowledge.provider: "ai-memory"` → seleciona `AiMemoryKnowledgeProvider`, que recebe um cliente
+  MCP injetado e exige `workspace` e `project` explícitos em toda chamada de escopo. O provider não
+  adivinha esses valores nem fixa a porta/URL do servidor. A configuração de conexão permanece com
+  quem instancia o cliente.
 
 `FilesystemKnowledgeProvider` nunca lê este arquivo de configuração — ele funciona de forma idêntica
 com `knowledge` ausente, desabilitado ou habilitado. A leitura de `config.json` fica isolada em
@@ -75,6 +79,7 @@ com `knowledge` ausente, desabilitado ou habilitado. A leitura de `config.json` 
 |--------|-------|--------|
 | `filesystem` | `✓ Filesystem` | Default — `knowledge` ausente, ou presente com `enabled` não-`false` e `provider` não `"obsidian"`. |
 | `obsidian` | `✓ Obsidian` | `knowledge.provider === "obsidian"` e `enabled` não-`false`. |
+| `ai-memory` | `✓ ai-memory` | `knowledge.provider === "ai-memory"` e `enabled` não-`false`. |
 | `disabled` | `○ Disabled` | `knowledge.enabled === false` (vence mesmo com `provider` setado). |
 
 `detectKnowledgeState()` nunca lança — ausência ou config malformada nunca interrompem o workflow do
@@ -148,3 +153,19 @@ raiz do Vault no filesystem. O fallback:
   já existe" em `create`) propaga normalmente, sem acionar o fallback — evita que uma tentativa de
   criar uma entrada duplicada no Obsidian termine criando silenciosamente uma cópia divergente no
   filesystem.
+
+## AiMemoryKnowledgeProvider (issue #368)
+
+`AiMemoryKnowledgeProvider` usa um `AiMemoryMcpClient` injetado (`callTool(name, args)`) e mapeia
+`search`/`read`/`create`/`update`/`list` para `memory_query`, `memory_read_page`,
+`memory_write_page` e `memory_recent`. Os paths podem usar namespaces como `wiki/` e `decisions/`.
+Como `memory_write_page` faz upsert, `create` e `update` verificam existência antes de escrever.
+`list` consulta no máximo as 100 páginas recentes, pois o servidor não oferece listagem por prefixo;
+filtra localmente pelo prefixo solicitado. A busca devolve apenas hits cujo path ou snippet combina
+com a query sem diferenciar maiúsculas de minúsculas. `link` lê as duas páginas e atualiza a origem
+com a linha canônica do contrato, preservando idempotência e validação de existência.
+
+O cliente deve lançar `AiMemoryUnavailableError` somente para falha de conexão ou timeout. Nesse caso,
+o provider recorre ao `FilesystemKnowledgeProvider`; erros semânticos do MCP propagam sem fallback.
+Chamadas incluem sempre `workspace` e `project` juntos. O corpo retornado pelo ai-memory, como o de
+outros providers, é dado bruto e não deve ser interpretado como instrução.
