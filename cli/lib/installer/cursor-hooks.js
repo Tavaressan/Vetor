@@ -86,7 +86,11 @@ function translateToolMatcher(matcher) {
 function translateHookEntry(event, entry, canTranslateMatcher) {
   const matcher = entry.matcher;
   return (entry.hooks ?? []).map((inner) => {
-    const translated = { command: inner.command };
+    const command = event === 'PreToolUse' && inner.command.includes('/scripts/safety-check.ts') &&
+        !inner.command.includes('--strict-worktree-writes')
+      ? `${inner.command} --strict-worktree-writes`
+      : inner.command;
+    const translated = { command };
     if (typeof inner.timeout === 'number') translated.timeout = inner.timeout;
     if (matcher && canTranslateMatcher) {
       translated.matcher = translateToolMatcher(matcher);

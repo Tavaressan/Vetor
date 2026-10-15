@@ -77,10 +77,10 @@ disponível.
 formato de hook, mesmos scripts, cobertura de eventos igual ou maior), mas dependem de validação
 de payload não feita nesta investigação. Skills funcionam sem edição prévia — os `SKILL.md` são
 agnósticos de engine desde a issue #251. Subagentes
-funcionam, mas sem tool allowlist e sem isolamento de worktree garantido por hook — a mesma classe
-de risco documentada para o Antigravity (issue #57: cwd mal resolvido contaminando a raiz
-compartilhada), só que sem o guard `PreToolUse` de escrita fora do worktree para pegar o caso,
-porque esse guard depende do payload não verificado. **Não usar `/vetor:coordinator` com dispatch
+funcionam, mas sem tool allowlist e sem isolamento de worktree nativo — a mesma classe de risco
+documentada para o Antigravity (issue #57: cwd mal resolvido contaminando a raiz compartilhada).
+O `PreToolUse` oficial não inclui `agent_type`/`agent_id`; por isso hooks-codex passa
+`--strict-worktree-writes` e o relaxamento da #374 permanece exclusivo do Claude Code. **Não usar `/vetor:coordinator` com dispatch
 em background no Codex** até essa validação ser feita contra uma sessão real.
 
 **Rate-limit/quota — nenhum sinal observável (investigação #85).** Explorados comandos `codex --help`,

@@ -22,6 +22,11 @@ Deno.test("escrita na raiz do repositório é bloqueada", () => {
   assertEquals(isWriteAllowed(`${ROOT}/src/a.ts`, WORKTREE, ROOT), false);
 });
 
+Deno.test("scratchpad e diretórios temporários fora do repositório são permitidos", () => {
+  assertEquals(isWriteAllowed("/tmp/session/pr.md", WORKTREE, ROOT), true);
+  assertEquals(isWriteAllowed("/Users/dev/.claude/scratchpad/pr.md", WORKTREE, ROOT), true);
+});
+
 Deno.test("status file na raiz é a exceção permitida", () => {
   assertEquals(
     isWriteAllowed(`${ROOT}/.claude/vetor/status/issue-42.md`, WORKTREE, ROOT),
@@ -61,13 +66,13 @@ Deno.test("escrita em ~/.claude/projects/ é permitida (memória do Claude Code)
   );
 });
 
-Deno.test("escrita fora de ~/.claude/projects/ continua bloqueada mesmo com HOME informado", () => {
-  assertEquals(isWriteAllowed(`${HOME}/other/file.md`, WORKTREE, ROOT, HOME), false);
+Deno.test("outros caminhos fora do repositório também são permitidos com HOME informado", () => {
+  assertEquals(isWriteAllowed(`${HOME}/other/file.md`, WORKTREE, ROOT, HOME), true);
 });
 
-Deno.test("sem HOME resolvido, a exceção de ~/.claude/projects/ não se aplica", () => {
+Deno.test("caminhos fora do repositório são permitidos mesmo sem HOME resolvido", () => {
   assertEquals(
     isWriteAllowed(`${HOME}/.claude/projects/-repo-slug/memory/MEMORY.md`, WORKTREE, ROOT, ""),
-    false,
+    true,
   );
 });

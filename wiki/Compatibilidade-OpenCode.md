@@ -36,6 +36,8 @@ em vez de usar a tool `task` in-process. Consequência prática: a classe de bug
 (cwd contaminado entre workers paralelos no Claude Code) **não se aplica** a esse modelo — cada
 worker é um processo isolado do SO, não uma chamada dentro da mesma sessão.
 
+O `tool.execute.before` do SDK (`@opencode-ai/plugin@1.19.1`) não fornece `agent`; por isso o relaxamento da #374 não se aplica ao port OpenCode, que mantém o guard estrito por cwd. O coordinator opera na raiz e cada worker executa em processo separado no próprio worktree.
+
 **[Issue #311](https://github.com/Tavaressan/Vetor/issues/311) — CORRIGIDA e confirmada contra o
 CLI real (2026-09-22, revalidação pós-descoberta).** `issue-worker.md`/`code-review.md` tinham
 `mode: subagent`; invocação direta via `--agent` (o único mecanismo real usado pelo

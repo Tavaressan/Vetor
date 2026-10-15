@@ -104,6 +104,26 @@ function localTsc(dir: string): string | null {
   return exists(bin) ? bin : null;
 }
 
+const NEXT_TYPEGEN_DIAGNOSTIC =
+  /error TS2304: Cannot find name '(?:LayoutProps|PageProps|RouteContext)'\.?$/;
+
+export function filterNextTypegenDiagnostics(output: string, usesNext: boolean): string {
+  if (!usesNext) return output;
+  return output.split("\n").filter((line) => !NEXT_TYPEGEN_DIAGNOSTIC.test(line.trim())).join("\n")
+    .trim();
+}
+
+function usesNext(dir: string): boolean {
+  try {
+    const pkg = JSON.parse(Deno.readTextFileSync(`${dir}/package.json`));
+    return Boolean(
+      pkg.dependencies?.next || pkg.devDependencies?.next || pkg.peerDependencies?.next,
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
 
@@ -137,11 +157,14 @@ async function main() {
     if (!tsc) quiet();
 
     const result = await runWithTimeout(tsc, ["--noEmit"], dir);
-    if (result && result.code !== 0 && result.output) emit(result.output);
+    if (result && result.code !== 0 && result.output) {
+      const diagnostics = filterNextTypegenDiagnostics(result.output, usesNext(dir));
+      if (diagnostics) emit(diagnostics);
+    }
     quiet();
   }
 
   quiet();
 }
 
-await main();
+if (import.meta.main) await main();

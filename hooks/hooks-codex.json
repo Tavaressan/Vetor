@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "deno run -A \"${PLUGIN_ROOT}/scripts/safety-check.ts\"",
+            "command": "deno run -A \"${PLUGIN_ROOT}/scripts/safety-check.ts\" --strict-worktree-writes",
             "timeout": 300
           }
         ]
