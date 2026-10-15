@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const { ENGINES } = require('../installer/detector.js');
 const { readManifest: defaultReadManifest, hashFile: defaultHashFile } = require('../installer/manifest.js');
+const { version: cliVersion } = require('../../package.json');
 
 const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.name]));
 
@@ -40,10 +41,14 @@ function status(cwd = process.cwd(), options = {}) {
     return;
   }
 
+  console.info(`instalado ${manifest.packageVersion ?? 'desconhecida'} · CLI ${cliVersion}`);
+
   const byEngine = new Map();
+  let hasMissing = false;
   for (const [key, entry] of entries) {
     const engineName = ENGINE_NAME_BY_ID.get(entry.engine) ?? entry.engine;
     const state = classify(cwd, key, entry, hashFile);
+    if (state === 'missing') hasMissing = true;
     if (!byEngine.has(engineName)) byEngine.set(engineName, []);
     byEngine.get(engineName).push({ key, state });
   }
@@ -54,6 +59,7 @@ function status(cwd = process.cwd(), options = {}) {
       console.info(`  ${STATE_LABEL[state]} ${key}`);
     }
   }
+  process.exitCode = hasMissing ? 1 : 0;
 }
 
 module.exports = { status };

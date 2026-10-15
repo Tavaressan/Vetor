@@ -261,8 +261,9 @@ test(
               encoding: 'utf8',
               shell: process.platform === 'win32',
             });
-            assert.match(agentListOutput, /issue-worker \(subagent\)/);
-            assert.match(agentListOutput, /code-review \(subagent\)/);
+            // Issue #314: ambos são primary para uso com `opencode run --agent`.
+            assert.match(agentListOutput, /issue-worker \(primary\)/);
+            assert.match(agentListOutput, /code-review \(primary\)/);
             // issue #306: issue-coordinator vivia em `.opencode/skills/`, nunca listado como
             // agent. Regressão fecharia silenciosamente — sem este assert, `opencode agent list`
             // continuaria passando (não checa exclusividade), só deixaria de conter a entrada.

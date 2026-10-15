@@ -85,6 +85,7 @@ test('installFiles: copia skills/agents/hooks para o destino da engine e grava m
       assert.equal(fs.readFileSync(skillDest, 'utf8'), 'conteúdo v1\n');
 
       const manifest = readManifest(projectRoot);
+      assert.equal(manifest.packageVersion, require('../package.json').version);
       assert.equal(
         manifest.files['.claude/skills/demo/SKILL.md'].sha256,
         sha256(fs.readFileSync(skillDest)),

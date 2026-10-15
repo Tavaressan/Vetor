@@ -21,11 +21,13 @@ function withTempDir(fn) {
 function captureInfo(fn) {
   const lines = [];
   const original = console.info;
+  const previousExitCode = process.exitCode;
   console.info = (msg) => lines.push(msg);
   try {
     fn();
   } finally {
     console.info = original;
+    process.exitCode = previousExitCode;
   }
   return lines.join('\n');
 }
@@ -71,4 +73,35 @@ test('status: arquivo íntegro aparece como ok, modificado como modificado, ause
     assert.match(output, /\[ausente\] \.claude\/skills\/apagada\/SKILL\.md/);
     assert.match(output, /Claude Code:/);
   });
+});
+
+test('status: exibe versões conhecidas/desconhecidas e define exitCode conforme arquivos ausentes', () => {
+  const previousExitCode = process.exitCode;
+  try {
+    withTempDir((dir) => {
+      const filePath = path.join(dir, 'file.md');
+      fs.writeFileSync(filePath, 'content');
+      for (const [packageVersion, key, expectedExit] of [
+        ['0.1.0', 'file.md', 0],
+        [undefined, 'missing.md', 1],
+      ]) {
+      process.exitCode = undefined;
+      const lines = [];
+      const originalInfo = console.info;
+      console.info = (line) => lines.push(line);
+      try {
+        status(dir, {
+          readManifest: () => ({ packageVersion, files: { [key]: { sha256: 'hash', engine: 'claude-code' } } }),
+          hashFile: () => 'hash',
+        });
+      } finally {
+        console.info = originalInfo;
+      }
+      assert.equal(process.exitCode, expectedExit);
+      assert.ok(lines.some((line) => line.includes(packageVersion ?? 'desconhecida')));
+      }
+    });
+  } finally {
+    process.exitCode = previousExitCode;
+  }
 });
