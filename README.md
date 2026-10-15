@@ -40,6 +40,7 @@ Depois de qualquer uma das duas, rode **`/vetor:install`** no projeto-alvo: ele 
 | Comando | O que faz |
 |---------|----------|
 | `/vetor:install [--force]` | Porta de entrada — inicializa e configura o Vetor no projeto-alvo |
+| `/vetor:now` | Kickoff diário — resume estado, prepara ferramentas e encaminha a próxima etapa |
 | `/vetor:spec [tema]` | Descobre contexto do projeto (filesystem) e rascunha uma Spec estruturada a partir de um tema |
 | `/vetor:spec-validate <path>` | Valida a qualidade de uma Spec (RF/RNF, Acceptance Criteria, Non-Goals) e reporta um score 0-100 |
 | `/vetor:backlog [tema]` | Ideação guiada por docs do projeto → batch de issues GitHub com aprovação humana |

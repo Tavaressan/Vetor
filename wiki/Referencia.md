@@ -59,6 +59,7 @@ skills/
 │   ├── coordinator-dispatch.md
 │   ├── coordinator-monitoring.md
 │   └── coordinator-report.md
+├── now/SKILL.md             # kickoff diário, sondagem e roteamento interativo
 ├── backlog/SKILL.md
 ├── fix/SKILL.md
 ├── guardian/SKILL.md
