@@ -12,6 +12,7 @@ test('vetor --help lista os comandos disponíveis', () => {
   assert.match(output, /install/);
   assert.match(output, /update/);
   assert.match(output, /status/);
+  assert.match(output, /doctor/);
   assert.match(output, /uninstall/);
 });
 
@@ -20,6 +21,7 @@ test('vetor sem argumentos também lista os comandos', () => {
   assert.match(output, /install/);
   assert.match(output, /update/);
   assert.match(output, /status/);
+  assert.match(output, /doctor/);
   assert.match(output, /uninstall/);
 });
 

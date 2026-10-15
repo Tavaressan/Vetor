@@ -3,6 +3,7 @@
 const { install } = require('./commands/install.js');
 const { update } = require('./commands/update.js');
 const { status } = require('./commands/status.js');
+const { doctor } = require('./commands/doctor.js');
 const { uninstall } = require('./commands/uninstall.js');
 const { printBanner } = require('./banner.js');
 const { version } = require('../package.json');
@@ -18,6 +19,7 @@ const COMMANDS = {
   },
   update: { fn: update, description: 'Atualiza a instalação existente a partir do manifesto', flags: {} },
   status: { fn: status, description: 'Mostra o status da instalação por engine', flags: {} },
+  doctor: { fn: doctor, description: 'Verifica os pré-requisitos do Vetor', flags: {} },
   uninstall: {
     fn: uninstall,
     description: 'Remove os arquivos instalados pelo Vetor',

@@ -3,6 +3,7 @@
 const { ENGINES } = require('../installer/detector.js');
 const { installFiles: defaultInstallFiles } = require('../installer/writer.js');
 const { readManifest: defaultReadManifest } = require('../installer/manifest.js');
+const { version: cliVersion } = require('../../package.json');
 
 const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.name]));
 
@@ -41,6 +42,8 @@ function update(cwd = process.cwd(), options = {}) {
   console.info(`Atualizando engines: ${engines.map((engine) => engine.name).join(', ')}.`);
 
   const { copied, skipped, warnings = [] } = installFiles({ projectRoot: cwd, engines });
+
+  console.info(`${manifestBefore.packageVersion ?? 'desconhecida'} → ${cliVersion}`);
 
   console.info(`${copied.length} arquivo(s) sincronizado(s).`);
   if (skipped.length > 0) {

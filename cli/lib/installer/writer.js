@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const { hashFile, hashContent, readManifest, writeManifest } = require('./manifest.js');
 const { translateHooksForCursor } = require('./cursor-hooks.js');
+const { version: packageVersion } = require('../../package.json');
 
 // Decisão de escopo (issue #255, revisada na #283): destino nativo por engine é o
 // diretório-âncora já usado pela própria detecção (detector.js usa `.claude`/`.opencode`/
@@ -288,6 +289,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   }
 
   const manifest = readManifest(projectRoot);
+  manifest.packageVersion = packageVersion;
   const copied = [];
   const skipped = [];
   const warnings = [];
