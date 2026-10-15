@@ -84,6 +84,14 @@ test('translateHooksForCursor: traduz nomes de evento PascalCase -> camelCase (c
   assert.ok(!('PreToolUse' in hooks.hooks));
 });
 
+test('translateHooksForCursor: mantém guard estrito por cwd no safety-check do Cursor', () => {
+  const { hooks } = translateHooksForCursor(CLAUDE_HOOKS_FIXTURE);
+  assert.equal(
+    hooks.hooks.preToolUse[0].command,
+    'deno run -A "${CLAUDE_PLUGIN_ROOT}/scripts/safety-check.ts" --strict-worktree-writes',
+  );
+});
+
 test('translateHooksForCursor: achata matcher/hooks[] aninhado em entradas planas {command,timeout,matcher}', () => {
   const { hooks } = translateHooksForCursor(CLAUDE_HOOKS_FIXTURE);
 

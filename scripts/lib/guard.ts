@@ -45,6 +45,10 @@ export function isWriteAllowed(
 ): boolean {
   if (isWithin(target, worktree)) return true;
 
+  // Caminhos fora do repositório (scratchpad da sessão, temporários e home) não podem
+  // contaminar outro worktree.
+  if (!isWithin(target, root)) return true;
+
   const statusDir = normalizePath(`${root}/.claude/vetor/status`);
   const normalizedTarget = normalizePath(target);
   const fileName = normalizedTarget.slice(statusDir.length + 1);

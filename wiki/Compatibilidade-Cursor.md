@@ -201,6 +201,7 @@ este instalador (uma comparação contra o hash da fonte nunca bateria, gerando 
   defesa contra cwd contaminado entre workers paralelos (issue #63). Sob o Cursor, essas duas
   defesas específicas ficam inertes por construção — não é algo que a tradução de schema possa
   corrigir sozinha (exigiria mudar o próprio contrato de payload que `safety-check.ts` espera).
+  Por isso a tradução acrescenta `--strict-worktree-writes`: o relaxamento da #374 é exclusivo do Claude Code.
   **O que É confirmado como funcional:** o guard de comando (`checkBash` — git destrutivo
   incondicional, push para branch protegida, gate de PR/push de worker não-`GREEN`) roda
   corretamente sob `preToolUse`/`tool_name: "Shell"` (`tool_input.command`, schema confirmado) —

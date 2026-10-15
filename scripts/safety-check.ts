@@ -77,6 +77,11 @@ function extractApplyPatchPaths(command: string | string[] | undefined): string[
 // sem reconhecer a letra de unidade como absoluto, o path era tratado como relativo e
 // prefixado com cwd, mascarando um alvo fora do worktree como se estivesse dentro dele.
 const ABSOLUTE_PATH_RE = /^\/|^[A-Za-z]:[\\/]/;
+const ISSUE_WORKER_TYPES = new Set(["vetor:issue-worker", "issue-worker"]);
+
+function isIssueWorker(agentType: string | undefined): boolean {
+  return agentType !== undefined && ISSUE_WORKER_TYPES.has(agentType);
+}
 
 function resolveAgainstCwd(path: string, cwd: string): string {
   return ABSOLUTE_PATH_RE.test(path) ? path : `${cwd}/${path}`;
@@ -240,6 +245,7 @@ async function checkWrite(
   cwd: string,
   agentType?: string,
   agentId?: string,
+  strictWorktreeWrites = false,
 ): Promise<void> {
   let wt = await resolveWorktree(cwd);
 
@@ -263,7 +269,7 @@ async function checkWrite(
     // resolvendo para fora de um worktree linkado (ex.: a raiz do projeto) indica cwd
     // incorreto entregue pelo harness — deixar passar contamina a raiz compartilhada por
     // todos os workers em paralelo (reprodução real: issue #57).
-    if (agentType === "vetor:issue-worker") {
+    if (isIssueWorker(agentType)) {
       blocked(
         `ERROR: vetor:issue-worker escrevendo com cwd fora de um worktree linkado: ${filePath}\n` +
           `cwd resolvido: ${cwd}${wt ? ` (branch: ${wt.branch})` : ""}. Um issue-worker só ` +
@@ -282,16 +288,20 @@ async function checkWrite(
   // válidas (regressão da #63).
   if (agentType) checkAgentBinding(wt.root, agentId, wt.toplevel);
 
-  if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
+  if (
+    (strictWorktreeWrites || isIssueWorker(agentType)) &&
+    !isWriteAllowed(filePath, wt.toplevel, wt.root)
+  ) {
     blocked(
       `ERROR: escrita fora do worktree bloqueada pelo Vetor Safety Hook: ${filePath}\n` +
-        `Com cwd dentro de ${wt.toplevel}, só é permitido escrever ali (ou no status file da ` +
-        "raiz). Escrever fora dali contamina os demais workers em paralelo.",
+        `O issue-worker só pode escrever dentro de ${wt.toplevel} (ou no status file da ` +
+        "raiz). Escrever em outro worktree contamina os demais workers em paralelo.",
     );
   }
 }
 
 async function main() {
+  const strictWorktreeWrites = Deno.args.includes("--strict-worktree-writes");
   const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
 
   let input: HookInput;
@@ -315,13 +325,21 @@ async function main() {
 
   if (input.tool_name === "Edit" || input.tool_name === "Write") {
     const filePath = input.tool_input?.file_path;
-    if (filePath) await checkWrite(filePath, cwd, input.agent_type, input.agent_id);
+    if (filePath) {
+      await checkWrite(filePath, cwd, input.agent_type, input.agent_id, strictWorktreeWrites);
+    }
     Deno.exit(0);
   }
 
   if (input.tool_name === "apply_patch") {
     for (const path of extractApplyPatchPaths(input.tool_input?.command)) {
-      await checkWrite(resolveAgainstCwd(path, cwd), cwd, input.agent_type, input.agent_id);
+      await checkWrite(
+        resolveAgainstCwd(path, cwd),
+        cwd,
+        input.agent_type,
+        input.agent_id,
+        strictWorktreeWrites,
+      );
     }
     Deno.exit(0);
   }

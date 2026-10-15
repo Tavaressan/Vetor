@@ -40,9 +40,10 @@ async function makeLinkedWorktree(
 async function runHook(
   input: Record<string, unknown>,
   env?: Record<string, string>,
+  scriptArgs: string[] = [],
 ): Promise<{ code: number; stderr: string }> {
   const command = new Deno.Command("deno", {
-    args: ["run", "-A", SCRIPT],
+    args: ["run", "-A", SCRIPT, ...scriptArgs],
     stdin: "piped",
     stdout: "piped",
     stderr: "piped",
@@ -101,6 +102,84 @@ Deno.test("issue-worker escrevendo dentro do seu próprio worktree continua perm
     assertEquals(code, 0);
   } finally {
     await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("coordinator pode escrever no scratchpad, na raiz e em arquivos de release", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  try {
+    for (
+      const target of [
+        `${root}/README.md`,
+        `${root}/package.json`,
+        `${root}/.claude/scratchpad/pr.md`,
+        `${root}/../scratchpad/pr.md`,
+      ]
+    ) {
+      const { code, stderr } = await runHook({
+        tool_name: "Write",
+        tool_input: { file_path: target },
+        cwd: worktreePath,
+        agent_type: "vetor:issue-coordinator",
+      });
+      assertEquals(code, 0, stderr);
+    }
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("issue-worker sem namespace continua bloqueado ao escrever na raiz", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  try {
+    const { code } = await runHook({
+      tool_name: "Write",
+      tool_input: { file_path: `${root}/README.md` },
+      cwd: worktreePath,
+      agent_type: "issue-worker",
+    });
+    assertEquals(code, 2);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("flag estrita bloqueia escrita na raiz sem agent_type", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  try {
+    const { code, stderr } = await runHook(
+      {
+        tool_name: "Write",
+        tool_input: { file_path: `${root}/README.md` },
+        cwd: worktreePath,
+      },
+      undefined,
+      ["--strict-worktree-writes"],
+    );
+    assertEquals(code, 2);
+    assertStringIncludes(stderr, "escrita fora do worktree bloqueada");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("flag estrita permite path fora do repositório", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat-x");
+  const scratch = await Deno.realPath(await Deno.makeTempDir());
+  try {
+    const { code, stderr } = await runHook(
+      {
+        tool_name: "Write",
+        tool_input: { file_path: `${scratch}/pr.md` },
+        cwd: worktreePath,
+      },
+      undefined,
+      ["--strict-worktree-writes"],
+    );
+    assertEquals(code, 0, stderr);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+    await Deno.remove(scratch, { recursive: true });
   }
 });
 

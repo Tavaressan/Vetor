@@ -37,7 +37,6 @@ import {
 import { evaluateFreshness } from "./lib/worktree.ts";
 
 const PROTECTED_BRANCHES = ["main", "master", "production"];
-
 interface HookInput {
   tool_name?: string;
   tool_input?: { command?: string; file_path?: string };
@@ -163,8 +162,8 @@ async function checkWrite(
   if (!isWriteAllowed(filePath, wt.toplevel, wt.root)) {
     blocked(
       `ERROR: escrita fora do worktree bloqueada pelo Vetor Safety Hook: ${filePath}\n` +
-        `O worker só escreve dentro de ${wt.toplevel} (e no seu status file). Editar a raiz ` +
-        "contamina os demais workers em paralelo.",
+        `O issue-worker só pode escrever dentro de ${wt.toplevel} (e no status file da raiz). ` +
+        "Escrever em outro worktree contamina os demais workers em paralelo.",
     );
   }
 }
