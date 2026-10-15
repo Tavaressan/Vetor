@@ -56,9 +56,9 @@ skills/
 │   ├── module-test-map.template.md
 │   ├── delegate-to-runtime.md
 │   ├── project-conventions.md
-│   ├── coordinator-dispatch.md
-│   ├── coordinator-monitoring.md
-│   └── coordinator-report.md
+│   ├── issue-coordinator-dispatch.md
+│   ├── issue-coordinator-monitoring.md
+│   └── issue-coordinator-report.md
 ├── now/SKILL.md             # kickoff diário, sondagem e roteamento interativo
 ├── backlog/SKILL.md
 ├── fix/SKILL.md
