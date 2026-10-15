@@ -234,8 +234,8 @@ test(
           );
 
           // OpenCode: árvore nativa achatada (`agent/`, singular) — sem o `agents/`
-          // (plural, genérico) do agnóstico de engine. `coordinator` também virou agent
-          // (`.opencode/agent/coordinator.md`, issue #306) — `.opencode/skills/` não tem
+          // (plural, genérico) do agnóstico de engine. `issue-coordinator` também virou agent
+          // (`.opencode/agent/issue-coordinator.md`, issue #306) — `.opencode/skills/` não tem
           // mais nenhum arquivo portado.
           assert.ok(
             fs.existsSync(path.join(projectDir, '.opencode', 'agent', 'issue-worker.md')),
@@ -264,10 +264,10 @@ test(
             // Issue #314: ambos são primary para uso com `opencode run --agent`.
             assert.match(agentListOutput, /issue-worker \(primary\)/);
             assert.match(agentListOutput, /code-review \(primary\)/);
-            // issue #306: coordinator vivia em `.opencode/skills/`, nunca listado como
+            // issue #306: issue-coordinator vivia em `.opencode/skills/`, nunca listado como
             // agent. Regressão fecharia silenciosamente — sem este assert, `opencode agent list`
             // continuaria passando (não checa exclusividade), só deixaria de conter a entrada.
-            assert.match(agentListOutput, /coordinator \(primary\)/);
+            assert.match(agentListOutput, /issue-coordinator \(primary\)/);
           } else {
             console.info(
               'opencode CLI não encontrado no PATH — pulando validação de runtime real ' +
