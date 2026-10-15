@@ -1,0 +1,11 @@
+services:
+  ai-memory:
+    image: akitaonrails/ai-memory:latest
+    container_name: ai-memory
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:49374:49374"
+    volumes:
+      - ./.ai-memory:/data
+    env_file:
+      - .env

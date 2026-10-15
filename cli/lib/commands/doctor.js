@@ -3,8 +3,48 @@
 const { spawnSync: defaultSpawnSync } = require('node:child_process');
 const { commandExists: defaultCommandExists } = require('../installer/command-exists.js');
 const { detectEngines: defaultDetectEngines } = require('../installer/detector.js');
+const fs = require('node:fs');
 
-function doctor(cwd = process.cwd(), options = {}) {
+async function checkAiMemory(cwd, options) {
+  let config;
+  try {
+    config = JSON.parse((options.readFileSync ?? fs.readFileSync)(`${cwd}/.mcp.json`, 'utf8'));
+  } catch {
+    return { name: 'ai-memory MCP', ok: false, hint: 'não configurado', required: false };
+  }
+  const server = config?.mcpServers?.['ai-memory'];
+  if (!server || server.type !== 'http' || typeof server.url !== 'string') {
+    return { name: 'ai-memory MCP', ok: false, hint: 'não configurado', required: false };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.aiMemoryTimeoutMs ?? 2000);
+  try {
+    const response = await (options.fetch ?? globalThis.fetch)(server.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'vetor-doctor', version: '1.0.0' } } }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error('HTTP indisponível');
+    const contentType = response.headers.get('content-type') ?? '';
+    const body = await response.text();
+    let reply;
+    if (contentType.includes('text/event-stream')) {
+      const data = body.split(/\r?\n/).find((line) => line.startsWith('data:'));
+      if (data) reply = JSON.parse(data.slice(5).trim());
+    } else if (body.trim()) {
+      reply = JSON.parse(body);
+    }
+    if (reply?.error || (reply && reply.id !== 1)) throw new Error('Resposta MCP inválida');
+    return { name: 'ai-memory MCP', ok: true, hint: 'conectado', required: false };
+  } catch {
+    return { name: 'ai-memory MCP', ok: false, hint: 'indisponível', required: false };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function doctor(cwd = process.cwd(), options = {}) {
   const spawnSync = options.spawnSync ?? defaultSpawnSync;
   const commandExists = options.commandExists ?? defaultCommandExists;
   const detectEngines = options.detectEngines ?? defaultDetectEngines;
@@ -29,6 +69,8 @@ function doctor(cwd = process.cwd(), options = {}) {
     hint: 'Execute "gh auth login" para autenticar o GitHub CLI.',
     required: true,
   });
+
+  checks.push(await checkAiMemory(cwd, options));
 
   let gitResult;
   try {
