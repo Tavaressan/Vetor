@@ -40,6 +40,8 @@ ou BLOCKED_WAITING) é uma falha silenciosa que o coordinator não consegue dete
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/mcp-availability.md` — se a issue exigir pesquisar
   comportamento de uma ferramenta, biblioteca, framework, SDK ou API externa, o MCP Context7 é
   **obrigatório quando disponível** (ver seção "Documentação de ferramentas/libs (Context7)").
+- `$CLAUDE_PLUGIN_ROOT/skills/shared/references/memory-gotchas.md` — consulta preventiva opcional de
+  gotchas/decisions no diagnóstico e registro opcional no Green; ausência/falha do MCP não bloqueia.
 - `$CLAUDE_PLUGIN_ROOT/skills/shared/references/frontend-design-enforcement.md` — se a issue tratar
   de UI/design de frontend, invoque a skill `frontend-design` antes de implementar.
 
