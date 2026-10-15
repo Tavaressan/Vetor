@@ -318,20 +318,7 @@ driver de custo agregado do coordinator.
 
 ### 3 — Fase de criação (nativa e serializada)
 
-⚠️ **Esta fase é serializada** para evitar `git index lock` ao inicializar os worktrees nativos.
-
-A criação e a **localização** do worktree são do harness (`isolation: "worktree"` na Fase 4) — não
-assuma path de worktree. O coordenador deriva apenas:
-1. **Slug:** kebab-case derivado da Lead Issue (máx 30 chars).
-2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue — o worker a cria como primeiro passo (`git checkout -b <branch>`).
-3. **Status File Path (absoluto, no root do repo):**
-   `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` — fica fora do worktree;
-   formato em `../shared/references/agent-status.template.md`.
-
-⚠️ **O slug é só nominal — não é o path do worktree.** Ele serve apenas para compor o nome da branch
-e o do arquivo de status. **Nunca** infira que o worktree está em `.claude/worktrees/<slug>/` ou
-qualquer convenção derivada do slug: obtenha o path real via `git worktree list` (correlacionando
-pela branch) ou pelo retorno do `Agent()`.
+Leia `../shared/references/issue-coordinator-dispatch.md` para derivar slug/branch/status file e localizar o worktree real.
 
 ### 4 — Fase de desenvolvimento (paralela, com teto de concorrência e ondas)
 
@@ -342,156 +329,18 @@ pela branch) ou pelo retorno do `Agent()`.
 - Dentro da onda corrente: quando um worker ativo atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou for
   cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
-- **Checagem de timeout da sessão.** Antes de despachar um novo grupo `QUEUED` ou iniciar uma nova
-  onda (`O_{i+1}`), verifique se o timeout global (default 90 minutos, ou `maxSessionMinutes` em
-  `.claude/vetor/config.json`) foi atingido considerando apenas tempo ativo de coordenação (excluindo
-  esperas por decisão humana via `AskUserQuestion` — issue #343). Ao atingir o teto: não despache novos
-  grupos nem novas ondas; permita que workers ativos terminem suas iterações e que grupos `GREEN` já
-  autorizados realizem ship normalmente.
-- **Transição de onda.** Só inicie o dispatch de `O_{i+1}` depois que:
-  1. Todos os grupos de `O_i` **que foram efetivamente despachados** tiverem chegado a `GREEN` e
-     passado pela Fase 6 (merge) — um grupo de `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING`
-     sem resolução bloqueia a transição; trate como pendência a reportar, não avance a onda para não
-     repetir o branch skew que motivou esta seção. Um grupo `SKIPPED (aguardando Spec)` (gate de
-     Spec/design, Fase 2) **nunca** conta como pendência aqui — nunca foi despachado, então não há
-     branch/merge dele para a próxima onda esperar.
-  2. O branch default (`$DEFAULT_BRANCH`) estiver sincronizado com esses merges. `git fetch && git
-     log origin/<default> -1` confirma que o *remoto* já tem os merges — mas não garante que o HEAD
-     *local* do root os tenha: `isolation: "worktree"` cria o novo worktree a partir do HEAD local
-     do root (não de `origin/$DEFAULT_BRANCH` diretamente). Complete a checagem comparando os dois
-     antes do primeiro dispatch de `O_{i+1}`:
-     ```bash
-     git fetch origin "$DEFAULT_BRANCH"
-     git rev-parse HEAD                       # HEAD local do root
-     git rev-parse "origin/$DEFAULT_BRANCH"   # último commit do remoto
-     ```
-     Se divergirem (root atrasado), rode `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root`
-     e **repita a comparação acima** — `sync-root` sai com código 0 mesmo quando recusa avançar (ex.:
-     mudanças locais pré-existentes não commitadas no root, alheias a este trabalho de coordenação —
-     causa raiz confirmada na issue #244); não trate o exit 0 como prova de que o HEAD avançou. Se,
-     mesmo após o `sync-root`, o root continuar atrasado (dirty state não resolvido ou branch não
-     mesclável), **não bloqueie o dispatch por conta disso**: essa condição é exatamente o motivo do
-     passo obrigatório abaixo em "Prompt de execução sequencial para o worker" — cada worker de
-     `O_{i+1}` sincroniza com `origin/$DEFAULT_BRANCH` por conta própria, como primeiro passo padrão
-     (não recuperação ad-hoc), então a divergência do root deixa de ser bloqueante para o dispatch.
-- Se, apesar da heurística da Fase 1, um worker de uma onda posterior reportar erro de compilação por
-  dependência ausente de um grupo anterior ainda não mergeado, isso é sinal de dependência não
-  detectada: pause o grupo, registre no relatório e corrija o agrupamento em ondas para a próxima
-  sessão.
+  Leia `../shared/references/issue-coordinator-dispatch.md` para timeout, transição de ondas e sincronização do root.
 
-⚠️ **Checagem de duplicidade (antes de cada dispatch).** Rode
-`bash "$SKILL_DIR/../../scripts/vetor-status.sh"` e cruze as issues do grupo candidato contra as
-já reportadas como em andamento (`Iteration: N/5 (Issue #<M>)`) em status files ativos (`RUNNING`,
-`BLOCKED_WAITING`, ou `GREEN` ainda não mergeado). Se qualquer issue do grupo já aparecer em um
-worktree ativo: alerte (`⚠️ Issue #<M> já está em andamento no worktree/branch <outra-branch> —
-pulando dispatch duplicado`) e **pule** o dispatch desse grupo.
+  Antes de cada dispatch, leia `../shared/references/issue-coordinator-dispatch.md` para duplicidade, status file e retomada em worktree existente.
 
-**Antes de invocar `Agent()`, o coordenador DEVE criar o status file** (path da Fase 3) com
-`Status: RUNNING` — o sandbox de isolamento pode impedir o worker de criar arquivo fora do worktree.
-Exemplo: `echo -e "# Agent Status - <branch>\nStatus: RUNNING\nIteration: 1/5 (Issue #<M>)" > <path>`.
-Enquanto o harness inicializa o worktree, `vetor-status.sh` classifica o grupo como `aguardando worktree`
-(e não como `cancelled`, issue #347).
-
-```javascript
-Agent({
-  description: "Grupo Lead #<N>: <título>",
-  prompt: "...",
-  subagent_type: "vetor:issue-worker",
-  model: "<haiku|sonnet>",
-  isolation: "worktree",
-  run_in_background: true
-})
-```
-
-**Escolha do `model`:** `haiku` se todas as issues do grupo forem `chore` ou `fix` simples; `sonnet`
-se houver `feat`, `refactor` ou mais de 2 issues complementares. Se esgotar iterações, redespache
-uma vez com `sonnet`.
-
-⚠️ **`isolation: "worktree"` é só para dispatch inicial (worktree ainda não existe).** Se o worktree
-já existe — retomada de sessão, redespacho após `BLOCKED_WAITING` ou após `FAILED_MAX_ITERATIONS`, ou
-recuperação de um worker travado em plan mode (sintoma: status parado em `RUNNING`, sem iteração nova
-nem commit — descarte a sessão travada) — **NÃO use `vetor:issue-worker`**: ele força worktree novo
-via frontmatter. Despache um subagente padrão sem `subagent_type`, instruindo-o com a skill
-`fix-loop-agent` no prompt e um `cd` explícito para o path real do worktree (via `git worktree list`):
-
-```javascript
-Agent({
-  description: "Grupo Lead #<N>: <título> (Resumo)",
-  prompt: "Entre no diretório <path> e retome o trabalho usando a skill fix-loop-agent...",
-  model: "<haiku|sonnet>",
-  run_in_background: true
-})
-```
-
-⚠️ **Colisão de migrations paralelas.** Workers paralelos **dentro da mesma onda** que tocam módulos
-com versionamento sequencial de arquivos (ex.: Flyway `V<N>__*.sql`) podem gerar colisões invisíveis
-ao git. A rede de segurança é o merge serializado (Fase 6) somado à checagem 2.b do `worktree-ship`.
-Já a colisão **entre ondas** (grupo de `O_2` sem visibilidade das migrations de `O_1`) é o problema
-que as Ondas de Despacho (Fase 1) previnem estruturalmente, ao só liberar `O_2` depois do merge e
-sincronismo do branch default com `O_1`.
-
-**Nota (Antigravity):** o `issue-worker` também é registrado via `agents/issue-worker/agent.json`
-(`customAgentSpec`). Como define `tools:` explicitamente, **não** herda MCP do contexto pai — se um
-worker precisar de MCP, adicione-o à lista.
-
-**Prompt de execução sequencial para o worker:**
-1. **Lead Issue:** #<N> (título, descrição, critérios de aceite).
-2. **Issues Sequenciais:** #<M1>, #<M2> (idem).
-3. **Branch:** `<type>/<issue#>-<slug>` — criar como primeiro passo no worktree.
-4. **Status File Path:** o path absoluto da Fase 3, atualizado a cada iteração de cada issue
-   (ex.: `Iteration: 2/5 (Issue #<M1>)`). Instrua o worker explicitamente:
-   > Escreva o status file no path absoluto `<status-file-path>`. Se a plataforma rejeitar com
-   > mensagem como *"Edit the worktree copy..."* ou qualquer bloqueio de escrita fora do worktree,
-   > salve também uma cópia dentro do worktree em `.claude/vetor-status.md`. Se apenas a cópia local
-   > foi gravada, sinalize no chat.
-5. **Sincronização com origin (obrigatória a partir de `O_2`).** Se este dispatch pertence a uma
-   onda `O_{i+1}` posterior à primeira, inclua no prompt, como **primeiro passo padrão logo após o
-   `git checkout -b`** — não como recuperação ad-hoc descoberta pelo próprio worker (issue #244):
-   > Antes de investigar o escopo da issue, rode `git fetch origin $DEFAULT_BRANCH` e compare com o
-   > seu HEAD (`git log origin/$DEFAULT_BRANCH -1` vs `git log HEAD -1`). Se o seu worktree nasceu
-   > de um commit anterior aos merges das ondas anteriores, sincronize agora (`git merge
-   > origin/$DEFAULT_BRANCH` ou `git rebase origin/$DEFAULT_BRANCH`) antes de procurar qualquer
-   > arquivo — issues desta onda podem depender de arquivos criados por PRs de ondas já mergeadas.
-   Isso vale mesmo que o coordinator já tenha checado a sincronia do root na Transição de onda: o
-   worktree é criado a partir do HEAD local do root no momento do dispatch (`isolation: "worktree"`
-   é controlado pelo harness, não pelo coordinator — não há como forçar a criação diretamente a
-   partir de `origin/$DEFAULT_BRANCH`), então essa instrução no prompt do worker é a rede de
-   segurança que não depende do root ter avançado a tempo.
-6. **Comandos de teste pré-resolvidos (se module-test-map untracked/ignorado):** Se `git check-ignore -q .claude`
-   indicar que `.claude/` está ignorado ou se `! git ls-files --error-unmatch .claude/vetor/module-test-map.md >/dev/null 2>&1`
-   indicar que o mapa de testes não está commitado (issue #327), injete explicitamente os comandos de
-   teste resolvidos para os módulos da issue no prompt do worker, evitando que ele fique sem referências
-   de teste no worktree.
+  Ao preparar o worker, leia `../shared/references/issue-coordinator-dispatch.md` para convenções e o template completo do prompt.
 
 Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em alguma, para e marca
 `FAILED_MAX_ITERATIONS` especificando qual issue falhou.
 
 ### 5 — Monitoramento
 
-**5.a — Tabela de status**
-
-```bash
-bash "$SKILL_DIR/../../scripts/vetor-status.sh"
-```
-
-O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
-manualmente → `cancelled (worktree removed)`; recém-despachado → `aguardando worktree`, issue #347)
-e com `gh pr list --state all`, e imprime a tabela. O script resolve o root do repositório
-automaticamente, podendo rodar no root ou dentro de qualquer worktree sem falso alarme (issue #339).
-Reproduza-a no chat acrescentando os grupos `QUEUED`, e adicione a coluna `Onda` (Fase 1)
-a cada linha — o script não conhece o DAG, então essa coluna vem do plano da Fase 2 mantido em
-memória pelo coordinator. Grupos `QUEUED` de uma onda posterior aparecem como
-`QUEUED (aguardando O_i)` para deixar explícita a razão de não terem sido despachados mesmo havendo
-vaga no teto `N`.
-
-⚠️ **Fallback de leitura.** Se o status file no path absoluto não existir ou estiver desatualizado
-para um worktree ativo, leia `<path-do-worktree>/.claude/vetor-status.md` (path via
-`git worktree list`).
-
-⚠️ **Workers duplicados.** Extraia o número de issue de cada `Iteration: N/5 (Issue #<M>)` dos status
-files ativos e cruze-os. Se a mesma issue aparecer em mais de um worktree ativo, sinalize:
-`⚠️ Issue #<M> em andamento simultaneamente em <slug-A> e <slug-B> — possível dispatch duplicado` e
-avalie com o usuário qual worker continua.
+Leia `../shared/references/issue-coordinator-monitoring.md` ao montar/atualizar a tabela de status, incluindo fallback e duplicidade.
 
 **5.b — Escalação de bloqueios**
 
@@ -561,41 +410,7 @@ imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de d
 Após todos os agentes terminarem (ou atingido o timeout de 90 minutos / `maxSessionMinutes`):
 
 ```
-## Coordinator Report
-
-| Issue | Resultado | PR | Detalhes |
-|-------|----------|-----|----------|
-| #42 | ✅ Merged | #87 | squash merged |
-| #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preserved |
-| #44 | ⏸️ Review required | #89 | awaiting human review |
-| #45 | ⏭️ SKIPPED (aguardando Spec) | — | gate de Spec/design, Fase 2 — usuário optou por gerar a Spec antes |
-
-Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> aguardando Spec.
-```
-
-**Checkpoint de fechamento de onda (issue #246).** Após montar o Coordinator Report acima, confirme
-que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resultados reportados —
-**nenhum grupo do plano aprovado deve ficar sem uma linha de resultado**. Resultados válidos
-dependem do modo:
-- **Interativo**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SKIPPED (aguardando
-  Spec)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
-  despachado" e pergunte ao usuário via `AskUserQuestion` se deve despachar agora.
-- **`--headless`**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SKIPPED
-  (aguardando Spec)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
-  atingiram verde em modo headless (sem merge nessa fase). Se houver discrepância, apenas reporte o
-  grupo como "não despachado" no campo de observações; não pergunte nem redespache.
-
-**Em `--headless`, o relatório é a única saída da execução** — acrescente:
-- O plano de dispatch da Fase 2 (apenas registrado, não aprovado).
-- Para cada issue `não-trivial` sem Spec associada (gate de Spec/design, Fase 2): sinalizada, nunca
-  bloqueada — mesma marca `⚠️ sem Spec associada` da coluna "Ação" do plano.
-- O teto `N` usado e como foi calculado.
-- Para cada `GREEN`: branch e path do worktree, marcados como **prontos para ship**.
-- Para cada `BLOCKED_WAITING`: o bloqueio e a recomendação do worker.
-- Se o circuit breaker disparou: a assinatura de erro comum e os grupos não despachados.
-
----
-
+Use `../shared/references/issue-coordinator-report.md` ao montar o Coordinator Report e validar o fechamento da onda.
 ## Orçamentos e hard caps
 
 - **fix-loop-agent:** 5 iterações é **orçamento sugerido**, não hard cap enforced — nada no hook

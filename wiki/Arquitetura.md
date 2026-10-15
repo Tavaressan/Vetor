@@ -38,6 +38,9 @@ Rules ficam no subdiretório `vetor/` para não pisar nas suas, e não são sobr
 - **`skills/shared/references/module-test-map.template.md`** — template de comandos de teste headless por módulo (ver [Configuração › Testes por projeto](Configuracao.md#testes-por-projeto)).
 - **`skills/shared/references/delegate-to-runtime.md`** — padrão opcional de delegação agnóstica de runtime (Gemini/OpenCode/Codex).
 - **`skills/shared/references/project-conventions.md`** — detecção de branch default e resolução do `module-test-map`, compartilhada por `fix-loop-agent`, `worktree-ship` e `worktree-create` (evita duplicar a mesma lógica três vezes).
+- **`skills/shared/references/issue-coordinator-dispatch.md`** — detalhes operacionais de criação, despacho, sincronização de ondas e convenções de prompt do issue-coordinator.
+- **`skills/shared/references/issue-coordinator-monitoring.md`** — tabela de status, fallback de leitura e detecção de dispatch duplicado do issue-coordinator.
+- **`skills/shared/references/issue-coordinator-report.md`** — formato do Coordinator Report e checkpoint de fechamento de onda.
 
 ## Gate de Spec/design (issue-coordinator, Fase 2)
 

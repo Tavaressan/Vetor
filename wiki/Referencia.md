@@ -55,7 +55,10 @@ skills/
 ├── shared/references/
 │   ├── module-test-map.template.md
 │   ├── delegate-to-runtime.md
-│   └── project-conventions.md
+│   ├── project-conventions.md
+│   ├── issue-coordinator-dispatch.md
+│   ├── issue-coordinator-monitoring.md
+│   └── issue-coordinator-report.md
 ├── backlog-ideator/SKILL.md
 ├── fix-loop-agent/SKILL.md
 ├── guardian/SKILL.md
