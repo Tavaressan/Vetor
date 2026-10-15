@@ -179,8 +179,9 @@ gh pr view <N> --json mergeable,mergeStateStatus
 
 ### 7 — Auditoria de Banco de Dados (via MCP)
 
-Verifique disponibilidade de um MCP de banco (`mcp__<db>__*` — o nome do servidor varia). Se não
-houver, ignore este check. Se houver, audite a saúde estrutural (adapte ao dialeto):
+Verifique disponibilidade de um MCP de banco (prefixo standalone `mcp__<db>__*` ou empacotado em
+plugin `mcp__plugin_<plugin>_<db>__*`, conforme `scripts/lib/mcp.ts` — o nome do servidor varia). Se
+não houver, ignore este check. Se houver, audite a saúde estrutural (adapte ao dialeto):
 
 - Índices não utilizados.
 - Tabelas sem chave primária ou índices.
@@ -199,8 +200,9 @@ Se o stack for identificável (`mcp__planetscale__*`, `mcp__postgres__*`, `mcp__
 
 ### 8 — Auditoria de Saúde de Containers Docker (via MCP)
 
-Verifique disponibilidade de um MCP Docker (`mcp__docker__*`, diretas ou diferidas). Se não houver,
-ignore silenciosamente.
+Verifique disponibilidade de um MCP Docker (`mcp__docker__*` ou `mcp__plugin_<plugin>_docker__*`,
+diretas ou diferidas — sem casar gateways como `mcp__MCP_DOCKER__`, conforme `scripts/lib/mcp.ts`).
+Se não houver, ignore silenciosamente.
 
 Se disponível, liste os containers do projeto (equivalente a `docker ps`/`docker inspect`) e
 identifique quais **não** estão `running`/`healthy` (ex.: `exited`, `restarting`, `unhealthy`).

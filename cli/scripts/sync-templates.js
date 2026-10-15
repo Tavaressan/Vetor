@@ -61,12 +61,26 @@ function syncTemplates({ monorepoRoot = MONOREPO_ROOT, templatesDir = TEMPLATES_
   return synced;
 }
 
+// Issue #316: sincroniza o LICENSE da raiz do monorepo para cli/LICENSE no prepack,
+// garantindo que o pacote publicado no npm inclua a licença declarada.
+function syncLicense({ monorepoRoot = MONOREPO_ROOT, cliDir = path.join(__dirname, '..') } = {}) {
+  const source = path.join(monorepoRoot, 'LICENSE');
+  const dest = path.join(cliDir, 'LICENSE');
+  if (fs.existsSync(source)) {
+    fs.copyFileSync(source, dest);
+    return true;
+  }
+  return false;
+}
+
 if (require.main === module) {
   const synced = syncTemplates();
+  const licenseSynced = syncLicense();
+  const summary = licenseSynced ? [...synced, 'LICENSE'] : synced;
   // stderr, não stdout: este script roda como hook `prepack`, e `npm pack --json`/
   // `npm publish --json` capturam o stdout do processo pai para emitir JSON estruturado —
   // stdout dos lifecycle scripts é herdado pelo mesmo descritor e poluiria esse JSON.
-  console.error(`[sync-templates] sincronizado: ${synced.join(', ') || '(nada encontrado)'}`);
+  console.error(`[sync-templates] sincronizado: ${summary.join(', ') || '(nada encontrado)'}`);
 }
 
-module.exports = { syncTemplates, SOURCE_DIRS, MONOREPO_ROOT, TEMPLATES_DIR };
+module.exports = { syncTemplates, syncLicense, SOURCE_DIRS, MONOREPO_ROOT, TEMPLATES_DIR };

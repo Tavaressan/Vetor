@@ -67,9 +67,10 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
   estética/tipográfica via skill nativa `frontend-design`, aplicada **antes** de escrever o código.
   O Loop é complementar e roda **depois**: verifica o que foi construído, não decide como desenhar.
 - `../shared/references/mcp-availability.md` — mecanismo de checagem de
-  disponibilidade (procurar `mcp__<server>__` na lista de ferramentas). Servidores relevantes aqui:
-  browser (`mcp__chrome-devtools__`, `mcp__playwright__`) para os passos 4-6 e 9 do Loop, Context7
-  para qualquer comportamento de framework/lib consultado durante o Fix (Loop, passo 8).
+  disponibilidade (procurar `mcp__<server>__` ou `mcp__plugin_<plugin>_<server>__` na lista de
+  ferramentas, conforme `scripts/lib/mcp.ts` — issue #336). Servidores relevantes aqui: browser
+  (`chrome-devtools`, `playwright`) para os passos 4-6 e 9 do Loop, Context7 para qualquer
+  comportamento de framework/lib consultado durante o Fix (Loop, passo 8).
 - `scripts/lib/design-mode.ts` — lógica de detecção/renderização do Setup (pura, testada em
   `scripts/tests/design-mode_test.ts`).
 - `scripts/detect-design-mode.ts` — CLI que orquestra a escrita em disco do Setup a partir da lib
@@ -427,8 +428,9 @@ lista não está vazia — declare exatamente o que foi e o que não foi confirm
 ### Sem MCP de browser (degradação graciosa)
 
 Este loop nunca falha nem trava por falta de MCP de browser, e nunca finge que a inspeção ocorreu.
-Quando nenhum servidor de browser (`mcp__chrome-devtools__*`, `mcp__playwright__*`) está na lista de
-ferramentas da sessão:
+Quando nenhum servidor de browser (`chrome-devtools`, `playwright` — via prefixo standalone
+`mcp__<server>__*` ou empacotado em plugin `mcp__plugin_*_<server>__*`, conforme `scripts/lib/mcp.ts`)
+está na lista de ferramentas da sessão:
 
 1. Os passos 4, 5, 6 e a parte visual do 7/9 usam `reportLoopStep(<step>, <ferramentas>)` de
    `scripts/lib/design-loop-mcp.ts`, que retorna `verdict: "unverified"` com uma `limitation`

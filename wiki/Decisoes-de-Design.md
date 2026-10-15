@@ -30,7 +30,7 @@ agente precisa para agir, movendo justificativa para esta página e procedimento
 para `skills/shared/references/`.
 
 **Teto de workers simultâneos é recomendação, não limite.** O `issue-coordinator` calcula
-`N_rec = min(nº de grupos, maxConcurrentWorkers do config, senão 5)` e o oferece como default na
+`N_rec = min(largura da maior onda, maxConcurrentWorkers do config, senão 5)` e o oferece como default na
 `AskUserQuestion` da Fase 2. Acima de ~8 workers o custo agregado e o ruído de monitoramento tendem a
 crescer mais rápido que o ganho de paralelismo, e o coordinator sinaliza isso — mas não impõe: o
 usuário pode escolher qualquer valor, inclusive acima de 8. Não há teto duro.

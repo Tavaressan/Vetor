@@ -168,7 +168,17 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
   if (!gateMatch) return;
   if (!wt?.isLinked) return;
 
-  const status = readStatus(statusFilePath(wt.root, wt.branch));
+  let status = readStatus(statusFilePath(wt.root, wt.branch));
+  // Issue #323: se o status file no root não estiver GREEN ou não existir,
+  // consulta também o fallback local do worktree (<toplevel>/.claude/vetor-status.md)
+  if (status !== "GREEN") {
+    const localStatus = readStatus(`${wt.toplevel}/.claude/vetor-status.md`);
+    if (localStatus === "GREEN") {
+      status = "GREEN";
+    } else if (status === null && localStatus !== null) {
+      status = localStatus;
+    }
+  }
   // Sem status file, a branch não pertence ao fluxo do coordinator: não interfere.
   if (status === null) return;
 

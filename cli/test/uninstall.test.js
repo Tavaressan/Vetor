@@ -106,3 +106,34 @@ test('uninstall: arquivo editado pelo usuário é preservado e continua no manif
     assert.equal(Object.keys(readManifest(dir).files).length, 1);
   });
 });
+
+test('uninstall: options.yes pula confirm e prossegue com a desinstalação', async () => {
+  await withTempDir(async (dir) => {
+    const filePath = path.join(dir, '.claude', 'skills', 'demo', 'SKILL.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, 'conteúdo íntegro\n');
+    writeManifest(dir, {
+      version: 1,
+      files: {
+        '.claude/skills/demo/SKILL.md': {
+          sha256: hashContent(Buffer.from('conteúdo íntegro\n')),
+          engine: 'claude-code',
+        },
+      },
+    });
+
+    let confirmCalled = false;
+    const confirm = async () => {
+      confirmCalled = true;
+      return false;
+    };
+
+    const output = await captureInfo(() => uninstall(dir, { yes: true, confirm }));
+
+    assert.equal(confirmCalled, false, 'confirm não deve ser chamado quando yes: true');
+    assert.match(output, /1 arquivo\(s\) removido\(s\)/);
+    assert.equal(fs.existsSync(filePath), false);
+    assert.equal(fs.existsSync(manifestPathFor(dir)), false);
+  });
+});
+

@@ -9,7 +9,7 @@
 | Timeout global do coordinator | 90 min |
 
 Workers simultâneos por rodada do coordinator **não** são um hard cap: o valor é perguntado por
-sessão, com `N_rec = min(nº de grupos, maxConcurrentWorkers do config, senão 5)` como default. Acima
+sessão, com `N_rec = min(largura da maior onda, maxConcurrentWorkers do config, senão 5)` como default. Acima
 de ~8 o coordinator sinaliza o trade-off de custo, mas não impõe limite — ver
 [Decisões de design](Decisoes-de-Design.md).
 

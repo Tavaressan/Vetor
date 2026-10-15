@@ -263,7 +263,7 @@ do sugerido aqui se estiver `degraded` no momento do dispatch.
 #### Pergunta sobre teto de workers simultâneos
 
 Antes de pedir aprovação:
-1. Calcule `N_rec = min(número de grupos formados, maxConcurrentWorkers de .claude/vetor/config.json
+1. Calcule `N_rec = min(largura da maior onda, maxConcurrentWorkers de .claude/vetor/config.json
    — senão 5)`. Acima de ~8 workers, sinalize que custo agregado e ruído de monitoramento crescem
    mais rápido que o ganho de paralelismo — é recomendação, não limite; a decisão é do usuário.
 2. **Em `--headless`: não pergunte.** Adote `N = N_rec`, registre no relatório final (Fase 7) o
@@ -498,7 +498,9 @@ ele precisa ser autossuficiente. Acrescente ao formato acima:
   `issue-worker` no status file, sem checagem automática — issue #156). Ao atingir a 5ª iteração sem
   verde, o worker deve registrar `BLOCKED_WAITING` ou `FAILED_MAX_ITERATIONS`, nunca decidir sozinho
   continuar.
-- Timeout global de 90 minutos para o coordenador (este sim, hard cap real)
+- Timeout global de 90 minutos para o coordenador (este sim, hard cap real) — configurável via
+  `maxSessionMinutes` em `.claude/vetor/config.json` (default 90). O teto restringe novos dispatches e
+  o início de novas ondas; ships e workers ativos podem concluir.
 - Iterações em `BLOCKED_WAITING` não contam contra o orçamento de 5
 
 O número de processos simultâneos **não é um hard cap**: é o valor `N` decidido pelo usuário na

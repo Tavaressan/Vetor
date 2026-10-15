@@ -1,8 +1,11 @@
 // Degradação graciosa do Frontend Self-Correction Loop (#230) quando não há MCP de browser
 // disponível na sessão. Mecanismo de detecção reaproveita skills/shared/references/mcp-availability.md
-// (procurar `mcp__<server>__` na lista de ferramentas do agente) — este módulo só formaliza o
-// relato de cada etapa do loop (skills/design/SKILL.md) para nunca pular uma etapa em silêncio
-// nem fingir que a inspeção visual/a11y ocorreu sem MCP.
+// e scripts/lib/mcp.ts (procurar `mcp__<server>__` ou `mcp__plugin_<plugin>_<server>__` na lista de
+// ferramentas do agente) — este módulo só formaliza o relato de cada etapa do loop
+// (skills/design/SKILL.md) para nunca pular uma etapa em silêncio nem fingir que a inspeção
+// visual/a11y ocorreu sem MCP (issue #336).
+
+import { hasMcpServer } from "./mcp.ts";
 
 const BROWSER_MCP_SERVERS = ["chrome-devtools", "playwright"] as const;
 
@@ -33,14 +36,13 @@ const STEP_LABELS: Record<LoopStepId, string> = {
 };
 
 /**
- * Procura, na lista de nomes de ferramentas disponíveis do agente, um nome com prefixo
- * `mcp__<server>__` para algum servidor de browser conhecido. Retorna o nome do servidor
- * (ex.: "chrome-devtools") ou `null` se nenhum estiver disponível.
+ * Procura, na lista de nomes de ferramentas disponíveis do agente, ferramentas pertencentes
+ * a algum servidor de browser conhecido (standalone ou empacotado em plugin). Retorna o nome
+ * do servidor (ex.: "chrome-devtools") ou `null` se nenhum estiver disponível.
  */
 export function detectBrowserMcpServer(toolNames: string[]): string | null {
   for (const server of BROWSER_MCP_SERVERS) {
-    const prefix = `mcp__${server}__`;
-    if (toolNames.some((name) => name.startsWith(prefix))) return server;
+    if (hasMcpServer(toolNames, server)) return server;
   }
   return null;
 }

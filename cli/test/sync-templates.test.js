@@ -15,7 +15,7 @@ const path = require('node:path');
 // pack.test.js já cobre a sincronização real via prepack (npm pack/publish --dry-run) e é
 // o único arquivo de teste que muta esse diretório, evitando corrida entre arquivos de
 // teste rodando em paralelo (comportamento padrão do test runner do Node).
-const { syncTemplates, SOURCE_DIRS } = require('../scripts/sync-templates.js');
+const { syncTemplates, syncLicense, SOURCE_DIRS } = require('../scripts/sync-templates.js');
 const { defaultSourceRoot } = require('../lib/installer/writer.js');
 
 function withTempDir(fn) {
@@ -130,5 +130,32 @@ test('defaultSourceRoot: pacote publicado (sem plugin.json) usa templates/ dentr
     fs.mkdirSync(packageRoot, { recursive: true });
 
     assert.equal(defaultSourceRoot({ packageRoot }), path.join(packageRoot, 'templates'));
+  });
+});
+
+test('syncLicense: copia LICENSE da raiz do monorepo para cli/LICENSE — issue #316', () => {
+  withTempDir((fakeMonorepoRoot) => {
+    withTempDir((fakeCliDir) => {
+      fs.writeFileSync(path.join(fakeMonorepoRoot, 'LICENSE'), 'MIT License\n');
+
+      const result = syncLicense({ monorepoRoot: fakeMonorepoRoot, cliDir: fakeCliDir });
+
+      assert.equal(result, true);
+      assert.equal(
+        fs.readFileSync(path.join(fakeCliDir, 'LICENSE'), 'utf8'),
+        'MIT License\n',
+      );
+    });
+  });
+});
+
+test('syncLicense: se LICENSE não existe na raiz, retorna false sem lançar erro', () => {
+  withTempDir((fakeMonorepoRoot) => {
+    withTempDir((fakeCliDir) => {
+      const result = syncLicense({ monorepoRoot: fakeMonorepoRoot, cliDir: fakeCliDir });
+
+      assert.equal(result, false);
+      assert.equal(fs.existsSync(path.join(fakeCliDir, 'LICENSE')), false);
+    });
   });
 });

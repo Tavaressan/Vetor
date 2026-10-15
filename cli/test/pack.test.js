@@ -36,6 +36,7 @@ test('npm pack --dry-run só empacota bin/, lib/ e templates/ (além dos implíc
   const paths = pkg.files.map((file) => file.path);
   assert.ok(paths.includes('bin/vetor.js'), 'bin/vetor.js ausente do pacote');
   assert.ok(paths.includes('lib/router.js'), 'lib/router.js ausente do pacote');
+  assert.ok(paths.includes('LICENSE'), 'LICENSE ausente do pacote (issue #316)');
 });
 
 // Issue #255 (redespacho): o teste acima só checa o prefixo "templates/" — passaria mesmo
