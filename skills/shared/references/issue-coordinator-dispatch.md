@@ -16,6 +16,10 @@ assuma path de worktree. O coordenador deriva apenas:
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` — fica fora do worktree;
    formato em `../shared/references/agent-status.template.md`.
 
+Para retomada `--resume` ou dispatch de issue dependente, consulte também
+`../shared/references/memory-handoffs.md`: o status file sempre reconstrói o estado; handoff é
+complemento opcional identificado por issue/branch e aceito somente pelo ID exato.
+
 ⚠️ **O slug é só nominal — não é o path do worktree.** Ele serve apenas para compor o nome da branch
 e o do arquivo de status. **Nunca** infira que o worktree está em `.claude/worktrees/<slug>/` ou
 qualquer convenção derivada do slug: obtenha o path real via `git worktree list` (correlacionando
