@@ -363,9 +363,10 @@ aprovação explícita via `AskUserQuestion`** e só repita após o "sim". **Nun
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 ```
 
-Volta ao root e sincroniza com a branch default. (Só numa sessão manual em que você entrou no
-worktree com `EnterWorktree` é preciso sair com `ExitWorktree` antes.) Confirme pela mensagem de
-sucesso.
+Volta ao root e sincroniza com a branch default. Se o root já estiver na branch default, faz
+`git fetch` e `git merge --ff-only` com `origin/<default>` para evitar defasagem entre ondas de dispatch
+(issue #322). (Só numa sessão manual em que você entrou no worktree com `EnterWorktree` é preciso sair
+com `ExitWorktree` antes.) Confirme pela mensagem de sucesso.
 
 ### 12 — Cleanup
 
