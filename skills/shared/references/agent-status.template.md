@@ -3,10 +3,10 @@
 **Path canônico:** `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md`
 (ex.: branch `fix/42-cache-ttl` → `.claude/vetor/status/fix-42-cache-ttl.md`).
 
-Escrito pelo worker/fix-loop a cada iteração. Lido pelo `issue-coordinator` (via
+Escrito pelo worker/fix-loop a cada iteração. Lido pelo `coordinator` (via
 `scripts/vetor-status.sh`) e pelo safety hook (que bloqueia `git push`/`gh pr *` de um worktree
 enquanto `Status` ≠ `GREEN`). Fica **fora do worktree**, no root do repo — não há risco de commit
-acidental; o `/vetor` init garante a entrada no `.gitignore`.
+acidental; o `/vetor:install` init garante a entrada no `.gitignore`.
 
 **Fallback (issue #94):** se a plataforma bloquear a escrita fora do worktree, o worker deve salvar
 uma cópia em `<worktree>/.claude/vetor-status.md`. O coordinator verifica esse fallback ao ler.
@@ -44,7 +44,7 @@ um novo estado ou caminho de escalação: `BLOCKED_WAITING` continua sendo o ún
 vocabulário apenas qualifica o motivo já registrado em `Blocked on`.
 
 **`FAILED_MAX_ITERATIONS`**: além de atualizar o status, crie `FAIL_ANALYSIS.md` no root do
-worktree com o handover de falha (ver `fix-loop-agent` §4).
+worktree com o handover de falha (ver `fix` §4).
 
 Iterações em `BLOCKED_WAITING` não contam contra o orçamento de 5 do fix-loop (sugerido, não
 enforced pelo hook — issue #156: ao atingi-lo, registre `BLOCKED_WAITING` ou
@@ -64,5 +64,5 @@ o resultado bruto (ou um resumo objetivo e verificável) no `Last action` do sta
 - Se a verificação falhar, for inconclusiva, ou não puder ser executada (ex.: falta de permissão) →
   marque `Status: BLOCKED_WAITING` com o motivo em `Blocked on`, nunca `GREEN` sem confirmação.
 
-Isso evita que o `issue-coordinator` e sessões futuras confiem em um estado externo que pode nunca ter
+Isso evita que o `coordinator` e sessões futuras confiem em um estado externo que pode nunca ter
 sido aplicado ou que foi revertido silenciosamente, sem nenhum sinal de alerta no painel de status.

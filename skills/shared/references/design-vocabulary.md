@@ -20,7 +20,7 @@ Frontend Implementation
 ```
 
 Consumido por `frontend-design-enforcement.md` e pela skill `frontend-design` (verificação de
-UI/design de frontend) e pelo `fix-loop-agent` quando a descrição do fix envolve UI.
+UI/design de frontend) e pelo `fix` quando a descrição do fix envolve UI.
 
 As Decisões do Design Contract (§4.4) usam o modelo de estados epistêmicos definido em
 `$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` (#214) — este documento **consome**

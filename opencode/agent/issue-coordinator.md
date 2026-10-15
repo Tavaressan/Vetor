@@ -9,7 +9,7 @@ permission:
   webfetch: ask
 ---
 
-> Portado de `skills/issue-coordinator/SKILL.md` (Claude Code, v1.5.0 — issue #82). Vive em
+> Portado de `skills/coordinator/SKILL.md` (Claude Code, v1.5.0 — issue #82). Vive em
 > `opencode/agent/` (não `opencode/skills/`) desde a issue #306: `opencode agent list`/`--agent` só
 > reconhece agents definidos em `.opencode/agent/*.md` — em `.opencode/skills/`, este arquivo era
 > descoberto como skill, nunca invocável via `opencode run --agent issue-coordinator`.
@@ -179,7 +179,7 @@ gh issue list --label <label> --state open --json number,title,labels,body
 
 **Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label traz de volta,
 na mesma leva, issues abertas manualmente/via integração externa e issues geradas por `/retro` ou
-`/vetor:backlog-ideator` (label `ai-generated`), sem distinção. Antes do agrupamento de afinidade,
+`/vetor:backlog` (label `ai-generated`), sem distinção. Antes do agrupamento de afinidade,
 particione o resultado usando o campo `labels`:
 
 - **Pedidas pelo usuário** (candidatas primárias): issues **sem** a label `ai-generated`.
@@ -442,7 +442,7 @@ branch e o path do worktree (obtido via `git worktree list`), e encerre.
 Quando um status file atingir `GREEN`:
 1. Confirme lendo o arquivo.
 2. Localize o worktree real: `git worktree list` (correlacione pela branch do grupo).
-3. `cd <path-do-worktree>` e rode o pipeline de entrega equivalente ao `worktree-ship` do Claude
+3. `cd <path-do-worktree>` e rode o pipeline de entrega equivalente ao `ship` do Claude
    Code — se ele não tiver sido portado ainda para o OpenCode neste repositório, rode manualmente:
    `<comando de teste> && git push -u origin <branch> && gh pr create ... && gh pr merge --squash`.
 4. Após merge bem-sucedido, execute `bash .opencode/scripts/vetor-checks.sh

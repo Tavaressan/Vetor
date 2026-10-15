@@ -10,7 +10,7 @@ mecanismo que aplica uma política de fato — instrução em prompt o agente po
 | `PreToolUse` | `Bash\|Edit\|Write` | `safety-check.ts` / `safety-check.sh` | Barra push para branch protegida; barra push/PR de worker não-GREEN; restringe escrita fora do worktree ao `issue-worker` (exceto status file e caminhos fora do repositório); em `Edit`/`Write`, correlaciona `agent_id` com o worktree resolvido para detectar cwd contaminado entre workers em paralelo (issue #63) |
 | `PostToolUse` | `Edit\|Write` | `check-edit.ts` | Roda o typecheck no arquivo editado e injeta o erro no contexto do agente |
 | `SubagentStop` | `vetor:issue-worker` | `check-status.ts` | Impede o worker de encerrar sem status file em estado terminal |
-| `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor` |
+| `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor:install` |
 | `WorktreeCreate` | — | `prepare-worktree.ts` | Cria o worktree e prepara as dependências |
 
 O relaxamento da #374 (confinar escrita apenas quando `agent_type` identifica `issue-worker`) vale somente no Claude Code. Codex (`PreToolUse`) e Cursor não incluem `agent_type` nesse payload e usam `--strict-worktree-writes`; OpenCode `tool.execute.before` também não inclui `agent` e aplica o guard estrito por cwd.

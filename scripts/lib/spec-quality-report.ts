@@ -23,7 +23,7 @@ export const MAX_REFINEMENT_CYCLES = 3;
  * `MAX_REFINEMENT_CYCLES` refinamentos além da validação inicial (ou seja,
  * `MAX_REFINEMENT_CYCLES + 1` entradas no total). Ao exceder o teto, o histórico não muda —
  * `capReached: true` sinaliza para quem chamou que o próximo passo é revisão manual, não mais uma
- * tentativa automática (mesmo espírito do orçamento de iterações do fix-loop-agent).
+ * tentativa automática (mesmo espírito do orçamento de iterações do fix).
  */
 export function appendValidation(
   history: ValidationRecord[],

@@ -16,7 +16,7 @@ Tudo aqui é opcional — o Vetor funciona sem nenhuma dessas etapas, mas elas r
 
 ## Testes por projeto
 
-As skills de teste (`worktree-ship`, `fix-loop`, `guardian`) precisam saber **como rodar os testes do seu projeto**. Elas resolvem isso nesta ordem:
+As skills de teste (`ship`, `fix-loop`, `guardian`) precisam saber **como rodar os testes do seu projeto**. Elas resolvem isso nesta ordem:
 
 1. Leem `.claude/vetor/module-test-map.md` se existir;
 2. Senão, tentam **auto-detectar** os comandos a partir de `.github/workflows/*.yml`;
@@ -25,14 +25,14 @@ As skills de teste (`worktree-ship`, `fix-loop`, `guardian`) precisam saber **co
 Para inicializar a pasta e gerar as configurações padrão, execute a porta de entrada:
 
 ```bash
-/vetor
+/vetor:install
 ```
 
 Isso cria o diretório `.claude/vetor`, gera o `module-test-map.md` (via scripts de auto-detecção) e o `config.json`. Depois, edite `.claude/vetor/module-test-map.md` para ajustar os comandos de teste do seu repositório.
 
 A branch principal é **detectada automaticamente** (`main`, `master`, etc.) — não há nada a configurar.
 
-Se o projeto usar um framework de docs/feature (ex.: um diretório `.reversa/` ou `_reversa_sdd/`), o `backlog-ideator` o detecta e usa como âncora. Se não houver, ele recorre a `docs/`, `ARCHITECTURE.md`, `README.md` e `CLAUDE.md`. Nada a configurar.
+Se o projeto usar um framework de docs/feature (ex.: um diretório `.reversa/` ou `_reversa_sdd/`), o `backlog` o detecta e usa como âncora. Se não houver, ele recorre a `docs/`, `ARCHITECTURE.md`, `README.md` e `CLAUDE.md`. Nada a configurar.
 
 ## Permissões
 
@@ -40,7 +40,7 @@ Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do pr
 
 **Opção A — Modo Seguro (privilégio mínimo, recomendado).** Auto-aprova leitura do GitHub e gerenciamento de worktrees locais, mas **mantém a confirmação visual** para execução de testes, builds, pushes e merges.
 
-> ⚠️ **Incompatível com dispatch em background do `issue-coordinator`.** Workers em `run_in_background: true` não têm ninguém observando o terminal para confirmar prompts — um teste ou build pendente trava o worker indefinidamente (o comando fica pendente antes mesmo de o agente marcar `BLOCKED_WAITING`). Use este modo só para invocação manual e interativa (`/vetor:fix-loop`, `/vetor:guardian` sem `--cron`). Para `/vetor:coordinator`, use a Opção B.
+> ⚠️ **Incompatível com dispatch em background do `coordinator`.** Workers em `run_in_background: true` não têm ninguém observando o terminal para confirmar prompts — um teste ou build pendente trava o worker indefinidamente (o comando fica pendente antes mesmo de o agente marcar `BLOCKED_WAITING`). Use este modo só para invocação manual e interativa (`/vetor:install:fix-loop`, `/vetor:install:guardian` sem `--cron`). Para `/vetor:install:coordinator`, use a Opção B.
 
 <details>
 <summary><code>.claude/settings.json</code> — Opção A</summary>
@@ -62,7 +62,7 @@ Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do pr
 ```
 </details>
 
-**Opção B — Modo Alta Eficiência (autônomo).** Para projetos 100% privados de sua autoria exclusiva, com dependências rigidamente controladas, rodando tudo em background sem interrupções — é o modo **exigido pelo `issue-coordinator`** (dispatch em background). **Adapte a lista de teste/build/install aos comandos reais do seu `module-test-map`** — o Vetor é agnóstico a projeto e não pode adivinhar seu stack; se um comando que o `fix-loop-agent` roda a cada iteração não estiver na lista, o worker trava igual ao Modo Seguro.
+**Opção B — Modo Alta Eficiência (autônomo).** Para projetos 100% privados de sua autoria exclusiva, com dependências rigidamente controladas, rodando tudo em background sem interrupções — é o modo **exigido pelo `coordinator`** (dispatch em background). **Adapte a lista de teste/build/install aos comandos reais do seu `module-test-map`** — o Vetor é agnóstico a projeto e não pode adivinhar seu stack; se um comando que o `fix` roda a cada iteração não estiver na lista, o worker trava igual ao Modo Seguro.
 
 <details>
 <summary><code>.claude/settings.json</code> — Opção B (ajuste o stack)</summary>
@@ -111,7 +111,7 @@ Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do pr
 
 Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco a um CLI externo de IA disponível (Gemini/`agy`, OpenCode/`opencode`, Codex/`codex`), seguindo o padrão **o runtime delegado rascunha, Claude valida**. A escolha do runtime é dinâmica: disponibilidade no PATH × preferência configurada em `.claude/vetor/config.json` (`delegation.preferredRuntime`) × anuência explícita do usuário quando houver 2+ candidatos disponíveis e nenhuma preferência registrada.
 
-- Resumir logs de CI longos antes do diagnóstico (`worktree-ship`, `fix-loop`)
+- Resumir logs de CI longos antes do diagnóstico (`ship`, `fix-loop`)
 - Rascunhar corpos de issue (`backlog`)
 - Rascunhar mensagens de commit e relatórios (`guardian`)
 

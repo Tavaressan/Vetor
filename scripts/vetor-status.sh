@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tabela de monitoramento do issue-coordinator, construída de fontes externas
+# Tabela de monitoramento do coordinator, construída de fontes externas
 # (status files + git worktree list) — não de estado em memória. Pode rodar no root
 # ou de dentro de qualquer worktree (issue #339).
 #

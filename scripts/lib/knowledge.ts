@@ -200,7 +200,7 @@ function existsDir(path: string): boolean {
   }
 }
 
-// --- Detecção do estado do Knowledge Provider (usada por /vetor na inicialização) ---
+// --- Detecção do estado do Knowledge Provider (usada por /vetor:install na inicialização) ---
 
 export type KnowledgeStatus = "filesystem" | "obsidian" | "ai-memory" | "disabled";
 

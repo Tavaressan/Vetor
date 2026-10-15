@@ -10,7 +10,7 @@
 > # edite .claude/vetor/module-test-map.md
 > ```
 >
-> As skills `worktree-ship`, `fix-loop-agent` e `guardian` procuram a cópia preenchida
+> As skills `ship`, `fix` e `guardian` procuram a cópia preenchida
 > em `.claude/vetor/module-test-map.md`. Se ela não existir, tentam auto-detectar os
 > comandos a partir de `.github/workflows/*.yml`; só então recorrem a este template.
 

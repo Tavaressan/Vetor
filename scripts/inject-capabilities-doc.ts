@@ -49,11 +49,11 @@ Automação de ciclo de desenvolvimento (issues → worktrees → fix loop → P
 
 - \`/vetor\` — inicializa/atualiza a configuração do Vetor neste projeto.
 - \`/vetor:spec\` (\`spec\`) — descobre contexto do projeto e rascunha uma Spec a partir de um tema.
-- \`/vetor:backlog\` (\`backlog-ideator\`) — propõe issues a partir de gaps do código/docs.
-- \`/vetor:coordinator\` (\`issue-coordinator\`) — orquestra workers para issues do backlog.
+- \`/vetor:backlog\` (\`backlog\`) — propõe issues a partir de gaps do código/docs.
+- \`/vetor:coordinator\` (\`coordinator\`) — orquestra workers para issues do backlog.
 - \`/vetor:worktree-create\` (\`worktree-create\`) — cria um worktree isolado para uma issue.
-- \`/vetor:fix-loop\` (\`fix-loop-agent\`) — itera build/test até verde num worktree existente.
-- \`/vetor:worktree-ship\` (\`worktree-ship\`) — abre PR a partir de um worktree em estado verde.
+- \`/vetor:fix\` (\`fix\`) — itera build/test até verde num worktree existente.
+- \`/vetor:ship\` (\`ship\`) — abre PR a partir de um worktree em estado verde.
 - \`/vetor:guardian\` (\`guardian\`) — auditoria de banco de dados por stack (condicional).
 - \`/vetor:retro\` (\`retro\`) — retrospectiva do ciclo de trabalho.
 - Agentes \`code-review\` e \`issue-worker\` — usados internamente pelos comandos acima.

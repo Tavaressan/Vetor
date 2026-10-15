@@ -1,6 +1,6 @@
 // Status file dos workers: <root>/.claude/vetor/status/<branch>.md
 //
-// Vive na raiz do repositório, não no worktree, para que o issue-coordinator consiga
+// Vive na raiz do repositório, não no worktree, para que o coordinator consiga
 // agregar o andamento de todos os workers. Compartilhado por safety-check.ts (que barra
 // push de worker não-GREEN) e check-status.ts (que barra worker terminando sem status).
 

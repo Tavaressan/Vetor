@@ -1,6 +1,6 @@
 # Cache de arquivos tocados
 
-Cache leve e efêmero, gravado pelo `fix-loop-agent` (§1) e consumido pelo `code-review`
+Cache leve e efêmero, gravado pelo `fix` (§1) e consumido pelo `code-review`
 (`agents/code-review.md`), para que este não tenha que re-derivar do zero a lista de arquivos
 alterados e o mapeamento módulo → arquivos da mesma branch.
 
@@ -26,5 +26,5 @@ alterados e o mapeamento módulo → arquivos da mesma branch.
 qualquer iteração do loop em que novos arquivos tenham sido alterados. `head` deve refletir o
 `git rev-parse HEAD` **no momento da gravação**, para que o consumidor consiga validar frescor.
 
-**Ciclo de vida:** efêmero por branch/worktree. Descartado no cleanup do `worktree-ship` (passo 12);
+**Ciclo de vida:** efêmero por branch/worktree. Descartado no cleanup do `ship` (passo 12);
 nunca persiste entre PRs.

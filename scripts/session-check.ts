@@ -1,7 +1,7 @@
 // Aviso de projeto não inicializado (hook SessionStart).
 //
 // As skills do Vetor dependem de .claude/vetor/config.json (runtime, testCommand) e do
-// module-test-map.md. Sem eles, o fix-loop e o worktree-ship falham no meio do caminho,
+// module-test-map.md. Sem eles, o fix-loop e o ship falham no meio do caminho,
 // não na entrada. Melhor dizer isso no início da sessão.
 //
 // Contrato do Claude Code: exit 0 + `hookSpecificOutput.additionalContext`. Projeto já
@@ -48,7 +48,7 @@ async function main() {
   } catch {
     notify(
       "Vetor: este projeto ainda não foi inicializado (`.claude/vetor/config.json` ausente). " +
-        "Rode `/vetor` antes de usar as skills de worktree, fix-loop ou ship.",
+        "Rode `/vetor:install` antes de usar as skills de worktree, fix-loop ou ship.",
     );
   }
 

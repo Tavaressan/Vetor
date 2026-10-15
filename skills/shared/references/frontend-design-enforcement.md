@@ -1,7 +1,7 @@
 # Uso obrigatório da skill `frontend-design` (Vetor)
 
 Quando uma issue trata de UI/design de frontend, o worker que implementa (`issue-worker`,
-`fix-loop-agent`) deve carregar e seguir a skill nativa `frontend-design` **antes** de escrever o
+`fix`) deve carregar e seguir a skill nativa `frontend-design` **antes** de escrever o
 código — ela orienta direção estética, tipografia e escolhas de design intencionais, evitando que a
 implementação leia como um default templado.
 

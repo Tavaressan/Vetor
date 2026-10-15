@@ -1,6 +1,6 @@
 ---
 name: design
-description: Skill de design do Vetor — (1) detecta o modo de operação (Prototype-first/System-first/Vetor-first #213), importa um Design System existente sem duplicá-lo e mantém a Design Direction persistente em .vetor/design/; (2) Handoff de protótipo para Design Contract, com estados de interface além do happy path (#229); (3) Frontend Self-Correction Loop (Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done) com Visual Critique em 10 dimensões e degradação graciosa sem MCP de browser. Consumida por issue-worker/fix-loop-agent ao implementar ou corrigir UI de frontend.
+description: Skill de design do Vetor — (1) detecta o modo de operação (Prototype-first/System-first/Vetor-first #213), importa um Design System existente sem duplicá-lo e mantém a Design Direction persistente em .vetor/design/; (2) Handoff de protótipo para Design Contract, com estados de interface além do happy path (#229); (3) Frontend Self-Correction Loop (Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done) com Visual Critique em 10 dimensões e degradação graciosa sem MCP de browser. Consumida por issue-worker/fix ao implementar ou corrigir UI de frontend.
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -36,7 +36,7 @@ Você é a skill de design do Vetor. Cobre três responsabilidades sequenciais d
   Default: raiz do projeto atual (`.`).
 
 O Loop (self-correction) não é tipicamente invocado por um comando de usuário — é consumido por
-`issue-worker`/`fix-loop-agent` (via `frontend-design-enforcement.md`) depois que a implementação de
+`issue-worker`/`fix` (via `frontend-design-enforcement.md`) depois que a implementação de
 uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
 `Skill({skill: "vetor:design"})` para verificar uma tela de frontend já implementada.
 

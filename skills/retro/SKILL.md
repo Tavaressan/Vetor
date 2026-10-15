@@ -26,8 +26,8 @@ técnica do projeto ou decisões de arquitetura do projeto **não** entram aqui 
 ```
 
 Invocação manual, tipicamente ao final de uma sessão que usou uma ou mais skills do Vetor
-(`backlog-ideator`, `issue-coordinator`, `guardian`, `worktree-create`, `worktree-ship`,
-`fix-loop-agent`, `issue-worker`).
+(`backlog`, `coordinator`, `guardian`, `worktree-create`, `ship`,
+`fix`, `issue-worker`).
 
 ---
 
@@ -79,7 +79,7 @@ Para cada achado real, monte:
 ### <Título curto e específico>
 
 **Tipo:** bug | enhancement | docs
-**Skill/arquivo afetado:** <ex.: skills/issue-coordinator/SKILL.md>
+**Skill/arquivo afetado:** <ex.: skills/coordinator/SKILL.md>
 **Evidência:** <trecho da sessão que mostra o problema — cite o que aconteceu, não hipótese>
 **Descrição:** <o que está errado ou faltando, e o efeito prático>
 **Sugestão de fix:** <se houver uma direção clara; opcional caso a solução não seja óbvia>

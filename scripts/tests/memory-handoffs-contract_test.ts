@@ -4,7 +4,7 @@ const root = new URL("../../", import.meta.url);
 const reference = await Deno.readTextFile(
   new URL("skills/shared/references/memory-handoffs.md", root),
 );
-const coordinator = await Deno.readTextFile(new URL("skills/issue-coordinator/SKILL.md", root));
+const coordinator = await Deno.readTextFile(new URL("skills/coordinator/SKILL.md", root));
 
 Deno.test("issue #371: handoff é complemento opcional do status file", () => {
   assertStringIncludes(reference, "status file, que continua sendo a fonte primária");

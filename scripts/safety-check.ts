@@ -193,7 +193,7 @@ function checkBash(command: string, wt: WorktreeInfo | null): void {
         status || "desconhecido"
       }) — push/PR bloqueado pelo Vetor Safety Hook.\n` +
         `Trecho do comando que casou o gate: "${gateMatch[0].trim()}"\n` +
-        "Registre BLOCKED_WAITING no status file se precisar de intervenção; o worktree-ship faz a entrega após GREEN.",
+        "Registre BLOCKED_WAITING no status file se precisar de intervenção; o ship faz a entrega após GREEN.",
     );
   }
 }
@@ -281,7 +281,7 @@ async function checkWrite(
 
   // Issue #151: só correlaciona agent_id -> worktree quando `agentType` está presente, ou seja,
   // quando o dispatch identifica a instância de subagente (mesmo requisito de checkFreshness).
-  // Sem isso, o redispatch de um worker cujo worktree já existe (issue-coordinator/SKILL.md
+  // Sem isso, o redispatch de um worker cujo worktree já existe (coordinator/SKILL.md
   // Fase 4: `cd` explícito, sem `subagent_type`/`isolation: "worktree"` nativos) não tem garantia
   // de `agent_id` único por worktree — o harness pode reciclar o mesmo `agent_id` entre
   // instâncias legitimamente distintas, e tratar isso como contaminação bloqueava escritas

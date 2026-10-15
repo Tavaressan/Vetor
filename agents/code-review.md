@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Revisão consultiva do diff de uma PR — bugs, segurança, correção e riscos de arquitetura. Nunca bloqueia merge; publica achados como comentário na PR. Despachado pelo worktree-ship após CI verde.
+description: Revisão consultiva do diff de uma PR — bugs, segurança, correção e riscos de arquitetura. Nunca bloqueia merge; publica achados como comentário na PR. Despachado pelo ship após CI verde.
 tools: Bash, Read, Grep, Glob
 model: sonnet
 license: MIT
@@ -23,13 +23,13 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    ```
 
    **Cache de arquivos tocados (issue #81).** Antes de derivar a lista de arquivos alterados por
-   conta própria, verifique se o `fix-loop-agent` já gravou um cache para esta branch em
+   conta própria, verifique se o `fix` já gravou um cache para esta branch em
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->-touched-files.json` (root via
    `git rev-parse --git-common-dir`). Se o arquivo existir, valide o frescor comparando o campo
    `head` do cache com `git rev-parse HEAD` da branch da PR:
    - **Mesmo HEAD** → o cache está atualizado; reutilize `modules`/`files` dele em vez de rederivar
      a lista de arquivos e módulos alterados do zero, reduzindo Grep/Glob redundante sobre arquivos
-     que o `fix-loop-agent` já explorou nesta mesma PR.
+     que o `fix` já explorou nesta mesma PR.
    - **HEAD divergente ou arquivo ausente** → ignore o cache; derive a lista normalmente a partir do
      diff (comportamento atual, sem cache).
    Esse cache é só um atalho de descoberta — a revisão em si (passo 2) continua sendo feita sobre o
@@ -85,7 +85,7 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    ---
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
-5. Finalize reportando ao chamador (`worktree-ship`) se houve algum achado `blocker`, sem impedir o
+5. Finalize reportando ao chamador (`ship`) se houve algum achado `blocker`, sem impedir o
    fluxo — a decisão de agir sobre o achado é sempre humana.
 
 ## Restrições

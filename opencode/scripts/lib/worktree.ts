@@ -1,6 +1,6 @@
 // Frescor de worktree: garante que o cwd de um worker continua sendo um worktree válido
 // da raiz do projeto — dentro de `.claude/worktrees/` e ainda registrado em
-// `git worktree list`. Sem isso, um agente cujo worktree foi removido (worktree-ship) ou
+// `git worktree list`. Sem isso, um agente cujo worktree foi removido (ship) ou
 // aponta para fora da árvore esperada seguiria operando com um cwd stale/indevido.
 
 import { isWithin, normalizePath } from "./guard.ts";
@@ -34,7 +34,7 @@ export function evaluateFreshness(
   if (!isListedWorktree(toplevel, porcelain)) {
     return `ERROR: worktree stale bloqueado pelo Vetor Safety Hook: ${toplevel}\n` +
       "Este worktree não aparece mais em `git worktree list` — provavelmente já foi removido " +
-      "(worktree-ship ou limpeza manual). Encerre esta sessão; ela não pode mais operar aqui.";
+      "(ship ou limpeza manual). Encerre esta sessão; ela não pode mais operar aqui.";
   }
 
   return null;

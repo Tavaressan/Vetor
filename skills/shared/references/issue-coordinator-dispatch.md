@@ -1,8 +1,8 @@
 # Issue-coordinator — criação, dispatch e transição de ondas
 
-> Extraído de `skills/issue-coordinator/SKILL.md` (issue #373) e lido só quando o SKILL.md manda.
+> Extraído de `skills/coordinator/SKILL.md` (issue #373) e lido só quando o SKILL.md manda.
 > Paths relativos (`../shared/references/...`) e `$SKILL_DIR` aqui resolvem a partir do diretório
-> da skill `issue-coordinator`, não deste arquivo.
+> da skill `coordinator`, não deste arquivo.
 
 ### 3 — Fase de criação (nativa e serializada)
 
@@ -94,19 +94,19 @@ já existe — retomada de sessão, redespacho após `BLOCKED_WAITING` ou após 
 recuperação de um worker travado em plan mode (sintoma: status parado em `RUNNING`, sem iteração nova
 nem commit — descarte a sessão travada) — **NÃO use `vetor:issue-worker`**: ele força worktree novo
 via frontmatter. Despache um subagente padrão sem `subagent_type`, instruindo-o com a skill
-`fix-loop-agent` no prompt e um `cd` explícito para o path real do worktree (via `git worktree list`):
+`fix` no prompt e um `cd` explícito para o path real do worktree (via `git worktree list`):
 
 ```javascript
 Agent({
   description: "Grupo Lead #<N>: <título> (Resumo)",
-  prompt: "Entre no diretório <path> e retome o trabalho usando a skill fix-loop-agent...",
+  prompt: "Entre no diretório <path> e retome o trabalho usando a skill fix...",
   model: "<haiku|sonnet>",
   run_in_background: true
 })
 ```
 ⚠️ **Colisão de migrations paralelas.** Workers paralelos **dentro da mesma onda** que tocam módulos
 com versionamento sequencial de arquivos (ex.: Flyway `V<N>__*.sql`) podem gerar colisões invisíveis
-ao git. A rede de segurança é o merge serializado (Fase 6) somado à checagem 2.b do `worktree-ship`.
+ao git. A rede de segurança é o merge serializado (Fase 6) somado à checagem 2.b do `ship`.
 Já a colisão **entre ondas** (grupo de `O_2` sem visibilidade das migrations de `O_1`) é o problema
 que as Ondas de Despacho (Fase 1) previnem estruturalmente, ao só liberar `O_2` depois do merge e
 sincronismo do branch default com `O_1`.

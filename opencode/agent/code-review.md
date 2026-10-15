@@ -1,5 +1,5 @@
 ---
-description: Revisão consultiva do diff de uma PR — bugs, segurança, correção e riscos de arquitetura. Nunca bloqueia merge; publica achados como comentário na PR. Despachado pelo worktree-ship após CI verde.
+description: Revisão consultiva do diff de uma PR — bugs, segurança, correção e riscos de arquitetura. Nunca bloqueia merge; publica achados como comentário na PR. Despachado pelo ship após CI verde.
 mode: primary
 model: anthropic/claude-sonnet-5
 permission:
@@ -59,7 +59,7 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    ---
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
-5. Finalize reportando ao chamador (`worktree-ship`) se houve algum achado `blocker`, sem impedir o
+5. Finalize reportando ao chamador (`ship`) se houve algum achado `blocker`, sem impedir o
    fluxo — a decisão de agir sobre o achado é sempre humana.
 
 ## Restrições

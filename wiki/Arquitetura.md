@@ -5,10 +5,10 @@ Primitivos compostos por skills de nível superior. A Fase 4 do coordinator desp
 ```
                     coordinator
                    /     |          \
-       worktree-create  issue-worker  worktree-ship
+       worktree-create  issue-worker  ship
                         (subagente,
                         pré-carrega
-                        fix-loop-agent)
+                        fix)
                    \     |          /
               .claude/vetor/module-test-map.md  (config por projeto)
 
@@ -18,13 +18,13 @@ Primitivos compostos por skills de nível superior. A Fase 4 do coordinator desp
 
 ## Subagente nativo
 
-**`agents/issue-worker.md`** — subagente nativo do plugin (não uma skill), despachado pelo `issue-coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução; pré-carrega a skill `fix-loop-agent` via campo `skills:`. O que é aplicado por hook, e não por instrução: push para branch protegida, push/PR de worker não-GREEN, escrita fora do worktree e encerramento sem status file (ver [Hooks](Hooks.md)).
+**`agents/issue-worker.md`** — subagente nativo do plugin (não uma skill), despachado pelo `coordinator` uma vez por issue. Tem `tools` restritos e nunca faz `git push`, `gh pr create/merge/ready` por instrução; pré-carrega a skill `fix` via campo `skills:`. O que é aplicado por hook, e não por instrução: push para branch protegida, push/PR de worker não-GREEN, escrita fora do worktree e encerramento sem status file (ver [Hooks](Hooks.md)).
 
-**`agents/code-review.md`** — subagente nativo de revisão de código, despachado pelo `worktree-ship` (passo 8.5) depois do CI verde e antes da checagem de review humano. Substitui o antigo GitHub Action `code-review@claude-code-plugins` (desativado por cobrar por execução independente do risco/tamanho da PR). Tools restritos a leitura (`Bash`/`Read`/`Grep`/`Glob`, sem `Write`/`Edit`); publica achados como comentário na PR via `gh pr comment` e **nunca bloqueia o merge** — a decisão de agir sobre um achado é sempre humana. Só roda quando o diff tocou algum módulo real (mesmo filtro do passo 3 do `worktree-ship`), então PRs só de docs/lockfile/config não pagam o custo da revisão.
+**`agents/code-review.md`** — subagente nativo de revisão de código, despachado pelo `ship` (passo 8.5) depois do CI verde e antes da checagem de review humano. Substitui o antigo GitHub Action `code-review@claude-code-plugins` (desativado por cobrar por execução independente do risco/tamanho da PR). Tools restritos a leitura (`Bash`/`Read`/`Grep`/`Glob`, sem `Write`/`Edit`); publica achados como comentário na PR via `gh pr comment` e **nunca bloqueia o merge** — a decisão de agir sobre um achado é sempre humana. Só roda quando o diff tocou algum módulo real (mesmo filtro do passo 3 do `ship`), então PRs só de docs/lockfile/config não pagam o custo da revisão.
 
 ## Convenções do projeto (`.claude/rules/vetor/`)
 
-O `/vetor` gera rules com frontmatter `paths`, que o Claude Code carrega **apenas** quando lê um
+O `/vetor:install` gera rules com frontmatter `paths`, que o Claude Code carrega **apenas** quando lê um
 arquivo casando com o glob — custo zero de contexto quando irrelevante. Cada linha corresponde a um
 fato lido do repositório (`deno.json`, `package.json`, arquivos de config do formatador/linter);
 o que não foi detectado não vira regra, porque uma convenção inventada faria o worker "consertar"
@@ -37,12 +37,12 @@ Rules ficam no subdiretório `vetor/` para não pisar nas suas, e não são sobr
 
 - **`skills/shared/references/module-test-map.template.md`** — template de comandos de teste headless por módulo (ver [Configuração › Testes por projeto](Configuracao.md#testes-por-projeto)).
 - **`skills/shared/references/delegate-to-runtime.md`** — padrão opcional de delegação agnóstica de runtime (Gemini/OpenCode/Codex).
-- **`skills/shared/references/project-conventions.md`** — detecção de branch default e resolução do `module-test-map`, compartilhada por `fix-loop-agent`, `worktree-ship` e `worktree-create` (evita duplicar a mesma lógica três vezes).
-- **`skills/shared/references/issue-coordinator-dispatch.md`** — detalhes operacionais de criação, despacho, sincronização de ondas e convenções de prompt do issue-coordinator.
-- **`skills/shared/references/issue-coordinator-monitoring.md`** — tabela de status, fallback de leitura e detecção de dispatch duplicado do issue-coordinator.
-- **`skills/shared/references/issue-coordinator-report.md`** — formato do Coordinator Report e checkpoint de fechamento de onda.
+- **`skills/shared/references/project-conventions.md`** — detecção de branch default e resolução do `module-test-map`, compartilhada por `fix`, `ship` e `worktree-create` (evita duplicar a mesma lógica três vezes).
+- **`skills/shared/references/coordinator-dispatch.md`** — detalhes operacionais de criação, despacho, sincronização de ondas e convenções de prompt do coordinator.
+- **`skills/shared/references/coordinator-monitoring.md`** — tabela de status, fallback de leitura e detecção de dispatch duplicado do coordinator.
+- **`skills/shared/references/coordinator-report.md`** — formato do Coordinator Report e checkpoint de fechamento de onda.
 
-## Gate de Spec/design (issue-coordinator, Fase 2)
+## Gate de Spec/design (coordinator, Fase 2)
 
 Antes de despachar, a Fase 2 classifica cada issue candidata (`trivial`/`não-trivial`, heurística de
 nº de módulos tocados + presença de "Escopo do trabalho"/Critério de Aceite já detalhado no corpo) e,
@@ -50,7 +50,7 @@ para issues `não-trivial` sem Spec associada (`docs/specs/<slug>.md`, ver `skil
 pergunta via `AskUserQuestion` como prosseguir — despachar mesmo assim, gerar Spec antes (issue sai da
 leva), ou confirmar rapidamente 2-3 pontos e seguir sem Spec completa. Issues `trivial` (bugfix com
 escopo já claro) nunca são bloqueadas. Este é o único ponto do pipeline automatizado com humano na
-sessão antes do dispatch — por isso o gate vive aqui, e não em `worktree-create`/`fix-loop-agent`
+sessão antes do dispatch — por isso o gate vive aqui, e não em `worktree-create`/`fix`
 (sem interlocutor). **Em `--headless` o gate nunca bloqueia**: vira apenas uma anotação no plano/
 relatório (`⚠️ sem Spec associada`), nunca um `AskUserQuestion` síncrono — ver
 `wiki/Decisoes-de-Design.md` para a razão (mesmo padrão de deadlock do worker preso em plan mode,
@@ -70,7 +70,7 @@ Quando o `coordinator` despacha sub-agentes:
 
 ## Skill aposentada: `worktree-session`
 
-A skill `worktree-session` foi aposentada (monolítica demais, perdia contexto). Use a composição `worktree-create` + `worktree-ship` (e `coordinator` para orquestração). O arquivo legado fica em `legacy/worktree-session/` só como referência histórica e **não é carregado** pelo plugin.
+A skill `worktree-session` foi aposentada (monolítica demais, perdia contexto). Use a composição `worktree-create` + `ship` (e `coordinator` para orquestração). O arquivo legado fica em `legacy/worktree-session/` só como referência histórica e **não é carregado** pelo plugin.
 
 ---
 

@@ -56,7 +56,7 @@ if [[ "$COMMAND" =~ $ship_re ]]; then
     if [ -n "$branch" ] && [ -n "$status" ]; then
       if [ "$status" != "GREEN" ]; then
         echo "ERROR: worker não-GREEN (Status: ${status:-desconhecido}) — push/PR bloqueado pelo Vetor Safety Hook." >&2
-        echo "Registre BLOCKED_WAITING no status file se precisar de intervenção; o worktree-ship faz a entrega após GREEN." >&2
+        echo "Registre BLOCKED_WAITING no status file se precisar de intervenção; o ship faz a entrega após GREEN." >&2
         exit 1
       fi
     fi

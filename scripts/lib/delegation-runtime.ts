@@ -62,7 +62,7 @@ export function selectDelegationRuntime(input: DelegationSelectionInput): Delega
     return { action: "ask", reason: "múltiplos candidatos sem preferência configurada" };
   }
 
-  // Sessão headless (fix-loop-agent, issue-worker, ...): não há como obter anuência.
+  // Sessão headless (fix, issue-worker, ...): não há como obter anuência.
   // Critério de desempate documentado: nunca escolher silenciosamente entre candidatos não
   // consentidos — segue inline.
   return {

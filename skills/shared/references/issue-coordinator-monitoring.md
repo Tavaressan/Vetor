@@ -1,8 +1,8 @@
 # Issue-coordinator — monitoramento de status
 
-> Extraído de `skills/issue-coordinator/SKILL.md` (issue #373) e lido só quando o SKILL.md manda.
+> Extraído de `skills/coordinator/SKILL.md` (issue #373) e lido só quando o SKILL.md manda.
 > Paths relativos (`../shared/references/...`) e `$SKILL_DIR` aqui resolvem a partir do diretório
-> da skill `issue-coordinator`, não deste arquivo.
+> da skill `coordinator`, não deste arquivo.
 
 **5.a — Tabela de status**
 
