@@ -319,6 +319,7 @@ driver de custo agregado do coordinator.
 ### 3 — Fase de criação (nativa e serializada)
 
 Leia `../shared/references/issue-coordinator-dispatch.md` para derivar slug/branch/status file e localizar o worktree real.
+Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao preparar dispatch de issue dependente.
 
 ### 4 — Fase de desenvolvimento (paralela, com teto de concorrência e ondas)
 
@@ -334,6 +335,7 @@ Leia `../shared/references/issue-coordinator-dispatch.md` para derivar slug/bran
   Antes de cada dispatch, leia `../shared/references/issue-coordinator-dispatch.md` para duplicidade, status file e retomada em worktree existente.
 
   Ao preparar o worker, leia `../shared/references/issue-coordinator-dispatch.md` para convenções e o template completo do prompt.
+  No encerramento de cada iteração com pendências ou escalação, siga `../shared/references/memory-handoffs.md` para registrar handoff opcional; status file permanece primário.
 
 Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em alguma, para e marca
 `FAILED_MAX_ITERATIONS` especificando qual issue falhou.
