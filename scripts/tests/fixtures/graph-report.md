@@ -2,7 +2,7 @@
 
 ## Summary
 
-* 12 nodes · 20 edges · 2 communities detected
+- 12 nodes · 20 edges · 2 communities detected
 
 ## God Nodes (most connected - your core abstractions)
 
