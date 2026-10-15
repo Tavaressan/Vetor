@@ -2,6 +2,8 @@
 
 Primitivos compostos por skills de nível superior. A Fase 4 do coordinator despacha um subagente nativo (`issue-worker`, não uma skill genérica) por issue:
 
+O `/vetor:now` funciona como entrada diária e encaminha interativamente para backlog, coordinator, spec, guardian ou trabalho pontual.
+
 ```
                     coordinator
                    /     |          \
