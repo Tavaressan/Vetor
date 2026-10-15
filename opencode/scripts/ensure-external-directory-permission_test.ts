@@ -140,3 +140,67 @@ Deno.test({
     assertEquals(rule?.[`${toForwardSlashes(repo)}/.claude/vetor/**`], "allow");
   },
 });
+
+// Issue #389: no opencode 1.19.0 o worker com `--dir <worktree>` não carrega o opencode.json da
+// raiz — a regra precisa existir também em `<worktree>/opencode.json`, fora do controle de versão.
+async function makeLinkedWorktree(repo: string): Promise<string> {
+  await git(["worktree", "add", "-q", "-b", "wt", ".claude/worktrees/wt"], repo);
+  return `${repo}/.claude/worktrees/wt`;
+}
+
+async function gitOutput(args: string[], cwd: string): Promise<string> {
+  const out = await new Deno.Command("git", { args, cwd, stdout: "piped", stderr: "null" })
+    .output();
+  return new TextDecoder().decode(out.stdout).trim();
+}
+
+function ruleOf(config: Record<string, unknown>): Record<string, string> | undefined {
+  return (config.permission as { external_directory?: Record<string, string> })
+    .external_directory;
+}
+
+Deno.test("com worktree, grava a regra também no opencode.json do worktree e o exclui do git — issue #389", async () => {
+  const repo = await makeRepo();
+  const worktree = await makeLinkedWorktree(repo);
+
+  const result = await runCli({ cwd: repo, worktree: ".claude/worktrees/wt" });
+
+  assertEquals(result.code, 0);
+  const key = `${toForwardSlashes(repo)}/.claude/vetor/**`;
+  assertEquals(ruleOf(await readOpencodeJson(repo))?.[key], "allow");
+  assertEquals(ruleOf(await readOpencodeJson(worktree))?.[key], "allow");
+  // O worker não pode enxergar o arquivo como mudança a commitar.
+  assertEquals(await gitOutput(["status", "--porcelain"], worktree), "");
+});
+
+Deno.test("com worktree, segunda chamada é idempotente (sem duplicar o exclude) — issue #389", async () => {
+  const repo = await makeRepo();
+  const worktree = await makeLinkedWorktree(repo);
+
+  await runCli({ cwd: repo, worktree });
+  const before = await Deno.readTextFile(`${worktree}/opencode.json`);
+  const result = await runCli({ cwd: repo, worktree });
+
+  assertEquals(result.code, 0);
+  assertEquals(await Deno.readTextFile(`${worktree}/opencode.json`), before);
+  const excludePath = await gitOutput(
+    ["rev-parse", "--path-format=absolute", "--git-path", "info/exclude"],
+    worktree,
+  );
+  const lines = (await Deno.readTextFile(excludePath)).split(/\r?\n/);
+  assertEquals(lines.filter((line) => line === "/opencode.json").length, 1);
+});
+
+Deno.test("recusa alterar opencode.json versionado no worktree — issue #389", async () => {
+  const repo = await makeRepo();
+  await Deno.writeTextFile(`${repo}/opencode.json`, '{ "mcp": {} }\n');
+  await git(["add", "opencode.json"], repo);
+  await git(["commit", "-q", "-m", "config versionada"], repo);
+  const worktree = await makeLinkedWorktree(repo);
+  const original = await Deno.readTextFile(`${worktree}/opencode.json`);
+
+  const result = await runCli({ cwd: repo, worktree });
+
+  assertEquals(result.code, 1);
+  assertEquals(await Deno.readTextFile(`${worktree}/opencode.json`), original);
+});
