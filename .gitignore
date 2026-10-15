@@ -1,6 +1,7 @@
 AGENT_STATUS.md
 .claude/vetor/status/
 node_modules/
+.env
 
 # Gerado por opencode/scripts/ensure-external-directory-permission.ts (issue #313) com um path
 # absoluto específico da máquina — nunca commitar.
