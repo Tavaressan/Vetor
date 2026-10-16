@@ -229,8 +229,8 @@ não: os runners `ubuntu-latest` do GitHub Actions não têm `opencode` nem `cod
 `commandExists()` desvia para o log informativo em vez de rodar o CLI — mesmo comportamento de
 quando um dev roda `npm test` localmente sem essas CLIs instaladas. A confirmação com CLI real só
 acontece quando alguém roda a suíte (ou o procedimento manual acima) numa máquina com `opencode`
-instalado. `ci.yml` (checks de PR) não roda `cli && npm test` de forma alguma — só `deno
-fmt/lint/check/test` — comportamento anterior a esta issue, fora de escopo corrigir aqui.
+instalado. `ci.yml` roda `npm test` em `cli/` nos checks de PR, além dos checks `deno
+fmt/lint/check/test`.
 
 **Gap concreto que permanece (não fechado por #300):** Codex não tem CLI disponível neste
 ambiente/sandbox (`codex --version` não resolve no PATH) — a tradução de formato

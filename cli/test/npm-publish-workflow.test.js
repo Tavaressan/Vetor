@@ -72,6 +72,7 @@ test('workflow publica usando NPM_TOKEN como NODE_AUTH_TOKEN', () => {
 test('npm publish --dry-run funciona localmente a partir de cli/ (sem publicar)', () => {
   const { execSync } = require('node:child_process');
   const cliRoot = path.join(__dirname, '..');
+  const pkg = JSON.parse(fs.readFileSync(path.join(cliRoot, 'package.json'), 'utf8'));
 
   // --ignore-scripts: este teste valida só o comportamento de dry-run do npm publish, não
   // o conteúdo de templates/ (isso é responsabilidade de pack.test.js, que roda o prepack
@@ -80,11 +81,20 @@ test('npm publish --dry-run funciona localmente a partir de cli/ (sem publicar)'
   // real em paralelo com pack.test.js — o test runner do Node roda arquivos de teste em
   // paralelo por padrão, e dois processos rodando o sync ao mesmo tempo sobre o mesmo
   // diretório correriam risco de corrida.
-  const output = execSync('npm publish --dry-run --ignore-scripts 2>&1', {
-    cwd: cliRoot,
-    encoding: 'utf8',
-    shell: true,
-  });
+  try {
+    const output = execSync('npm publish --dry-run --ignore-scripts 2>&1', {
+      cwd: cliRoot,
+      encoding: 'utf8',
+      shell: true,
+    });
 
-  assert.match(output, /\(dry-run\)/);
+    assert.match(output, /\(dry-run\)/);
+  } catch (error) {
+    const output = `${error.stdout || ''}${error.stderr || ''}`;
+    // O CI de PR pode rodar entre releases, quando a versão atual já está publicada.
+    // A guarda de versão duplicada que bloqueia o publish real está em npm-publish.yml.
+    assert.match(output, /You cannot publish over the previously published versions/);
+    assert.match(output, /Tarball Contents/);
+    assert.ok(output.includes(pkg.name), `tarball não contém o nome do pacote ${pkg.name}`);
+  }
 });
