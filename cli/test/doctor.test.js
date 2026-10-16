@@ -2,6 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = fs;
 const { doctor } = require('../lib/commands/doctor.js');
 
 async function runDoctor(spawnSync, extra = {}) {
@@ -67,4 +71,33 @@ test('doctor: MCP ai-memory é informativo, com rede injetável', async () => {
   });
   assert.equal(result.exitCode, undefined);
   assert.match(result.output, /\[info\] ai-memory MCP — indisponível/);
+});
+
+test('doctor: detecta cópias globais do OpenCode sem alterar o exit code', async (t) => {
+  const home = mkdtempSync(path.join(os.tmpdir(), 'vetor-doctor-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const invoke = () => runDoctor((_command, args) => args[0] === 'worktree'
+    ? { status: 129, stderr: 'usage: git worktree add ...' }
+    : { status: 0 }, { homedir: home });
+
+  let result = await invoke();
+  assert.match(result.output, /\[ok\] OpenCode global — sem cópias/);
+  assert.equal(result.exitCode, undefined);
+
+  const agent = path.join(home, '.opencode', 'agent', 'issue-coordinator.md');
+  mkdirSync(path.dirname(agent), { recursive: true });
+  writeFileSync(agent, '');
+  result = await invoke();
+  assert.match(result.output, /\[info\] OpenCode global/);
+  assert.ok(result.output.includes(agent));
+  assert.equal(result.exitCode, undefined);
+
+  rmSync(agent);
+  const plugin = path.join(home, '.opencode', 'plugin', 'vetor.ts');
+  mkdirSync(path.dirname(plugin), { recursive: true });
+  writeFileSync(plugin, '');
+  result = await invoke();
+  assert.match(result.output, /\[info\] OpenCode global/);
+  assert.ok(result.output.includes(plugin));
+  assert.equal(result.exitCode, undefined);
 });

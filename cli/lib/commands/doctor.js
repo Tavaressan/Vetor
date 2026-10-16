@@ -4,6 +4,32 @@ const { spawnSync: defaultSpawnSync } = require('node:child_process');
 const { commandExists: defaultCommandExists } = require('../installer/command-exists.js');
 const { detectEngines: defaultDetectEngines } = require('../installer/detector.js');
 const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+function checkOpenCodeGlobal(options) {
+  const home = options.homedir ?? os.homedir();
+  const root = path.join(home, '.opencode');
+  const found = [];
+  for (const directory of ['agent', 'agents']) {
+    for (const file of ['issue-coordinator.md', 'issue-worker.md', 'code-review.md']) {
+      const candidate = path.join(root, directory, file);
+      if (fs.existsSync(candidate)) found.push(candidate);
+    }
+  }
+  for (const directory of ['plugin', 'plugins']) {
+    const candidate = path.join(root, directory, 'vetor.ts');
+    if (fs.existsSync(candidate)) found.push(candidate);
+  }
+  return found.length
+    ? {
+      name: 'OpenCode global',
+      ok: false,
+      hint: `Encontrado(s): ${found.join(', ')}. Cópias do Vetor em ~/.opencode sobrepõem agentes do projeto e carregam um segundo plugin vetor.ts no OpenCode; mova ou remova esses arquivos.`,
+      required: false,
+    }
+    : { name: 'OpenCode global', ok: true, hint: 'sem cópias do Vetor em ~/.opencode', required: false };
+}
 
 async function checkAiMemory(cwd, options) {
   let config;
@@ -71,6 +97,7 @@ async function doctor(cwd = process.cwd(), options = {}) {
   });
 
   checks.push(await checkAiMemory(cwd, options));
+  checks.push(checkOpenCodeGlobal(options));
 
   let gitResult;
   try {

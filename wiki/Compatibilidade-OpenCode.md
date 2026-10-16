@@ -293,6 +293,12 @@ limitação de tempo/estabilidade do modelo gratuito usado nas rodadas de valida
 seguem bloqueadas pela mesma limitação de path do Codex (permanecem skills de propósito — não
 precisam de `--agent`, já que não são invocadas diretamente pelo usuário).
 
+## Precedência de configuração: agentes e plugins globais (#392)
+
+No OpenCode v1.19.0 (commit `733b2c6`), a lista de diretórios é montada nesta ordem: `~/.config/opencode` → `.opencode` do projeto (busca do cwd até a raiz do worktree) → `~/.opencode` (home) → `OPENCODE_CONFIG_DIR` (`packages/opencode/src/config/paths.ts`, linhas 23–41). `packages/opencode/src/config/config.ts`, linhas 438–480, percorre a lista e funde agentes com `mergeDeep` (o último vence), além de carregar plugins de todos os diretórios. Assim, agentes homônimos em `~/.opencode/agent(s)/` sobrepõem os do projeto, e `~/.opencode/plugin(s)/vetor.ts` é carregado como segundo plugin. `~/.config/opencode/agents` é sobreposto pelo projeto e não causa esse problema.
+
+No E2E de 2026-10-15 com OpenCode 1.19.0, `opencode debug agent issue-coordinator` devolveu a cópia global antiga e `opencode debug config` listou dois `vetor.ts`. A documentação oficial de configuração consultada nessa data documenta `~/.config/opencode`, mas não menciona `~/.opencode` ([Configuração do OpenCode](https://opencode.ai/docs/config/)). Nunca instale o Vetor no home (`vetor install` executado em `~` ou `cp -r opencode/. ~/.opencode`). `vetor doctor` avisa quando encontra essas cópias.
+
 ## Validação manual do coordinator
 
 > **Resultado verificado (2026-09-22, issue #299, retomada pós-#306/#307) — `opencode` v1.18.32,
