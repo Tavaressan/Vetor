@@ -29,14 +29,14 @@ vetor install
 vetor install     # instala o Vetor no projeto atual
 vetor update       # sincroniza a instalação existente com a fonte
 vetor status       # mostra o status da instalação por engine
-vetor doctor       # verifica Deno, gh autenticado, Git worktree e engines detectadas
+vetor doctor       # verifica Deno, gh autenticado, Git worktree, engines e cópias globais do OpenCode
 vetor uninstall    # remove os arquivos instalados pelo Vetor (pede confirmação)
 vetor --help       # lista os comandos disponíveis
 ```
 
 `vetor status` mostra a versão instalada e a versão do CLI, além de classificar cada arquivo como íntegro, modificado ou ausente. Sai com código 1 se houver arquivo ausente.
 
-`vetor doctor` verifica Deno, autenticação do `gh` e suporte a `git worktree`; falhas nesses itens fazem o comando sair com código 1. A detecção de engines é informativa.
+`vetor doctor` verifica Deno, autenticação do `gh` e suporte a `git worktree`; falhas nesses itens fazem o comando sair com código 1. A detecção de engines e a busca por cópias globais do Vetor no OpenCode são informativas.
 
 ## Documentação
 
