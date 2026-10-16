@@ -1,6 +1,19 @@
-Status: rascunho — aguardando decisão do mantenedor
+Status: **decidido em 2026-10-15** — não decompor agora; spike #372 encerrado sem PoC
 
 # Decomposição de skills sequenciais em micro-skills
+
+## Decisão (2026-10-15)
+
+- **Não decompor** o `coordinator` nem o `fix` agora. O padrão da #373 continua: um fluxo por skill, com detalhes em referências lidas sob demanda.
+- **A PoC não será executada.** O custo não se justifica pelo ganho esperado.
+  - **Custo estimado:** ~140 rodadas de worker (7 cenários × ≥10 execuções × 2 braços).
+    - Em dinheiro: ~US$ 40–420 no Sonnet 5.5 ou ~US$ 2,50–25 no Haiku 5.5, pela tabela oficial (https://platform.claude.com/docs/en/about-claude/pricing, consultada em 2026-10-15).
+    - Perfil usado: a rodada real do worker no E2E de 2026-10-15 (`opencode export`), com 25 chamadas, ~742k tokens de entrada (90% de cache) e ~8k de saída.
+    - A faixa superior **supõe** que bugs reais custem 3–10× uma issue trivial.
+  - **Ganho de custo:** desprezível, ~US$ 0,01 por rodada no Sonnet 5.5. As instruções são ~15% do maior contexto por chamada (~37k tokens) e quase tudo vem de cache. É uma estimativa cruzada: as instruções foram medidas no `fix` do Claude Code e o contexto no worker do OpenCode.
+  - **Ganho de qualidade:** não há falha observada que motive a mudança. O único caso registrado de drift (`worktree-session`) já foi resolvido pela composição `worktree-create` + `worktree-ship` e pela #373.
+- **Gatilho para reabrir:** drift observado numa execução real do `coordinator` ou do `fix`, com evidência (fase pulada, ferramenta prescrita ignorada, status inconsistente).
+- **Paths:** os citados abaixo são anteriores ao rename da #387, que trocou `issue-coordinator` → `coordinator`, `fix-loop-agent` → `fix` e `worktree-ship` → `ship`.
 
 ## Resumo executivo
 
