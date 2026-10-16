@@ -89,8 +89,8 @@ case "$cmd" in
     # comum também passa — o scan não distingue debug esquecido de saída de CLI.
     hits=$(git diff "$base" -U0 -- '*.ts' '*.sh' '*.js' '*.tsx' '*.jsx' \
       ':!scripts/vetor-checks.sh' ':!scripts/tests/vetor-checks_test.ts' ':!skills/**/*.md' \
-      ':!.opencode/scripts/vetor-checks.sh' ':!.opencode/skills/**/*.md' \
-      ':!opencode/scripts/vetor-checks.sh' ':!opencode/skills/**/*.md' 2>/dev/null \
+      ':!.opencode/scripts/vetor-checks.sh' ':!.opencode/scripts/vetor-checks_test.ts' ':!.opencode/skills/**/*.md' \
+      ':!opencode/scripts/vetor-checks.sh' ':!opencode/scripts/vetor-checks_test.ts' ':!opencode/skills/**/*.md' 2>/dev/null \
       | grep -E '^\+' | grep -vE '^\+\+\+' \
       | awk '{ l = $0; gsub(/console\.log\(JSON\.stringify\(/, "", l)
                if (l ~ /console\.log|var_dump|fit\(|fdescribe\(|it\.only/) print NR ":" $0 }' || true)

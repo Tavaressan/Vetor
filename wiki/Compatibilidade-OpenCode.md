@@ -67,6 +67,13 @@ para dentro de cada worktree, já que `git worktree` só contém arquivos rastre
 assumido:** os scripts em `opencode/scripts/` podem divergir de `scripts/` ao longo do tempo — não
 há build/sync automático entre as duas cópias nesta versão.
 
+**Paridade intencional do port do coordinator (issue #335).** Embora `opencode/scripts/` possa
+divergir de `scripts/`, o fechamento da Fase 7 em `opencode/agent/issue-coordinator.md` acompanha o
+checkpoint de `skills/shared/references/issue-coordinator-report.md` (issue #246), e o `debug-scan`
+de `opencode/scripts/vetor-checks.sh` acompanha a exceção de `console.log(JSON.stringify(...))`
+(issue #245). Mudanças futuras nesses dois comportamentos devem ser revisadas nas duas
+implementações.
+
 **Detecção reativa de rate-limit/quota (issue #83).** `opencode/plugin/vetor.ts` também escuta o
 hook `event` para `session.error`. Confirmado contra o SDK instalado (`@opencode-ai/plugin`
 v1.18.4, `dist/index.d.ts:175` `Hooks.event`; `@opencode-ai/sdk`, `dist/gen/types.gen.d.ts:86`
