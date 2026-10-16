@@ -1,6 +1,16 @@
-Status: rascunho — aguardando decisão do mantenedor
+Status: **decidido em 2026-10-15** — matriz aprovada; spike #375 encerrado
 
 # Revisão de custo-benefício, atrito e eficácia dos hooks ativos
+
+## Decisão (2026-10-15)
+
+- **Matriz aprovada como está:** `safety-check` e `check-edit` → Simplificar; `check-status` e `session-check` → Manter.
+- **Já resolvido depois da auditoria:** a #384 (mergeada) fechou #342, #374 e #345 e substituiu a PR #353.
+  - O guard de escrita confina só o issue-worker no Claude Code e continua estrito por cwd no Codex, no OpenCode e no Cursor.
+  - O `check-edit` passou a filtrar os falsos positivos do Next.js.
+  - Com isso, as perguntas 1 e 5 da seção "Perguntas ao mantenedor" estão respondidas. As menções a "#353 aberta" no texto abaixo refletem o snapshot da auditoria.
+- **Typecheck síncrono do `check-edit`:** fica como está até haver medição. A #394 mede o `tsc --noEmit` num projeto Next/TS real e decide entre manter, usar `--incremental` ou mover para o checkpoint do `fix`/`ship`.
+- **`check-status` e `session-check`:** sem mudança. As perguntas 3 e 4 não geram trabalho agora.
 
 ## Escopo e método
 

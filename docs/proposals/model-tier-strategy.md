@@ -1,6 +1,20 @@
-Status: rascunho — aguardando decisão do mantenedor
+Status: **decidido em 2026-10-15** — dois tiers; escalação só no Claude Code e no OpenCode; spike #337 encerrado
 
 # Estratégia de escalação de modelo por harness (Issue #337)
+
+## Decisão (2026-10-15)
+
+- **Recomendação aprovada:** contrato `simple`/`complex`, sem tier `max`.
+  - O Claude Code já cumpre: `haiku`/`sonnet` e um redespacho com `sonnet` ao esgotar as iterações.
+  - Issues de implementação:
+    - **#395:** OpenCode escala para `complex` após `FAILED_MAX_ITERATIONS` e tira o `model:` fixo dos agentes.
+    - **#396:** Cursor instala `model: inherit`; Codex fica documentado.
+    - **#397:** Antigravity passa a ter agentes em Markdown nativo.
+- **Correção da hipótese (c): verificada** para o caminho que o Vetor usa, `opencode run --agent ... --model ...`.
+  - Fonte: código do OpenCode na tag `v1.19.0`, `packages/opencode/src/session/prompt.ts:646` → `input.model ?? ag.model ?? currentModel(...)`.
+  - Evidência empírica: no E2E de 2026-10-15, um worker com `anthropic/claude-haiku-4-5` no frontmatter rodou com `--model opencode/deepseek-v4.1-flash-free`.
+  - No Task tool, o subagente usa o próprio `model:` ou herda o do pai (`packages/opencode/src/tool/task.ts:181`), mas o dispatch do Vetor não passa por ele.
+  - A nota sobre o erro `EEXIST` na tabela abaixo está obsoleta: o opencode 1.19.0 roda nesta máquina.
 
 Consulta às fontes oficiais: 2026-10-15. Esta proposta toma como ponto de partida a tabela de documentação registrada na issue em 2026-09-29 e atualiza/qualifica fatos que foram possíveis de verificar nesta investigação.
 
