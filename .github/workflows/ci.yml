@@ -4,6 +4,23 @@ on:
   pull_request:
 
 jobs:
+  cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instala dependências
+        run: npm install
+        working-directory: cli
+
+      - name: Roda a suíte de testes do pacote
+        run: npm test
+        working-directory: cli
+
   check:
     runs-on: ubuntu-latest
     steps:
