@@ -30,23 +30,17 @@ const { version: packageVersion } = require('../../package.json');
 // verdade" em disco e como reagir a edição de só uma das cópias — complexidade/risco maior
 // que o custo de ter uma cópia extra em disco. Não implementado de propósito.
 //
-// Antigravity (#283): removida de ENGINE_DEST_DIR. `.antigravity` era uma convenção
-// assumida sem confirmação (ver detector.js, que já não usa esse diretório como âncora de
-// detecção — só o comando `agy` no PATH). Investigação nesta issue com o CLI `agy` real
-// instalado (`agy plugin validate .`, `agy plugin list`) confirma que a distribuição de
-// plugin do Antigravity não é "copiar skills/agents/hooks para um diretório de projeto":
-// é `agy plugin install/import` lendo um `plugin.json` na RAIZ do plugin (mesmo schema
-// `antigravity.google/schemas/v1/plugin.json` já usado por este repo) e registrando o
-// import num manifesto global do usuário (`~/.gemini/antigravity-cli/settings.json`), não
-// num diretório de projeto-alvo. Não existe hoje um segundo mecanismo de "instalação
-// project-local" documentado ou observado para o Antigravity equivalente a `.claude/` do
-// Claude Code — copiar arquivos para um `.antigravity/` inventado produziria uma pasta que
-// o Antigravity nunca lê. Engine sem destino conhecido cai em `enginesSkipped` (ver
-// `installFiles`), reportado ao usuário em vez de silenciosamente não fazer nada.
+// Antigravity (#283, revisada na #397): `.antigravity` era uma convenção assumida sem
+// confirmação e foi removida na #283. A documentação oficial (`antigravity.google/docs/subagents`,
+// consultada em 2026-10-15 e reconfirmada em 2026-10-19) e o binário `agy` (v1.2.10+/1.4.1)
+// confirmam `.agents/` na raiz do workspace como destino project-local para customizações
+// (`.agents/agents/<name>.md` para subagentes em Markdown com `model: inherit` e
+// `.agents/skills/<name>/SKILL.md` para skills).
 const ENGINE_DEST_DIR = {
   'claude-code': '.claude',
   codex: '.codex',
   opencode: '.opencode',
+  antigravity: '.agents',
   cursor: '.cursor',
 };
 
@@ -68,8 +62,12 @@ const SOURCE_DIRS = ['skills', 'agents', 'hooks'];
 //   (plural) que o OpenCode não escaneia (ele usa `agent/`, singular) e hooks em JSON
 //   declarativo onde o OpenCode espera plugin TS (`tool.execute.before/after`). Ver
 //   wiki/Compatibilidade-OpenCode.md.
+// - Antigravity (#397): `hooks/` (cujo `hooks/hooks.json` usa schema Claude Code e
+//   `${CLAUDE_PLUGIN_ROOT}`; no Antigravity o arquivo de workspace é `.agents/hooks.json`
+//   na raiz de `.agents/`, nunca o diretório `.agents/hooks/hooks.json`).
 const ENGINE_EXCLUDED_SOURCE_DIRS = {
   opencode: ['skills', 'agents', 'hooks'],
+  antigravity: ['hooks'],
 };
 
 // OpenCode (#283): em vez dos SOURCE_DIRS agnósticos, copia a árvore `opencode/` (já
@@ -85,8 +83,8 @@ const ENGINE_NATIVE_SOURCE_DIR = {
   opencode: 'opencode',
 };
 
-// Formatos de subagente coexistem em `agents/`: `agents/<nome>.md` (Claude Code e Cursor —
-// agnóstico de engine desde #251), `agents/<nome>/agent.json` (Antigravity) e
+// Formatos de subagente coexistem em `agents/`: `agents/<nome>.md` (Claude Code, Cursor e
+// Antigravity — Markdown nativo com `model: inherit`, #397) e
 // `agents/<nome>/codex.toml` (Codex — ver wiki/Compatibilidade-Codex.md, ".codex/agents/
 // (projeto)"). Cada engine só reconhece o seu formato; copiar os outros junto (comportamento
 // anterior à #283) produz arquivo inerte no destino. Este mapa filtra e, quando necessário,
@@ -96,6 +94,7 @@ const ENGINE_NATIVE_SOURCE_DIR = {
 const ENGINE_AGENT_FILE_MAP = {
   'claude-code': (relPath) => (relPath.endsWith('.md') ? relPath : null),
   cursor: (relPath) => (relPath.endsWith('.md') ? relPath : null),
+  antigravity: (relPath) => (relPath.endsWith('.md') ? relPath : null),
   codex: (relPath) => {
     const match = relPath.match(/^([^/\\]+)[/\\]codex\.toml$/);
     return match ? `${match[1]}.toml` : null;

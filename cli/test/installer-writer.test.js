@@ -546,10 +546,13 @@ test('installFiles: OpenCode resolve via defaultSourceRoot() mesmo no layout de 
   });
 });
 
-// Issue #283: Antigravity não tem diretório-âncora de projeto confirmado (`.antigravity`
-// era convenção assumida — ver ENGINE_DEST_DIR). Selecioná-la não deve copiar nada nem
-// falhar silenciosamente: deve aparecer em `enginesSkipped` para o chamador reportar.
-test('installFiles: engine sem destino de projeto confirmado (Antigravity) não copia nada e aparece em enginesSkipped', () => {
+// Issue #397 (decisão da #337): a doc oficial do Antigravity (antigravity.google/docs/subagents,
+// consultada em 2026-10-15 e reconfirmada em 2026-10-19) define `.agents/agents/<name>.md` como
+// caminho de descoberta de subagentes no workspace (e `.agents/skills/<name>/SKILL.md` para
+// skills). Selecionar Antigravity instala `skills/` e `agents/*.md` em `.agents/`, excluindo
+// formatos de outras engines (`codex.toml`, `agent.json` legado) e `hooks/` (que no Antigravity
+// usa schema próprio e arquivo único `.agents/hooks.json`, não diretório `.agents/hooks/`).
+test('installFiles: copia skills/ e agents/*.md para ".agents/" quando Antigravity é selecionada, excluindo codex.toml/agent.json/hooks', () => {
   withTempDir((projectRoot) => {
     const sourceRoot = makeFakeSourceRoot();
     try {
@@ -559,16 +562,43 @@ test('installFiles: engine sem destino de projeto confirmado (Antigravity) não 
         sourceRoot,
       });
 
-      assert.deepEqual(copied, []);
-      assert.deepEqual(skipped, []);
-      assert.deepEqual(enginesSkipped, [
-        { id: 'antigravity', name: 'Antigravity', reason: 'no-verified-project-anchor' },
+      assert.equal(skipped.length, 0);
+      assert.deepEqual(enginesSkipped, []);
+      assert.deepEqual(copied.sort(), [
+        '.agents/agents/demo.md',
+        '.agents/skills/demo/SKILL.md',
       ]);
+      assert.ok(fs.existsSync(path.join(projectRoot, '.agents', 'agents', 'demo.md')));
+      assert.ok(fs.existsSync(path.join(projectRoot, '.agents', 'skills', 'demo', 'SKILL.md')));
+      assert.ok(!fs.existsSync(path.join(projectRoot, '.agents', 'agents', 'demo', 'agent.json')));
+      assert.ok(!fs.existsSync(path.join(projectRoot, '.agents', 'agents', 'demo', 'codex.toml')));
+      assert.ok(!fs.existsSync(path.join(projectRoot, '.agents', 'hooks')));
       assert.ok(!fs.existsSync(path.join(projectRoot, '.antigravity')));
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
     }
   });
+});
+
+// Issue #397: os agentes reais em `agents/*.md` usam `model: inherit` e listas YAML em `tools`
+// (e `skills` em issue-worker.md) para passar no `agy plugin validate .` sem erros nem skipped,
+// e os antigos `agents/*/agent.json` (ignorados por builds externas do Antigravity) foram aposentados.
+test('agents/*.md reais: usam model: inherit e listas YAML compatíveis com agy plugin validate, sem agent.json legado', () => {
+  const repoRoot = path.join(__dirname, '..', '..');
+  const workerPath = path.join(repoRoot, 'agents', 'issue-worker.md');
+  const reviewPath = path.join(repoRoot, 'agents', 'code-review.md');
+
+  const workerContent = fs.readFileSync(workerPath, 'utf8');
+  const reviewContent = fs.readFileSync(reviewPath, 'utf8');
+
+  assert.match(workerContent, /^model:\s*inherit\r?$/m);
+  assert.match(reviewContent, /^model:\s*inherit\r?$/m);
+  assert.match(workerContent, /^tools:\s*\[.+\]\r?$/m);
+  assert.match(workerContent, /^skills:\s*\[.+\]\r?$/m);
+  assert.match(reviewContent, /^tools:\s*\[.+\]\r?$/m);
+
+  assert.ok(!fs.existsSync(path.join(repoRoot, 'agents', 'issue-worker', 'agent.json')));
+  assert.ok(!fs.existsSync(path.join(repoRoot, 'agents', 'code-review', 'agent.json')));
 });
 
 // Issue #396: Cursor aceita "inherit" ou um ID específico em `model` no frontmatter de

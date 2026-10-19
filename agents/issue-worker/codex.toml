@@ -1,5 +1,4 @@
-# Subagente Codex — equivalente a agents/issue-worker.md (Claude Code) e
-# agents/issue-worker/agent.json (Antigravity).
+# Subagente Codex — equivalente a agents/issue-worker.md (Claude Code, Cursor e Antigravity).
 #
 # GAP DE PLATAFORMA: o manifesto de plugin do Codex (.codex-plugin/plugin.json) não tem
 # campo para bundlar definições de subagente — só skills/hooks/mcpServers/apps (confirmado

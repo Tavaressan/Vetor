@@ -43,13 +43,11 @@ opencode/                    # camada de compatibilidade (OpenCode) — `vetor i
 │   └── lib/model-health.ts    # computeUntil/isHealthy/pickHealthyModel — sem $CLAUDE_PLUGIN_ROOT
 └── mcp.jsonc                # tradução de .mcp.json para o campo "mcp" de opencode.json
 agents/
-├── issue-worker.md          # subagente nativo (Claude Code) — worker isolado despachado pelo coordinator
+├── issue-worker.md          # subagente nativo (Claude Code, Cursor e Antigravity, model: inherit — #397) — worker isolado despachado pelo coordinator
 ├── issue-worker/
-│   ├── agent.json           # subagente nativo (Antigravity) — `vetor install` não instala (sem âncora de projeto confirmada, issue #283)
 │   └── codex.toml           # subagente nativo (Codex) — `vetor install` traduz para .codex/agents/<nome>.toml (issue #283)
-├── code-review.md           # subagente nativo (Claude Code) — revisão consultiva despachada pelo ship
+├── code-review.md           # subagente nativo (Claude Code, Cursor e Antigravity, model: inherit — #397) — revisão consultiva despachada pelo ship
 └── code-review/
-    ├── agent.json           # subagente nativo (Antigravity) — `vetor install` não instala (sem âncora de projeto confirmada, issue #283)
     └── codex.toml           # subagente nativo (Codex) — `vetor install` traduz para .codex/agents/<nome>.toml (issue #283)
 skills/
 ├── shared/references/

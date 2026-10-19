@@ -3,9 +3,9 @@ name: issue-worker
 description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge — isso é responsabilidade do ship. Despachado pelo coordinator, um por issue, em paralelo.
 # tools é allowlist explícita — EnterPlanMode/ExitPlanMode ficam deliberadamente de fora (issue #121):
 # o worker roda headless, sem interlocutor disponível para aprovar a saída do plan mode.
-tools: Bash, Read, Write, Edit, Grep, Glob, Skill
-model: haiku
-skills: fix
+tools: [Bash, Read, Write, Edit, Grep, Glob, Skill]
+model: inherit
+skills: [fix]
 isolation: worktree
 license: MIT
 compatibility: Claude Code

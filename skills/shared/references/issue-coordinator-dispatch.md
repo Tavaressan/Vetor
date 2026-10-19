@@ -111,9 +111,10 @@ Já a colisão **entre ondas** (grupo de `O_2` sem visibilidade das migrations d
 que as Ondas de Despacho (Fase 1) previnem estruturalmente, ao só liberar `O_2` depois do merge e
 sincronismo do branch default com `O_1`.
 
-**Nota (Antigravity):** o `issue-worker` também é registrado via `agents/issue-worker/agent.json`
-(`customAgentSpec`). Como define `tools:` explicitamente, **não** herda MCP do contexto pai — se um
-worker precisar de MCP, adicione-o à lista.
+**Nota (Antigravity):** o `issue-worker` é descoberto em Markdown nativo via `agents/issue-worker.md`
+(plugin) ou `.agents/agents/issue-worker.md` (workspace, instalado por `vetor install`), com
+`model: inherit` (issue #397). Como define `tools:` explicitamente, verifique `mcpServers` se um
+worker precisar de MCP adicional.
 
 **Prompt de execução sequencial para o worker:**
 1. **Lead Issue:** #<N> (título, descrição, critérios de aceite).
