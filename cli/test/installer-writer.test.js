@@ -570,3 +570,66 @@ test('installFiles: engine sem destino de projeto confirmado (Antigravity) não 
     }
   });
 });
+
+// Issue #396: Cursor aceita "inherit" ou um ID específico em `model` no frontmatter de
+// `.cursor/agents/*.md`, enquanto os `agents/*.md` da fonte usam os aliases do Claude Code
+// (`haiku`/`sonnet`). Na cópia para `.cursor/agents/`, o instalador grava `model: inherit`
+// (com hash do conteúdo transformado no manifesto para manter a reinstalação idempotente),
+// preservando `model: haiku`/`sonnet` nas cópias do Claude Code.
+test('installFiles: grava "model: inherit" em .cursor/agents/*.md no lugar de haiku|sonnet, preservando Claude Code e idempotência', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      fs.writeFileSync(
+        path.join(sourceRoot, 'agents', 'issue-worker.md'),
+        '---\nname: issue-worker\nmodel: haiku\nisolation: worktree\n---\n\nCorpo do worker.\n',
+      );
+      fs.writeFileSync(
+        path.join(sourceRoot, 'agents', 'code-review.md'),
+        '---\nname: code-review\nmodel: sonnet\n---\n\nCorpo do revisor.\n',
+      );
+
+      const cursorEngine = { id: 'cursor', name: 'Cursor', detected: false };
+      const firstRun = installFiles({
+        projectRoot,
+        engines: [CLAUDE_ENGINE, cursorEngine],
+        sourceRoot,
+      });
+
+      assert.equal(firstRun.skipped.length, 0);
+
+      const cursorWorkerDest = path.join(projectRoot, '.cursor', 'agents', 'issue-worker.md');
+      const cursorReviewDest = path.join(projectRoot, '.cursor', 'agents', 'code-review.md');
+      const claudeWorkerDest = path.join(projectRoot, '.claude', 'agents', 'issue-worker.md');
+      const claudeReviewDest = path.join(projectRoot, '.claude', 'agents', 'code-review.md');
+
+      assert.match(fs.readFileSync(cursorWorkerDest, 'utf8'), /^model: inherit$/m);
+      assert.doesNotMatch(fs.readFileSync(cursorWorkerDest, 'utf8'), /^model: haiku$/m);
+      assert.match(fs.readFileSync(cursorReviewDest, 'utf8'), /^model: inherit$/m);
+      assert.doesNotMatch(fs.readFileSync(cursorReviewDest, 'utf8'), /^model: sonnet$/m);
+
+      // As cópias do Claude Code ficam como estão.
+      assert.match(fs.readFileSync(claudeWorkerDest, 'utf8'), /^model: haiku$/m);
+      assert.match(fs.readFileSync(claudeReviewDest, 'utf8'), /^model: sonnet$/m);
+
+      // O manifesto guarda o hash do conteúdo efetivamente gravado, mantendo a 2ª execução idempotente.
+      const manifest = readManifest(projectRoot);
+      assert.equal(
+        manifest.files['.cursor/agents/issue-worker.md'].sha256,
+        sha256(fs.readFileSync(cursorWorkerDest)),
+      );
+
+      const secondRun = installFiles({
+        projectRoot,
+        engines: [cursorEngine],
+        sourceRoot,
+      });
+      assert.equal(secondRun.skipped.length, 0);
+      assert.ok(secondRun.copied.includes('.cursor/agents/issue-worker.md'));
+      assert.ok(secondRun.copied.includes('.cursor/agents/code-review.md'));
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
