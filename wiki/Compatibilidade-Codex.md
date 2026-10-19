@@ -43,7 +43,7 @@ nenhuma. `.codex-plugin/plugin.json` já declara o campo `skills` apontando para
 
 **Subagentes.** Definidos como arquivos TOML (`name`, `description`, `developer_instructions`,
 `model`, `sandbox_mode`, `mcp_servers`, `skills.config`) em `.codex/agents/` (projeto) ou
-`~/.codex/agents/` (pessoal) — não em Markdown como `agents/issue-worker.md`. Dois gaps reais:
+`~/.codex/agents/` (pessoal) — não em Markdown como `agents/issue-worker.md`. Três gaps/limitações reais:
 
 - **Sem lista de tools por agente.** O Claude Code restringe `tools:` por subagente; o Antigravity
   tem `toolNames`. O Codex não documenta um allowlist equivalente — o subagente herda todas as
@@ -52,6 +52,13 @@ nenhuma. `.codex-plugin/plugin.json` já declara o campo `skills` apontando para
   subagentes herdam o cwd/sandbox da sessão pai. O template `agents/issue-worker/codex.toml`
   instrui o worker a `cd` para o worktree recebido no prompt, mas isso é reforçado só por
   instrução, nunca por hook (nenhum evento de hook carrega o cwd do subagente antes dele agir).
+- **Sem escalonamento de modelo por despacho (`simple`/`complex` — decisão da #337 em 2026-10-15, issue #396).**
+  Os tiers `simple`/`complex` não se aplicam ao Codex. Os arquivos `agents/*/codex.toml` definem
+  apenas `model_reasoning_effort = "medium"`, omitindo o campo `model`: conforme a documentação
+  oficial (`https://learn.chatgpt.com/docs/agent-configuration/subagents`, consultada em
+  2026-10-15), quando `model` é omitido o subagente **herda o modelo do agente pai** (`inherit`
+  implícito). O usuário pode fixar um ID de modelo específico por conta própria editando
+  `model = "<id>"` em `.codex/agents/*.toml`.
 
 **Bundling via plugin.** O manifesto `.codex-plugin/plugin.json` tem campos para `skills`,
 `hooks`, `mcpServers` e `apps`, mas **nenhum para subagentes** — não há como o plugin instalar um
