@@ -112,15 +112,19 @@ configurado só com outro provider (ex.: OpenRouter), cenário comum para quem a
 Cobertura de regressão em `opencode/scripts/resolve-model_test.ts` (9 casos, incluindo os dois
 códigos de saída novos/revisados).
 
-**Nota (não corrigida, fora de escopo de #312):** o `model:` do frontmatter de
-`issue-worker.md`/`code-review.md`/`issue-coordinator.md` ainda tem o mesmo formato bare-`anthropic`
-(`anthropic/claude-haiku-4-5`, `anthropic/claude-sonnet-5`, `anthropic/claude-sonnet-4-5`) que o
-`DEFAULT_MODEL_FALLBACK` de `resolve-model.ts` tinha antes da correção da #312. Na prática isso não
-afeta o coordinator real — ele sempre monta `--model <provider/model resolvido>` explicitamente
-antes de despachar (Fase 4), o que sobrepõe o frontmatter. Só importa para quem invoca um desses
-agents **diretamente** sem `--model` (ex.: `opencode run --dir <worktree> --agent issue-worker
-"..."` para debug manual) — confirmado reproduzindo o mesmo `Unexpected server error` da #312 duas
-vezes nesta investigação. Vale uma correção futura por consistência, mas não é bloqueador.
+**Escalação de tier após `FAILED_MAX_ITERATIONS` (issue #395, decisão da #337):** quando um grupo
+classificado como `simple` atinge `FAILED_MAX_ITERATIONS`, o `issue-coordinator` redespacha **uma
+vez** no mesmo worktree escalando para `tier: complex`, resolvido por `resolve-model.ts` contra
+`modelFallback.complex`. Um grupo que já é `complex` não escala.
+
+**`model:` fixo removido do frontmatter dos agentes ([issue #395](https://github.com/Tavaressan/Vetor/issues/395)):**
+após a #312, o frontmatter de `issue-worker.md`/`code-review.md`/`issue-coordinator.md` ainda
+mantinha IDs bare-`anthropic` (`anthropic/claude-haiku-4-5`, `anthropic/claude-sonnet-5`,
+`anthropic/claude-sonnet-4-5`), o que falhava para o `issue-coordinator` (invocado pelo usuário) e
+para o `code-review` (que não recebiam `--model`) em ambientes sem o provedor `anthropic` direto. Na
+#395, o campo `model:` foi removido do frontmatter dos três agentes em `opencode/agent/`, fazendo-os
+usar o modelo da sessão ou o passado via `--model` (coberto por regressão em
+`opencode/scripts/issue-coordinator_test.ts`).
 
 **Gaps confirmados (sem hook equivalente):**
 - `SubagentStop` (obrigar status file em estado terminal) — sem cobertura; não há evento
@@ -145,9 +149,9 @@ agent `build` default, sem nenhuma fase do coordinator rodar — confirmado cont
 (`opencode` v1.18.32) na investigação da #306. O arquivo foi movido (não duplicado) para
 `opencode/agent/issue-coordinator.md`, com frontmatter de agent (`description`, `mode: primary` — é
 o agent de entrada, invocado diretamente pelo usuário, ao contrário de `issue-worker`/`code-review`,
-despachados programaticamente pelo próprio coordinator —, `model`, `permission`), no mesmo formato
-de `opencode/agent/issue-worker.md` e `opencode/agent/code-review.md`. O corpo do procedimento não
-mudou; só o diretório e o frontmatter.
+despachados programaticamente pelo próprio coordinator — e `permission`; o `model:` fixo foi
+removido dos três na #395), no mesmo formato de `opencode/agent/issue-worker.md` e
+`opencode/agent/code-review.md`. O corpo do procedimento não mudou; só o diretório e o frontmatter.
 
 O formato `SKILL.md`/agent `.md` do OpenCode é compatível com o Vetor (frontmatter simples;
 campos extras são ignorados) e o OpenCode até escaneia `.claude/skills/*/SKILL.md` nativamente —

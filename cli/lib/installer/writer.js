@@ -13,9 +13,9 @@ const { version: packageVersion } = require('../../package.json');
 // detecção por diretório própria hoje).
 //
 // Cursor (#256, ver wiki/Compatibilidade-Cursor.md): `.cursor/skills/` e `.cursor/agents/`
-// são descobertos nativamente pelo Cursor sem tradução de formato (SKILL.md e agents/*.md já
-// são agnósticos de engine desde #251) — cópia direta funciona de verdade para essas duas
-// pastas. `hooks/` é tratado à parte (ver `installCursorHooks` abaixo, issue #284): o Cursor
+// são descobertos nativamente pelo Cursor (`SKILL.md` é copiado direto; em `agents/*.md`,
+// `model: haiku|sonnet` no frontmatter é traduzido para `model: inherit` — issue #396).
+// `hooks/` é tratado à parte (ver `installCursorHooks` abaixo, issue #284): o Cursor
 // só carrega hooks de projeto em `.cursor/hooks.json` (arquivo único na raiz, schema próprio
 // em camelCase), nunca `.cursor/hooks/hooks.json` (diretório, o formato que este writer copia
 // para as demais engines) — por isso `hooks/hooks.json` é traduzido em memória
@@ -213,6 +213,15 @@ function writeManaged({ destFile, manifestKey, contentHash, write, engineId, man
   copied.push(manifestKey);
 }
 
+// Cursor (#396, ver wiki/Compatibilidade-Cursor.md): `cursor.com/docs/subagents` (consultada em
+// 2026-10-15) lista só `inherit` ou um ID específico para `model` no frontmatter de `.cursor/agents/*.md`,
+// enquanto os `agents/*.md` da fonte usam os aliases `haiku`/`sonnet` do Claude Code.
+function translateAgentForCursor(content) {
+  return content.replace(/^---\r?\n[\s\S]*?\r?\n---/, (frontmatter) =>
+    frontmatter.replace(/^model:[ \t]*(?:haiku|sonnet)(?=\r?$)/gm, 'model: inherit'),
+  );
+}
+
 /**
  * Traduz `<sourceRoot>/hooks/hooks.json` (formato Claude Code) para o schema nativo do Cursor
  * e grava como arquivo único em `<destRootName>/hooks.json` (não `<destRootName>/hooks/...`,
@@ -355,6 +364,20 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
 
         const destFile = path.join(projectRoot, destRootName, sourceDirName, destRelativePath);
         const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
+        if (engine.id === 'cursor' && sourceDirName === 'agents') {
+          const content = translateAgentForCursor(fs.readFileSync(sourceFile, 'utf8'));
+          writeManaged({
+            destFile,
+            manifestKey,
+            contentHash: hashContent(content),
+            write: () => fs.writeFileSync(destFile, content, 'utf8'),
+            engineId: engine.id,
+            manifest,
+            copied,
+            skipped,
+          });
+          continue;
+        }
         copyManagedFile({
           sourceFile,
           destFile,

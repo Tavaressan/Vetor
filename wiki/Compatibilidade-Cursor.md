@@ -73,13 +73,23 @@ relação ao Claude Code:
   sem um hook que force isolamento, depende de o prompt do agente pedir explicitamente — igual ao
   padrão já usado em `agents/issue-worker.md` (instrução no prompt, reforçada por hook nos outros
   engines onde hook existe).
+- **Sem escalonamento de modelo por despacho (`simple`/`complex` — decisão da #337 em 2026-10-15, issue #396).**
+  Os tiers `simple`/`complex` não se aplicam ao Cursor. A documentação oficial
+  (`https://cursor.com/docs/subagents`, consultada em 2026-10-15) lista para o campo `model`
+  apenas `inherit` ou um ID de modelo específico — o comportamento do Cursor diante dos aliases
+  `haiku`/`sonnet` do Claude Code **não foi verificado**. Por isso, na cópia para `.cursor/agents/`,
+  o `vetor install` (`cli/lib/installer/writer.js`) grava `model: inherit` no lugar de
+  `model: haiku|sonnet` (mantendo as cópias do Claude Code como estão). Com isso, o modelo é
+  **herdado** do agente pai, e o usuário pode fixar um ID de modelo específico por conta própria
+  editando `model: <id>` em `.cursor/agents/*.md`.
 
 Os `agents/*.md` deste repositório (ex.: `agents/issue-worker.md`, `agents/code-review.md`) usam
-frontmatter Claude Code (`name`, `description`, `tools`, `model`, `isolation`). Campos que o Cursor
-não reconhece (`tools`, `isolation`) são adicionais ao schema documentado — o comportamento exato do
-parser do Cursor diante de campos desconhecidos **não foi verificado contra uma instância real**
-(inferido por analogia ao padrão "campos extras ignorados" confirmado para skills, não confirmado
-para agents especificamente).
+frontmatter Claude Code (`name`, `description`, `tools`, `model`, `isolation`). O campo `model` é
+traduzido para `model: inherit` ao instalar em `.cursor/agents/` (issue #396); já os campos que o
+Cursor não reconhece (`tools`, `isolation`) são adicionais ao schema documentado — o comportamento
+exato do parser do Cursor diante de campos desconhecidos **não foi verificado contra uma instância
+real** (inferido por analogia ao padrão "campos extras ignorados" confirmado para skills, não
+confirmado para agents especificamente).
 
 ## Hooks — traduzidos em tempo de instalação para o schema e caminho reais do Cursor (issue #284)
 
@@ -262,11 +272,12 @@ diretório `.cursor/` cobre esse caso de qualquer forma).
 
 ## Destino de instalação (`cli/lib/installer/writer.js`)
 
-`ENGINE_DEST_DIR.cursor = '.cursor'`. `skills/` e `agents/` copiados por `installFiles()` funcionam
-**sem tradução** (`.cursor/skills/...`, `.cursor/agents/...` — ambos confirmados como caminhos de
-descoberta nativa). `hooks/hooks.json` é **traduzido** (não copiado bruto) para
-`.cursor/hooks.json` via `installCursorHooks`/`translateHooksForCursor` — ver seção Hooks acima
-para o schema, o mapeamento de eventos/tools e os gaps conhecidos (issue #284).
+`ENGINE_DEST_DIR.cursor = '.cursor'`. `skills/` é copiado por `installFiles()` sem tradução
+(`.cursor/skills/...`), e `agents/*.md` é copiado para `.cursor/agents/...` traduzindo
+`model: haiku|sonnet` no frontmatter para `model: inherit` (issue #396). `hooks/hooks.json` é
+**traduzido** (não copiado bruto) para `.cursor/hooks.json` via
+`installCursorHooks`/`translateHooksForCursor` — ver seção Hooks acima para o schema, o mapeamento
+de eventos/tools e os gaps conhecidos (issue #284).
 
 ## Resumo da confiança por componente
 
