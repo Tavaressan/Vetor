@@ -1,8 +1,8 @@
 ---
 name: code-review
 description: Revisão consultiva do diff de uma PR — bugs, segurança, correção e riscos de arquitetura. Nunca bloqueia merge; publica achados como comentário na PR. Despachado pelo ship após CI verde.
-tools: Bash, Read, Grep, Glob
-model: sonnet
+tools: [Bash, Read, Grep, Glob]
+model: inherit
 license: MIT
 compatibility: Claude Code
 metadata:

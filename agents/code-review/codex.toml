@@ -1,7 +1,6 @@
-# Subagente Codex — equivalente a agents/code-review.md (Claude Code) e
-# agents/code-review/agent.json (Antigravity). Mesmo gap de bundling via plugin.json
-# descrito em agents/issue-worker/codex.toml — copie para .codex/agents/code-review.toml
-# no repositório-alvo para usar.
+# Subagente Codex — equivalente a agents/code-review.md (Claude Code, Cursor e Antigravity).
+# Mesmo gap de bundling via plugin.json descrito em agents/issue-worker/codex.toml — copie para
+# .codex/agents/code-review.toml no repositório-alvo (ou use `vetor install`).
 
 name = "code-review"
 description = "Revisor de código consultivo do Vetor: analisa o diff de uma PR com CI verde e publica achados como comentário, sem bloquear o merge."

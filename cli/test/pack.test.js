@@ -62,8 +62,12 @@ test('npm pack --dry-run inclui arquivos concretos sincronizados de skills/, age
     'templates/skills/install/SKILL.md ausente do pacote — prepack não sincronizou skills/',
   );
   assert.ok(
-    paths.includes('templates/agents/code-review/agent.json'),
-    'templates/agents/code-review/agent.json ausente do pacote — prepack não sincronizou agents/',
+    paths.includes('templates/agents/code-review.md'),
+    'templates/agents/code-review.md ausente do pacote — prepack não sincronizou agents/',
+  );
+  assert.ok(
+    !paths.includes('templates/agents/code-review/agent.json'),
+    'templates/agents/code-review/agent.json legado não deve constar no pacote (issue #397)',
   );
   assert.ok(
     paths.includes('templates/hooks/hooks.json'),
