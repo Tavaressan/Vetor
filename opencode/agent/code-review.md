@@ -1,7 +1,6 @@
 ---
 description: Revisão consultiva do diff de uma PR — bugs, segurança, correção e riscos de arquitetura. Nunca bloqueia merge; publica achados como comentário na PR. Despachado pelo ship após CI verde.
 mode: primary
-model: anthropic/claude-sonnet-5
 permission:
   edit: deny
   bash:
