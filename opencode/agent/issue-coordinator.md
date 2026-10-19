@@ -1,7 +1,6 @@
 ---
 description: Despacho de issues GitHub para workers `opencode run --dir` isolados por worktree. Agrega status via polling de arquivo e coordena merge serializado. Invocado como `opencode run --agent issue-coordinator "<label ou lista de issues>"`. Aceita `--headless` para execução não-interativa (rotinas/CI).
 mode: primary
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: allow
   bash:
@@ -256,8 +255,8 @@ anterior. Se tudo couber em `O_1`, é o caso comum — sem dependência detectad
 
 **Modelo/provedor sugerido**: classifique cada grupo em um `tier` — `simple` (todas as issues são
 `chore`/`fix` pequenos) ou `complex` (há `feat`/`refactor`, ou mais de 2 issues) — e mostre no plano
-o **primeiro item** de `modelFallback.<tier>` (`.claude/vetor/config.json`; default embutido em
-`resolve-model.ts` se a chave não existir) como sugestão. O `tier` (não um modelo fixo) é o que vale
+o **primeiro item** de `modelFallback.<tier>` (`.claude/vetor/config.json` — obrigatório desde a
+issue #312) como sugestão. O `tier` (não um modelo fixo) é o que vale
 para o dispatch real na Fase 4, resolvido ali contra `model-health.json` (issue #83) — pode diferir
 do sugerido aqui se estiver `degraded` no momento do dispatch.
 
@@ -396,7 +395,10 @@ status file, nunca o processo do SO (pode ter sido lançado em outra sessão do 
 `FAILED_MAX_ITERATIONS`): **não** rode `git worktree add` de novo — reaproveite o worktree existente
 (`git worktree list` para confirmar o path), rode de novo o `ensure-external-directory-permission.ts`
 acima com `"worktree": "<path-existente>"` e dispare só o `opencode run --dir <path-existente>
---agent issue-worker "..."`.
+--agent issue-worker --model "<provider/model resolvido>" "..."`.
+- **Escalação de tier após `FAILED_MAX_ITERATIONS` (issue #395):** quando um grupo `simple` atingir
+  `FAILED_MAX_ITERATIONS`, redespache **uma vez** com `tier: complex`, resolvido por
+  `resolve-model.ts`. Um grupo que já é `complex` **não escala**.
 
 ### 5 — Monitoramento (via polling de arquivo)
 
