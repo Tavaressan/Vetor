@@ -144,3 +144,21 @@ worker precisar de MCP adicional.
    indicar que o mapa de testes não está commitado (issue #327), injete explicitamente os comandos de
    teste resolvidos para os módulos da issue no prompt do worker, evitando que ele fique sem referências
    de teste no worktree.
+
+### Dispatch para runtime externo (contrato mínimo de delegação)
+
+Quando o coordinator delegar o desenvolvimento de um grupo de issues a um runtime externo de IA (Gemini/`agy`, OpenCode/`opencode`, Codex/`codex` — conforme `delegate-to-runtime.md`), é **obrigatório** seguir o contrato mínimo:
+
+1. **Worktree próprio**:
+   - Provisione um worktree isolado exclusivo para a execução do runtime externo (via `worktree-create`), nunca compartilhando o root nem o worktree de outro agente.
+2. **Diff tratado como rascunho**:
+   - Todo código ou alteração produzida pelo runtime delegado é tratado como rascunho não confiável.
+   - O agente coordenador inspeciona o diff (`git diff`) antes de qualquer decisão de escrita ou commit.
+3. **Validação pelo `module-test-map` antes do commit**:
+   - Antes de realizar qualquer commit das mudanças propostas, execute os comandos de teste correspondentes aos arquivos tocados (resolvidos a partir de `.claude/vetor/module-test-map.md`).
+   - Se os testes falharem ou o resultado for insatisfatório, o rascunho é descartado e o fallback inline é acionado.
+4. **Status file mantido pelo coordinator**:
+   - Como o processo externo não possui garantias de executar hooks do Vetor nem de formatar o `agent-status`, o próprio coordinator gerencia o ciclo de vida do status file (`<repo-root>/.claude/vetor/status/<branch>.md`).
+   - O coordinator inicializa com `Status: RUNNING`, avança `Iteration: N/5` e atualiza para `GREEN` ou `FAILED_MAX_ITERATIONS` após a validação.
+5. **Limpeza do worktree do runtime**:
+   - Concluído o trabalho (após commit e validação) ou em caso de descarte do rascunho, o worktree temporário do runtime deve ser removido com segurança via `vetor-checks.sh safe-remove-worktree <path>`.

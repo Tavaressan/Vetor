@@ -340,6 +340,19 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
 Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em alguma, para e marca
 `FAILED_MAX_ITERATIONS` especificando qual issue falhou.
 
+#### Dispatch para runtime externo (delegação de código)
+
+Caso o coordinator delegue o desenvolvimento de um grupo a um runtime externo de IA (Gemini/OpenCode/Codex — ver `delegate-to-runtime.md`), aplique o **contrato mínimo de delegação**:
+1. **Worktree próprio**: provisione um worktree isolado exclusivo para o runtime externo via `worktree-create` (nunca opere no root nem em worktree de outro worker).
+2. **Diff tratado como rascunho**: o código gerado pelo runtime externo é rascunho não confiável; nunca faça commit cegamente sem inspeção prévia.
+3. **Validação via `module-test-map`**: execute a suíte de testes mapeada para os módulos tocados antes de qualquer commit; descarte o rascunho em caso de falha.
+4. **Status file mantido pelo coordinator**: o coordinator é responsável por gerenciar e atualizar o status file (`.claude/vetor/status/<branch>.md`) a cada iteração (`RUNNING`, `Iteration: N/5`, `GREEN`, etc.).
+5. **Limpeza do worktree do runtime**: ao concluir a integração (ou ao descartar o rascunho), limpe o worktree temporário do runtime via `safe-remove-worktree`.
+
+Consulte `../shared/references/issue-coordinator-dispatch.md` para o fluxo detalhado desse contrato.
+
+
+
 ### 5 — Monitoramento
 
 Leia `../shared/references/issue-coordinator-monitoring.md` ao montar/atualizar a tabela de status, incluindo fallback e duplicidade.
