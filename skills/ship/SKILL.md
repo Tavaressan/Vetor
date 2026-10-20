@@ -386,9 +386,11 @@ com `ExitWorktree` antes.) Confirme pela mensagem de sucesso.
 ### 12 — Cleanup
 
 Descubra o path real do worktree via `git worktree list` (não assuma convenção de path — a
-localização é do harness). Se invocado pelo `coordinator` (modo headless), execute
-automaticamente:
+localização é do harness). No Windows, manter o cwd da sessão dentro do worktree bloqueia a exclusão
+do diretório com `Permission denied` (issue #411). Mude para o repositório principal antes de
+disparar a remoção. Se invocado pelo `coordinator` (modo headless), execute automaticamente:
 ```bash
+cd "$(bash "$SKILL_DIR/../../scripts/vetor-checks.sh" repo-root)"
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree "<path-do-worktree>"
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" delete-merged-branch "<branch>"
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" clean-status "<branch>"
@@ -399,12 +401,13 @@ status/cache — há dois motivos distintos de falha:
 
 - **Worktree filho ativo dentro do path alvo**: mostre os paths e preserve worktree pai, branch e
   arquivos de status/cache até os filhos serem realocados.
-- **Diretório residual em disco após `git worktree remove`** (issues #157, #324): o `git worktree remove`
+- **Diretório residual em disco após `git worktree remove`** (issues #157, #324, #411): o `git worktree remove`
   desregistrou o worktree do git (não aparece mais em `git worktree list`) mas falhou ao apagar o
-  diretório — no Windows, por `Filename too long` ou `Permission denied` transitório. `safe-remove-worktree`
-  reconsulta o git: como o worktree já foi desregistrado, tenta a remoção segura do resíduo (inclusive
-  com prefixo de path longo `\\?\`); se mesmo assim restar, ela sai não-zero citando o path residual
-  para remoção manual, sem alegar falsamente uncommitted work (issue #324).
+  diretório — no Windows, por `Filename too long`, por `Permission denied` transitório ou porque o processo
+  ainda está com o cwd dentro dele (issue #411). `safe-remove-worktree` reconsulta o git: como o worktree
+  já foi desregistrado, tenta a remoção segura do resíduo (inclusive com prefixo de path longo `\\?\`);
+  se mesmo assim restar, ela diagnostica a causa (incluindo se o cwd da sessão impediu a exclusão) e sai
+  não-zero citando o path residual para remoção manual, sem alegar falsamente uncommitted work (issue #324).
 
 - **Remoção segura de branch e status**:
   - `delete-merged-branch <branch>` apaga a branch local apenas se confirmada como `MERGED` no GitHub
@@ -414,7 +417,7 @@ status/cache — há dois motivos distintos de falha:
     a sentinela `.md.stopguard` e o cache `-touched-files.json` (issue #344).
 
 Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
-branch, status file e cache de arquivos tocados).
+branch, status file e cache de arquivos tocados). Lembre-se de mudar para o root (`cd "$(bash "$SKILL_DIR/../../scripts/vetor-checks.sh" repo-root)"`) antes de executar `safe-remove-worktree`.
 
 ---
 

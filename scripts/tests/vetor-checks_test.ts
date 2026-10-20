@@ -149,6 +149,34 @@ async function testResidualAfterUnregister() {
   }
 }
 
+Deno.test("safe-remove-worktree diagnostica cwd dentro do path alvo quando a remoção residual falha — issue #411", async () => {
+  const repo = await makeRepo();
+  const worktree = `${repo}/wt-cwd`;
+  const lockedDir = `${worktree}/locked`;
+
+  try {
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "wt-cwd", worktree], repo);
+    await Deno.mkdir(`${lockedDir}/sub`, { recursive: true });
+    await Deno.writeTextFile(`${lockedDir}/sub/file.txt`, "x");
+    await git(["add", "."], worktree);
+    await git(["commit", "-q", "-m", "add tracked file"], worktree);
+    await Deno.chmod(lockedDir, 0o000);
+
+    const result = await runVetorChecks(worktree, "safe-remove-worktree", worktree);
+
+    assertEquals(result.code, 1);
+    assertEquals(result.stderr.includes("ainda registrado"), false);
+    assertStringIncludes(result.stderr, "desregistrou");
+    assertStringIncludes(result.stderr, "diretório de trabalho atual");
+    assertStringIncludes(result.stderr, "está dentro dele");
+    assertEquals(result.stderr.includes("Filename too long"), false);
+  } finally {
+    await Deno.chmod(lockedDir, 0o755).catch(() => {});
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
 Deno.test("sync-root faz fast-forward quando o root já está na branch default e defasado — issue #322", async () => {
   const base = await Deno.realPath(await Deno.makeTempDir());
   const remote = `${base}/remote.git`;
