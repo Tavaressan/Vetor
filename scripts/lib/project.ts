@@ -16,6 +16,8 @@ export interface ProjectInfo {
   testCommand: string;
   /** Deno com package.json precisa de `deno install`; Deno puro resolve tudo pelo cache global. */
   needsInstall: boolean;
+  /** Indica se há uma suíte de testes dedicada (ex.: script test no package.json). */
+  hasDedicatedTests?: boolean;
 }
 
 export function exists(path: string): boolean {
@@ -67,16 +69,48 @@ export function detectProject(dir: string): ProjectInfo {
       // Sem package.json o nodeModulesDir default é "none": as deps vêm do cache
       // global $DENO_DIR, que já é compartilhado por todos os worktrees.
       needsInstall: hasPackageJson,
+      hasDedicatedTests: true,
     };
   }
 
   if (hasPackageJson) {
     const pm = detectNodePackageManager(dir);
+    let scripts: Record<string, unknown> = {};
+    try {
+      const parsed = readJson(`${dir}/package.json`) as { scripts?: Record<string, unknown> };
+      if (parsed && typeof parsed.scripts === "object" && parsed.scripts !== null) {
+        scripts = parsed.scripts;
+      }
+    } catch {
+      // package.json ilegível
+    }
+
+    const testScript = typeof scripts.test === "string" ? scripts.test.trim() : "";
+    const hasTestScript = testScript.length > 0 && !testScript.includes("no test specified");
+
+    let testCommand = "";
+    let hasDedicatedTests = false;
+
+    if (hasTestScript) {
+      testCommand = `${pm} test`;
+      hasDedicatedTests = true;
+    } else {
+      const candidates = ["lint", "typecheck", "check", "build"];
+      const present = candidates.filter((s) => typeof scripts[s] === "string");
+      if (present.length > 0) {
+        testCommand = present.map((s) => `${pm} run ${s}`).join(" && ");
+      } else {
+        testCommand = "AJUSTE: comando de teste não detectado";
+      }
+      hasDedicatedTests = false;
+    }
+
     return {
       runtime: "node",
       packageManager: pm,
-      testCommand: `${pm} test`,
+      testCommand,
       needsInstall: true,
+      hasDedicatedTests,
     };
   }
 
@@ -86,6 +120,7 @@ export function detectProject(dir: string): ProjectInfo {
       packageManager: "cargo",
       testCommand: "cargo test",
       needsInstall: false,
+      hasDedicatedTests: true,
     };
   }
   if (exists(`${dir}/go.mod`)) {
@@ -94,6 +129,7 @@ export function detectProject(dir: string): ProjectInfo {
       packageManager: "go",
       testCommand: "go test ./...",
       needsInstall: false,
+      hasDedicatedTests: true,
     };
   }
   if (
@@ -101,7 +137,13 @@ export function detectProject(dir: string): ProjectInfo {
     exists(`${dir}/poetry.lock`)
   ) {
     const pm = exists(`${dir}/poetry.lock`) ? "poetry" : "pip";
-    return { runtime: "python", packageManager: pm, testCommand: "pytest", needsInstall: true };
+    return {
+      runtime: "python",
+      packageManager: pm,
+      testCommand: "pytest",
+      needsInstall: true,
+      hasDedicatedTests: true,
+    };
   }
   if (
     exists(`${dir}/build.gradle`) || exists(`${dir}/build.gradle.kts`) ||
@@ -112,10 +154,17 @@ export function detectProject(dir: string): ProjectInfo {
       packageManager: "gradle",
       testCommand: "./gradlew test",
       needsInstall: false,
+      hasDedicatedTests: true,
     };
   }
 
-  return { runtime: "unknown", packageManager: null, testCommand: "", needsInstall: false };
+  return {
+    runtime: "unknown",
+    packageManager: null,
+    testCommand: "",
+    needsInstall: false,
+    hasDedicatedTests: false,
+  };
 }
 
 /** Convenções observadas no repositório. Campo ausente = fato não encontrado. */
