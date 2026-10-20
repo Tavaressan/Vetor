@@ -9,6 +9,26 @@ const execute: CommandExecutor = async (command, args, cwd) => {
   return new TextDecoder().decode(result.stdout).trim();
 };
 
+/** `gh issue list` devolve no máximo 30 itens por padrão; sem isso as contagens saturam em 30. */
+const ISSUE_LIMIT = "1000";
+
+async function countOpenIssues(
+  executor: CommandExecutor,
+  cwd: string,
+  label: string | null,
+): Promise<number | null> {
+  const args = ["issue", "list", "--state", "open", "--limit", ISSUE_LIMIT, "--json", "number"];
+  if (label !== null) args.splice(4, 0, "--label", label);
+  const text = await optional(executor, "gh", args, cwd);
+  if (text === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed.length : null;
+  } catch {
+    return null;
+  }
+}
+
 async function optional(executor: CommandExecutor, command: string, args: string[], cwd: string) {
   try {
     return await executor(command, args, cwd);
@@ -49,37 +69,12 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     initialized = false;
   }
 
-  const totalIssuesText = await optional(
-    executor,
-    "gh",
-    ["issue", "list", "--state", "open", "--json", "number"],
-    cwd,
-  );
-  let openIssuesTotal: number | null = null;
-  if (totalIssuesText !== null) {
-    try {
-      const parsed: unknown = JSON.parse(totalIssuesText);
-      if (Array.isArray(parsed)) openIssuesTotal = parsed.length;
-    } catch {
-      openIssuesTotal = null;
-    }
-  }
-
-  const issueText = await optional(
-    executor,
-    "gh",
-    ["issue", "list", "--state", "open", "--label", "backlog", "--json", "number"],
-    cwd,
-  );
-  let backlogIssues: number | null = null;
-  if (issueText !== null) {
-    try {
-      const parsed: unknown = JSON.parse(issueText);
-      if (Array.isArray(parsed)) backlogIssues = parsed.length;
-    } catch {
-      backlogIssues = null;
-    }
-  }
+  const openIssuesTotal = await countOpenIssues(executor, cwd, null);
+  const backlogIssues = await countOpenIssues(executor, cwd, "backlog");
+  // Issue #412: o que o coordinator despacharia sem argumento — label default ou todas as abertas.
+  const dispatchableIssues = defaultDispatchLabel === null
+    ? openIssuesTotal
+    : await countOpenIssues(executor, cwd, defaultDispatchLabel);
   let mcps: string[] = [];
   try {
     const config = JSON.parse(await Deno.readTextFile(`${cwd}/.mcp.json`));
@@ -100,6 +95,7 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     initialized,
     defaultDispatchLabel,
     openIssuesTotal,
+    dispatchableIssues,
     backlogIssues,
     mcps,
     runtimes,

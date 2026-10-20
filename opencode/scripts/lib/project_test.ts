@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { normalizeCwd } from "./project.ts";
+import { detectProject, normalizeCwd } from "./project.ts";
 
 Deno.test({
   name:
@@ -42,4 +42,27 @@ Deno.test({
     assertEquals(normalizeCwd("/c/Users/test"), "/c/Users/test");
     assertEquals(normalizeCwd("/home/test"), "/home/test");
   },
+});
+
+async function nodeProject(pkg: unknown): Promise<string> {
+  const dir = await Deno.makeTempDir();
+  try {
+    await Deno.writeTextFile(`${dir}/package.json`, JSON.stringify(pkg));
+    return detectProject(dir).testCommand;
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+}
+
+Deno.test("detectProject (OpenCode) usa <pm> test só quando o script test existe — paridade #406", async () => {
+  assertEquals(await nodeProject({ scripts: { test: "vitest" } }), "npm test");
+  assertEquals(
+    await nodeProject({ scripts: { dev: "next dev", build: "next build", lint: "next lint" } }),
+    "npm run lint && npm run build",
+  );
+  assertEquals(
+    await nodeProject({ scripts: { test: 'echo "Error: no test specified" && exit 1' } }),
+    "AJUSTE: comando de teste não detectado",
+  );
+  assertEquals(await nodeProject({}), "AJUSTE: comando de teste não detectado");
 });

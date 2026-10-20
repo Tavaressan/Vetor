@@ -73,7 +73,7 @@ A flag `--headless` substitui os quatro pontos de interação humana por decisõ
 | Fase | Interativo | Headless |
 |------|-----------|----------|
 | 2 — gate de Spec/design | `AskUserQuestion` por issue não-trivial sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
-| 2 — teto de workers | `AskUserQuestion` (pula se $N_{rec} = 1$) | Usa `N_rec` calculado, sem perguntar |
+| 2 — teto de workers | `AskUserQuestion` (pula se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
 | 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
 | 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
 | 5.c — circuit breaker | Pergunta se pausa | Sempre pausa: para de despachar e reporta |
@@ -98,7 +98,7 @@ Além disso, em `--headless`:
      status file. O script cruza os status files com `gh pr list` e anota `GREEN (PR #N aberta)` ou
      `GREEN (já mergeado via #N)`.
   2. Se houver ao menos um status file ativo: **pule as Fases 1–3** e faça a pergunta de workers
-     (Fase 2) — o estado em memória de `N` não sobrevive a um reinício da sessão. Depois monte a
+     (Fase 2; pulada quando `N_rec = 1`) — o estado em memória de `N` não sobrevive a um reinício da sessão. Depois monte a
      tabela de status (Fase 5.a) e, para cada grupo em `GREEN` sem PR aberta ou merge, ofereça o
      ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>), que está GREEN?"). Se
      já estiver mergeado, apenas informe. Prossiga a partir da Fase 5/6.
@@ -314,20 +314,20 @@ driver de custo agregado do coordinator.
    juntos — Fase 4). Acima de ~8 workers, custo agregado e ruído de monitoramento tendem a crescer
    mais rápido que o ganho de paralelismo: se `N_rec` > 8, sinalize isso na pergunta. É
    recomendação, não limite — a decisão é do usuário.
-2. **Pulo automático quando $N_{rec} = 1$ (ou largura da maior onda = 1):** se $N_{rec} = 1$, ou se a
-   largura da maior onda for 1 (apenas um único grupo despachável por onda), adote $N = 1$
+2. **Pulo automático quando `N_rec = 1` (ou largura da maior onda = 1):** se `N_rec = 1`, ou se a
+   largura da maior onda for 1 (apenas um único grupo despachável por onda), adote `N = 1`
    automaticamente sem perguntar ao usuário e registre no plano e no relatório (comportamento idêntico
    ao modo `--headless`). Não há escolha real de concorrência quando a largura da onda é 1, evitando
    uma interação vazia (issue #414).
 3. **Em `--headless`:** adote `N = N_rec` sem perguntar e registre no relatório qual valor foi usado
    e como foi calculado.
-4. **Fora de `--headless` (com $N_{rec} > 1$):** pergunte via `AskUserQuestion` (uma única vez por sessão):
+4. **Fora de `--headless` (com `N_rec > 1`):** pergunte via `AskUserQuestion` (uma única vez por sessão):
    - `"<N_rec> (Recomendado)"` — justifique em 1 linha (largura da onda, custo por worker, alerta se > 8)
    - `"1 — serializado"` — mais lento, mais previsível, menor custo
    - `"<maxConcurrentWorkers de config.json>"` — só se existir e for diferente de `N_rec`
    - O usuário pode responder valor customizado ("Other"), **inclusive acima de 8** — respeite-o.
 5. **Armazene como `N`** para a Fase 4; vale para toda a sessão de dispatch, incluindo redespachos.
-   Em modo de retomada, repita a pergunta antes de despachar qualquer `QUEUED` apenas se $N_{rec} > 1$.
+   Em modo de retomada, repita a pergunta antes de despachar qualquer `QUEUED` apenas se `N_rec > 1`.
    O valor **não persiste** em `.claude/vetor/config.json`.
 
 #### Obtenção de aprovação
