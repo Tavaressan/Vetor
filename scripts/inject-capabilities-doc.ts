@@ -47,15 +47,20 @@ export const CAPABILITIES_BODY = `## Vetor (plugin instalado)
 
 Automação de ciclo de desenvolvimento (issues → worktrees → fix loop → PR). Skills e agentes:
 
-- \`/vetor\` — inicializa/atualiza a configuração do Vetor neste projeto.
+- \`/vetor:install\` (\`install\`) — inicializa e configura o ambiente do Vetor neste projeto.
+- \`/vetor:now\` (\`now\`) — kickoff da sessão, resume o estado do projeto e orienta os próximos passos.
 - \`/vetor:spec\` (\`spec\`) — descobre contexto do projeto e rascunha uma Spec a partir de um tema.
+- \`/vetor:spec-validate\` (\`spec-validate\`) — valida a qualidade de uma Spec contra o Quality Model do Vetor.
 - \`/vetor:backlog\` (\`backlog\`) — propõe issues a partir de gaps do código/docs.
-- \`/vetor:coordinator\` (\`coordinator\`) — orquestra workers para issues do backlog.
+- \`/vetor:coordinator\` (\`coordinator\`) — orquestra workers paralelos em worktrees isolados para issues do backlog.
 - \`/vetor:worktree-create\` (\`worktree-create\`) — cria um worktree isolado para uma issue.
 - \`/vetor:fix\` (\`fix\`) — itera build/test até verde num worktree existente.
-- \`/vetor:ship\` (\`ship\`) — abre PR a partir de um worktree em estado verde.
-- \`/vetor:guardian\` (\`guardian\`) — auditoria de banco de dados por stack (condicional).
-- \`/vetor:retro\` (\`retro\`) — retrospectiva do ciclo de trabalho.
+- \`/vetor:design\` (\`design\`) — setup de Design System, handoff de protótipos e loop de autocorreção visual de UI.
+- \`/vetor:ship\` (\`ship\`) — pipeline headless de entrega (testes, push, PR draft, CI, merge, sync root e cleanup).
+- \`/vetor:guardian\` (\`guardian\`) — auditoria e auto-fix de integridade (JSONs, migrations, worktrees, status files, containers).
+- \`/vetor:stack-practices\` (\`stack-practices\`) — detecta frameworks da stack e gera regras de melhores práticas (Context7).
+- \`/vetor:architecture-review\` (\`architecture-review\`) — survey de dívida arquitetural, hot spots e deletion test.
+- \`/vetor:retro\` (\`retro\`) — retrospectiva do ciclo de trabalho e proposição de melhorias no plugin.
 - Agentes \`code-review\` e \`issue-worker\` — usados internamente pelos comandos acima.
 
 Detalhes de cada skill: \`skills/<nome>/SKILL.md\` no plugin.`;

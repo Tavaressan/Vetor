@@ -1,5 +1,5 @@
-import { assert, assertEquals, assertStringIncludes } from "@std/assert";
-import { END_MARKER, injectBlock, START_MARKER } from "../inject-capabilities-doc.ts";
+import { assert, assertEquals, assertFalse, assertStringIncludes } from "@std/assert";
+import { CAPABILITIES_BODY, END_MARKER, injectBlock, START_MARKER } from "../inject-capabilities-doc.ts";
 
 function tmpDir(): string {
   return Deno.makeTempDirSync();
@@ -75,5 +75,48 @@ Deno.test("não cria o arquivo se ele não existir", () => {
       }
     })(),
     false,
+  );
+});
+
+Deno.test("CAPABILITIES_BODY contém todas as skills ativas e nenhum comando deprecado (issue #407)", () => {
+  const requiredSkills = [
+    "/vetor:install",
+    "/vetor:now",
+    "/vetor:spec",
+    "/vetor:spec-validate",
+    "/vetor:backlog",
+    "/vetor:coordinator",
+    "/vetor:worktree-create",
+    "/vetor:fix",
+    "/vetor:design",
+    "/vetor:ship",
+    "/vetor:guardian",
+    "/vetor:stack-practices",
+    "/vetor:architecture-review",
+    "/vetor:retro",
+  ];
+
+  for (const skill of requiredSkills) {
+    assertStringIncludes(
+      CAPABILITIES_BODY,
+      skill,
+      `CAPABILITIES_BODY deve conter a skill ${skill}`,
+    );
+  }
+
+  // Não deve conter o comando deprecado `/vetor` isolado como item de lista
+  assertFalse(
+    /- `\/vetor`\s/.test(CAPABILITIES_BODY),
+    "CAPABILITIES_BODY não deve conter o comando deprecado `/vetor` isolado",
+  );
+
+  // guardian não deve ser descrito apenas como auditoria de banco de dados
+  assertFalse(
+    CAPABILITIES_BODY.includes("auditoria de banco de dados por stack"),
+    "guardian deve refletir auditoria e auto-fix de integridade ampla",
+  );
+  assertStringIncludes(
+    CAPABILITIES_BODY,
+    "guardian",
   );
 });
