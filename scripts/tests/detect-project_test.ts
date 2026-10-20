@@ -131,10 +131,16 @@ Deno.test("detectModules: subdiretório no .gitignore é ignorado (git check-ign
     Deno.writeTextFileSync(`${directory}/ignored-sub/package.json`, '{"name": "ignored-sub"}');
 
     Deno.mkdirSync(`${directory}/packages/ignored-nested`, { recursive: true });
-    Deno.writeTextFileSync(`${directory}/packages/ignored-nested/package.json`, '{"name": "ignored-nested"}');
+    Deno.writeTextFileSync(
+      `${directory}/packages/ignored-nested/package.json`,
+      '{"name": "ignored-nested"}',
+    );
 
     Deno.mkdirSync(`${directory}/real-pkg`, { recursive: true });
-    Deno.writeTextFileSync(`${directory}/real-pkg/package.json`, '{"name": "real-pkg", "scripts": {"test": "echo ok"}}');
+    Deno.writeTextFileSync(
+      `${directory}/real-pkg/package.json`,
+      '{"name": "real-pkg", "scripts": {"test": "echo ok"}}',
+    );
 
     const modules = detectModules(detectProject(directory), directory);
     assertEquals(modules.map((m) => m.name), ["real-pkg"]);

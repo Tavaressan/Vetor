@@ -72,7 +72,8 @@ function simpleGlobMatch(glob: string, target: string): boolean {
   const regexStr = "^" + glob
     .replace(/[.+^${}()|[\]\\]/g, (c) => "\\" + c)
     .replace(/\*/g, ".*")
-    .replace(/\?/g, ".") + "$";
+    .replace(/\?/g, ".") +
+    "$";
   try {
     return new RegExp(regexStr).test(target);
   } catch {

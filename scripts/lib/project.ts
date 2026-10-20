@@ -137,7 +137,13 @@ export function detectProject(dir: string): ProjectInfo {
     exists(`${dir}/poetry.lock`)
   ) {
     const pm = exists(`${dir}/poetry.lock`) ? "poetry" : "pip";
-    return { runtime: "python", packageManager: pm, testCommand: "pytest", needsInstall: true, hasDedicatedTests: true };
+    return {
+      runtime: "python",
+      packageManager: pm,
+      testCommand: "pytest",
+      needsInstall: true,
+      hasDedicatedTests: true,
+    };
   }
   if (
     exists(`${dir}/build.gradle`) || exists(`${dir}/build.gradle.kts`) ||
@@ -152,7 +158,13 @@ export function detectProject(dir: string): ProjectInfo {
     };
   }
 
-  return { runtime: "unknown", packageManager: null, testCommand: "", needsInstall: false, hasDedicatedTests: false };
+  return {
+    runtime: "unknown",
+    packageManager: null,
+    testCommand: "",
+    needsInstall: false,
+    hasDedicatedTests: false,
+  };
 }
 
 /** Convenções observadas no repositório. Campo ausente = fato não encontrado. */
