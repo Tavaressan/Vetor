@@ -67,12 +67,73 @@ function hasTestSuite(path: string): boolean {
   return false;
 }
 
+function simpleGlobMatch(glob: string, target: string): boolean {
+  if (glob === target) return true;
+  const regexStr = "^" + glob
+    .replace(/[.+^${}()|[\]\\]/g, (c) => "\\" + c)
+    .replace(/\*/g, ".*")
+    .replace(/\?/g, ".") + "$";
+  try {
+    return new RegExp(regexStr).test(target);
+  } catch {
+    return false;
+  }
+}
+
+function isIgnoredByGitignoreFile(relPath: string, rootDir: string): boolean {
+  const gitignorePath = `${rootDir}/.gitignore`;
+  if (!exists(gitignorePath)) return false;
+
+  try {
+    const content = Deno.readTextFileSync(gitignorePath);
+    const lines = content.split(/\r?\n/);
+    const normRelPath = relPath.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/$/, "");
+    const baseName = normRelPath.split("/").pop() ?? normRelPath;
+
+    for (const rawLine of lines) {
+      let line = rawLine.trim();
+      if (!line || line.startsWith("#") || line.startsWith("!")) continue;
+      line = line.replaceAll("\\", "/");
+      if (line.endsWith("/")) line = line.slice(0, -1);
+      if (line.startsWith("/")) line = line.slice(1);
+
+      if (!line.includes("/")) {
+        if (simpleGlobMatch(line, baseName)) return true;
+      }
+      if (simpleGlobMatch(line, normRelPath)) return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+export function isIgnoredByGit(relPath: string, rootDir = "."): boolean {
+  try {
+    const formatted = relPath.endsWith("/") ? relPath : `${relPath}/`;
+    const res = new Deno.Command("git", {
+      args: ["check-ignore", "-q", formatted],
+      cwd: rootDir,
+      stdout: "null",
+      stderr: "null",
+    }).outputSync();
+    if (res.code === 0) return true;
+    if (res.code === 1) return false;
+  } catch {
+    // git indisponível ou falha na execução
+  }
+
+  return isIgnoredByGitignoreFile(relPath, rootDir);
+}
+
 /** Um módulo pode estar no subdiretório direto ou um nível abaixo (monorepos rasos). */
 export function detectModules(_root: ProjectInfo, directory = "."): Module[] {
   const modules: Module[] = [];
 
   for (const entry of Deno.readDirSync(directory)) {
     if (!entry.isDirectory || IGNORED_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
+    if (isIgnoredByGit(entry.name, directory)) continue;
 
     const modulePath = `${directory}/${entry.name}`;
     const info = detectProject(modulePath);
@@ -87,7 +148,9 @@ export function detectModules(_root: ProjectInfo, directory = "."): Module[] {
     // Nada neste nível: procura um módulo um nível abaixo.
     let nested: Module | null = null;
     for (const sub of Deno.readDirSync(modulePath)) {
-      if (!sub.isDirectory || IGNORED_DIRS.has(sub.name)) continue;
+      if (!sub.isDirectory || IGNORED_DIRS.has(sub.name) || sub.name.startsWith(".")) continue;
+      const subRelPath = `${entry.name}/${sub.name}`;
+      if (isIgnoredByGit(subRelPath, directory)) continue;
       const subPath = `${entry.name}/${sub.name}`;
       const subInfo = detectProject(`${directory}/${subPath}`);
       if (subInfo.runtime !== "unknown") {
@@ -110,17 +173,22 @@ export function detectModules(_root: ProjectInfo, directory = "."): Module[] {
 }
 
 export function renderMap(root: ProjectInfo, modules: Module[]): string {
-  const rows = modules.length > 0
-    ? modules.map((m) =>
-      `| \`${m.name}\` | \`${m.command ?? "sem suíte de testes"}\` | Auto-detectado |`
-    ).join("\n")
-    : `| \`root\` | \`${
-      root.testCommand || "AJUSTE: comando de teste não detectado"
-    }\` | Módulo raiz |`;
+  const rowsList: string[] = [];
+  if (root.runtime !== "unknown" || modules.length === 0) {
+    const rootNote = "Módulo raiz";
+    const rootCommand = root.testCommand || "AJUSTE: comando de teste não detectado";
+    rowsList.push(`| \`root\` | \`${rootCommand}\` | ${rootNote} |`);
+  }
+  for (const m of modules) {
+    rowsList.push(`| \`${m.name}\` | \`${m.command ?? "sem suíte de testes"}\` | Auto-detectado |`);
+  }
+  const rows = rowsList.join("\n");
 
-  const mapping = modules.length > 0
-    ? modules.map((m) => `| \`${m.name}/\` | \`${m.name}\` |`).join("\n")
-    : "| `./` | `root` |";
+  const mappingRows = modules.map((m) => `| \`${m.name}/\` | \`${m.name}\` |`);
+  if (root.runtime !== "unknown" || modules.length === 0) {
+    mappingRows.push("| `./` | `root` |");
+  }
+  const mapping = mappingRows.join("\n");
 
   return `# Module Test Map — Auto-Gerado
 

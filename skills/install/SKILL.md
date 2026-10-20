@@ -82,7 +82,7 @@ Repasse o `--force` recebido nos args. A guarda é **por arquivo**: sem `--force
 existe é preservado (o JSON de saída informa o que foi criado e o que foi pulado).
 
 O script grava:
-- `.claude/vetor/module-test-map.md` — comandos de teste por módulo;
+- `.claude/vetor/module-test-map.md` — comandos de teste por módulo e mapeamento por prefixo de path. Quando a raiz possui runtime detectado, ela é sempre incluída como módulo (`./`). Subdiretórios ignorados pelo `.gitignore` (verificados via `git check-ignore`) nunca viram módulos falsos positivos;
 - `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados, preservando
   o `maxConcurrentWorkers` (default 5), o bloco `knowledge` (`enabled`/`provider`) e o bloco opcional
   `delegation` (`preferredRuntime` — ver `delegate-to-runtime.md`), se já existirem. O
