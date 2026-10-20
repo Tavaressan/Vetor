@@ -19,6 +19,9 @@ Deno.test("issue-coordinator documenta o checkpoint de fechamento de onda — is
   assert(headlessInstructions > checkpoint);
   assertStringIncludes(document, "`Review required`");
   assertStringIncludes(document, "`GREEN (pronto para ship)`");
+  assertStringIncludes(document, "`SKIPPED (aguardando insumo do usuário)`");
+  assertStringIncludes(document, "`SKIPPED (fora deste repositório)`");
+  assertStringIncludes(document, "`SKIPPED (épico/acompanhamento)`");
   assertStringIncludes(document, "não pergunte");
   assertStringIncludes(document, "nem redespache");
 });
@@ -54,14 +57,14 @@ Deno.test("nenhum agente em opencode/agent/ fixa model: no frontmatter — issue
   ];
 
   for (const file of agentFiles) {
-    const content = await Deno.readTextFile(
+    const document = await Deno.readTextFile(
       new URL(`../agent/${file}`, import.meta.url),
     );
-    const frontmatter = extractFrontmatter(content);
+    const frontmatter = extractFrontmatter(document);
     assertNotMatch(
       frontmatter,
-      /^model\s*:/m,
-      `opencode/agent/${file} não deve fixar model: no frontmatter`,
+      /^model:\s*\S+/m,
+      `${file} fixa model: no frontmatter YAML; modelos devem vir de config.json ou inherit`,
     );
   }
 });

@@ -31,6 +31,40 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     worktrees = worktreeText.split(/\r?\n/).filter((line) => line.startsWith("worktree "))
       .map((line) => line.slice(9));
   }
+
+  let initialized = false;
+  let defaultDispatchLabel: string | null = null;
+  try {
+    const configContent = await Deno.readTextFile(`${cwd}/.claude/vetor/config.json`);
+    initialized = true;
+    try {
+      const parsedConfig = JSON.parse(configContent);
+      if (parsedConfig && typeof parsedConfig.defaultDispatchLabel === "string") {
+        defaultDispatchLabel = parsedConfig.defaultDispatchLabel;
+      }
+    } catch {
+      // config.json existe mas JSON é inválido
+    }
+  } catch {
+    initialized = false;
+  }
+
+  const totalIssuesText = await optional(
+    executor,
+    "gh",
+    ["issue", "list", "--state", "open", "--json", "number"],
+    cwd,
+  );
+  let openIssuesTotal: number | null = null;
+  if (totalIssuesText !== null) {
+    try {
+      const parsed: unknown = JSON.parse(totalIssuesText);
+      if (Array.isArray(parsed)) openIssuesTotal = parsed.length;
+    } catch {
+      openIssuesTotal = null;
+    }
+  }
+
   const issueText = await optional(
     executor,
     "gh",
@@ -63,6 +97,9 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     branch: branch || null,
     clean: status === null ? null : status.length === 0,
     worktrees,
+    initialized,
+    defaultDispatchLabel,
+    openIssuesTotal,
     backlogIssues,
     mcps,
     runtimes,
