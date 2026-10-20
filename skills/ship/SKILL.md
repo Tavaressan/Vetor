@@ -306,9 +306,24 @@ A skill nativa `security-review` **não publica comentário sozinha**: seu contr
 o `ship`) é responsável por publicar esse relatório na PR no turno seguinte à resposta.
 
 Além disso, a skill monta o próprio contexto sozinha (git status, arquivos modificados, commits,
-diff da branch atual) — **não** passe `gh pr diff <PR-number>` como argumento; ela ignora diffs
-passados por fora e lê a branch diretamente.
+diff da branch atual) a partir de `origin/HEAD` — **não** passe `gh pr diff <PR-number>` como
+argumento; ela ignora diffs passados por fora e lê a branch diretamente.
 
+**Pré-condição de `origin/HEAD` (issue #410):** a montagem do contexto da skill falha (`fatal: ambiguous argument 'origin/HEAD...'`)
+se a referência remota simbólica `refs/remotes/origin/HEAD` não estiver configurada no clone (comum em clones antigos
+ou criados por ferramentas sem detecção automática do HEAD remoto). Antes de invocá-la:
+
+```bash
+if ! git rev-parse --verify -q origin/HEAD >/dev/null; then
+  git remote set-head origin -a 2>/dev/null || true
+fi
+```
+
+Se `git rev-parse --verify -q origin/HEAD` continuar falhando após a tentativa (ex.: repositório sem conexão ou sem remote configurado),
+**não invoque a skill**: registre no sumário de ship que a revisão de segurança foi pulada por falta de `origin/HEAD` e prossiga
+diretamente para o passo 9.
+
+Caso o ponteiro esteja válido:
 ```
 Invoque a skill nativa `security-review` sem argumento de diff — ela lê a branch atual.
 ```
