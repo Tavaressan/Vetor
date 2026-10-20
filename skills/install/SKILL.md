@@ -161,7 +161,10 @@ Arquivos configurados:
 
 Próximos passos recomendados:
 1. Abra e revise o arquivo `.claude/vetor/module-test-map.md` para garantir que os comandos de teste headless e os mapeamentos de pasta de seu projeto estejam 100% corretos.
-2. Revise e **commite** os arquivos de configuração e regras (`.claude/vetor/config.json`, `.claude/vetor/module-test-map.md` e `.claude/rules/vetor/`). Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — arquivos untracked não chegam até eles e deixam os workers sem mapa de testes nem regras (issue #327). Avise ou ofereça o commit caso ainda estejam untracked no git.
+2. Revise e **commite** os arquivos de configuração e regras (`.claude/vetor/config.json`, `.claude/vetor/module-test-map.md` e `.claude/rules/vetor/`). Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — arquivos untracked não chegam até eles e deixam os workers sem mapa de testes nem regras (issue #327).
+   **Importante (evitar divergência no squash do ship — issue #409):** se os arquivos forem commitados na branch default local sem push, os worktrees do coordinator nascerão desse commit local. Quando o `ship` realizar squash merge no GitHub, a default remota avançará com um hash diferente e a default local deixará de ser ancestral de `origin/<default>`, falhando no `sync-root` (passo 11 do ship). Use uma das duas opções suportadas:
+   - **(a) Commit + push direto na branch default:** comite os arquivos de config na default local e faça `git push origin <default>` antes de despachar o coordinator; ou
+   - **(b) PR dedicada para a configuração:** crie uma branch/PR com a configuração do Vetor e faça merge na branch default antes do primeiro dispatch do coordinator.
 3. (Opcional) Crie a pasta `.claude/vetor/docs/` e adicione guias de arquitetura, padrões do projeto e gaps em markdown. O comando `/vetor:backlog` lerá automaticamente estes arquivos para propor issues altamente contextualizadas.
 4. (Opcional) Rode `/vetor:stack-practices` para gerar regras de melhores práticas da stack detectada (via Context7).
 ```
