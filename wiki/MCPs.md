@@ -7,7 +7,7 @@ O plugin já traz três servidores MCP. O Claude Code usa *tool search* por padr
 | `context7` | Documentação atualizada de bibliotecas, direto na sessão | Nada. A API key é opcional (só aumenta o rate limit) e é pedida na habilitação do plugin |
 | `chrome-devtools` | Dirigir o Chrome: navegar, screenshot, rede, performance trace, Lighthouse | Node (`npx`) e Chrome |
 | `docker` | O Docker CLI inteiro (`ps`, `logs`, `stats`, `compose`, `exec`) via o servidor **oficial da Docker Inc.** — uma única ferramenta | Docker + plugin `docker mcp` |
-| `ai-memory` | Memória local persistida para agentes, com consolidação/sumarização opcional | Docker/Podman Compose |
+| `ai-memory` | Memória local persistida para agentes, com consolidação/sumarização opcional | **Não embarcado** — opcional, configurado à parte via Docker/Podman Compose (ver abaixo) |
 
 ## ai-memory local com Docker Compose
 
