@@ -13,19 +13,24 @@
 | #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preserved |
 | #44 | ⏸️ Review required | #89 | awaiting human review |
 | #45 | ⏭️ SKIPPED (aguardando Spec) | — | gate de Spec/design, Fase 2 — usuário optou por gerar a Spec antes |
+| #46 | ⏭️ SKIPPED (aguardando insumo do usuário) | — | triagem Fase 1/2 — aguardando decisão/conteúdo do usuário |
+| #47 | ⏭️ SKIPPED (fora deste repositório) | — | triagem Fase 1/2 — escopo pertence a repositório externo |
+| #48 | ⏭️ SKIPPED (épico/acompanhamento) | — | triagem Fase 1/2 — issue agregadora sem código direto |
 
-Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> aguardando Spec.
+Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> skipped.
 ```
 
 **Checkpoint de fechamento de onda (issue #246).** Após montar o Coordinator Report acima, confirme
 que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resultados reportados —
 **nenhum grupo do plano aprovado deve ficar sem uma linha de resultado**. Resultados válidos
 dependem do modo:
-- **Interativo**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SKIPPED (aguardando
-  Spec)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
+- **Interativo**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
+  `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`, `SKIPPED (fora deste repositório)`,
+  `SKIPPED (épico/acompanhamento)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
   despachado" e pergunte ao usuário via `AskUserQuestion` se deve despachar agora.
-- **`--headless`**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SKIPPED
-  (aguardando Spec)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
+- **`--headless`**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
+  `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`, `SKIPPED (fora deste repositório)`,
+  `SKIPPED (épico/acompanhamento)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
   atingiram verde em modo headless (sem merge nessa fase). Se houver discrepância, apenas reporte o
   grupo como "não despachado" no campo de observações; não pergunte nem redespache.
 

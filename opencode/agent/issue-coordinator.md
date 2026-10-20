@@ -130,7 +130,7 @@ espera por resposta:
 
 | Fase | Interativo | Headless |
 |------|-----------|----------|
-| 2 — teto de workers | Pergunta em texto livre no chat | Usa `N_rec` calculado, sem perguntar |
+| 2 — teto de workers | Pergunta em texto livre no chat (pula se $N_{rec} = 1$) | Usa `N_rec` calculado, sem perguntar |
 | 2 — aprovação do plano | Exibe o plano e aguarda resposta afirmativa | Não aguarda; registra o plano no relatório final |
 | 5.b — `BLOCKED_WAITING` | Apresenta ao usuário no chat e aguarda decisão | Não escala; mantém o grupo bloqueado e reporta |
 | 5.c — circuit breaker | Pergunta se deve pausar | Sempre pausa: para de despachar e reporta |
@@ -481,8 +481,13 @@ Após todos os grupos terminarem (ou timeout de 90 minutos):
 |-------|----------|-----|----------|
 | #42 | ✅ Merged | #87 | squash merged |
 | #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preservado |
+| #44 | ⏸️ Review required | #89 | awaiting human review |
+| #45 | ⏭️ SKIPPED (aguardando Spec) | — | gate de Spec/design, Fase 2 — usuário optou por gerar a Spec antes |
+| #46 | ⏭️ SKIPPED (aguardando insumo do usuário) | — | triagem Fase 1/2 — aguardando decisão/conteúdo do usuário |
+| #47 | ⏭️ SKIPPED (fora deste repositório) | — | triagem Fase 1/2 — escopo pertence a repositório externo |
+| #48 | ⏭️ SKIPPED (épico/acompanhamento) | — | triagem Fase 1/2 — issue agregadora sem código direto |
 
-Resumo: <N> merged, <M> falharam, <K> aguardando review.
+Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> skipped.
 ```
 
 ### Checkpoint de fechamento de onda (issue #246)
@@ -492,13 +497,16 @@ Fase 2 bate 1:1 com os resultados reportados — **nenhum grupo do plano aprovad
 linha de resultado**. Resultados válidos dependem do modo:
 
 - **Interativo**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`,
-  `BLOCKED_WAITING`, `SKIPPED (aguardando Spec)`. Se houver discrepância (grupo do plano não aparece
-  acima), reporte-o como "não despachado" e pergunte ao usuário no chat se deve despachar agora.
+  `BLOCKED_WAITING`, `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`,
+  `SKIPPED (fora deste repositório)`, `SKIPPED (épico/acompanhamento)`. Se houver discrepância
+  (grupo do plano não aparece acima), reporte-o como "não despachado" e pergunte ao usuário no chat
+  se deve despachar agora.
 - **`--headless`**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`,
-  `BLOCKED_WAITING`, `SKIPPED (aguardando Spec)` ou `GREEN (pronto para ship)` — este último status
-  aparece para grupos que atingiram verde em modo headless (sem merge nessa fase). Se houver
-  discrepância, apenas reporte o grupo como "não despachado" no campo de observações; não pergunte
-  nem redespache.
+  `BLOCKED_WAITING`, `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`,
+  `SKIPPED (fora deste repositório)`, `SKIPPED (épico/acompanhamento)` ou `GREEN (pronto para ship)`
+  — este último status aparece para grupos que atingiram verde em modo headless (sem merge nessa
+  fase). Se houver discrepância, apenas reporte o grupo como "não despachado" no campo de observações;
+  não pergunte nem redespache.
 
 **Em `--headless`, o relatório é a única saída da execução** — ninguém acompanhou o processo, então
 ele precisa ser autossuficiente. Acrescente ao formato acima:

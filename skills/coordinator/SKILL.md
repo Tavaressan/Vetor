@@ -73,7 +73,7 @@ A flag `--headless` substitui os quatro pontos de interação humana por decisõ
 | Fase | Interativo | Headless |
 |------|-----------|----------|
 | 2 — gate de Spec/design | `AskUserQuestion` por issue não-trivial sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
-| 2 — teto de workers | `AskUserQuestion` | Usa `N_rec` calculado, sem perguntar |
+| 2 — teto de workers | `AskUserQuestion` (pula se $N_{rec} = 1$) | Usa `N_rec` calculado, sem perguntar |
 | 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
 | 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
 | 5.c — circuit breaker | Pergunta se pausa | Sempre pausa: para de despachar e reporta |
@@ -150,6 +150,24 @@ gh pr list --search "closes:#<N>" --state open --json number,title
 ```
 Se houver (ou se `vetor-status.sh` reportar `GREEN (PR #N aberta)` / `GREEN (já mergeado via #N)`):
 pule a issue e registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado (#<PR>)".
+
+#### Triagem de despachabilidade (issues não-despacháveis nesta leva)
+
+Nem toda issue aberta está pronta para despacho imediato por um subagente autônomo. Identifique e
+classifique antecipadamente issues não-despacháveis para que componham o plano e o Coordinator
+Report com resultados padronizados (issue #413):
+
+- `SKIPPED (aguardando insumo do usuário)`: issues que dependem de decisão estratégica, validação de
+  banca/cliente, credenciais, assets, texto ou conteúdo humano indisponível nesta sessão.
+- `SKIPPED (fora deste repositório)`: issues cujo escopo pertence a outro repositório (ex.: README
+  de perfil, site institucional, projeto novo ainda sem repo dedicado).
+- `SKIPPED (épico/acompanhamento)`: issues agregadoras, marcos ou épicos de acompanhamento que não
+  representam uma unidade de código despachável diretamente.
+
+Issues com esses resultados saem da leva de dispatch: recebem Onda `—`, modelo `—`, Ação
+`SKIPPED (<motivo>)` e a justificativa clara no plano e no Coordinator Report. Se a issue for a Lead,
+o grupo inteiro não é despachado; se for Sequential, apenas ela é pulada e o restante do grupo segue
+normalmente. Grupos `SKIPPED` nunca bloqueiam a transição de ondas da Fase 4.
 
 #### Agrupamento por afinidade
 
@@ -270,6 +288,9 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 | O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | Despachar |
 | O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
 | —    | <slug-4>                | #<N5> (Lead)           | —               | SKIPPED (aguardando Spec) |
+| —    | <slug-5>                | #<N6> (Lead)           | —               | SKIPPED (aguardando insumo do usuário) |
+| —    | <slug-6>                | #<N7> (Lead)           | —               | SKIPPED (fora deste repositório) |
+| —    | <slug-7>                | #<N8> (Lead)           | —               | SKIPPED (épico/acompanhamento) |
 | O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet>  | Aguardar O_1 |
 ```
 
@@ -293,15 +314,21 @@ driver de custo agregado do coordinator.
    juntos — Fase 4). Acima de ~8 workers, custo agregado e ruído de monitoramento tendem a crescer
    mais rápido que o ganho de paralelismo: se `N_rec` > 8, sinalize isso na pergunta. É
    recomendação, não limite — a decisão é do usuário.
-2. **Em `--headless`:** adote `N = N_rec` sem perguntar e registre no relatório qual valor foi usado
-   e como foi calculado. Fora do headless, **pergunte via `AskUserQuestion`** (uma única vez por sessão):
+2. **Pulo automático quando $N_{rec} = 1$ (ou largura da maior onda = 1):** se $N_{rec} = 1$, ou se a
+   largura da maior onda for 1 (apenas um único grupo despachável por onda), adote $N = 1$
+   automaticamente sem perguntar ao usuário e registre no plano e no relatório (comportamento idêntico
+   ao modo `--headless`). Não há escolha real de concorrência quando a largura da onda é 1, evitando
+   uma interação vazia (issue #414).
+3. **Em `--headless`:** adote `N = N_rec` sem perguntar e registre no relatório qual valor foi usado
+   e como foi calculado.
+4. **Fora de `--headless` (com $N_{rec} > 1$):** pergunte via `AskUserQuestion` (uma única vez por sessão):
    - `"<N_rec> (Recomendado)"` — justifique em 1 linha (largura da onda, custo por worker, alerta se > 8)
    - `"1 — serializado"` — mais lento, mais previsível, menor custo
    - `"<maxConcurrentWorkers de config.json>"` — só se existir e for diferente de `N_rec`
    - O usuário pode responder valor customizado ("Other"), **inclusive acima de 8** — respeite-o.
-3. **Armazene como `N`** para a Fase 4; vale para toda a sessão de dispatch, incluindo redespachos.
-   Em modo de retomada, repita a pergunta antes de despachar qualquer `QUEUED`. O valor **não
-   persiste** em `.claude/vetor/config.json`.
+5. **Armazene como `N`** para a Fase 4; vale para toda a sessão de dispatch, incluindo redespachos.
+   Em modo de retomada, repita a pergunta antes de despachar qualquer `QUEUED` apenas se $N_{rec} > 1$.
+   O valor **não persiste** em `.claude/vetor/config.json`.
 
 #### Obtenção de aprovação
 
