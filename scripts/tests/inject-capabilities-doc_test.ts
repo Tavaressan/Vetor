@@ -1,5 +1,11 @@
 import { assert, assertEquals, assertFalse, assertStringIncludes } from "@std/assert";
-import { CAPABILITIES_BODY, END_MARKER, injectBlock, START_MARKER } from "../inject-capabilities-doc.ts";
+import {
+  CAPABILITIES_BODY,
+  END_MARKER,
+  importsAgentsMd,
+  injectBlock,
+  START_MARKER,
+} from "../inject-capabilities-doc.ts";
 
 function tmpDir(): string {
   return Deno.makeTempDirSync();
@@ -78,7 +84,38 @@ Deno.test("não cria o arquivo se ele não existir", () => {
   );
 });
 
+Deno.test("importsAgentsMd detecta padrões válidos de importação de AGENTS.md", () => {
+  assert(importsAgentsMd("@AGENTS.md"));
+  assert(importsAgentsMd("@./AGENTS.md"));
+  assert(importsAgentsMd("- @AGENTS.md"));
+  assert(importsAgentsMd("# Projeto\n\n@AGENTS.md\n"));
+  assert(importsAgentsMd("Linha antes\n  @./AGENTS.md\nLinha depois"));
+
+  assertFalse(importsAgentsMd("# Projeto sem import"));
+  assertFalse(importsAgentsMd("AGENTS.md mencionado sem arroba"));
+  assertFalse(importsAgentsMd("@OTHER.md"));
+});
+
+Deno.test("pula injeção em CLAUDE.md quando importa AGENTS.md (issue #408)", () => {
+  const dir = tmpDir();
+  const claudePath = `${dir}/CLAUDE.md`;
+  const agentsPath = `${dir}/AGENTS.md`;
+
+  const originalClaude = "# Config\n\n@AGENTS.md\n\nInstruções locais.\n";
+  Deno.writeTextFileSync(claudePath, originalClaude);
+  Deno.writeTextFileSync(agentsPath, "# Instruções Compartilhadas\n");
+
+  const claudeResult = injectBlock(claudePath, "BLOCO");
+  assertEquals(claudeResult, "skipped_imports_agents");
+  assertEquals(Deno.readTextFileSync(claudePath), originalClaude);
+
+  const agentsResult = injectBlock(agentsPath, "BLOCO");
+  assertEquals(agentsResult, "inserted");
+  assertStringIncludes(Deno.readTextFileSync(agentsPath), "BLOCO");
+});
+
 Deno.test("CAPABILITIES_BODY contém todas as skills ativas e nenhum comando deprecado (issue #407)", () => {
+  // Comandos ativos esperados
   const requiredSkills = [
     "/vetor:install",
     "/vetor:now",

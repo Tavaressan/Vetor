@@ -4,7 +4,11 @@
 export const START_MARKER = "<!-- vetor:capabilities:start -->";
 export const END_MARKER = "<!-- vetor:capabilities:end -->";
 
-export type InjectResult = "inserted" | "updated" | "skipped_missing_file";
+export type InjectResult =
+  | "inserted"
+  | "updated"
+  | "skipped_missing_file"
+  | "skipped_imports_agents";
 
 function exists(path: string): boolean {
   try {
@@ -16,15 +20,31 @@ function exists(path: string): boolean {
 }
 
 /**
+ * Detecta se o conteúdo de CLAUDE.md importa AGENTS.md (ex.: `@AGENTS.md`).
+ */
+export function importsAgentsMd(content: string): boolean {
+  return /(?:^|\s)@(?:\.?\/)?AGENTS\.md\b/m.test(content);
+}
+
+/**
  * Acha o bloco delimitado por START_MARKER/END_MARKER em `path` e o substitui por `body`
  * (envolvido pelos marcadores). Se o bloco não existir, insere no fim do arquivo. Se o
  * arquivo não existir, não faz nada — o Vetor não opina sobre convenção de onboarding do
  * projeto-alvo.
+ *
+ * Se `path` for um CLAUDE.md que importa AGENTS.md (ex.: linha `@AGENTS.md`), pula a
+ * injeção para evitar que o Claude Code duplique o bloco na sessão (issue #408).
  */
 export function injectBlock(path: string, body: string): InjectResult {
   if (!exists(path)) return "skipped_missing_file";
 
   const current = Deno.readTextFileSync(path);
+
+  const isClaudeMd = /(?:^|[\\/])CLAUDE\.md$/i.test(path);
+  if (isClaudeMd && importsAgentsMd(current)) {
+    return "skipped_imports_agents";
+  }
+
   const block = `${START_MARKER}\n${body}\n${END_MARKER}`;
 
   const startIdx = current.indexOf(START_MARKER);

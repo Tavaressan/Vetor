@@ -128,6 +128,11 @@ faz nada — **nunca crie `CLAUDE.md`/`AGENTS.md` do zero**, isso é convenção
 projeto-alvo, não algo que o Vetor deva opinar. Rodar `/vetor:install` de novo é idempotente: o bloco é
 atualizado no lugar, sem duplicar e sem exigir `--force`.
 
+**Prevenção de duplicidade com `@AGENTS.md` (issue #408):** antes de injetar em `CLAUDE.md`, o script
+verifica se o arquivo importa `AGENTS.md` (ex.: linha `@AGENTS.md` ou `@./AGENTS.md`, padrão em projetos
+Next.js e create-next-app). Se importar, o script pula a injeção em `CLAUDE.md` (`skipped_imports_agents`) e
+o bloco é injetado apenas no `AGENTS.md`, evitando que o Claude Code carregue as capacidades em duplicidade.
+
 O conteúdo do bloco é fixo e definido em uma única fonte — a constante `CAPABILITIES_BODY` em
 `scripts/inject-capabilities-doc.ts` — para não divergir entre execuções nem exigir que o agente
 redija prosa a cada `/vetor:install`. É um resumo sucinto (não duplica o conteúdo completo dos `SKILL.md`):
@@ -151,7 +156,7 @@ Arquivos configurados:
 - [x] .claude/vetor/config.json (runtime detectado + maxConcurrentWorkers: 5)
 - [x] .claude/vetor/status/ (status files dos workers — gitignorado)
 - [x] .claude/rules/vetor/<runtime>.md (convenções do projeto, carregadas sob demanda)
-- [<x ou ->] CLAUDE.md — bloco de capacidades <inserido | atualizado | não encontrado (arquivo ausente)>
+- [<x ou ->] CLAUDE.md — bloco de capacidades <inserido | atualizado | ignorado (importa @AGENTS.md) | não encontrado (arquivo ausente)>
 - [<x ou ->] AGENTS.md — bloco de capacidades <inserido | atualizado | não encontrado (arquivo ausente)>
 
 Próximos passos recomendados:
@@ -162,7 +167,7 @@ Próximos passos recomendados:
 ```
 
 Se o script pulou algum arquivo por já existir, diga qual — e que só `--force` o sobrescreve. Reporte
-também o resultado do passo 2.b: se o bloco de capacidades foi inserido, atualizado, ou se nenhum
+também o resultado do passo 2.b: se o bloco de capacidades foi inserido, atualizado, ignorado por importar `@AGENTS.md`, ou se nenhum
 `CLAUDE.md`/`AGENTS.md` foi encontrado na raiz (nesse caso, nenhuma ação foi tomada).
 
 ---
