@@ -93,10 +93,37 @@ case "$cmd" in
 
   safe-remove-worktree)
     target="${2:?uso: vetor-checks.sh safe-remove-worktree <path>}"
+    caller_pwd=$(pwd -P 2>/dev/null || pwd)
     target=$(cd "$target" && pwd -P) || {
       echo "ERRO: worktree para cleanup não encontrado: $target" >&2
       exit 1
     }
+
+    # Issue #411: detecta se o cwd atual da sessão está dentro do path alvo (ou é ele mesmo).
+    # No Windows, manter o cwd dentro do diretório trava o handle do SO e impede remoção.
+    cwd_in_target=0
+    caller_pwd_norm="$caller_pwd"
+    target_norm="$target"
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*)
+        caller_pwd_norm=$(printf '%s' "$caller_pwd" | tr '[:upper:]' '[:lower:]')
+        target_norm=$(printf '%s' "$target" | tr '[:upper:]' '[:lower:]')
+        ;;
+    esac
+    case "$caller_pwd_norm" in
+      "$target_norm"|"$target_norm"/*) cwd_in_target=1 ;;
+    esac
+    pwd_norm="${PWD:-}"
+    if [ -n "$pwd_norm" ]; then
+      case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*)
+          pwd_norm=$(printf '%s' "$pwd_norm" | tr '[:upper:]' '[:lower:]')
+          ;;
+      esac
+      case "$pwd_norm" in
+        "$target_norm"|"$target_norm"/*) cwd_in_target=1 ;;
+      esac
+    fi
 
     children=()
     while IFS= read -r line; do
@@ -159,7 +186,11 @@ case "$cmd" in
     fi
 
     if [ -d "$target" ]; then
-      echo "ERRO: git worktree remove desregistrou '$target' do git, mas o diretório permanece em disco (possível 'Filename too long' no Windows). Remova manualmente antes de prosseguir." >&2
+      if [ "$cwd_in_target" -eq 1 ]; then
+        echo "ERRO: git worktree remove desregistrou '$target' do git, mas o diretório permanece em disco porque o diretório de trabalho atual ($caller_pwd) está dentro dele. Mude para fora do worktree (ex.: cd \"\$(vetor-checks.sh repo-root)\") e remova o diretório residual manualmente." >&2
+      else
+        echo "ERRO: git worktree remove desregistrou '$target' do git, mas o diretório permanece em disco (possível 'Filename too long' no Windows). Remova manualmente antes de prosseguir." >&2
+      fi
       exit 1
     fi
     ;;
