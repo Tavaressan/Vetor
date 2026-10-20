@@ -368,6 +368,12 @@ Volta ao root e sincroniza com a branch default. Se o root já estiver na branch
 (issue #322). (Só numa sessão manual em que você entrou no worktree com `EnterWorktree` é preciso sair
 com `ExitWorktree` antes.) Confirme pela mensagem de sucesso.
 
+**Divergência da branch default (issue #409):** se o `sync-root` reportar `AVISO: root em <default> divergiu de origin/<default>.`, a causa típica é a configuração inicial do Vetor (`config.json`, `module-test-map.md`) ter sido commitada na branch default local sem push prévio antes do dispatch. Quando o GitHub squash-mergeou a PR, gerou um commit remoto com outro hash, fazendo a default local divergir. Para reconciliar de forma segura quando as mudanças já foram integradas no remoto:
+```bash
+git fetch origin "$DEFAULT_BRANCH"
+git reset --hard "origin/$DEFAULT_BRANCH"
+```
+
 ### 12 — Cleanup
 
 Descubra o path real do worktree via `git worktree list` (não assuma convenção de path — a
