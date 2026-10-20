@@ -26,11 +26,11 @@ Resolva os paths a partir do diretório desta skill. Defina `SKILL_DIR` com o ca
    deno run -A "$SKILL_DIR/../../scripts/now-probe.ts"
    ```
 
-   A sondagem é somente-leitura. Ela informa branch e limpeza do git, worktrees registrados, contagem de issues abertas com label `backlog` (ou `null` se `gh` faltar/falhar), MCPs declarados em `.mcp.json` e runtimes detectados. Falhas de comandos opcionais não devem interromper o kickoff.
+   A sondagem é somente-leitura. Ela informa branch e limpeza do git, worktrees registrados, se o projeto foi inicializado (`initialized` via existência de `.claude/vetor/config.json`), o label de despacho configurado (`defaultDispatchLabel`), a contagem total de issues abertas sem filtro (`openIssuesTotal`), contagem de issues abertas com label `backlog` (`backlogIssues`), MCPs declarados em `.mcp.json` e runtimes detectados. Falhas de comandos opcionais não devem interromper o kickoff.
 
 2. Complemente a lista de MCPs declarados com os MCPs ativos na sessão conforme `mcp-availability.md`. Os servidores Context7, Docker e ai-memory são relevantes para o sumário; nunca tente conectar apenas para sondar.
 
-3. Apresente um sumário executivo conciso: branch/estado limpo, worktrees existentes, issues de backlog e disponibilidade de MCPs e runtimes. Diferencie configuração declarada de ferramenta ativa na sessão.
+3. Apresente um sumário executivo conciso: inicialização do projeto (`config.json`), branch/estado limpo, worktrees existentes, total de issues abertas e no backlog, e disponibilidade de MCPs e runtimes. Diferencie configuração declarada de ferramenta ativa na sessão.
 
 4. Faça o priming explícito, condicionado a cada ferramenta estar disponível:
    - Se Context7 estiver disponível: **Use Context7 para documentação atualizada de bibliotecas.**
@@ -38,11 +38,17 @@ Resolva os paths a partir do diretório desta skill. Defina `SKILL_DIR` com o ca
    - Se algum runtime estiver disponível: **Use agy/delegação para tarefas pesadas** conforme `../shared/references/delegate-to-runtime.md`; respeite a seleção e anuência descritas na referência.
    - Se Docker MCP estiver disponível, use-o apenas quando uma tarefa da sessão precisar inspecionar containers.
 
-5. Use `AskUserQuestion` com uma única pergunta e quatro opções; a opção recomendada deve vir primeiro. O mecanismo oferece “Other” automaticamente. Escolha a recomendação pelo estado sondado: havendo issues `backlog` e nenhum worktree ativo além do principal, recomende `/vetor:coordinator`; sem issues abertas no backlog, recomende `/vetor:backlog`. Nos demais casos, recomende a etapa com melhor encaixe no pedido/contexto da sessão.
+5. Use `AskUserQuestion` com uma única pergunta e quatro opções; a opção recomendada deve vir primeiro. O mecanismo oferece “Other” automaticamente. Escolha a recomendação pelo estado sondado:
+   - **Projeto não inicializado (`initialized: false`)**: recomende `/vetor:install` como prioridade máxima para mapear comandos de teste e criar a configuração do projeto antes de qualquer dispatch ou fluxo automatizado.
+   - **Projeto inicializado (`initialized: true`)**:
+     - Havendo issues elegíveis para despacho — considerando `defaultDispatchLabel` se configurado, ou issues abertas (`openIssuesTotal > 0`) quando sem label default, ou issues com label `backlog` (`backlogIssues > 0`) — e nenhum worktree ativo além do principal, recomende `/vetor:coordinator`.
+     - Sem issues abertas elegíveis no backlog ou no repositório, recomende `/vetor:backlog`.
+     - Nos demais casos (ex.: worktrees ativos em andamento), recomende a etapa com melhor encaixe no pedido/contexto da sessão (ex.: retomar `/vetor:coordinator --resume`).
 
    Opções:
-   - **Despachar issues** — `/vetor:coordinator` (recomendada quando houver backlog pronto e nenhum worktree ativo).
-   - **Idear trabalho** — `/vetor:backlog` (recomendada quando o backlog estiver vazio).
+   - **Inicializar projeto** — `/vetor:install` (recomendada quando o projeto não estiver inicializado).
+   - **Despachar issues** — `/vetor:coordinator` (recomendada quando houver issues elegíveis prontas e nenhum worktree ativo).
+   - **Idear trabalho** — `/vetor:backlog` (recomendada quando o repositório/backlog estiver vazio).
    - **Especificar tema** — `/vetor:spec`.
    - **Auditar ou trabalho pontual** — `/vetor:guardian` para auditoria; use “Other” para trabalho livre pontual.
 
