@@ -178,3 +178,90 @@ Deno.test("renderMap: raiz com runtime detectado é sempre mapeada como módulo 
   assertStringIncludes(map, "| `packages/a/` | `packages/a` |");
   assertStringIncludes(map, "| `./` | `root` |");
 });
+
+// --- Issue #406: testCommand em projetos Node valida package.json#scripts ---
+
+Deno.test("detectProject: Node com script test usa pm test", () => {
+  const directory = Deno.makeTempDirSync();
+  try {
+    Deno.writeTextFileSync(
+      `${directory}/package.json`,
+      JSON.stringify({ scripts: { test: "vitest run" } }),
+    );
+
+    const info = detectProject(directory);
+    assertEquals(info.runtime, "node");
+    assertEquals(info.testCommand, "npm test");
+    assertEquals(info.hasDedicatedTests, true);
+  } finally {
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
+Deno.test("detectProject: Node sem test compõe scripts lint e build", () => {
+  const directory = Deno.makeTempDirSync();
+  try {
+    Deno.writeTextFileSync(
+      `${directory}/package.json`,
+      JSON.stringify({ scripts: { lint: "next lint", build: "next build", dev: "next dev" } }),
+    );
+
+    const info = detectProject(directory);
+    assertEquals(info.runtime, "node");
+    assertEquals(info.testCommand, "npm run lint && npm run build");
+    assertEquals(info.hasDedicatedTests, false);
+
+    const map = renderMap(info, []);
+    assertStringIncludes(
+      map,
+      "| `root` | `npm run lint && npm run build` | Módulo raiz (sem suíte de testes dedicada) |",
+    );
+  } finally {
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
+Deno.test("detectProject: Node com script test padrão (no test specified) cai em fallback", () => {
+  const directory = Deno.makeTempDirSync();
+  try {
+    Deno.writeTextFileSync(
+      `${directory}/package.json`,
+      JSON.stringify({
+        scripts: {
+          test: 'echo "Error: no test specified" && exit 1',
+          lint: "eslint .",
+        },
+      }),
+    );
+
+    const info = detectProject(directory);
+    assertEquals(info.runtime, "node");
+    assertEquals(info.testCommand, "npm run lint");
+    assertEquals(info.hasDedicatedTests, false);
+  } finally {
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
+Deno.test("detectProject: Node sem scripts de validação grava AJUSTE explícito", () => {
+  const directory = Deno.makeTempDirSync();
+  try {
+    Deno.writeTextFileSync(
+      `${directory}/package.json`,
+      JSON.stringify({ scripts: { dev: "vite" } }),
+    );
+
+    const info = detectProject(directory);
+    assertEquals(info.runtime, "node");
+    assertEquals(info.testCommand, "AJUSTE: comando de teste não detectado");
+    assertEquals(info.hasDedicatedTests, false);
+
+    const map = renderMap(info, []);
+    assertStringIncludes(
+      map,
+      "| `root` | `AJUSTE: comando de teste não detectado` | Módulo raiz (sem suíte de testes) |",
+    );
+  } finally {
+    Deno.removeSync(directory, { recursive: true });
+  }
+});

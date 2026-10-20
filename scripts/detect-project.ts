@@ -175,7 +175,11 @@ export function detectModules(_root: ProjectInfo, directory = "."): Module[] {
 export function renderMap(root: ProjectInfo, modules: Module[]): string {
   const rowsList: string[] = [];
   if (root.runtime !== "unknown" || modules.length === 0) {
-    const rootNote = "Módulo raiz";
+    const rootNote = root.hasDedicatedTests === false
+      ? (root.testCommand && !root.testCommand.startsWith("AJUSTE:")
+        ? "Módulo raiz (sem suíte de testes dedicada)"
+        : "Módulo raiz (sem suíte de testes)")
+      : "Módulo raiz";
     const rootCommand = root.testCommand || "AJUSTE: comando de teste não detectado";
     rowsList.push(`| \`root\` | \`${rootCommand}\` | ${rootNote} |`);
   }
