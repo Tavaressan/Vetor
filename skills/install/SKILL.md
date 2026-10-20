@@ -82,8 +82,8 @@ Repasse o `--force` recebido nos args. A guarda é **por arquivo**: sem `--force
 existe é preservado (o JSON de saída informa o que foi criado e o que foi pulado).
 
 O script grava:
-- `.claude/vetor/module-test-map.md` — comandos de teste por módulo;
-- `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados, preservando
+- `.claude/vetor/module-test-map.md` — comandos de teste por módulo e mapeamento por prefixo de path. Quando a raiz possui runtime detectado, ela é sempre incluída como módulo (`./`). Subdiretórios ignorados pelo `.gitignore` (verificados via `git check-ignore`) nunca viram módulos falsos positivos. Em projetos Node sem script `test` no `package.json`, o comando é composto a partir dos scripts de validação presentes (ex.: `npm run lint && npm run build`) com anotação no mapa de ausência de suíte de testes dedicada; caso nenhum script sirva, grava `AJUSTE:` explícito em vez de um comando inválido;
+- `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados (incluindo o comando composto ou `AJUSTE:` em projetos Node sem script de teste), preservando
   o `maxConcurrentWorkers` (default 5), o bloco `knowledge` (`enabled`/`provider`) e o bloco opcional
   `delegation` (`preferredRuntime` — ver `delegate-to-runtime.md`), se já existirem. O
   `prepare-worktree.ts` lê isso para saber como preparar cada worktree;
@@ -128,6 +128,11 @@ faz nada — **nunca crie `CLAUDE.md`/`AGENTS.md` do zero**, isso é convenção
 projeto-alvo, não algo que o Vetor deva opinar. Rodar `/vetor:install` de novo é idempotente: o bloco é
 atualizado no lugar, sem duplicar e sem exigir `--force`.
 
+**Prevenção de duplicidade com `@AGENTS.md` (issue #408):** antes de injetar em `CLAUDE.md`, o script
+verifica se o arquivo importa `AGENTS.md` (ex.: linha `@AGENTS.md` ou `@./AGENTS.md`, padrão em projetos
+Next.js e create-next-app). Se importar, o script pula a injeção em `CLAUDE.md` (`skipped_imports_agents`) e
+o bloco é injetado apenas no `AGENTS.md`, evitando que o Claude Code carregue as capacidades em duplicidade.
+
 O conteúdo do bloco é fixo e definido em uma única fonte — a constante `CAPABILITIES_BODY` em
 `scripts/inject-capabilities-doc.ts` — para não divergir entre execuções nem exigir que o agente
 redija prosa a cada `/vetor:install`. É um resumo sucinto (não duplica o conteúdo completo dos `SKILL.md`):
@@ -151,18 +156,21 @@ Arquivos configurados:
 - [x] .claude/vetor/config.json (runtime detectado + maxConcurrentWorkers: 5)
 - [x] .claude/vetor/status/ (status files dos workers — gitignorado)
 - [x] .claude/rules/vetor/<runtime>.md (convenções do projeto, carregadas sob demanda)
-- [<x ou ->] CLAUDE.md — bloco de capacidades <inserido | atualizado | não encontrado (arquivo ausente)>
+- [<x ou ->] CLAUDE.md — bloco de capacidades <inserido | atualizado | ignorado (importa @AGENTS.md) | não encontrado (arquivo ausente)>
 - [<x ou ->] AGENTS.md — bloco de capacidades <inserido | atualizado | não encontrado (arquivo ausente)>
 
 Próximos passos recomendados:
 1. Abra e revise o arquivo `.claude/vetor/module-test-map.md` para garantir que os comandos de teste headless e os mapeamentos de pasta de seu projeto estejam 100% corretos.
-2. Revise e **commite** os arquivos de configuração e regras (`.claude/vetor/config.json`, `.claude/vetor/module-test-map.md` e `.claude/rules/vetor/`). Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — arquivos untracked não chegam até eles e deixam os workers sem mapa de testes nem regras (issue #327). Avise ou ofereça o commit caso ainda estejam untracked no git.
+2. Revise e **commite** os arquivos de configuração e regras (`.claude/vetor/config.json`, `.claude/vetor/module-test-map.md` e `.claude/rules/vetor/`). Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — arquivos untracked não chegam até eles e deixam os workers sem mapa de testes nem regras (issue #327).
+   **Importante (evitar divergência no squash do ship — issue #409):** se os arquivos forem commitados na branch default local sem push, os worktrees do coordinator nascerão desse commit local. Quando o `ship` realizar squash merge no GitHub, a default remota avançará com um hash diferente e a default local deixará de ser ancestral de `origin/<default>`, falhando no `sync-root` (passo 11 do ship). Use uma das duas opções suportadas:
+   - **(a) Commit + push direto na branch default:** comite os arquivos de config na default local e faça `git push origin <default>` antes de despachar o coordinator; ou
+   - **(b) PR dedicada para a configuração:** crie uma branch/PR com a configuração do Vetor e faça merge na branch default antes do primeiro dispatch do coordinator.
 3. (Opcional) Crie a pasta `.claude/vetor/docs/` e adicione guias de arquitetura, padrões do projeto e gaps em markdown. O comando `/vetor:backlog` lerá automaticamente estes arquivos para propor issues altamente contextualizadas.
 4. (Opcional) Rode `/vetor:stack-practices` para gerar regras de melhores práticas da stack detectada (via Context7).
 ```
 
 Se o script pulou algum arquivo por já existir, diga qual — e que só `--force` o sobrescreve. Reporte
-também o resultado do passo 2.b: se o bloco de capacidades foi inserido, atualizado, ou se nenhum
+também o resultado do passo 2.b: se o bloco de capacidades foi inserido, atualizado, ignorado por importar `@AGENTS.md`, ou se nenhum
 `CLAUDE.md`/`AGENTS.md` foi encontrado na raiz (nesse caso, nenhuma ação foi tomada).
 
 ---
