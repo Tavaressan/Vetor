@@ -70,6 +70,29 @@ function detectNodePackageManager(dir: string): string {
   return "npm";
 }
 
+/**
+ * Issue #406 (paridade com scripts/lib/project.ts): só usa `<pm> test` se o script `test` existir de
+ * verdade no package.json; senão compõe com os scripts de validação presentes, ou grava `AJUSTE:`.
+ */
+function nodeTestCommand(dir: string, pm: string): string {
+  let scripts: Record<string, unknown> = {};
+  try {
+    const parsed = readJson(`${dir}/package.json`) as { scripts?: Record<string, unknown> };
+    if (parsed && typeof parsed.scripts === "object" && parsed.scripts !== null) {
+      scripts = parsed.scripts;
+    }
+  } catch {
+    // package.json ilegível
+  }
+  const testScript = typeof scripts.test === "string" ? scripts.test.trim() : "";
+  if (testScript.length > 0 && !testScript.includes("no test specified")) return `${pm} test`;
+  const present = ["lint", "typecheck", "check", "build"].filter((s) =>
+    typeof scripts[s] === "string"
+  );
+  if (present.length > 0) return present.map((s) => `${pm} run ${s}`).join(" && ");
+  return "AJUSTE: comando de teste não detectado";
+}
+
 export function detectProject(dir: string): ProjectInfo {
   const hasDeno = exists(`${dir}/deno.json`) || exists(`${dir}/deno.jsonc`);
   const hasPackageJson = exists(`${dir}/package.json`);
@@ -90,7 +113,7 @@ export function detectProject(dir: string): ProjectInfo {
     return {
       runtime: "node",
       packageManager: pm,
-      testCommand: `${pm} test`,
+      testCommand: nodeTestCommand(dir, pm),
       needsInstall: true,
     };
   }

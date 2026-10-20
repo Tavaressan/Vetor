@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { type CommandExecutor, probeNow } from "../now-probe.ts";
 
 Deno.test("now probe tolera repo sem MCP e gh e é idempotente", async () => {
@@ -22,6 +22,7 @@ Deno.test("now probe tolera repo sem MCP e gh e é idempotente", async () => {
     assertEquals(first.initialized, false);
     assertEquals(first.defaultDispatchLabel, null);
     assertEquals(first.openIssuesTotal, null);
+    assertEquals(first.dispatchableIssues, null);
     assertEquals(first.backlogIssues, null);
     assertEquals(first.mcps, []);
     assertEquals(await snapshot(), before);
@@ -42,23 +43,52 @@ Deno.test("now probe detecta inicialização, defaultDispatchLabel e contagens d
       JSON.stringify({ defaultDispatchLabel: "feature" }),
     );
 
+    const issues = (n: number) =>
+      JSON.stringify(Array.from({ length: n }, (_, i) => ({ number: i })));
+    const issueCalls: string[][] = [];
     const mockExecutor: CommandExecutor = (_command, args) => {
-      if (args.includes("--label") && args.includes("backlog")) {
-        return Promise.resolve(JSON.stringify([{ number: 1 }, { number: 2 }]));
+      if (!(args.includes("issue") && args.includes("list"))) {
+        return Promise.reject(new Error("mock fallback"));
       }
-      if (args.includes("issue") && args.includes("list")) {
-        return Promise.resolve(
-          JSON.stringify([{ number: 1 }, { number: 2 }, { number: 3 }, { number: 4 }]),
-        );
-      }
-      return Promise.reject(new Error("mock fallback"));
+      issueCalls.push(args);
+      const label = args.includes("--label") ? args[args.indexOf("--label") + 1] : null;
+      if (label === "backlog") return Promise.resolve(issues(2));
+      if (label === "feature") return Promise.resolve(issues(3));
+      // Acima do default de 30 do gh: só aparece inteiro se --limit for passado.
+      return Promise.resolve(issues(45));
     };
 
     const probed = await probeNow(dir, mockExecutor);
     assertEquals(probed.initialized, true);
     assertEquals(probed.defaultDispatchLabel, "feature");
-    assertEquals(probed.openIssuesTotal, 4);
+    assertEquals(probed.openIssuesTotal, 45);
+    assertEquals(probed.dispatchableIssues, 3);
     assertEquals(probed.backlogIssues, 2);
+    for (const args of issueCalls) {
+      assert(args.includes("--limit"), `gh issue list sem --limit satura em 30: ${args.join(" ")}`);
+    }
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("now probe sem defaultDispatchLabel conta todas as abertas como despacháveis — issue #412", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await Deno.mkdir(`${dir}/.claude/vetor`, { recursive: true });
+    await Deno.writeTextFile(`${dir}/.claude/vetor/config.json`, JSON.stringify({}));
+    const mockExecutor: CommandExecutor = (_command, args) => {
+      if (!(args.includes("issue") && args.includes("list"))) {
+        return Promise.reject(new Error("mock fallback"));
+      }
+      const n = args.includes("--label") ? 0 : 20;
+      return Promise.resolve(JSON.stringify(Array.from({ length: n }, (_, i) => ({ number: i }))));
+    };
+    const probed = await probeNow(dir, mockExecutor);
+    assertEquals(probed.defaultDispatchLabel, null);
+    assertEquals(probed.openIssuesTotal, 20);
+    assertEquals(probed.dispatchableIssues, 20);
+    assertEquals(probed.backlogIssues, 0);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

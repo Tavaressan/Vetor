@@ -130,7 +130,7 @@ espera por resposta:
 
 | Fase | Interativo | Headless |
 |------|-----------|----------|
-| 2 — teto de workers | Pergunta em texto livre no chat (pula se $N_{rec} = 1$) | Usa `N_rec` calculado, sem perguntar |
+| 2 — teto de workers | Pergunta em texto livre no chat (pula se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
 | 2 — aprovação do plano | Exibe o plano e aguarda resposta afirmativa | Não aguarda; registra o plano no relatório final |
 | 5.b — `BLOCKED_WAITING` | Apresenta ao usuário no chat e aguarda decisão | Não escala; mantém o grupo bloqueado e reporta |
 | 5.c — circuit breaker | Pergunta se deve pausar | Sempre pausa: para de despachar e reporta |
@@ -157,7 +157,7 @@ Avalie o argumento recebido antes de qualquer outra fase:
      O script cruza os status files com `gh pr list` anotando branches `GREEN` que já possuem PR aberta
      (`GREEN (PR #N aberta)`) ou mergeada (`GREEN (já mergeado via #N)`).
   2. Se houver ao menos um status file ativo: pule as Fases 1–3, refaça a pergunta de teto de
-     workers (Fase 2) e vá direto para o monitoramento (Fase 5) — o estado em memória de `N` não
+     workers (Fase 2; pulada quando `N_rec = 1`) e vá direto para o monitoramento (Fase 5) — o estado em memória de `N` não
      sobrevive a um reinício do processo coordenador. Em `--headless`: não refaça a pergunta — use
      `N_rec` diretamente (ver Fase 2).
   3. Se não houver nenhum worktree ativo com status file: caia no fluxo padrão como se fosse
@@ -195,6 +195,20 @@ gh pr list --search "closes:#<N>" --state open --json number,title
 ```
 Se já houver PR (ou se `vetor-status.sh` reportar `GREEN (PR #N aberta)` ou `GREEN (já mergeado via #N)`):
 pule a issue, registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado (#<PR>)".
+
+**Triagem de despachabilidade (issue #413).** Nem toda issue aberta pode ser resolvida por um worker
+autônomo. Classifique antes do agrupamento:
+
+- `SKIPPED (aguardando insumo do usuário)`: depende de decisão, validação externa, credenciais,
+  assets ou texto que só o usuário tem.
+- `SKIPPED (fora deste repositório)`: o escopo pertence a outro repositório (ou a um projeto ainda
+  sem repo).
+- `SKIPPED (épico/acompanhamento)`: issue agregadora ou de acompanhamento, sem unidade de código
+  despachável.
+
+Essas issues saem da leva: Onda `—`, modelo `—`, Ação `SKIPPED (<motivo>)` e justificativa no plano
+e no relatório. Se for a Lead, o grupo inteiro sai; se for Sequential, só ela. Grupos `SKIPPED` nunca
+bloqueiam a transição de ondas da Fase 4.
 
 **Agrupamento de afinidade** (delegação opcional a um runtime externo disponível no `PATH` —
 Gemini/`agy`, OpenCode/`opencode`, Codex/`codex` — detecção estática + algoritmo de seleção
@@ -243,6 +257,7 @@ Coordenando issues com a label: <label>
 |---|---|---|---|---|
 | O_1 | <slug-1> | #<N1> (Lead), #<M1> | <provider/model> | Despachar |
 | O_1 | <slug-2> | #<N3> (Lead) | <provider/model> | Despachar |
+| — | <slug-4> | #<N5> (Lead) | — | SKIPPED (aguardando insumo do usuário) |
 | O_2 | <slug-3> | #<N4> (Lead) | <provider/model> | Aguardar O_1 |
 ```
 
@@ -266,15 +281,17 @@ Antes de pedir aprovação:
 1. Calcule `N_rec = min(largura da maior onda, maxConcurrentWorkers de .claude/vetor/config.json
    — senão 5)`. Acima de ~8 workers, sinalize que custo agregado e ruído de monitoramento crescem
    mais rápido que o ganho de paralelismo — é recomendação, não limite; a decisão é do usuário.
-2. **Em `--headless`: não pergunte.** Adote `N = N_rec`, registre no relatório final (Fase 7) o
+2. **Com `N_rec = 1` (ou largura da maior onda = 1): não pergunte** (issue #414). Não há escolha
+   real de concorrência; adote `N = 1`, registre no plano e pule para "Aprovação do plano" abaixo.
+   **Em `--headless`: não pergunte.** Adote `N = N_rec`, registre no relatório final (Fase 7) o
    valor e como foi calculado, e pule para "Aprovação do plano" abaixo.
 
    Fora do headless, pergunte ao usuário no chat (texto livre — sem `AskUserQuestion` nativo):
    `"Quantos workers simultâneos usar nesta rodada? Recomendado: <N_rec> (<justificativa em 1
    linha>). Alternativas: 1 (serializado) ou um valor customizado."`
 3. Armazene a resposta como `N` para a Fase 4 — vale para toda a sessão de dispatch, inclusive
-   retomada (repita a pergunta antes de despachar qualquer `QUEUED`; em `--headless`, apenas
-   recalcule `N_rec`).
+   retomada (repita a pergunta antes de despachar qualquer `QUEUED`, salvo quando `N_rec = 1`; em
+   `--headless`, apenas recalcule `N_rec`).
 
 #### Aprovação do plano
 

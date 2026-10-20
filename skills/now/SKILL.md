@@ -26,7 +26,7 @@ Resolva os paths a partir do diretório desta skill. Defina `SKILL_DIR` com o ca
    deno run -A "$SKILL_DIR/../../scripts/now-probe.ts"
    ```
 
-   A sondagem é somente-leitura. Ela informa branch e limpeza do git, worktrees registrados, se o projeto foi inicializado (`initialized` via existência de `.claude/vetor/config.json`), o label de despacho configurado (`defaultDispatchLabel`), a contagem total de issues abertas sem filtro (`openIssuesTotal`), contagem de issues abertas com label `backlog` (`backlogIssues`), MCPs declarados em `.mcp.json` e runtimes detectados. Falhas de comandos opcionais não devem interromper o kickoff.
+   A sondagem é somente-leitura. Ela informa branch e limpeza do git, worktrees registrados, se o projeto foi inicializado (`initialized` via existência de `.claude/vetor/config.json`), o label de despacho configurado (`defaultDispatchLabel`), a contagem total de issues abertas sem filtro (`openIssuesTotal`), a contagem do que o `coordinator` despacharia sem argumento (`dispatchableIssues` — issues com `defaultDispatchLabel` se configurado, senão todas as abertas), contagem de issues abertas com label `backlog` (`backlogIssues`), MCPs declarados em `.mcp.json` e runtimes detectados. Falhas de comandos opcionais não devem interromper o kickoff.
 
 2. Complemente a lista de MCPs declarados com os MCPs ativos na sessão conforme `mcp-availability.md`. Os servidores Context7, Docker e ai-memory são relevantes para o sumário; nunca tente conectar apenas para sondar.
 
@@ -41,15 +41,16 @@ Resolva os paths a partir do diretório desta skill. Defina `SKILL_DIR` com o ca
 5. Use `AskUserQuestion` com uma única pergunta e quatro opções; a opção recomendada deve vir primeiro. O mecanismo oferece “Other” automaticamente. Escolha a recomendação pelo estado sondado:
    - **Projeto não inicializado (`initialized: false`)**: recomende `/vetor:install` como prioridade máxima para mapear comandos de teste e criar a configuração do projeto antes de qualquer dispatch ou fluxo automatizado.
    - **Projeto inicializado (`initialized: true`)**:
-     - Havendo issues elegíveis para despacho — considerando `defaultDispatchLabel` se configurado, ou issues abertas (`openIssuesTotal > 0`) quando sem label default, ou issues com label `backlog` (`backlogIssues > 0`) — e nenhum worktree ativo além do principal, recomende `/vetor:coordinator`.
-     - Sem issues abertas elegíveis no backlog ou no repositório, recomende `/vetor:backlog`.
+     - Com `dispatchableIssues > 0` e nenhum worktree ativo além do principal, recomende `/vetor:coordinator`. Use `dispatchableIssues`, não `backlogIssues`: é o filtro que o `coordinator` realmente aplica sem argumento.
+     - Com `dispatchableIssues == 0`, recomende `/vetor:backlog`.
      - Nos demais casos (ex.: worktrees ativos em andamento), recomende a etapa com melhor encaixe no pedido/contexto da sessão (ex.: retomar `/vetor:coordinator --resume`).
 
-   Opções:
-   - **Inicializar projeto** — `/vetor:install` (recomendada quando o projeto não estiver inicializado).
+   Opções (sempre quatro). Com o projeto inicializado:
    - **Despachar issues** — `/vetor:coordinator` (recomendada quando houver issues elegíveis prontas e nenhum worktree ativo).
    - **Idear trabalho** — `/vetor:backlog` (recomendada quando o repositório/backlog estiver vazio).
    - **Especificar tema** — `/vetor:spec`.
    - **Auditar ou trabalho pontual** — `/vetor:guardian` para auditoria; use “Other” para trabalho livre pontual.
+
+   Com o projeto não inicializado, **Inicializar projeto** — `/vetor:install` entra como primeira opção (recomendada) e ocupa a vaga de **Auditar ou trabalho pontual**, que continua acessível via “Other”.
 
 6. Encaminhe para a skill ou tarefa escolhida. Não execute automaticamente uma etapa de escrita sem a escolha do usuário.
