@@ -56,9 +56,10 @@ a ausência total do arquivo um sinal detectável de falha anômala.
 - `../shared/references/agent-status.template.md` — path, estados e blocos
   obrigatórios do status file.
 - `../shared/references/touched-files-cache.md` — formato do cache gravado no §1.
-- `../shared/references/delegate-to-runtime.md` — resumo opcional da saída de
-  erro dos testes delegado a um runtime externo disponível (Gemini/OpenCode/Codex). **A decisão e a
-  aplicação do fix são sempre suas, nunca do runtime delegado.**
+- `../shared/references/delegate-to-runtime.md` — uso opcional de runtime
+  externo (Gemini/OpenCode/Codex) para resumir erros ou rascunhar correções. Qualquer delegação de
+  mudança de código exige propor previamente o escopo ao desenvolvedor e obter sua anuência (em `--headless`,
+  segue inline por padrão); a validação via testes e a decisão de commit/merge permanecem sempre com o agente.
 - `../shared/references/mcp-availability.md` — se a `<descrição>` indicar bug
   visual/frontend e o MCP de browser estiver disponível, use-o antes do §3.a para reproduzir o bug e
   capturar evidência. Se o erro envolver comportamento de uma ferramenta/lib/framework/API externa,

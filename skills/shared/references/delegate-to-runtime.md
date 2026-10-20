@@ -1,7 +1,7 @@
 # Delegação assistida a runtime externo (opcional, agnóstica de provedor)
 
-Referência compartilhada para economizar tokens delegando **tarefas mecânicas e de baixo
-risco** a um CLI externo de IA. Padrão: **o runtime delegado rascunha, Claude valida.**
+Referência compartilhada para economizar tokens delegando tarefas (incluindo mudanças de código
+e resolução de conflitos) a um CLI externo de IA. Padrão: **o runtime delegado rascunha, Claude valida.**
 
 Consumida por `ship`, `fix`, `backlog`, `guardian` e
 `coordinator`.
@@ -97,6 +97,18 @@ devem seguir o mesmo algoritmo em prosa (passos 1-4 acima).
 Antes de rodar o comando de delegação escolhido, **sempre imprima um log explícito no console**:
 `echo "[Vetor:Delegação] Delegando tarefa a <runtime>: <breve descrição>"`.
 
+### 2.1 Acordo de escopo e anuência prévia (novo passo antes de delegar)
+
+A proibição categórica de delegar mudanças de código está aposentada (issue #415). Antes de disparar qualquer execução delegada para o runtime selecionado, o agente **deve propor ao desenvolvedor o escopo da delegação**:
+
+1. **O que vai para o runtime:** qual tarefa, diff ou trecho de implementação o runtime externo irá produzir.
+2. **O que fica com o agente:** controle do worktree, coordenação, garantia dos testes e decisão de commit/merge.
+3. **Como o resultado será validado:** quais testes automatizados (do `module-test-map.md`) serão executados e qual inspeção de diff será feita antes de qualquer escrita.
+
+**Regra de anuência:**
+- **Sessão interativa:** o agente propõe o escopo e **só delega após anuência explícita do desenvolvedor**. Se o desenvolvedor rejeitar ou preferir não delegar, execute inline.
+- **Sessão `--headless`:** na ausência de interlocutor para anuir o escopo proposto, **segue inline por padrão**. A delegação nunca é assumida tacitamente em modo não-supervisionado.
+
 **Nota — cache próprio de alguns runtimes fora do projeto:** o `agy`, por exemplo, pode persistir
 uma cópia do rascunho em `~/.gemini/antigravity-cli/brain/<uuid>/...` (fora do repositório e do
 controle de versão). Isso é comportamento do CLI externo, não do Vetor — o Vetor consome apenas a
@@ -143,7 +155,12 @@ viável.
 
 ---
 
-## 4. Tarefas delegáveis (baixo risco, alto volume)
+## 4. Exemplos de tarefas delegáveis (ilustrativos, não exaustivos)
+
+A lista a seguir é **ilustrativa e aberta** (issue #415): com a aposentadoria da proibição categórica
+de delegar mudanças de código, qualquer tarefa — de condensação de texto e logs a alterações de código
+e conciliação de conflitos — pode ser delegada, desde que o escopo tenha anuência prévia do desenvolvedor
+(§2.1), o resultado seja tratado como rascunho e validado pelo agente antes da escrita.
 
 Mesmo contrato de saída independente do runtime escolhido: substitua `$DELEGATE` pelo comando de
 invocação do runtime selecionado no passo 2 (tabela do §1).
@@ -227,13 +244,32 @@ O Claude **usa este sumário como âncora conceitual** sem precisar ler dezenas 
 
 ---
 
+### 4.9. Rascunhar correções e mudanças de código
+Em `fix` ou tarefas de implementação, após propor e obter anuência do escopo (§2.1):
+
+```bash
+cat <arquivo-ou-contexto> | $DELEGATE "Proponha a implementação/correção para: <descrição>. Retorne o diff ou código rascunhado."
+```
+
+O runtime rascunha a mudança (em worktree próprio se via coordinator, ou retornando diff); o agente **valida via testes automatizados** e inspeciona o código antes de qualquer commit.
+
+### 4.10. Rascunhar resolução de conflitos de merge
+Durante a resolução de conflitos em rebase ou merge, após anuência do escopo (§2.1):
+
+```bash
+git diff --check | $DELEGATE "Analise os trechos conflitantes a seguir e sugira a conciliação do código preservando o propósito de ambos os lados: <diff-com-conflitos>"
+```
+
+O agente **revisa a conciliação sugerida**, executa a suíte de testes mapeada para os arquivos tocados e garante a integridade da branch antes de concluir o merge. A decisão de merge é sempre do agente e do desenvolvedor.
+
+---
+
 ## 5. Guardrail (invariante — não negociável, independe do runtime)
 
 **NUNCA delegue a nenhum runtime externo:**
-- Aplicação de correções de código / geração de diffs (`fix`)
-- Resolução de conflitos de merge
 - Decisão de fazer (ou não) merge
 
-Essas etapas ficam **sempre** com o Claude. Toda saída delegada é tratada como rascunho
-não confiável e **validada pelo Claude antes de qualquer escrita** (commit, push, criação
-de PR ou merge). Em caso de dúvida sobre a qualidade do rascunho, descarte-o e faça inline.
+A decisão de fazer (ou não) merge continua **sempre** com o agente e o desenvolvedor, nunca com o
+runtime delegado. Toda saída delegada continua sendo tratada como **rascunho não confiável** e
+**validada pelo agente antes de qualquer escrita** (commit, push, criação de PR ou merge). Em caso
+de dúvida sobre a qualidade do rascunho ou falha na validação dos testes, descarte-o e faça inline.
