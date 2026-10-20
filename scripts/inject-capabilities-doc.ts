@@ -4,7 +4,11 @@
 export const START_MARKER = "<!-- vetor:capabilities:start -->";
 export const END_MARKER = "<!-- vetor:capabilities:end -->";
 
-export type InjectResult = "inserted" | "updated" | "skipped_missing_file";
+export type InjectResult =
+  | "inserted"
+  | "updated"
+  | "skipped_missing_file"
+  | "skipped_imports_agents";
 
 function exists(path: string): boolean {
   try {
@@ -16,15 +20,31 @@ function exists(path: string): boolean {
 }
 
 /**
+ * Detecta se o conteúdo de CLAUDE.md importa AGENTS.md (ex.: `@AGENTS.md`).
+ */
+export function importsAgentsMd(content: string): boolean {
+  return /(?:^|\s)@(?:\.?\/)?AGENTS\.md\b/m.test(content);
+}
+
+/**
  * Acha o bloco delimitado por START_MARKER/END_MARKER em `path` e o substitui por `body`
  * (envolvido pelos marcadores). Se o bloco não existir, insere no fim do arquivo. Se o
  * arquivo não existir, não faz nada — o Vetor não opina sobre convenção de onboarding do
  * projeto-alvo.
+ *
+ * Se `path` for um CLAUDE.md que importa AGENTS.md (ex.: linha `@AGENTS.md`), pula a
+ * injeção para evitar que o Claude Code duplique o bloco na sessão (issue #408).
  */
 export function injectBlock(path: string, body: string): InjectResult {
   if (!exists(path)) return "skipped_missing_file";
 
   const current = Deno.readTextFileSync(path);
+
+  const isClaudeMd = /(?:^|[\\/])CLAUDE\.md$/i.test(path);
+  if (isClaudeMd && importsAgentsMd(current)) {
+    return "skipped_imports_agents";
+  }
+
   const block = `${START_MARKER}\n${body}\n${END_MARKER}`;
 
   const startIdx = current.indexOf(START_MARKER);
@@ -47,15 +67,20 @@ export const CAPABILITIES_BODY = `## Vetor (plugin instalado)
 
 Automação de ciclo de desenvolvimento (issues → worktrees → fix loop → PR). Skills e agentes:
 
-- \`/vetor\` — inicializa/atualiza a configuração do Vetor neste projeto.
+- \`/vetor:install\` (\`install\`) — inicializa e configura o ambiente do Vetor neste projeto.
+- \`/vetor:now\` (\`now\`) — kickoff da sessão, resume o estado do projeto e orienta os próximos passos.
 - \`/vetor:spec\` (\`spec\`) — descobre contexto do projeto e rascunha uma Spec a partir de um tema.
+- \`/vetor:spec-validate\` (\`spec-validate\`) — valida a qualidade de uma Spec contra o Quality Model do Vetor.
 - \`/vetor:backlog\` (\`backlog\`) — propõe issues a partir de gaps do código/docs.
-- \`/vetor:coordinator\` (\`coordinator\`) — orquestra workers para issues do backlog.
+- \`/vetor:coordinator\` (\`coordinator\`) — orquestra workers paralelos em worktrees isolados para issues do backlog.
 - \`/vetor:worktree-create\` (\`worktree-create\`) — cria um worktree isolado para uma issue.
 - \`/vetor:fix\` (\`fix\`) — itera build/test até verde num worktree existente.
-- \`/vetor:ship\` (\`ship\`) — abre PR a partir de um worktree em estado verde.
-- \`/vetor:guardian\` (\`guardian\`) — auditoria de banco de dados por stack (condicional).
-- \`/vetor:retro\` (\`retro\`) — retrospectiva do ciclo de trabalho.
+- \`/vetor:design\` (\`design\`) — setup de Design System, handoff de protótipos e loop de autocorreção visual de UI.
+- \`/vetor:ship\` (\`ship\`) — pipeline headless de entrega (testes, push, PR draft, CI, merge, sync root e cleanup).
+- \`/vetor:guardian\` (\`guardian\`) — auditoria e auto-fix de integridade (JSONs, migrations, worktrees, status files, containers).
+- \`/vetor:stack-practices\` (\`stack-practices\`) — detecta frameworks da stack e gera regras de melhores práticas (Context7).
+- \`/vetor:architecture-review\` (\`architecture-review\`) — survey de dívida arquitetural, hot spots e deletion test.
+- \`/vetor:retro\` (\`retro\`) — retrospectiva do ciclo de trabalho e proposição de melhorias no plugin.
 - Agentes \`code-review\` e \`issue-worker\` — usados internamente pelos comandos acima.
 
 Detalhes de cada skill: \`skills/<nome>/SKILL.md\` no plugin.`;

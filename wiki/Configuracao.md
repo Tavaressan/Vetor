@@ -115,7 +115,7 @@ Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risc
 - Rascunhar corpos de issue (`backlog`)
 - Rascunhar mensagens de commit e relatórios (`guardian`)
 
-É **totalmente opcional**: se nenhum dos CLIs estiver no PATH, as skills fazem tudo inline. Qualquer falha do CLI delegado (não só ausência do binário) também cai para o caminho inline, sem retry. Correção de código, resolução de conflito e decisão de merge **nunca** são delegadas — ficam sempre com o Claude. Detalhes em `skills/shared/references/delegate-to-runtime.md`.
+É **totalmente opcional**: se nenhum dos CLIs estiver no PATH, as skills fazem tudo inline. Qualquer falha do CLI delegado (não só ausência do binário) também cai para o caminho inline, sem retry. A decisão de merge **nunca** é delegada — fica sempre com o Claude. Mudanças de código e resolução de conflitos podem ser delegadas como rascunho mediante proposta prévia de escopo ao desenvolvedor e validação pelos testes. Detalhes em `skills/shared/references/delegate-to-runtime.md`.
 
 ---
 
