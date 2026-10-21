@@ -36,10 +36,14 @@ async function runVetorChecks(
     stdout: "piped",
   });
 
-  const { success, stderr } = await cmd.output();
+  const { code: exitCode, success, stderr, stdout } = await cmd.output();
   const stderrText = new TextDecoder().decode(stderr);
+  const stdoutText = new TextDecoder().decode(stdout);
 
-  return { code: success ? 0 : 1, stderr: stderrText };
+  return {
+    code: success ? 0 : args[0] === "carry-changes" ? exitCode : 1,
+    stderr: `${stderrText}${stdoutText}`,
+  };
 }
 
 async function git(args: string[], cwd: string): Promise<string> {
@@ -60,8 +64,105 @@ async function makeRepo(): Promise<string> {
   await git(["init", "-q", "-b", "main"], repo);
   await git(["config", "user.email", "test@example.com"], repo);
   await git(["config", "user.name", "Test"], repo);
+  // Comparações de conteúdo não podem depender do core.autocrlf global da máquina.
+  await git(["config", "core.autocrlf", "false"], repo);
   return repo;
 }
+
+async function exists(path: string): Promise<boolean> {
+  return await Deno.stat(path).then(() => true, () => false);
+}
+
+Deno.test("carry-changes transporta modificações e novo staged com espaço e base divergente", async () => {
+  const repo = await makeRepo();
+  const worktree = `${repo}/worker`;
+  try {
+    // Mudanças em linhas afastadas: o merge de 3 vias trata linhas adjacentes como conflito.
+    const base = "root line\nl2\nl3\nl4\nbase line\n";
+    await Deno.writeTextFile(`${repo}/tracked.txt`, base);
+    await Deno.writeTextFile(`${repo}/untouched.txt`, "safe\n");
+    await git(["add", "."], repo);
+    await git(["commit", "-q", "-m", "initial"], repo);
+    await git(["worktree", "add", "-q", "-b", "feat/carry", worktree], repo);
+    await Deno.writeTextFile(`${worktree}/tracked.txt`, "root line\nl2\nl3\nl4\nworktree line\n");
+    await git(["add", "tracked.txt"], worktree);
+    await git(["commit", "-q", "-m", "different base"], worktree);
+    await Deno.writeTextFile(`${repo}/tracked.txt`, "changed root line\nl2\nl3\nl4\nbase line\n");
+    await Deno.writeTextFile(`${repo}/new staged.txt`, "new file\n");
+    await git(["add", "new staged.txt"], repo);
+    const result = await runVetorChecks(repo, "carry-changes", worktree, "feat/carry");
+    assertEquals(result.code, 0, result.stderr);
+    assertEquals(await Deno.readTextFile(`${repo}/tracked.txt`), base);
+    assertEquals(await Deno.readTextFile(`${repo}/untouched.txt`), "safe\n");
+    assertEquals(
+      await Deno.readTextFile(`${worktree}/tracked.txt`),
+      "changed root line\nl2\nl3\nl4\nworktree line\n",
+    );
+    assertEquals(await Deno.readTextFile(`${worktree}/new staged.txt`), "new file\n");
+    assertEquals(await exists(`${repo}/new staged.txt`), false);
+    const diffIndex = await new Deno.Command("git", {
+      args: ["diff-index", "--quiet", "HEAD", "--"],
+      cwd: repo,
+    }).output();
+    assertEquals(diffIndex.code, 0);
+    assertEquals(await exists(`${repo}/.claude/vetor/carry/feat-carry.patch`), true);
+    // O diretório do backup se auto-ignora, mesmo sem entrada no .gitignore do projeto.
+    assertEquals(await git(["status", "--porcelain", "--", ".claude"], repo), "");
+  } finally {
+    await Deno.remove(repo, { recursive: true }).catch(() => {});
+  }
+});
+
+Deno.test("carry-changes informa conflito sem limpar root nem criar backup", async () => {
+  const repo = await makeRepo();
+  const worktree = `${repo}/worker`;
+  try {
+    await Deno.writeTextFile(`${repo}/conflict.txt`, "base\n");
+    await git(["add", "."], repo);
+    await git(["commit", "-q", "-m", "initial"], repo);
+    await git(["worktree", "add", "-q", "-b", "feat/conflict", worktree], repo);
+    await Deno.writeTextFile(`${worktree}/conflict.txt`, "worktree version\n");
+    await git(["add", "conflict.txt"], worktree);
+    await git(["commit", "-q", "-m", "worktree change"], worktree);
+    await Deno.writeTextFile(`${repo}/conflict.txt`, "root version\n");
+    const result = await runVetorChecks(repo, "carry-changes", worktree, "feat/conflict");
+    assertEquals(result.code, 3);
+    assertStringIncludes(result.stderr, "conflict.txt");
+    assertEquals(await Deno.readTextFile(`${repo}/conflict.txt`), "root version\n");
+    assertEquals(await exists(`${repo}/.claude/vetor/carry/feat-conflict.patch`), false);
+    // A recuperação documentada no worktree-create precisa conseguir remover o worktree.
+    const removal = await runVetorChecks(repo, "safe-remove-worktree", worktree);
+    assertEquals(removal.code, 0, removal.stderr);
+    assertEquals(await exists(worktree), false);
+  } finally {
+    await Deno.remove(repo, { recursive: true }).catch(() => {});
+  }
+});
+
+Deno.test("carry-changes transporta rename e deixa o root limpo", async () => {
+  const repo = await makeRepo();
+  const worktree = `${repo}/worker`;
+  try {
+    await Deno.writeTextFile(`${repo}/a.txt`, "conteúdo\n");
+    await git(["add", "."], repo);
+    await git(["commit", "-q", "-m", "initial"], repo);
+    await git(["worktree", "add", "-q", "-b", "feat/rename", worktree], repo);
+    await git(["mv", "a.txt", "b.txt"], repo);
+    const result = await runVetorChecks(repo, "carry-changes", worktree, "feat/rename");
+    assertEquals(result.code, 0, result.stderr);
+    const diffIndex = await new Deno.Command("git", {
+      args: ["diff-index", "--quiet", "HEAD", "--"],
+      cwd: repo,
+    }).output();
+    assertEquals(diffIndex.code, 0);
+    assertEquals(await Deno.readTextFile(`${repo}/a.txt`), "conteúdo\n");
+    assertEquals(await exists(`${repo}/b.txt`), false);
+    assertEquals(await Deno.readTextFile(`${worktree}/b.txt`), "conteúdo\n");
+    assertEquals(await exists(`${worktree}/a.txt`), false);
+  } finally {
+    await Deno.remove(repo, { recursive: true }).catch(() => {});
+  }
+});
 
 Deno.test("safe-remove-worktree bloqueia remover pai que contém worktree filho", async () => {
   const repo = await makeRepo();
@@ -572,5 +673,60 @@ Deno.test("repo-root imprime o próprio path quando executado do root do reposit
     assertEquals(stdout, toPosix(repo));
   } finally {
     await Deno.remove(repo, { recursive: true });
+  }
+});
+
+// #428: o --carry-changes cria a branch a partir de origin/<default> enquanto a default local
+// fica atrás (root sujo não recebe pull); a branch sem commits próprios deve ser removível.
+async function makeRepoBehindOrigin(): Promise<{ repo: string; remote: string; other: string }> {
+  const repo = await makeRepo();
+  const remote = await Deno.realPath(await Deno.makeTempDir());
+  const other = await Deno.realPath(await Deno.makeTempDir());
+  await Deno.writeTextFile(`${repo}/a.txt`, "v1\n");
+  await git(["add", "."], repo);
+  await git(["commit", "-q", "-m", "initial"], repo);
+  await git(["init", "-q", "--bare", "-b", "main"], remote);
+  await git(["remote", "add", "origin", remote], repo);
+  await git(["push", "-q", "origin", "main"], repo);
+  await git(["remote", "set-head", "origin", "main"], repo);
+  await git(["clone", "-q", remote, other], other);
+  await git(["config", "user.email", "test@example.com"], other);
+  await git(["config", "user.name", "Test"], other);
+  await Deno.writeTextFile(`${other}/a.txt`, "v2\n");
+  await git(["commit", "-q", "-am", "advance origin"], other);
+  await git(["push", "-q", "origin", "main"], other);
+  await git(["fetch", "-q", "origin"], repo);
+  return { repo, remote, other };
+}
+
+Deno.test("delete-merged-branch remove branch idêntica a origin/<default> com default local atrás", async () => {
+  const { repo, remote, other } = await makeRepoBehindOrigin();
+  try {
+    await git(["branch", "feat/carry", "origin/main"], repo);
+    const result = await runVetorChecks(repo, "delete-merged-branch", "feat/carry");
+    assertEquals(result.code, 0, result.stderr);
+    assertEquals(await git(["branch", "--list", "feat/carry"], repo), "");
+  } finally {
+    for (const dir of [repo, remote, other]) {
+      await Deno.remove(dir, { recursive: true }).catch(() => {});
+    }
+  }
+});
+
+Deno.test("delete-merged-branch preserva branch com commit próprio", async () => {
+  const { repo, remote, other } = await makeRepoBehindOrigin();
+  try {
+    await git(["checkout", "-q", "-b", "feat/work", "origin/main"], repo);
+    await Deno.writeTextFile(`${repo}/b.txt`, "trabalho\n");
+    await git(["add", "b.txt"], repo);
+    await git(["commit", "-q", "-m", "trabalho"], repo);
+    await git(["checkout", "-q", "main"], repo);
+    const result = await runVetorChecks(repo, "delete-merged-branch", "feat/work");
+    assertEquals(result.code, 1);
+    assertEquals(await git(["branch", "--list", "feat/work"], repo), "feat/work");
+  } finally {
+    for (const dir of [repo, remote, other]) {
+      await Deno.remove(dir, { recursive: true }).catch(() => {});
+    }
   }
 });
