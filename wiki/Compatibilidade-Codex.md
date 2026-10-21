@@ -32,9 +32,15 @@ campo que o Claude Code (`tool_name`, `tool_input.command`, `tool_input.file_pat
 contra uma sessão real, os scripts podem rodar sem erro e simplesmente não encontrar os campos
 esperados (fail-open, não fail-closed — os scripts saem com código 0 em JSON não reconhecido).
 
-**Skills.** O formato é idêntico ao Claude Code (`SKILL.md` com frontmatter `name`/`description`),
-e o manifesto do plugin Codex (`.codex-plugin/plugin.json`) tem um campo `skills` que aceita
-apontar para um diretório — o mesmo `skills/` deste repositório serve sem duplicação.
+**Skills.** O formato usa `SKILL.md` com frontmatter `name`/`description`. Para skills locais,
+Codex varre `.agents/skills/` em cada diretório do cwd até a raiz do repositório, conforme a
+[documentação oficial](https://learn.chatgpt.com/docs/build-skills) (consultada em 2026-10-21).
+`.codex/skills/` não é um destino documentado. O instalador grava skills Codex em
+`.agents/skills/`, mantendo agentes e hooks em `.codex/`.
+Quando Codex e Antigravity são selecionados juntos, ambos compartilham uma única cópia e uma
+entrada de manifesto com os dois proprietários. Na migração de instalações antigas, só arquivos
+com hash intacto são movidos; arquivos editados pelo usuário ou com conflito no destino ficam
+preservados e são reportados como avisos.
 **Resolvido (issue #251):** os `SKILL.md` referenciavam `$CLAUDE_PLUGIN_ROOT` no corpo do texto,
 variável que o Codex não define — todas as referências a `skills/shared/references/*.md`,
 `scripts/*` e `templates/*` agora resolvem por path relativo ao diretório da própria skill
@@ -71,13 +77,9 @@ nenhuma. `.codex-plugin/plugin.json` já declara o campo `skills` apontando para
 quando o Codex é selecionado, e **exclui** `agents/*.md` (Claude Code) e `agents/*/agent.json`
 (Antigravity) do destino do Codex — copiá-los produziria arquivo inerte, mesma classe de problema já
 corrigida para `hooks/` no Cursor. Cobertura automatizada em
-`cli/test/installer-writer.test.js` ("traduz agents/<nome>/codex.toml..."). **Não verificado nesta
-issue** (sem CLI `codex` disponível no ambiente de investigação, e sem acesso a documentação externa
-via Context7 nesta sessão): se `.codex/skills/` é de fato um caminho de descoberta de skills a nível
-de projeto (distinto do campo `skills` do manifesto de *plugin*) — `skills/` continua sendo copiado
-para `.codex/skills/...` sem tradução, comportamento herdado, não alterado por esta issue. Mesma
-ressalva vale para `hooks/` (copiado para `.codex/hooks/...` sem tradução de path/variável — ver
-"Reuso dos scripts" acima). Tratar essas duas lacunas fica para investigação futura com CLI real
+`cli/test/installer-writer.test.js` ("traduz agents/<nome>/codex.toml..."). Hooks continuam sendo
+copiados para `.codex/hooks/...` sem tradução de path/variável — ver
+"Reuso dos scripts" acima. Tratar essas limitações fica para investigação futura com CLI real
 disponível.
 
 **Resumo da proteção:** guards de segurança têm parceridade estrutural com o Claude Code (mesmo

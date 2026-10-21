@@ -10,7 +10,7 @@ const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.nam
 /**
  * Comando `update`: sincroniza a instalação existente sem repetir a detecção/seleção de
  * engines do `install` (issue #301) — as engines a atualizar são derivadas do próprio
- * manifesto (`.vetor/install-manifest.json`, campo `engine` de cada entrada), nunca de
+ * manifesto (`.vetor/install-manifest.json`, campos `engines`/`engine` de cada entrada), nunca de
  * `detectEngines()`, para não arriscar instalar numa engine que o usuário nunca selecionou
  * (ou deixar de atualizar uma que ele selecionou).
  *
@@ -36,7 +36,7 @@ function update(cwd = process.cwd(), options = {}) {
     return;
   }
 
-  const engineIds = [...new Set(Object.values(manifestBefore.files).map((entry) => entry.engine))];
+  const engineIds = [...new Set(Object.values(manifestBefore.files).flatMap((entry) => entry.engines ?? [entry.engine]))];
   const engines = engineIds.map((id) => ({ id, name: ENGINE_NAME_BY_ID.get(id) ?? id }));
 
   console.info(`Atualizando engines: ${engines.map((engine) => engine.name).join(', ')}.`);
@@ -57,6 +57,7 @@ function update(cwd = process.cwd(), options = {}) {
 
   const touched = new Set([...copied, ...skipped.map((entry) => entry.path)]);
   for (const key of keysBefore) {
+    if (key.startsWith('.codex/skills/') && manifestBefore.files[key].engine === 'codex') continue;
     if (!touched.has(key)) {
       console.info(`${key}: não existe mais na fonte (não removido — use "vetor uninstall" se quiser limpar).`);
     }
