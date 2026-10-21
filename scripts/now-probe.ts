@@ -75,6 +75,17 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
   const dispatchableIssues = defaultDispatchLabel === null
     ? openIssuesTotal
     : await countOpenIssues(executor, cwd, defaultDispatchLabel);
+  const containerStateText = await optional(executor, "docker", [
+    "ps",
+    "-a",
+    "--filter",
+    "name=^ai-memory$",
+    "--format",
+    "{{.State}}",
+  ], cwd);
+  const aiMemoryContainerState = containerStateText === null
+    ? null
+    : containerStateText || "absent";
   let mcps: string[] = [];
   try {
     const config = JSON.parse(await Deno.readTextFile(`${cwd}/.mcp.json`));
@@ -97,6 +108,7 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     openIssuesTotal,
     dispatchableIssues,
     backlogIssues,
+    aiMemoryContainerState,
     mcps,
     runtimes,
   };
