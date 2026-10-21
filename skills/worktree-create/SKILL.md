@@ -31,7 +31,7 @@ Você é o primitivo de criação de worktree do Vetor. Sua única responsabilid
 Verifique os argumentos recebidos usando o script determinístico:
 
 ```bash
-scripts/vetor-checks.sh validate-issue-ref "$issue_ref" || exit 1
+[ -z "$issue_ref" ] || scripts/vetor-checks.sh validate-issue-ref "$issue_ref" || exit 1
 ```
 
 Valide também:
