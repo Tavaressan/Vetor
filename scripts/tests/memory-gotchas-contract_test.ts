@@ -12,6 +12,7 @@ Deno.test("issue #370: consulta e registro de gotchas são opcionais e não bloq
   assertStringIncludes(reference, "Se qualquer chamada falhar");
   assertStringIncludes(reference, "No passo Green");
   assertStringIncludes(reference, "memory_write_page");
+  assertStringIncludes(reference, "Sem `.ai-memory.toml` mais próximo declarando ambos");
   assertStringIncludes(fixLoop, "### 1 — Diagnóstico e detectar módulos");
   assertStringIncludes(fixLoop, "indisponibilidade da memória não altera o estado Green");
   assertStringIncludes(issueWorker, "ausência/falha do MCP não bloqueia");

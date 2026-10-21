@@ -26,11 +26,16 @@ Resolva os paths a partir do diretório desta skill. Defina `SKILL_DIR` com o ca
    deno run -A "$SKILL_DIR/../../scripts/now-probe.ts"
    ```
 
-   A sondagem é somente-leitura. Ela informa branch e limpeza do git, worktrees registrados, se o projeto foi inicializado (`initialized` via existência de `.claude/vetor/config.json`), o label de despacho configurado (`defaultDispatchLabel`), a contagem total de issues abertas sem filtro (`openIssuesTotal`), a contagem do que o `coordinator` despacharia sem argumento (`dispatchableIssues` — issues com `defaultDispatchLabel` se configurado, senão todas as abertas), contagem de issues abertas com label `backlog` (`backlogIssues`), MCPs declarados em `.mcp.json` e runtimes detectados. Falhas de comandos opcionais não devem interromper o kickoff.
+   A sondagem é somente-leitura. Ela informa branch e limpeza do git, worktrees registrados, se o projeto foi inicializado (`initialized` via existência de `.claude/vetor/config.json`), o label de despacho configurado (`defaultDispatchLabel`), a contagem total de issues abertas sem filtro (`openIssuesTotal`), a contagem do que o `coordinator` despacharia sem argumento (`dispatchableIssues` — issues com `defaultDispatchLabel` se configurado, senão todas as abertas), contagem de issues abertas com label `backlog` (`backlogIssues`), MCPs declarados em `.mcp.json`, runtimes detectados e `aiMemoryContainerState` (`running`, outro estado, `absent` ou `null` se Docker não responder). Falhas de comandos opcionais não devem interromper o kickoff.
 
-2. Complemente a lista de MCPs declarados com os MCPs ativos na sessão conforme `mcp-availability.md`. Os servidores Context7, Docker e ai-memory são relevantes para o sumário; nunca tente conectar apenas para sondar.
+2. Complemente a lista de MCPs declarados com os MCPs ativos na sessão conforme `mcp-availability.md`. Os servidores Context7, Docker e ai-memory são relevantes para o sumário. Nunca tente conectar apenas para sondar; a sondagem do container Docker no passo 1 é somente-leitura. Se ai-memory não estiver ativo na sessão:
+   - Com `aiMemoryContainerState` igual a `running`, oriente `/mcp` → Reconnect.
+   - Se existir parado (`exited` ou outro estado diferente de `running`), peça anuência explícita via `AskUserQuestion` antes de executar `docker start ai-memory`. Com anuência, execute somente esse comando, depois espere `deno run --allow-net "$SKILL_DIR/../../scripts/ai-memory-check.ts" <url>` passar usando a URL local configurada (por exemplo, `http://127.0.0.1:49374/mcp`). Então oriente o usuário a rodar `/mcp` → Reconnect; as ferramentas só aparecem na sessão depois disso. Sem anuência, não inicie.
+   - Se `absent`, apenas indique a receita em `templates/docker-compose.ai-memory.yml` e `wiki/MCPs.md`; não crie nem inicie container.
+   - Se `null`, apenas informe que Docker está indisponível e precisa ser iniciado.
+   Nunca execute `docker run` nem `docker compose up` automaticamente. Alternativamente, como o container usa `restart: unless-stopped`, configurar o Docker para iniciar no login faz o container subir antes da sessão.
 
-3. Apresente um sumário executivo conciso: inicialização do projeto (`config.json`), branch/estado limpo, worktrees existentes, total de issues abertas e no backlog, e disponibilidade de MCPs e runtimes. Diferencie configuração declarada de ferramenta ativa na sessão.
+3. Apresente um sumário executivo conciso: inicialização do projeto (`config.json`), branch/estado limpo, worktrees existentes, total de issues abertas e no backlog, e disponibilidade de MCPs e runtimes. Diferencie configuração declarada de ferramenta ativa na sessão e informe o estado do container ai-memory.
 
 4. Faça o priming explícito, condicionado a cada ferramenta estar disponível:
    - Se Context7 estiver disponível: **Use Context7 para documentação atualizada de bibliotecas.**

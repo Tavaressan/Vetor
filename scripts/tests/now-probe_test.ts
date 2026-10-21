@@ -25,7 +25,32 @@ Deno.test("now probe tolera repo sem MCP e gh e é idempotente", async () => {
     assertEquals(first.dispatchableIssues, null);
     assertEquals(first.backlogIssues, null);
     assertEquals(first.mcps, []);
+    assertEquals(first.aiMemoryContainerState, null);
     assertEquals(await snapshot(), before);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("now probe reports ai-memory container state", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const states = new Map<string, string | Error>([
+      ["running", "running"],
+      ["exited", "exited"],
+      ["absent", ""],
+      ["unavailable", new Error("Docker indisponível")],
+    ]);
+    for (const [expected, result] of states) {
+      const executor: CommandExecutor = (command, args) => {
+        if (command === "docker") {
+          assertEquals(args, ["ps", "-a", "--filter", "name=^ai-memory$", "--format", "{{.State}}"]);
+          return result instanceof Error ? Promise.reject(result) : Promise.resolve(result);
+        }
+        return Promise.reject(new Error("comando indisponível"));
+      };
+      assertEquals((await probeNow(dir, executor)).aiMemoryContainerState, expected === "absent" ? "absent" : expected === "unavailable" ? null : expected);
+    }
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
