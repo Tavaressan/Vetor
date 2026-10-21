@@ -70,6 +70,12 @@ const ENGINE_EXCLUDED_SOURCE_DIRS = {
   antigravity: ['hooks'],
 };
 
+const ENGINE_SOURCE_DIR_DEST = {
+  // Codex descobre skills locais em `.agents/skills` (https://learn.chatgpt.com/docs/build-skills;
+  // consultada em 2026-10-21); agentes e hooks continuam sob `.codex/`.
+  codex: { skills: '.agents' },
+};
+
 // OpenCode (#283): em vez dos SOURCE_DIRS agnósticos, copia a árvore `opencode/` (já
 // adaptada ao formato nativo — `opencode/agent/*.md`, `opencode/skills/*/SKILL.md`,
 // `opencode/plugin/*.ts`, `opencode/scripts/*`) para a raiz do destino, achatada (não
@@ -164,11 +170,21 @@ function copyManagedFile({ sourceFile, destFile, manifestKey, manifest, engineId
       skipped.push({ path: manifestKey, reason: 'user-modified' });
       return;
     }
+    const owners = existingEntry.engines ?? [existingEntry.engine];
+    if (destHash === hashFile(sourceFile) && !owners.includes(engineId)) {
+      existingEntry.engines = [...new Set([...owners, engineId])];
+      return;
+    }
   }
 
   fs.mkdirSync(path.dirname(destFile), { recursive: true });
   fs.copyFileSync(sourceFile, destFile);
-  manifest.files[manifestKey] = { sha256: hashFile(sourceFile), engine: engineId };
+  const existingEngines = existingEntry?.engines ?? (existingEntry?.engine ? [existingEntry.engine] : []);
+  manifest.files[manifestKey] = {
+    sha256: hashFile(sourceFile),
+    engine: existingEngines[0] ?? engineId,
+    engines: [...new Set([...existingEngines, engineId])],
+  };
   copied.push(manifestKey);
 }
 
@@ -205,11 +221,21 @@ function writeManaged({ destFile, manifestKey, contentHash, write, engineId, man
       skipped.push({ path: manifestKey, reason: 'user-modified' });
       return;
     }
+    const owners = existingEntry.engines ?? [existingEntry.engine];
+    if (destHash === contentHash && !owners.includes(engineId)) {
+      existingEntry.engines = [...new Set([...owners, engineId])];
+      return;
+    }
   }
 
   fs.mkdirSync(path.dirname(destFile), { recursive: true });
   write();
-  manifest.files[manifestKey] = { sha256: contentHash, engine: engineId };
+  const existingEngines = existingEntry?.engines ?? (existingEntry?.engine ? [existingEntry.engine] : []);
+  manifest.files[manifestKey] = {
+    sha256: contentHash,
+    engine: existingEngines[0] ?? engineId,
+    engines: [...new Set([...existingEngines, engineId])],
+  };
   copied.push(manifestKey);
 }
 
@@ -302,6 +328,41 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   const skipped = [];
   const warnings = [];
   const enginesSkipped = [];
+  const migrationBlockedTargets = new Set();
+
+  // Migra somente skills legadas intactas, identificadas pelo hash do manifesto.
+  // Se foram alteradas, preserva a cópia antiga e não cria uma duplicata gerenciada.
+  const codexSelected = (engines ?? []).some((engine) => engine.id === 'codex');
+  if (codexSelected) {
+    for (const [oldKey, entry] of Object.entries(manifest.files)) {
+      if (!oldKey.startsWith('.codex/skills/')) continue;
+      const oldFile = path.join(projectRoot, ...oldKey.split('/'));
+      if (!fs.existsSync(oldFile)) { delete manifest.files[oldKey]; continue; }
+      if (hashFile(oldFile) !== entry.sha256) {
+        warnings.push(`${oldKey}: arquivo editado pelo usuário; migração para .agents/skills/ ignorada.`);
+        migrationBlockedTargets.add(oldKey.replace(/^\.codex\/skills\//, '.agents/skills/'));
+        continue;
+      }
+      const newKey = oldKey.replace(/^\.codex\/skills\//, '.agents/skills/');
+      const newFile = path.join(projectRoot, ...newKey.split('/'));
+      if (fs.existsSync(newFile)) {
+        warnings.push(`${newKey}: destino existente; migração de ${oldKey} ignorada.`);
+        continue;
+      }
+      fs.mkdirSync(path.dirname(newFile), { recursive: true });
+      fs.renameSync(oldFile, newFile);
+      manifest.files[newKey] = entry;
+      delete manifest.files[oldKey];
+      let oldDir = path.dirname(oldFile);
+      const oldSkillsRoot = path.join(projectRoot, '.codex', 'skills');
+      while (oldDir.startsWith(oldSkillsRoot)) {
+        if (fs.readdirSync(oldDir).length) break;
+        fs.rmdirSync(oldDir);
+        if (oldDir === oldSkillsRoot) break;
+        oldDir = path.dirname(oldDir);
+      }
+    }
+  }
 
   for (const engine of engines ?? []) {
     const destRootName = ENGINE_DEST_DIR[engine.id];
@@ -362,8 +423,10 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
           destRelativePath = mapped;
         }
 
-        const destFile = path.join(projectRoot, destRootName, sourceDirName, destRelativePath);
+        const sourceDestRoot = ENGINE_SOURCE_DIR_DEST[engine.id]?.[sourceDirName] ?? destRootName;
+        const destFile = path.join(projectRoot, sourceDestRoot, sourceDirName, destRelativePath);
         const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
+        if (migrationBlockedTargets.has(manifestKey)) continue;
         if (engine.id === 'cursor' && sourceDirName === 'agents') {
           const content = translateAgentForCursor(fs.readFileSync(sourceFile, 'utf8'));
           writeManaged({
@@ -398,6 +461,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
 module.exports = {
   installFiles,
   ENGINE_DEST_DIR,
+  ENGINE_SOURCE_DIR_DEST,
   SOURCE_DIRS,
   ENGINE_EXCLUDED_SOURCE_DIRS,
   ENGINE_NATIVE_SOURCE_DIR,

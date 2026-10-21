@@ -36,7 +36,7 @@ function update(cwd = process.cwd(), options = {}) {
     return;
   }
 
-  const engineIds = [...new Set(Object.values(manifestBefore.files).map((entry) => entry.engine))];
+  const engineIds = [...new Set(Object.values(manifestBefore.files).flatMap((entry) => entry.engines ?? [entry.engine]))];
   const engines = engineIds.map((id) => ({ id, name: ENGINE_NAME_BY_ID.get(id) ?? id }));
 
   console.info(`Atualizando engines: ${engines.map((engine) => engine.name).join(', ')}.`);

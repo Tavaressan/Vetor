@@ -204,12 +204,92 @@ test('installFiles: copia para múltiplas engines selecionadas, cada uma no seu 
       const { copied } = installFiles({ projectRoot, engines, sourceRoot });
 
       assert.ok(copied.includes('.claude/skills/demo/SKILL.md'));
-      assert.ok(copied.includes('.codex/skills/demo/SKILL.md'));
+      assert.ok(copied.includes('.agents/skills/demo/SKILL.md'));
       assert.ok(fs.existsSync(path.join(projectRoot, '.claude', 'skills', 'demo', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(projectRoot, '.codex', 'skills', 'demo', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(projectRoot, '.agents', 'skills', 'demo', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(projectRoot, '.codex', 'agents', 'demo.toml')));
+      assert.ok(fs.existsSync(path.join(projectRoot, '.codex', 'hooks', 'hooks.json')));
     } finally {
       fs.rmSync(sourceRoot, { recursive: true, force: true });
     }
+  });
+});
+
+test('installFiles: Codex e Antigravity compartilham uma entrada de skills em .agents', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const { copied } = installFiles({ projectRoot, sourceRoot, engines: [
+        { id: 'codex', name: 'Codex' }, { id: 'antigravity', name: 'Antigravity' },
+      ] });
+      const skillPath = '.agents/skills/demo/SKILL.md';
+      assert.equal(copied.filter((key) => key === skillPath).length, 1);
+      assert.deepEqual(readManifest(projectRoot).files[skillPath].engines.sort(), ['antigravity', 'codex']);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: preserva skill Codex editada e avisa, sem duplicar em .agents/skills', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const oldFile = path.join(projectRoot, '.codex', 'skills', 'demo', 'SKILL.md');
+      fs.mkdirSync(path.dirname(oldFile), { recursive: true });
+      fs.writeFileSync(oldFile, 'editada pelo usuário\n');
+      const { writeManifest } = require('../lib/installer/manifest.js');
+      writeManifest(projectRoot, { version: 1, files: { '.codex/skills/demo/SKILL.md': { sha256: sha256('original\n'), engine: 'codex' } } });
+      const { warnings } = installFiles({ projectRoot, engines: [{ id: 'codex', name: 'Codex' }], sourceRoot });
+      assert.match(warnings.join('\n'), /editado pelo usuário/);
+      assert.equal(fs.readFileSync(oldFile, 'utf8'), 'editada pelo usuário\n');
+      assert.equal(fs.existsSync(path.join(projectRoot, '.agents', 'skills', 'demo', 'SKILL.md')), false);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: migra skill Codex manifestada de .codex/skills para .agents/skills', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const oldFile = path.join(projectRoot, '.codex', 'skills', 'demo', 'SKILL.md');
+      fs.mkdirSync(path.dirname(oldFile), { recursive: true });
+      fs.writeFileSync(oldFile, 'conteúdo v1\n');
+      const { writeManifest } = require('../lib/installer/manifest.js');
+      writeManifest(projectRoot, { version: 1, files: {
+        '.codex/skills/demo/SKILL.md': { sha256: sha256('conteúdo v1\n'), engine: 'codex' },
+      } });
+
+      installFiles({ projectRoot, engines: [{ id: 'codex', name: 'Codex' }], sourceRoot });
+      const manifest = readManifest(projectRoot);
+      assert.equal(fs.existsSync(oldFile), false);
+      assert.equal(fs.readFileSync(path.join(projectRoot, '.agents', 'skills', 'demo', 'SKILL.md'), 'utf8'), 'conteúdo v1\n');
+      assert.ok(fs.existsSync(path.join(projectRoot, '.codex', 'agents', 'demo.toml')));
+      assert.ok(fs.existsSync(path.join(projectRoot, '.codex', 'hooks', 'hooks.json')));
+      assert.ok(manifest.files['.agents/skills/demo/SKILL.md']);
+      assert.ok(!manifest.files['.codex/skills/demo/SKILL.md']);
+      assert.equal(fs.existsSync(path.join(projectRoot, '.codex', 'skills')), false);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: não sobrescreve destino existente ao migrar skill Codex e avisa', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const oldFile = path.join(projectRoot, '.codex', 'skills', 'demo', 'SKILL.md');
+      const newFile = path.join(projectRoot, '.agents', 'skills', 'demo', 'SKILL.md');
+      fs.mkdirSync(path.dirname(oldFile), { recursive: true });
+      fs.mkdirSync(path.dirname(newFile), { recursive: true });
+      fs.writeFileSync(oldFile, 'gerenciado v1\n');
+      fs.writeFileSync(newFile, 'arquivo local\n');
+      const { writeManifest } = require('../lib/installer/manifest.js');
+      writeManifest(projectRoot, { version: 1, files: { '.codex/skills/demo/SKILL.md': {
+        sha256: sha256('gerenciado v1\n'), engine: 'codex',
+      } } });
+      const { warnings } = installFiles({ projectRoot, engines: [{ id: 'codex', name: 'Codex' }], sourceRoot });
+      assert.match(warnings.join('\n'), /destino existente/);
+      assert.equal(fs.readFileSync(oldFile, 'utf8'), 'gerenciado v1\n');
+      assert.equal(fs.readFileSync(newFile, 'utf8'), 'arquivo local\n');
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
   });
 });
 

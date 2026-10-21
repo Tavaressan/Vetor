@@ -137,3 +137,17 @@ test('uninstall: options.yes pula confirm e prossegue com a desinstalação', as
   });
 });
 
+test('uninstall: remove skill Codex do destino .agents/skills pelo manifesto', async () => {
+  await withTempDir(async (dir) => {
+    const filePath = path.join(dir, '.agents', 'skills', 'demo', 'SKILL.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, 'codex skill\n');
+    writeManifest(dir, { version: 1, files: { '.agents/skills/demo/SKILL.md': {
+      sha256: hashContent(Buffer.from('codex skill\n')), engine: 'codex', engines: ['codex'],
+    } } });
+    await uninstall(dir, { yes: true });
+    assert.equal(fs.existsSync(filePath), false);
+    assert.equal(fs.existsSync(manifestPathFor(dir)), false);
+  });
+});
+

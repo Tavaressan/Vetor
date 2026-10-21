@@ -40,7 +40,7 @@ vetor --help       # lista os comandos disponíveis
 
 ## Documentação
 
-Skills, arquitetura, configuração e compatibilidade multi-engine: [wiki do repositório principal](https://github.com/Tavaressan/Vetor/tree/master/wiki).
+Skills Codex são instaladas em `.agents/skills/`, que o Codex varre em cada diretório do cwd até a raiz do repositório ([documentação oficial](https://learn.chatgpt.com/docs/build-skills), consultada em 2026-10-21). Agentes e hooks Codex continuam em `.codex/`. Skills, arquitetura, configuração e compatibilidade multi-engine: [wiki do repositório principal](https://github.com/Tavaressan/Vetor/tree/master/wiki).
 
 ## Licença
 
