@@ -130,7 +130,7 @@ function runKeypressPrompt(choices, input, output) {
  * Prompt de seleção com navegação por setas e alternância por espaço quando há setRawMode.
  * Sem setRawMode, usa o fallback por números digitados; ambos exigem uma engine marcada.
  * Em sessão não-interativa, imprime as engines detectadas e resolve com seleção vazia, pois
- * não h? confirmação expl?cita do usuário.
+ * não há confirmação explícita do usuário.
  */
 function runInstallPrompts(
   engines,
