@@ -269,12 +269,17 @@ Worktree preservado para inspeção manual.
 
 ### 8.5 — Revisões consultivas (não bloqueantes)
 
-Roda **só quando há mudança real de código-fonte**. Independentemente do mapeamento do passo 3
-(um módulo catch-all `./` casa qualquer arquivo), se todos os arquivos alterados corresponderem a
-`docs/**`, `wiki/**`, `*.md` na raiz do repositório (ex.: `README.md`, `CHANGELOG.md`) ou lockfiles
-(`*.lock`, `package-lock.json`, `deno.lock`), trate a PR como só de docs e **pule este passo
-inteiro**. Arquivos `.md` fora desses caminhos (ex.: `SKILL.md`, agentes) e configs que executam
-comandos (hooks, workflows de CI) não entram nessa exceção.
+Roda **só quando há mudança real de código-fonte**. **Pule este passo inteiro** em qualquer um
+destes casos:
+
+- o passo 3 não mapeou nenhum módulo;
+- todos os arquivos alterados são `.md` em `docs/**` ou `wiki/**`, `*.md` na raiz do repositório
+  (ex.: `README.md`, `CHANGELOG.md`) ou lockfiles (`*.lock`, `package-lock.json`, `deno.lock`) —
+  checagem própria, independente do passo 3, porque um módulo catch-all `./` casa qualquer arquivo.
+
+Arquivos que não são `.md` dentro de `docs/`/`wiki/` (ex.: JS de site, `conf.py`), `.md` fora
+desses caminhos (ex.: `SKILL.md`, agentes) e configs que executam comandos (hooks, workflows de CI)
+não entram na exceção.
 
 Havendo módulo alterado, execute as duas revisões:
 
