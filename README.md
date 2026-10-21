@@ -27,11 +27,20 @@ npm install -g @tavaressan/vetor
 vetor install
 ```
 
+**Via Deno** (execução direta ou instalação global):
+
+```sh
+deno run -A npm:@tavaressan/vetor install
+deno install --global --compile -A npm:@tavaressan/vetor
+```
+
+`-A` concede todas as permissões: o CLI lê e escreve no projeto, acessa variáveis de ambiente e, no `doctor`, executa `git`, `gh` e `deno`. O modo interativo sob Deno ainda requer validação manual em um terminal real.
+
 <div align="center">
   <img src="assets/images/cli-banner.png" alt="vetor --help no terminal" width="600" />
 </div>
 
-Depois de qualquer uma das duas, rode **`/vetor:install`** no projeto-alvo: ele detecta o runtime, gera o mapeamento de testes e grava a configuração em `.claude/vetor/`.
+Depois de qualquer um desses métodos, rode **`/vetor:install`** no projeto-alvo: ele detecta o runtime, gera o mapeamento de testes e grava a configuração em `.claude/vetor/`.
 
 **Pré-requisitos:** [Deno](https://deno.com) e `gh` CLI autenticado no PATH, e Git com suporte a `git worktree`. *(Opcionais: `npx` para o MCP `chrome-devtools`, Docker com plugin `docker mcp` para o MCP `docker`, `agy`/`opencode`/`codex` para delegação agnóstica de runtime — ver `delegate-to-runtime.md`.)*
 

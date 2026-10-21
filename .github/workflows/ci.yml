@@ -11,7 +11,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Instala dependências
         run: npm install
@@ -20,6 +20,20 @@ jobs:
       - name: Roda a suíte de testes do pacote
         run: npm test
         working-directory: cli
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Smoke test do CLI local sob Deno
+        shell: bash
+        run: |
+          node cli/scripts/sync-templates.js
+          deno run -A "$GITHUB_WORKSPACE/cli/bin/vetor.js" --version
+          temp_dir=$(mktemp -d)
+          cd "$temp_dir"
+          deno run -A "$GITHUB_WORKSPACE/cli/bin/vetor.js" install --engines claude-code --yes
+          test -f .vetor/install-manifest.json
 
   check:
     runs-on: ubuntu-latest

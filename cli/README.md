@@ -21,6 +21,15 @@ npm install -g @tavaressan/vetor
 vetor install
 ```
 
+Ou via Deno, sem instalação ou com instalação global:
+
+```sh
+deno run -A npm:@tavaressan/vetor install
+deno install --global --compile -A npm:@tavaressan/vetor
+```
+
+`-A` concede todas as permissões: o CLI lê e escreve no projeto, acessa variáveis de ambiente e, no `doctor`, executa `git`, `gh` e `deno`. O modo interativo sob Deno ainda requer validação manual em um terminal real.
+
 **Pré-requisitos:** [Deno](https://deno.com) e `gh` CLI autenticado no PATH, Git com suporte a `git worktree`.
 
 ## Uso
