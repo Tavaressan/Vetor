@@ -41,6 +41,10 @@ tree, mas não é um sandbox para comandos shell; continue tratando toda saída 
 validando-a conforme §5. Verificado em 2026-10-21 (opencode 1.19.0): a tarefa do §4.8 com
 `--agent plan` deixou `git status --porcelain` inalterado e o resumo chegou pelo stdout — sem o
 `--agent plan`, o mesmo comando gravou o resultado num arquivo novo na raiz do repositório (#431).
+A mesma documentação diz que os defaults do `plan` são aplicados **antes** da config `permission`
+de topo do usuário: um `"edit": "allow"` (ou `"*": "allow"`) global anula essa restrição. Por isso,
+compare `git status --porcelain` antes e depois de cada delegação ao OpenCode; se mudou, descarte o
+resultado, desfaça o que o runtime gravou e siga inline (§3).
 
 **Regra:** um runtime com consumo de stdin **não confirmado** nunca deve ser usado para as tarefas
 de §4 (todas dependem do pipe `<producer> | $DELEGATE "..."` carregar o conteúdo real). Um CLI que
@@ -59,8 +63,8 @@ anexo de arquivo (ex.: `-f/--file` do `opencode`) se a tarefa permitir.
 }
 ```
 
-(Exemplo mostra `opencode` como preferência recomendada: é o único com suporte comprovado a stdin
-em todas as tarefas de §4. Se preferir `agy`, consulte a linha da tabela do §1 para limitações e alternativas.)
+(Exemplo mostra `opencode`; `codex` também tem stdin confirmado empiricamente para as tarefas de §4.
+Se preferir `agy`, consulte a linha da tabela do §1 para limitações e alternativas.)
 
 Ausência do bloco `delegation` (ou do `config.json` inteiro) nunca é erro — mesmo contrato do
 bloco `knowledge` (ver `skills/install/SKILL.md`).
@@ -172,8 +176,9 @@ e conciliação de conflitos — pode ser delegada, desde que o escopo tenha anu
 
 Mesmo contrato de saída independente do runtime escolhido: substitua `$DELEGATE` pelo comando de
 invocação do runtime selecionado no passo 2 (tabela do §1). Para OpenCode, `$DELEGATE` é
-`opencode run --agent plan`. Em todas as tarefas via pipe com OpenCode, instrua no prompt que a
-resposta venha somente pelo stdout; não use arquivos criados pelo runtime como resultado.
+`opencode run --agent plan`; para Codex, `codex exec -s read-only`. Em todas as tarefas via pipe,
+instrua no prompt que a resposta venha somente pelo stdout; não use arquivos criados pelo runtime
+como resultado.
 
 ### 4.1. Resumir logs de CI / build
 Antes de diagnosticar uma falha, condense o log bruto para não despejar centenas de
