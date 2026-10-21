@@ -11,7 +11,7 @@
 A criação e a **localização** do worktree são do harness (`isolation: "worktree"` na Fase 4) — não
 assuma path de worktree. O coordenador deriva apenas:
 1. **Slug:** kebab-case derivado da Lead Issue (máx 30 chars).
-2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue — o worker a cria como primeiro passo (`git checkout -b <branch>`).
+2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue — o worker a cria como primeiro passo (`git checkout -b <branch>`). `<type>` segue a lista de `worktree-create`: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`. O transporte `--carry-changes` só vale no uso standalone, não para worktrees criados pelo harness.
 3. **Status File Path (absoluto, no root do repo):**
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` — fica fora do worktree;
    formato em `../shared/references/agent-status.template.md`.

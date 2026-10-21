@@ -109,6 +109,66 @@ case "$cmd" in
     fi
     ;;
 
+  carry-changes)
+    worktree="${2:?uso: vetor-checks.sh carry-changes <worktree-path> <branch>}"
+    branch="${3:?uso: vetor-checks.sh carry-changes <worktree-path> <branch>}"
+    patch=$(mktemp) || { echo "ERRO: captura do patch falhou; root preservado." >&2; exit 1; }
+    trap 'rm -f "$patch"' EXIT
+    git diff HEAD --binary > "$patch" || { echo "ERRO: captura do patch falhou; root preservado." >&2; exit 1; }
+    files=()
+    while IFS= read -r -d '' file; do files+=("$file"); done < <(git diff HEAD --name-only -z)
+    [ "${#files[@]}" -gt 0 ] || { echo "ERRO: não há alterações rastreadas para transportar." >&2; exit 1; }
+    if ! git -C "$worktree" apply --3way "$patch" >/dev/null 2>&1; then
+      echo "ERRO: aplicação conflitou ou falhou; root preservado. Arquivos:" >&2
+      printf '%s\n' "${files[@]}" >&2
+      exit 3
+    fi
+    unmerged=$(git -C "$worktree" ls-files -u)
+    if [ -n "$unmerged" ]; then
+      echo "ERRO: aplicação deixou entradas não mescladas; root preservado. Arquivos:" >&2
+      printf '%s\n' "${files[@]}" >&2
+      exit 3
+    fi
+    # Verifica antes do reset: o `apply --3way` deixa tudo no índice, inclusive arquivos novos,
+    # que depois do reset viram não rastreados e somem de `git diff HEAD`.
+    changed=()
+    while IFS= read -r -d '' file; do changed+=("$file"); done < <(git -C "$worktree" diff HEAD --name-only -z)
+    # Busca linear em vez de array associativo: o bash 3.2 do macOS não tem `declare -A`.
+    for file in "${files[@]}"; do
+      found=0
+      for other in ${changed[@]+"${changed[@]}"}; do
+        if [ "$other" = "$file" ]; then found=1; break; fi
+      done
+      if [ "$found" -eq 0 ]; then
+        echo "ERRO: verificação falhou; root preservado. Arquivos:" >&2
+        printf '%s\n' "${files[@]}" >&2
+        exit 3
+      fi
+    done
+    if ! git -C "$worktree" reset --mixed HEAD >/dev/null 2>&1; then
+      echo "ERRO: não foi possível deixar as mudanças não staged; root preservado. Arquivos:" >&2
+      printf '%s\n' "${files[@]}" >&2
+      exit 3
+    fi
+    root=$("$0" repo-root) || { echo "ERRO: resolução do root falhou; root preservado." >&2; exit 1; }
+    backup="$root/.claude/vetor/carry/${branch//\//-}.patch"
+    mkdir -p "$(dirname "$backup")" || { echo "ERRO: backup falhou; root preservado." >&2; exit 1; }
+    cp "$patch" "$backup" || { echo "ERRO: backup falhou; root preservado." >&2; exit 1; }
+    tracked=()
+    new_files=()
+    for file in "${files[@]}"; do
+      if git cat-file -e "HEAD:$file" 2>/dev/null; then tracked+=("$file"); else new_files+=("$file"); fi
+    done
+    if [ "${#tracked[@]}" -gt 0 ]; then
+      git restore --source=HEAD --staged --worktree -- "${tracked[@]}" || { echo "ERRO: limpeza falhou; backup preservado. Arquivos:" >&2; printf '%s\n' "${files[@]}" >&2; exit 1; }
+    fi
+    if [ "${#new_files[@]}" -gt 0 ]; then
+      git rm --cached -- "${new_files[@]}" >/dev/null 2>&1 || { echo "ERRO: limpeza do índice falhou; backup preservado. Arquivos:" >&2; printf '%s\n' "${files[@]}" >&2; exit 1; }
+      rm -- "${new_files[@]}" || { echo "ERRO: limpeza do disco falhou; backup preservado. Arquivos:" >&2; printf '%s\n' "${files[@]}" >&2; exit 1; }
+    fi
+    echo "Transporte concluído; staged/unstaged não preservado. Backup: $backup"
+    ;;
+
   safe-remove-worktree)
     target="${2:?uso: vetor-checks.sh safe-remove-worktree <path>}"
     caller_pwd=$(pwd -P 2>/dev/null || pwd)
@@ -282,7 +342,10 @@ case "$cmd" in
     DEFAULT_BRANCH=$("$0" default-branch)
     pr_state=$(gh pr list --head "$branch" --state all --json state -q '.[0].state' 2>/dev/null || echo "")
     tree_identical=0
-    if git diff --quiet "$branch" "$DEFAULT_BRANCH" 2>/dev/null; then
+    # origin/<default> cobre a branch criada pelo --carry-changes a partir da referência remota
+    # (#428), quando a default local está atrás porque o root sujo não recebeu pull.
+    if git diff --quiet "$branch" "$DEFAULT_BRANCH" 2>/dev/null \
+      || git diff --quiet "$branch" "origin/$DEFAULT_BRANCH" 2>/dev/null; then
       tree_identical=1
     fi
 
@@ -448,7 +511,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]>" >&2
+    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|carry-changes <worktree-path> <branch>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]>" >&2
     exit 2
     ;;
 esac

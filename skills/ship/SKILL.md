@@ -148,7 +148,13 @@ Se falhar por rede, retente.
 
 ### 6 — Criar PR draft
 
-Construa o título a partir dos commits:
+Conte e leia os assuntos dos commits próprios, excluindo merge commits (inclusive merges de sincronização do passo 2):
+```bash
+git log --no-merges --format=%s "origin/$DEFAULT_BRANCH..HEAD"
+```
+
+Se houver exatamente um assunto, ele não estiver vazio e não contiver caracteres de controle (U+0000–U+001F ou U+007F), use o assunto literalmente como título, sem prefixo ou escopo derivado do slug. Em qualquer outro caso (zero ou vários assuntos, ou assunto vazio/com controle), use o template atual `<type>(<slug>): <resumo dos commits>`. Se o assunto único for inválido, inclua um aviso no sumário indicando o fallback. Não trunque o título e não tente outro título silenciosamente: se `gh pr create` rejeitar o título, pare e reporte o erro explícito. O corpo do PR ainda pode usar a listagem dos commits:
+
 ```bash
 git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```

@@ -15,12 +15,13 @@ Você é o primitivo de criação de worktree do Vetor. Sua única responsabilid
 ## Sintaxe
 
 ```
-/vetor:worktree-create <type> <slug> [issue#]
+/vetor:worktree-create <type> <slug> [issue#] [--carry-changes]
 ```
 
-- `<type>`: obrigatório — um de `feat`, `fix`, `chore`, `refactor`
+- `<type>`: obrigatório — um de `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
 - `<slug>`: obrigatório — kebab-case, máximo 30 caracteres (ex.: `embedding-retry`, `auth-refresh`)
 - `[issue#]`: opcional — número inteiro da issue GitHub
+- `[--carry-changes]`: opcional — transporta mudanças rastreadas do root (uso standalone)
 
 ---
 
@@ -36,9 +37,9 @@ Verifique os argumentos recebidos usando o script determinístico:
 
 Valide também:
 
-- Se `<type>` não for um dos valores aceitos (`feat`, `fix`, `chore`, `refactor`):
+- Se `<type>` não for um dos valores aceitos (`feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`):
   ```
-  ERRO: tipo inválido "<type>". Valores aceitos: feat, fix, chore, refactor
+  ERRO: tipo inválido "<type>". Valores aceitos: feat, fix, chore, refactor, docs, test, ci
   ```
   Aborte.
 
@@ -73,22 +74,40 @@ Use outro slug ou remova o worktree existente com:
 ```
 **Aborte.** Nunca entre silenciosamente em um worktree existente.
 
-### 4 — Criar worktree
+### 4 — Atualizar root e criar worktree
 
-Execute em sequência:
+Antes de qualquer `git pull`, detecte mudanças rastreadas:
+
+```bash
+git diff-index --quiet HEAD --
+```
+
+Se o comando indicar root sujo sem `--carry-changes`, aborte antes de `pull` ou `worktree add` e liste somente os nomes:
+
+```bash
+git diff HEAD --name-only
+```
+
+Informe que a opção `--carry-changes` permite transportar essas mudanças. Se o root estiver limpo, mantenha o fluxo atual, com ou sem a opção:
 
 ```bash
 git pull origin "$DEFAULT_BRANCH"
-
 git worktree add -b <branch> .claude/worktrees/<slug> "$DEFAULT_BRANCH"
 ```
 
-Se `git pull` falhar (ex.: rede indisponível), continue com a branch default local e avise:
-```
-AVISO: git pull falhou — criando worktree a partir da <default-branch> local.
+Se `git pull` falhar, continue da branch default local e avise como no fluxo existente. Se `git worktree add` falhar, aborte.
+
+Com root sujo e `--carry-changes`, nunca rode `git pull`: faça `git fetch origin "$DEFAULT_BRANCH"` e crie o worktree da referência remota:
+
+```bash
+git worktree add -b <branch> .claude/worktrees/<slug> "origin/$DEFAULT_BRANCH"
+deno run -A "$SKILL_DIR/../../scripts/prepare-worktree.ts" --path .claude/worktrees/<slug>
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" carry-changes .claude/worktrees/<slug> <branch>
 ```
 
-Se `git worktree add` falhar, reporte o erro e aborte.
+Se o fetch falhar, avise e use a branch default local como base com `git worktree add -b <branch> .claude/worktrees/<slug> "$DEFAULT_BRANCH"`, sem limpar o root. O subcomando cria um único patch do diff rastreado total, aplica-o com `git apply --3way`, verifica ausência de entradas não mescladas e presença de todos os arquivos alterados, salva o backup em `.claude/vetor/carry/<branch com / trocada por ->.patch` e só então limpa do root os arquivos transportados. Nunca mostre o conteúdo do patch; mensagens listam somente paths. Staged/unstaged não é preservado: tudo chega como alteração não staged no worktree.
+
+Se `carry-changes` falhar, mantenha o root intacto, remova o worktree recém-criado com `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree .claude/worktrees/<slug>` e a branch recém-criada com `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" delete-merged-branch <branch>`, liste os paths reportados e aborte. Oriente resolver as mudanças manualmente e repetir a criação.
 
 ### 4.b — Preparar dependências
 
@@ -106,7 +125,7 @@ pois o cache `$DENO_DIR` já é global; Node ganha um link para o `node_modules`
 deno run -A "$SKILL_DIR/../../scripts/prepare-worktree.ts" --path .claude/worktrees/<slug>
 ```
 
-O script é tolerante a falhas: avisa em stderr e sai com 0 mesmo se a preparação falhar. Prossiga
+No fluxo `--carry-changes`, não repita esta chamada: o passo 4 já prepara o worktree antes do transporte. Nos demais casos, execute o script. Ele é tolerante a falhas: avisa em stderr e sai com 0 mesmo se a preparação falhar. Prossiga
 normalmente — o worker instala o que faltar.
 
 > No fluxo do `coordinator`, o worktree é criado pelo harness (`isolation: "worktree"`) e a

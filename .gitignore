@@ -1,5 +1,6 @@
 AGENT_STATUS.md
 .claude/vetor/status/
+.claude/vetor/carry/
 node_modules/
 .env
 
