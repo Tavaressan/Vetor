@@ -31,10 +31,22 @@ Monte a lista `available` com os que retornaram um path. Runtimes candidatos con
 | Runtime | Binário | Invocação não-interativa | Consome stdin via pipe (pré-requisito das tarefas §4)? |
 |---------|---------|---|---|
 | Gemini (Antigravity) | `agy` | `agy -p "<prompt>"` — `-p`/`--print` roda um prompt único e imprime a resposta | **Não funciona com modo padrão** — flag `--input-format` padrão é `text`, que ignora stdin (regressão de #111). Alternativa verificada: embutir conteúdo no argumento do prompt: `agy -p "... $conteudo"` (válido para conteúdo que cabe no limite de linha de comando); para conteúdo grande, use `opencode` (stdin confirmado empiricamente) em vez de `agy`. |
-| OpenCode | `opencode` | `opencode run "<prompt>"` — mensagem como argumento posicional, não flag `-p` (`-p`/`--password` do OpenCode é autenticação HTTP, não prompt — não confundir com o `-p` do `agy`) | **Confirmado empiricamente**: `echo "MARCADOR-XYZ-123" \| opencode run --model <free> "Repita exatamente o texto que você recebeu via stdin"` devolveu `MARCADOR-XYZ-123` — o conteúdo do pipe chega ao modelo mesmo sem flag dedicada |
-| Codex | `codex` | `codex exec "<prompt>"` (sintaxe **não verificada neste ambiente** — binário não estava instalado nem MCP de documentação disponível na sessão que escreveu esta referência) | **Não verificado** |
+| OpenCode | `opencode` | `opencode run --agent plan "<prompt>"` — mensagem como argumento posicional, não flag `-p` (`-p`/`--password` do OpenCode é autenticação HTTP, não prompt — não confundir com o `-p` do `agy`). Para tarefas via pipe, peça no prompt que a resposta venha somente pelo stdout. | **Confirmado empiricamente**: `echo "MARCADOR-XYZ-123" \| opencode run --model <free> "Repita exatamente o texto que você recebeu via stdin"` devolveu `MARCADOR-XYZ-123` — o conteúdo do pipe chega ao modelo mesmo sem flag dedicada |
+| Codex | `codex` | `codex exec -s read-only "<prompt>"` — prompt como argumento posicional; documentado por `codex exec --help` do codex-cli 0.163.0. O help diz: “If stdin is piped and a prompt is also provided, stdin is appended as a `<stdin>` block”; também documenta `-s, --sandbox <read-only\|workspace-write\|danger-full-access>`. | **Confirmado empiricamente** (codex-cli 0.163.0, 2026-10-21): `echo "MARCADOR-VETOR-434-XQ7" \| codex exec -s read-only "Repita exatamente o marcador que você recebeu via stdin, sem mais nada"` devolveu `MARCADOR-VETOR-434-XQ7` no stdout, sem alterar a working tree |
 
-**Regra:** um runtime com consumo de stdin **não verificado** nunca deve ser usado para as tarefas
+**Limite do agente `plan` do OpenCode:** conforme a documentação de agentes consultada em
+2026-10-21, ele recusa edições/escritas fora de `~/.opencode/plan/`, mas **não restringe comandos
+shell**. Essa configuração reduz a possibilidade de o runtime escrever diretamente na working
+tree, mas não é um sandbox para comandos shell; continue tratando toda saída como rascunho e
+validando-a conforme §5. Verificado em 2026-10-21 (opencode 1.19.0): a tarefa do §4.8 com
+`--agent plan` deixou `git status --porcelain` inalterado e o resumo chegou pelo stdout — sem o
+`--agent plan`, o mesmo comando gravou o resultado num arquivo novo na raiz do repositório (#431).
+A mesma documentação diz que os defaults do `plan` são aplicados **antes** da config `permission`
+de topo do usuário: um `"edit": "allow"` (ou `"*": "allow"`) global anula essa restrição. Por isso,
+compare `git status --porcelain` antes e depois de cada delegação ao OpenCode; se mudou, descarte o
+resultado, desfaça o que o runtime gravou e siga inline (§3).
+
+**Regra:** um runtime com consumo de stdin **não confirmado** nunca deve ser usado para as tarefas
 de §4 (todas dependem do pipe `<producer> | $DELEGATE "..."` carregar o conteúdo real). Um CLI que
 ignora silenciosamente o stdin ainda retorna exit 0 e uma resposta plausível — não é uma falha que
 o guardrail do §3 detecta, é uma alucinação sobre um input que o runtime nunca recebeu. Antes do
@@ -51,8 +63,8 @@ anexo de arquivo (ex.: `-f/--file` do `opencode`) se a tarefa permitir.
 }
 ```
 
-(Exemplo mostra `opencode` como preferência recomendada: é o único com suporte comprovado a stdin
-em todas as tarefas de §4. Se preferir `agy`, consulte a linha da tabela do §1 para limitações e alternativas.)
+(Exemplo mostra `opencode`; `codex` também tem stdin confirmado empiricamente para as tarefas de §4.
+Se preferir `agy`, consulte a linha da tabela do §1 para limitações e alternativas.)
 
 Ausência do bloco `delegation` (ou do `config.json` inteiro) nunca é erro — mesmo contrato do
 bloco `knowledge` (ver `skills/install/SKILL.md`).
@@ -163,7 +175,10 @@ e conciliação de conflitos — pode ser delegada, desde que o escopo tenha anu
 (§2.1), o resultado seja tratado como rascunho e validado pelo agente antes da escrita.
 
 Mesmo contrato de saída independente do runtime escolhido: substitua `$DELEGATE` pelo comando de
-invocação do runtime selecionado no passo 2 (tabela do §1).
+invocação do runtime selecionado no passo 2 (tabela do §1). Para OpenCode, `$DELEGATE` é
+`opencode run --agent plan`; para Codex, `codex exec -s read-only`. Em todas as tarefas via pipe,
+instrua no prompt que a resposta venha somente pelo stdout; não use arquivos criados pelo runtime
+como resultado.
 
 ### 4.1. Resumir logs de CI / build
 Antes de diagnosticar uma falha, condense o log bruto para não despejar centenas de
