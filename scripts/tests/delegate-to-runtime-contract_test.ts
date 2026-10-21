@@ -8,8 +8,14 @@ const reference = await Deno.readTextFile(
 Deno.test("issues #431 e #434: invocações isolam OpenCode e documentam Codex", () => {
   assertStringIncludes(reference, '`opencode run --agent plan "<prompt>"`');
   assertStringIncludes(reference, "Para OpenCode, `$DELEGATE` é");
-  assertStringIncludes(reference, "`opencode run --agent plan`; para Codex, `codex exec -s read-only`");
-  assertStringIncludes(reference, "compare `git status --porcelain` antes e depois de cada delegação");
+  assertStringIncludes(
+    reference,
+    "`opencode run --agent plan`; para Codex, `codex exec -s read-only`",
+  );
+  assertStringIncludes(
+    reference,
+    "compare `git status --porcelain` antes e depois de cada delegação",
+  );
   assertStringIncludes(reference, "resposta venha somente pelo stdout");
   assertStringIncludes(reference, "não é um sandbox para comandos shell");
   assertStringIncludes(reference, '`codex exec -s read-only "<prompt>"`');
