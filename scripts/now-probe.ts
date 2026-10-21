@@ -76,7 +76,12 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     ? openIssuesTotal
     : await countOpenIssues(executor, cwd, defaultDispatchLabel);
   const containerStateText = await optional(executor, "docker", [
-    "ps", "-a", "--filter", "name=^ai-memory$", "--format", "{{.State}}",
+    "ps",
+    "-a",
+    "--filter",
+    "name=^ai-memory$",
+    "--format",
+    "{{.State}}",
   ], cwd);
   const aiMemoryContainerState = containerStateText === null
     ? null

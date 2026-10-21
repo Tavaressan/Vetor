@@ -44,12 +44,22 @@ Deno.test("now probe reports ai-memory container state", async () => {
     for (const [expected, result] of states) {
       const executor: CommandExecutor = (command, args) => {
         if (command === "docker") {
-          assertEquals(args, ["ps", "-a", "--filter", "name=^ai-memory$", "--format", "{{.State}}"]);
+          assertEquals(args, [
+            "ps",
+            "-a",
+            "--filter",
+            "name=^ai-memory$",
+            "--format",
+            "{{.State}}",
+          ]);
           return result instanceof Error ? Promise.reject(result) : Promise.resolve(result);
         }
         return Promise.reject(new Error("comando indisponível"));
       };
-      assertEquals((await probeNow(dir, executor)).aiMemoryContainerState, expected === "absent" ? "absent" : expected === "unavailable" ? null : expected);
+      assertEquals(
+        (await probeNow(dir, executor)).aiMemoryContainerState,
+        expected === "absent" ? "absent" : expected === "unavailable" ? null : expected,
+      );
     }
   } finally {
     await Deno.remove(dir, { recursive: true });
