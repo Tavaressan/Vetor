@@ -135,6 +135,7 @@ test('runInstallPrompts (TTY raw): navega, alterna e confirma; restaura raw mode
   const selected = await promise;
   assert.deepEqual(selected.map((engine) => engine.id), ['codex']);
   assert.deepEqual(input.rawModes, [true, false]);
+  assert.equal(input.isPaused(), true);
   assert.match(outputChunks.join(''), /❯/);
 });
 

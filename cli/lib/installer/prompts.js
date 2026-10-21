@@ -95,6 +95,8 @@ function runKeypressPrompt(choices, input, output) {
     active = false;
     input.removeListener('keypress', onKeypress);
     input.setRawMode(false);
+    // emitKeypressEvents deixa um listener `data` no stdin; sem pausar, o processo não encerra.
+    input.pause();
     output.write('\n');
     resolvePromise(selected);
   }
