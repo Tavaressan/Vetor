@@ -9,6 +9,12 @@ O plugin já traz três servidores MCP. O Claude Code usa *tool search* por padr
 | `docker` | O Docker CLI inteiro (`ps`, `logs`, `stats`, `compose`, `exec`) via o servidor **oficial da Docker Inc.** — uma única ferramenta | Docker + plugin `docker mcp` |
 | `ai-memory` | Memória local persistida para agentes, com consolidação/sumarização opcional | **Não embarcado** — opcional, configurado à parte via Docker/Podman Compose (ver abaixo) |
 
+**Trabalhando dentro do próprio repositório do Vetor:** o `.mcp.json` da raiz também é lido como config de
+projeto, que tem precedência sobre o plugin — e nele `${user_config.*}` e `${CLAUDE_PLUGIN_ROOT}` não são
+substituídos. Por isso `.claude/settings.json` traz `"disabledMcpjsonServers": ["context7", "docker"]`:
+as cópias de projeto ficam desativadas e as do plugin (`plugin:vetor:*`) conectam (#433). Não remova essa
+entrada.
+
 ## ai-memory local com Docker Compose
 
 Copie `templates/docker-compose.ai-memory.yml` para a raiz do projeto e crie um `.env` ao lado. O Compose persiste o diretório de dados completo em `.ai-memory/` (SQLite e wiki Markdown ficam sob esse diretório) e publica o MCP apenas em loopback, na porta `49374`.
