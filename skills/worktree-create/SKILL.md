@@ -76,9 +76,11 @@ Use outro slug ou remova o worktree existente com:
 
 ### 4 — Atualizar root e criar worktree
 
-Antes de qualquer `git pull`, detecte mudanças rastreadas:
+Antes de qualquer `git pull`, detecte mudanças rastreadas (o `update-index` evita acusar root sujo
+só porque o mtime de um arquivo mudou):
 
 ```bash
+git update-index -q --refresh
 git diff-index --quiet HEAD --
 ```
 
@@ -97,17 +99,34 @@ git worktree add -b <branch> .claude/worktrees/<slug> "$DEFAULT_BRANCH"
 
 Se `git pull` falhar, continue da branch default local e avise como no fluxo existente. Se `git worktree add` falhar, aborte.
 
-Com root sujo e `--carry-changes`, nunca rode `git pull`: faça `git fetch origin "$DEFAULT_BRANCH"` e crie o worktree da referência remota:
+Com root sujo e `--carry-changes`, nunca rode `git pull` — atualize só a referência remota e crie o worktree a partir dela:
 
 ```bash
+git fetch origin "$DEFAULT_BRANCH"
 git worktree add -b <branch> .claude/worktrees/<slug> "origin/$DEFAULT_BRANCH"
 deno run -A "$SKILL_DIR/../../scripts/prepare-worktree.ts" --path .claude/worktrees/<slug>
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" carry-changes .claude/worktrees/<slug> <branch>
 ```
 
-Se o fetch falhar, avise e use a branch default local como base com `git worktree add -b <branch> .claude/worktrees/<slug> "$DEFAULT_BRANCH"`, sem limpar o root. O subcomando cria um único patch do diff rastreado total, aplica-o com `git apply --3way`, verifica ausência de entradas não mescladas e presença de todos os arquivos alterados, salva o backup em `.claude/vetor/carry/<branch com / trocada por ->.patch` e só então limpa do root os arquivos transportados. Nunca mostre o conteúdo do patch; mensagens listam somente paths. Staged/unstaged não é preservado: tudo chega como alteração não staged no worktree.
+Se o `git fetch` falhar, avise e crie o worktree a partir da branch default local
+(`git worktree add -b <branch> .claude/worktrees/<slug> "$DEFAULT_BRANCH"`), seguindo com o
+`prepare-worktree` e o `carry-changes` normalmente. O subcomando cria um único patch do diff
+rastreado total (renames viram remoção + criação), aplica-o com `git apply --3way`, verifica
+ausência de entradas não mescladas e presença de todos os arquivos alterados, salva o backup em
+`.claude/vetor/carry/<branch com / trocada por ->.patch` (diretório que se auto-ignora) e só então
+limpa do root os arquivos transportados. Nunca mostre o conteúdo do patch; mensagens listam
+somente paths. Staged/unstaged não é preservado: tudo chega como alteração não staged no worktree.
 
-Se `carry-changes` falhar, mantenha o root intacto, remova o worktree recém-criado com `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree .claude/worktrees/<slug>` e a branch recém-criada com `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" delete-merged-branch <branch>`, liste os paths reportados e aborte. Oriente resolver as mudanças manualmente e repetir a criação.
+Se `carry-changes` falhar:
+
+- **exit 3** (falhou antes do backup — conflito, aplicação ou verificação): o root está intacto e o
+  worktree já foi devolvido a `HEAD`. Remova o worktree com `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree .claude/worktrees/<slug>`
+  e a branch com `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" delete-merged-branch <branch>`,
+  liste os paths reportados e aborte. Oriente resolver as mudanças manualmente e repetir a criação.
+- **exit 4** (transporte feito, limpeza do root incompleta): **não remova o worktree** — ele já
+  tem as mudanças. Informe o backup e os paths reportados e oriente concluir a limpeza do root à mão.
+- **exit 1** (nada a transportar ou erro antes da aplicação): o root está intacto; remova o worktree
+  e a branch como no exit 3 e aborte.
 
 ### 4.b — Preparar dependências
 

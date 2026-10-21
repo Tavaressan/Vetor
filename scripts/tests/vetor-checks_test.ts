@@ -69,6 +69,10 @@ async function makeRepo(): Promise<string> {
   return repo;
 }
 
+async function exists(path: string): Promise<boolean> {
+  return await Deno.stat(path).then(() => true, () => false);
+}
+
 Deno.test("carry-changes transporta modificações e novo staged com espaço e base divergente", async () => {
   const repo = await makeRepo();
   const worktree = `${repo}/worker`;
@@ -95,18 +99,15 @@ Deno.test("carry-changes transporta modificações e novo staged com espaço e b
       "changed root line\nl2\nl3\nl4\nworktree line\n",
     );
     assertEquals(await Deno.readTextFile(`${worktree}/new staged.txt`), "new file\n");
-    await Deno.stat(`${repo}/new staged.txt`).then(() => {
-      throw new Error("new file remains in root");
-    }).catch(() => {});
+    assertEquals(await exists(`${repo}/new staged.txt`), false);
     const diffIndex = await new Deno.Command("git", {
       args: ["diff-index", "--quiet", "HEAD", "--"],
       cwd: repo,
     }).output();
     assertEquals(diffIndex.code, 0);
-    assertEquals(
-      await Deno.stat(`${repo}/.claude/vetor/carry/feat-carry.patch`).then(() => true),
-      true,
-    );
+    assertEquals(await exists(`${repo}/.claude/vetor/carry/feat-carry.patch`), true);
+    // O diretório do backup se auto-ignora, mesmo sem entrada no .gitignore do projeto.
+    assertEquals(await git(["status", "--porcelain", "--", ".claude"], repo), "");
   } finally {
     await Deno.remove(repo, { recursive: true }).catch(() => {});
   }
@@ -128,9 +129,36 @@ Deno.test("carry-changes informa conflito sem limpar root nem criar backup", asy
     assertEquals(result.code, 3);
     assertStringIncludes(result.stderr, "conflict.txt");
     assertEquals(await Deno.readTextFile(`${repo}/conflict.txt`), "root version\n");
-    await Deno.stat(`${repo}/.claude/vetor/carry/feat-conflict.patch`).then(() => {
-      throw new Error("backup must not exist on conflict");
-    }).catch(() => {});
+    assertEquals(await exists(`${repo}/.claude/vetor/carry/feat-conflict.patch`), false);
+    // A recuperação documentada no worktree-create precisa conseguir remover o worktree.
+    const removal = await runVetorChecks(repo, "safe-remove-worktree", worktree);
+    assertEquals(removal.code, 0, removal.stderr);
+    assertEquals(await exists(worktree), false);
+  } finally {
+    await Deno.remove(repo, { recursive: true }).catch(() => {});
+  }
+});
+
+Deno.test("carry-changes transporta rename e deixa o root limpo", async () => {
+  const repo = await makeRepo();
+  const worktree = `${repo}/worker`;
+  try {
+    await Deno.writeTextFile(`${repo}/a.txt`, "conteúdo\n");
+    await git(["add", "."], repo);
+    await git(["commit", "-q", "-m", "initial"], repo);
+    await git(["worktree", "add", "-q", "-b", "feat/rename", worktree], repo);
+    await git(["mv", "a.txt", "b.txt"], repo);
+    const result = await runVetorChecks(repo, "carry-changes", worktree, "feat/rename");
+    assertEquals(result.code, 0, result.stderr);
+    const diffIndex = await new Deno.Command("git", {
+      args: ["diff-index", "--quiet", "HEAD", "--"],
+      cwd: repo,
+    }).output();
+    assertEquals(diffIndex.code, 0);
+    assertEquals(await Deno.readTextFile(`${repo}/a.txt`), "conteúdo\n");
+    assertEquals(await exists(`${repo}/b.txt`), false);
+    assertEquals(await Deno.readTextFile(`${worktree}/b.txt`), "conteúdo\n");
+    assertEquals(await exists(`${worktree}/a.txt`), false);
   } finally {
     await Deno.remove(repo, { recursive: true }).catch(() => {});
   }

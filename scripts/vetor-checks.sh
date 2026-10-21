@@ -12,6 +12,11 @@
 #   migrations                 exit 1 se há versões de migration duplicadas (convenção Flyway)
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
+#   carry-changes <worktree-path> <branch>  transporta as mudanças rastreadas do root para o
+#                               worktree recém-criado e limpa o root (#428). exit 3 = falhou antes
+#                               do backup (root intacto, worktree devolvido a HEAD, pode remover);
+#                               exit 4 = transporte feito, limpeza do root incompleta (preservar
+#                               o worktree e o backup em .claude/vetor/carry/)
 #   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo;
 #                               exit 1 se, após o remove, sobrar diretório residual em disco (#157)
 #   sync-root                  tenta retornar o repositório principal para a branch default de forma segura
@@ -112,59 +117,66 @@ case "$cmd" in
   carry-changes)
     worktree="${2:?uso: vetor-checks.sh carry-changes <worktree-path> <branch>}"
     branch="${3:?uso: vetor-checks.sh carry-changes <worktree-path> <branch>}"
+    files=()
+    # Encerra listando só os nomes dos arquivos, nunca o conteúdo do patch (RNF-02 da #428).
+    carry_fail() {
+      echo "ERRO: $2 Arquivos:" >&2
+      printf '%s\n' ${files[@]+"${files[@]}"} >&2
+      exit "$1"
+    }
+    # Falha antes do backup: devolve o worktree recém-criado (sem trabalho do usuário) a HEAD para
+    # que safe-remove-worktree consiga removê-lo mesmo após um conflito; o root fica intacto.
+    carry_abort() {
+      git -C "$worktree" reset -q --hard HEAD >/dev/null 2>&1
+      git -C "$worktree" clean -fdq >/dev/null 2>&1
+      carry_fail 3 "$1"
+    }
     patch=$(mktemp) || { echo "ERRO: captura do patch falhou; root preservado." >&2; exit 1; }
     trap 'rm -f "$patch"' EXIT
-    git diff HEAD --binary > "$patch" || { echo "ERRO: captura do patch falhou; root preservado." >&2; exit 1; }
-    files=()
-    while IFS= read -r -d '' file; do files+=("$file"); done < <(git diff HEAD --name-only -z)
+    # --no-renames: um rename vira remoção + criação, e a origem também entra na limpeza do root.
+    git diff HEAD --binary --no-renames > "$patch" || { echo "ERRO: captura do patch falhou; root preservado." >&2; exit 1; }
+    while IFS= read -r -d '' file; do files+=("$file"); done < <(git diff HEAD --name-only --no-renames -z)
     [ "${#files[@]}" -gt 0 ] || { echo "ERRO: não há alterações rastreadas para transportar." >&2; exit 1; }
-    if ! git -C "$worktree" apply --3way "$patch" >/dev/null 2>&1; then
-      echo "ERRO: aplicação conflitou ou falhou; root preservado. Arquivos:" >&2
-      printf '%s\n' "${files[@]}" >&2
-      exit 3
-    fi
-    unmerged=$(git -C "$worktree" ls-files -u)
-    if [ -n "$unmerged" ]; then
-      echo "ERRO: aplicação deixou entradas não mescladas; root preservado. Arquivos:" >&2
-      printf '%s\n' "${files[@]}" >&2
-      exit 3
-    fi
+    git -C "$worktree" apply --3way "$patch" >/dev/null 2>&1 \
+      || carry_abort "aplicação conflitou ou falhou; root preservado."
+    [ -z "$(git -C "$worktree" ls-files -u)" ] \
+      || carry_abort "aplicação deixou entradas não mescladas; root preservado."
     # Verifica antes do reset: o `apply --3way` deixa tudo no índice, inclusive arquivos novos,
     # que depois do reset viram não rastreados e somem de `git diff HEAD`.
     changed=()
-    while IFS= read -r -d '' file; do changed+=("$file"); done < <(git -C "$worktree" diff HEAD --name-only -z)
+    while IFS= read -r -d '' file; do changed+=("$file"); done < <(git -C "$worktree" diff HEAD --name-only --no-renames -z)
     # Busca linear em vez de array associativo: o bash 3.2 do macOS não tem `declare -A`.
     for file in "${files[@]}"; do
       found=0
       for other in ${changed[@]+"${changed[@]}"}; do
         if [ "$other" = "$file" ]; then found=1; break; fi
       done
-      if [ "$found" -eq 0 ]; then
-        echo "ERRO: verificação falhou; root preservado. Arquivos:" >&2
-        printf '%s\n' "${files[@]}" >&2
-        exit 3
-      fi
+      [ "$found" -eq 1 ] || carry_abort "verificação falhou; root preservado."
     done
-    if ! git -C "$worktree" reset --mixed HEAD >/dev/null 2>&1; then
-      echo "ERRO: não foi possível deixar as mudanças não staged; root preservado. Arquivos:" >&2
-      printf '%s\n' "${files[@]}" >&2
-      exit 3
-    fi
-    root=$("$0" repo-root) || { echo "ERRO: resolução do root falhou; root preservado." >&2; exit 1; }
-    backup="$root/.claude/vetor/carry/${branch//\//-}.patch"
-    mkdir -p "$(dirname "$backup")" || { echo "ERRO: backup falhou; root preservado." >&2; exit 1; }
-    cp "$patch" "$backup" || { echo "ERRO: backup falhou; root preservado." >&2; exit 1; }
+    git -C "$worktree" reset -q --mixed HEAD >/dev/null 2>&1 \
+      || carry_abort "não foi possível deixar as mudanças não staged; root preservado."
+    root=$("$0" repo-root) || carry_abort "resolução do root falhou; root preservado."
+    carry_dir="$root/.claude/vetor/carry"
+    backup="$carry_dir/${branch//\//-}.patch"
+    mkdir -p "$carry_dir" || carry_abort "backup falhou; root preservado."
+    # Diretório que se auto-ignora: no projeto-alvo o .gitignore pode não cobrir .claude/vetor/carry/.
+    [ -f "$carry_dir/.gitignore" ] || printf '*\n' > "$carry_dir/.gitignore" \
+      || carry_abort "backup falhou; root preservado."
+    cp "$patch" "$backup" || carry_abort "backup falhou; root preservado."
     tracked=()
     new_files=()
     for file in "${files[@]}"; do
       if git cat-file -e "HEAD:$file" 2>/dev/null; then tracked+=("$file"); else new_files+=("$file"); fi
     done
+    # Daqui em diante o worktree já tem as mudanças: falha de limpeza usa exit 4 para a skill
+    # preservar o worktree em vez de removê-lo.
+    partial="transporte concluído, mas a limpeza do root ficou incompleta; worktree e backup ($backup) preservados."
     if [ "${#tracked[@]}" -gt 0 ]; then
-      git restore --source=HEAD --staged --worktree -- "${tracked[@]}" || { echo "ERRO: limpeza falhou; backup preservado. Arquivos:" >&2; printf '%s\n' "${files[@]}" >&2; exit 1; }
+      git restore --source=HEAD --staged --worktree -- "${tracked[@]}" || carry_fail 4 "$partial"
     fi
     if [ "${#new_files[@]}" -gt 0 ]; then
-      git rm --cached -- "${new_files[@]}" >/dev/null 2>&1 || { echo "ERRO: limpeza do índice falhou; backup preservado. Arquivos:" >&2; printf '%s\n' "${files[@]}" >&2; exit 1; }
-      rm -- "${new_files[@]}" || { echo "ERRO: limpeza do disco falhou; backup preservado. Arquivos:" >&2; printf '%s\n' "${files[@]}" >&2; exit 1; }
+      git rm -q --cached -- "${new_files[@]}" >/dev/null 2>&1 || carry_fail 4 "$partial"
+      rm -- "${new_files[@]}" || carry_fail 4 "$partial"
     fi
     echo "Transporte concluído; staged/unstaged não preservado. Backup: $backup"
     ;;
