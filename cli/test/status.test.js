@@ -75,6 +75,17 @@ test('status: arquivo íntegro aparece como ok, modificado como modificado, ause
   });
 });
 
+test('status: lista uma entrada compartilhada sob todos os owners', () => {
+  withTempDir((dir) => {
+    const filePath = path.join(dir, '.agents', 'skills', 'demo', 'SKILL.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true }); fs.writeFileSync(filePath, 'shared\n');
+    const output = captureInfo(() => status(dir, { readManifest: () => ({ files: {
+      '.agents/skills/demo/SKILL.md': { sha256: hashContent(Buffer.from('shared\n')), engine: 'antigravity', engines: ['antigravity', 'codex'] },
+    } }) }));
+    assert.match(output, /Antigravity:/); assert.match(output, /Codex:/);
+  });
+});
+
 test('status: exibe versões conhecidas/desconhecidas e define exitCode conforme arquivos ausentes', () => {
   const previousExitCode = process.exitCode;
   try {

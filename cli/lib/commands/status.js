@@ -46,11 +46,13 @@ function status(cwd = process.cwd(), options = {}) {
   const byEngine = new Map();
   let hasMissing = false;
   for (const [key, entry] of entries) {
-    const engineName = ENGINE_NAME_BY_ID.get(entry.engine) ?? entry.engine;
     const state = classify(cwd, key, entry, hashFile);
     if (state === 'missing') hasMissing = true;
-    if (!byEngine.has(engineName)) byEngine.set(engineName, []);
-    byEngine.get(engineName).push({ key, state });
+    for (const engineId of entry.engines ?? [entry.engine]) {
+      const engineName = ENGINE_NAME_BY_ID.get(engineId) ?? engineId;
+      if (!byEngine.has(engineName)) byEngine.set(engineName, []);
+      byEngine.get(engineName).push({ key, state });
+    }
   }
 
   for (const [engineName, files] of byEngine) {

@@ -185,7 +185,7 @@ function copyManagedFile({ sourceFile, destFile, manifestKey, manifest, engineId
     engine: existingEngines[0] ?? engineId,
     engines: [...new Set([...existingEngines, engineId])],
   };
-  copied.push(manifestKey);
+  if (!copied.includes(manifestKey)) copied.push(manifestKey);
 }
 
 /**
@@ -236,7 +236,7 @@ function writeManaged({ destFile, manifestKey, contentHash, write, engineId, man
     engine: existingEngines[0] ?? engineId,
     engines: [...new Set([...existingEngines, engineId])],
   };
-  copied.push(manifestKey);
+  if (!copied.includes(manifestKey)) copied.push(manifestKey);
 }
 
 // Cursor (#396, ver wiki/Compatibilidade-Cursor.md): `cursor.com/docs/subagents` (consultada em
@@ -336,6 +336,8 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   if (codexSelected) {
     for (const [oldKey, entry] of Object.entries(manifest.files)) {
       if (!oldKey.startsWith('.codex/skills/')) continue;
+      const relativeOld = oldKey.slice('.codex/skills/'.length);
+      if (path.posix.isAbsolute(oldKey) || relativeOld.split(/[\\/]/).includes('..')) continue;
       const oldFile = path.join(projectRoot, ...oldKey.split('/'));
       if (!fs.existsSync(oldFile)) { delete manifest.files[oldKey]; continue; }
       if (hashFile(oldFile) !== entry.sha256) {
@@ -346,7 +348,23 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
       const newKey = oldKey.replace(/^\.codex\/skills\//, '.agents/skills/');
       const newFile = path.join(projectRoot, ...newKey.split('/'));
       if (fs.existsSync(newFile)) {
-        warnings.push(`${newKey}: destino existente; migração de ${oldKey} ignorada.`);
+        const targetEntry = manifest.files[newKey];
+        if (targetEntry && hashFile(newFile) === targetEntry.sha256 && hashFile(oldFile) === entry.sha256) {
+          fs.rmSync(oldFile);
+          targetEntry.engines = [...new Set([...(targetEntry.engines ?? [targetEntry.engine]), 'codex'])];
+          delete manifest.files[oldKey];
+          let oldDir = path.dirname(oldFile);
+          const oldSkillsRoot = path.join(projectRoot, '.codex', 'skills');
+          while (oldDir.startsWith(oldSkillsRoot)) {
+            if (fs.readdirSync(oldDir).length) break;
+            fs.rmdirSync(oldDir);
+            if (oldDir === oldSkillsRoot) break;
+            oldDir = path.dirname(oldDir);
+          }
+        } else {
+          warnings.push(`${newKey}: destino existente; migração de ${oldKey} ignorada.`);
+          migrationBlockedTargets.add(newKey);
+        }
         continue;
       }
       fs.mkdirSync(path.dirname(newFile), { recursive: true });
@@ -426,7 +444,10 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
         const sourceDestRoot = ENGINE_SOURCE_DIR_DEST[engine.id]?.[sourceDirName] ?? destRootName;
         const destFile = path.join(projectRoot, sourceDestRoot, sourceDirName, destRelativePath);
         const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
-        if (migrationBlockedTargets.has(manifestKey)) continue;
+        if (engine.id === 'codex' && migrationBlockedTargets.has(manifestKey)) {
+          skipped.push({ path: manifestKey, reason: 'migration-blocked' });
+          continue;
+        }
         if (engine.id === 'cursor' && sourceDirName === 'agents') {
           const content = translateAgentForCursor(fs.readFileSync(sourceFile, 'utf8'));
           writeManaged({

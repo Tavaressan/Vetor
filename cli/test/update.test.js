@@ -121,3 +121,11 @@ test('update: sincroniza skill Codex em .agents/skills', async () => {
     assert.equal(fs.readFileSync(path.join(dir, '.agents', 'skills', 'demo', 'SKILL.md'), 'utf8'), 'v2\n');
   });
 });
+
+test('update: não reporta como removida da fonte a chave antiga migrada do Codex', async () => {
+  await withTempDir(async (dir) => {
+    writeManifest(dir, { version: 1, files: { '.codex/skills/demo/SKILL.md': { sha256: 'old', engine: 'codex' } } });
+    const output = await captureInfo(() => update(dir, { installFiles: () => ({ copied: [], skipped: [], warnings: ['migrada'] }) }));
+    assert.doesNotMatch(output, /\.codex\/skills\/demo\/SKILL\.md: não existe mais/);
+  });
+});

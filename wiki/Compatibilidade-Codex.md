@@ -79,7 +79,7 @@ quando o Codex é selecionado, e **exclui** `agents/*.md` (Claude Code) e `agent
 corrigida para `hooks/` no Cursor. Cobertura automatizada em
 `cli/test/installer-writer.test.js` ("traduz agents/<nome>/codex.toml..."). Hooks continuam sendo
 copiados para `.codex/hooks/...` sem tradução de path/variável — ver
-"Reuso dos scripts" acima). Tratar essas duas lacunas fica para investigação futura com CLI real
+"Reuso dos scripts" acima. Tratar essas limitações fica para investigação futura com CLI real
 disponível.
 
 **Resumo da proteção:** guards de segurança têm parceridade estrutural com o Claude Code (mesmo

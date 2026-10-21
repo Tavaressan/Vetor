@@ -293,6 +293,52 @@ test('installFiles: não sobrescreve destino existente ao migrar skill Codex e a
   });
 });
 
+test('installFiles: migração bloqueada no Codex não bloqueia Antigravity e é reportada', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const old = path.join(projectRoot, '.codex/skills/demo/SKILL.md');
+      fs.mkdirSync(path.dirname(old), { recursive: true }); fs.writeFileSync(old, 'editada\n');
+      require('../lib/installer/manifest.js').writeManifest(projectRoot, { version: 1, files: {
+        '.codex/skills/demo/SKILL.md': { sha256: sha256('original\n'), engine: 'codex' },
+      } });
+      const result = installFiles({ projectRoot, sourceRoot, engines: [{ id: 'codex' }, { id: 'antigravity' }] });
+      assert.equal(fs.readFileSync(path.join(projectRoot, '.agents/skills/demo/SKILL.md'), 'utf8'), 'conteúdo v1\n');
+      assert.ok(result.skipped.some((entry) => entry.path === '.agents/skills/demo/SKILL.md' && /migration/.test(entry.reason)));
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: destino gerenciado idêntico substitui cópia legada e compartilha ownership', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const content = 'conteúdo v1\n';
+      for (const key of ['.codex/skills/demo/SKILL.md', '.agents/skills/demo/SKILL.md']) {
+        const file = path.join(projectRoot, ...key.split('/')); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, content);
+      }
+      require('../lib/installer/manifest.js').writeManifest(projectRoot, { version: 1, files: {
+        '.codex/skills/demo/SKILL.md': { sha256: sha256(content), engine: 'codex' },
+        '.agents/skills/demo/SKILL.md': { sha256: sha256(content), engine: 'antigravity', engines: ['antigravity'] },
+      } });
+      const result = installFiles({ projectRoot, sourceRoot, engines: [{ id: 'codex' }, { id: 'antigravity' }] });
+      assert.equal(fs.existsSync(path.join(projectRoot, '.codex/skills/demo/SKILL.md')), false);
+      assert.deepEqual(readManifest(projectRoot).files['.agents/skills/demo/SKILL.md'].engines.sort(), ['antigravity', 'codex']);
+      assert.equal(result.warnings.length, 0);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: ignora chaves de migração com traversal ou caminho absoluto', () => {
+  withTempDir((projectRoot) => {
+    require('../lib/installer/manifest.js').writeManifest(projectRoot, { version: 1, files: {
+      '../outside': { sha256: 'x', engine: 'codex' }, '/tmp/outside': { sha256: 'x', engine: 'codex' },
+    } });
+    installFiles({ projectRoot, engines: [{ id: 'codex' }], sourceRoot: makeFakeSourceRoot() });
+    assert.equal(fs.existsSync(path.join(projectRoot, 'outside')), false);
+  });
+});
+
 test('installFiles: engine sem destino conhecido é ignorada sem erro', () => {
   withTempDir((projectRoot) => {
     const sourceRoot = makeFakeSourceRoot();
