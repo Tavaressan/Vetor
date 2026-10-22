@@ -5,7 +5,7 @@
 // aquele hook morria em silêncio e o gate não era aplicado.
 //
 // Contrato do Claude Code: recebe o evento em JSON no stdin; exit 2 BLOQUEIA a chamada.
-// Espelha a política de scripts/safety-check.sh, que segue servindo ao Antigravity —
+// Espelha a política de scripts/safety-check-antigravity.js, que serve ao Antigravity —
 // exceto pelo guard de escrita, que o Antigravity não tem como aplicar (lá o matcher só
 // cobre run_command).
 //

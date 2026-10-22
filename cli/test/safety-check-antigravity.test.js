@@ -188,11 +188,10 @@ test('bloqueia push de worker não-GREEN em worktree linkado e permite quando GR
       {
         toolCall: {
           name: 'run_command',
-          args: { CommandLine: 'git push origin feat/minha-feature' },
+          args: { CommandLine: 'git push origin feat/minha-feature', Cwd: wtDir },
         },
-        cwd: wtDir,
       },
-      { cwd: wtDir },
+      { cwd: os.tmpdir() },
     );
 
     assert.equal(blockedRes.status, 0);
@@ -205,15 +204,42 @@ test('bloqueia push de worker não-GREEN em worktree linkado e permite quando GR
       {
         toolCall: {
           name: 'run_command',
-          args: { CommandLine: 'git push origin feat/minha-feature' },
+          args: { CommandLine: 'git push origin feat/minha-feature', Cwd: wtDir },
         },
-        cwd: wtDir,
       },
-      { cwd: wtDir },
+      { cwd: os.tmpdir() },
     );
 
     assert.equal(allowedRes.status, 0);
     assert.deepEqual(allowedRes.parsed, { decision: 'allow' });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('usa process.cwd() quando o payload não informa Cwd nem cwd', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vetor-safety-wt-fallback-test-'));
+  try {
+    const gitOpts = { cwd: tempDir, encoding: 'utf8', stdio: 'pipe', env: gitEnv };
+    assert.equal(spawnSync('git', ['init', '-b', 'master'], gitOpts).status, 0);
+    spawnSync('git', ['config', 'user.name', 'Test'], gitOpts);
+    spawnSync('git', ['config', 'user.email', 'test@test.com'], gitOpts);
+    assert.equal(spawnSync('git', ['commit', '--allow-empty', '-m', 'initial'], gitOpts).status, 0);
+
+    const wtDir = path.join(tempDir, 'wt-feat');
+    assert.equal(spawnSync('git', ['worktree', 'add', '-b', 'feat/minha-feature', wtDir], gitOpts).status, 0);
+    const statusDir = path.join(tempDir, '.claude', 'vetor', 'status');
+    fs.mkdirSync(statusDir, { recursive: true });
+    fs.writeFileSync(path.join(statusDir, 'feat-minha-feature.md'), 'Status: RUNNING\n', 'utf8');
+
+    const result = runHook(
+      { toolCall: { name: 'run_command', args: { CommandLine: 'git push origin feat/minha-feature' } } },
+      { cwd: wtDir },
+    );
+
+    assert.equal(result.status, 0);
+    assert.equal(result.parsed.decision, 'deny');
+    assert.match(result.parsed.reason, /worker não-GREEN/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
