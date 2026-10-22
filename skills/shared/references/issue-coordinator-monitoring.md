@@ -28,3 +28,17 @@ para um worktree ativo, leia `<path-do-worktree>/.claude/vetor-status.md` (path 
 files ativos e cruze-os. Se a mesma issue aparecer em mais de um worktree ativo, sinalize:
 `⚠️ Issue #<M> em andamento simultaneamente em <slug-A> e <slug-B> — possível dispatch duplicado` e
 avalie com o usuário qual worker continua.
+
+
+---
+
+**5.d — Monitoramento sob Orquestradores (Alethe, Orca, MCP)**
+
+Quando um grupo foi despachado via `OrchestratorAdapter` (`scripts/lib/orchestrator/`):
+
+1. **Loop de polling seguro**: invoque `adapter.check(handle, { timeoutMs: 50000 })` com intervalo entre iterações. Nunca use `timeoutMs > 50s` para prevenir timeout do transporte MCP.
+2. Ao receber status `completed`:
+   - Execute a sanitização do rascunho com `sanitizeDraftText()` (`scripts/lib/draft-sanitizer.ts`).
+   - Execute a validação soberana da suíte de testes no host principal (`deno task test`, etc.).
+   - Se os testes passarem e a sanitização for válida, atualize o status file para `GREEN`.
+3. **Liberação obrigatória**: chame `adapter.release(handle)` antes de qualquer invocação de `safe-remove-worktree`.

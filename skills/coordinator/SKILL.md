@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.6.0"
+  version: "1.7.0"
 ---
 
 Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um label GitHub para sub-agentes paralelos, cada um em seu próprio worktree, e coordenar o ciclo completo até merge, utilizando o fluxo nativo de planejamento.
@@ -57,8 +57,8 @@ Se `git check-ignore -q .claude` indicar que `.claude/` está ignorado no projet
 rastreado no git (issue #327), injete os comandos de teste já resolvidos diretamente no prompt de
 cada worker despachado, como reforço redundante — a fonte de verdade continua sendo a resolução
 via root em `project-conventions.md`.
-Regras de economia de tokens e delegação a um runtime externo disponível (Gemini/OpenCode/Codex):
-`../shared/references/planning-conventions.md` e
+Regras de economia de tokens e delegação a um runtime externo disponível (Gemini/OpenCode/Codex) ou
+orquestrador (Alethe/Orca/MCP): `../shared/references/planning-conventions.md` e
 `../shared/references/delegate-to-runtime.md`.
 Se uma issue referenciar uma Spec previamente gerada por `/vetor:spec` (ver `skills/spec/SKILL.md`
 §6), ela fica em `docs/specs/<slug>.md` por padrão (path previsível, issue #219) — útil como contexto
@@ -141,9 +141,9 @@ dinâmica) traz de volta, na mesma leva, issues abertas manualmente/via integra�
 geradas por skills do plugin (`/vetor:backlog`, `/vetor:retro`, `/vetor:guardian`), sem distinção. A origem
 passa a ser identificada por uma linha do corpo (`body`) que começa com `🤖 Gerado por` seguida de
 `/vetor:<skill>`, com ou sem crases em volta do comando. A regex de referência (flag multilinha) é
-``^🤖 Gerado por `?/vetor:``. Exemplos reais:
-``🤖 Gerado por `/vetor:backlog` — [Claude Code](https://claude.ai/code)``,
-``🤖 Gerado por `/vetor:retro` — sessão em <projeto>`` e `🤖 Gerado por /vetor:guardian`.
+`^🤖 Gerado por `?/vetor:`. Exemplos reais:
+`🤖 Gerado por `/vetor:backlog` — [Claude Code](https://claude.ai/code)`,
+`🤖 Gerado por `/vetor:retro` — sessão em <projeto>` e `🤖 Gerado por /vetor:guardian`.
 Menções ao rodapé no meio de uma frase ou de um item de checklist não contam.
 
 Antes de montar o agrupamento por afinidade, particione o resultado usando o `body` e os `labels` já retornados:
@@ -378,17 +378,17 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 
 ## Ações Propostas
 
-| Onda | Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo Sugerido | Ação |
-|------|-------------------------|------------------------|-----------------|------|
-| O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | Despachar |
-| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
-| O_1  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet>  | Despachar (Spike — modo investigação) |
-| —    | <slug-4>                | #<N5> (Lead)           | —               | SKIPPED (aguardando Spec) |
-| —    | <slug-5>                | #<N6> (Lead)           | —               | SKIPPED (aguardando insumo do usuário) |
-| —    | <slug-6>                | #<N7> (Lead)           | —               | SKIPPED (fora deste repositório) |
-| —    | <slug-7>                | #<N8> (Lead)           | —               | SKIPPED (épico/acompanhamento) |
-| —    | <slug-8>                | #<N9> (Lead)           | —               | SKIPPED (bloqueada por #<B>) |
-| O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet>  | Aguardar O_1 |
+| Onda | Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo / Backend | Ação |
+|------|-------------------------|------------------------|------------------|------|
+| O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet|orca|alethe> | Despachar |
+| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet|orca|alethe> | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
+| O_1  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet|orca|alethe> | Despachar (Spike — modo investigação) |
+| —    | <slug-4>                | #<N5> (Lead)           | —                | SKIPPED (aguardando Spec) |
+| —    | <slug-5>                | #<N6> (Lead)           | —                | SKIPPED (aguardando insumo do usuário) |
+| —    | <slug-6>                | #<N7> (Lead)           | —                | SKIPPED (fora deste repositório) |
+| —    | <slug-7>                | #<N8> (Lead)           | —                | SKIPPED (épico/acompanhamento) |
+| —    | <slug-8>                | #<N9> (Lead)           | —                | SKIPPED (bloqueada por #<B>) |
+| O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet|orca|alethe> | Aguardar O_1 |
 ```
 
 Se houver mais de uma onda, explique **por que** cada grupo da onda `O_2+` depende de um grupo de
@@ -471,18 +471,16 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
 Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em alguma, para e marca
 `FAILED_MAX_ITERATIONS` especificando qual issue falhou.
 
-#### Dispatch para runtime externo (delegação de código)
+#### Dispatch para runtime externo ou orquestrador (delegação de código)
 
-Caso o coordinator delegue o desenvolvimento de um grupo a um runtime externo de IA (Gemini/OpenCode/Codex — ver `delegate-to-runtime.md`), aplique o **contrato mínimo de delegação**:
-1. **Worktree próprio**: provisione um worktree isolado exclusivo para o runtime externo via `worktree-create` (nunca opere no root nem em worktree de outro worker).
-2. **Diff tratado como rascunho**: o código gerado pelo runtime externo é rascunho não confiável; nunca faça commit cegamente sem inspeção prévia.
-3. **Validação via `module-test-map`**: execute a suíte de testes mapeada para os módulos tocados antes de qualquer commit; descarte o rascunho em caso de falha.
+Caso o coordinator delegue o desenvolvimento de um grupo a um runtime externo de IA (Gemini/OpenCode/Codex) ou a um orquestrador multiplexador (Alethe/Orca/MCP — ver `delegate-to-runtime.md` §6 e `scripts/lib/orchestrator/`), aplique o **contrato mínimo de delegação e orquestração**:
+1. **Worktree próprio**: provisione um worktree isolado exclusivo para o runtime ou worker externo via `worktree-create` (nunca opere no root nem em worktree de outro worker).
+2. **Diff tratado como rascunho**: o código gerado pelo runtime externo é rascunho não confiável; nunca faça commit cegamente sem inspeção prévia e sanitização (`DraftSanitizer`).
+3. **Validação soberana no host via `module-test-map`**: execute a suíte de testes mapeada para os módulos tocados no host antes de qualquer commit; descarte o rascunho em caso de falha.
 4. **Status file mantido pelo coordinator**: o coordinator é responsável por gerenciar e atualizar o status file (`.claude/vetor/status/<branch>.md`) a cada iteração (`RUNNING`, `Iteration: N/5`, `GREEN`, etc.).
-5. **Limpeza do worktree do runtime**: ao concluir a integração (ou ao descartar o rascunho), limpe o worktree temporário do runtime via `safe-remove-worktree`.
+5. **Polling seguro e liberação obrigatória**: com orquestradores MCP, utilize polling seguro com teto de 50s (`adapter.check`) e execute `adapter.release(handle)` antes de qualquer remoção do worktree (`safe-remove-worktree`).
 
 Consulte `../shared/references/issue-coordinator-dispatch.md` para o fluxo detalhado desse contrato.
-
-
 
 ### 5 — Monitoramento
 
