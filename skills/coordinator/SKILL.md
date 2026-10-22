@@ -72,6 +72,7 @@ A flag `--headless` substitui os quatro pontos de interação humana por decisõ
 
 | Fase | Interativo | Headless |
 |------|-----------|----------|
+| 1/2 — labels de triagem | Aplica label de triagem existente no repo ao pular issue (nunca cria) | Aplica igualmente se a label existir no repositório; nunca cria (`gh label create`) |
 | 2 — gate de Spec/design | `AskUserQuestion` por issue não-trivial sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
 | 2 — teto de workers | `AskUserQuestion` (pula se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
 | 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
@@ -84,6 +85,10 @@ Além disso, em `--headless`:
   Grupos em `GREEN` são reportados como prontos para ship.
 - **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
   `BLOCKED_WAITING` e aparece no relatório final.
+- **Labels de triagem em `--headless`**: ao pular ou manter bloqueada uma issue, aplica igualmente a
+  label de triagem equivalente se já existir no repositório (ver tabela de mapeamento na Fase 1);
+  **nunca** cria labels (`gh label create`). Sem equivalente no repo, não aplica e documenta o motivo
+  apenas no relatório final.
 - **Ausência de trabalho não é falha.** Se não houver issue elegível, encerre com um relatório de
   uma linha. Não force dispatch para parecer produtivo.
 
@@ -177,6 +182,35 @@ Issues com esses resultados saem da leva de dispatch: recebem Onda `—`, modelo
 `SKIPPED (<motivo>)` e a justificativa clara no plano e no Coordinator Report. Se a issue for a Lead,
 o grupo inteiro não é despachado; se for Sequential, apenas ela é pulada e o restante do grupo segue
 normalmente. Grupos `SKIPPED` nunca bloqueiam a transição de ondas da Fase 4.
+
+#### Labels de triagem no GitHub (visibilidade de issues puladas/bloqueadas)
+
+Quando o coordinator tira uma issue da leva (`SKIPPED (aguardando Spec)` do gate de Spec/design na Fase 2, `SKIPPED (aguardando insumo do usuário)` da triagem, ou issue bloqueada em `BLOCKED_WAITING` na Fase 5.b), o motivo só aparece no Coordinator Report da sessão. Para deixar o estado de triagem visível no GitHub, o coordinator aplica a label equivalente que o repositório **já possuir** — **sem nunca criar labels**.
+
+Consulte os labels existentes no repositório:
+```bash
+gh label list --limit 100 --json name
+```
+
+Mapeie o motivo aos labels existentes no repo alvo, usando o **primeiro da linha que existir** (no estilo do mapeamento de tipo do `/vetor:backlog` §6.a):
+
+| Motivo | Label Preferido | Fallback 1 | Fallback 2 | Se nenhum existir |
+| ------ | --------------- | ---------- | ---------- | ----------------- |
+| `SKIPPED (aguardando Spec)` | `needs-spec` | `spec-needed` | `triage/needs-information` | Não aplica |
+| `SKIPPED (aguardando insumo do usuário)` / bloqueada | `blocked` | `status/blocked` | — | Não aplica |
+
+**Regras e convenções:**
+1. **Regra de ouro — nunca crie labels:** o coordinator **nunca** executa `gh label create`. Se nenhuma das labels candidatas da linha existir no repositório-alvo, não aplica label alguma no GitHub — o motivo fica registrado exclusivamente no plano e no Coordinator Report da sessão.
+2. **Aplicação da label:** quando a issue for pulada ou bloqueada e houver label correspondente no repositório:
+   ```bash
+   gh issue edit <N> --add-label "<label-encontrada>"
+   ```
+3. **Remoção da label de triagem ao despachar:** ao despachar posteriormente uma issue (Fase 4) que possua qualquer uma das labels de triagem mapeadas (`needs-spec`, `spec-needed`, `triage/needs-information`, `blocked`, `status/blocked`), o coordinator obrigatoriamente a remove antes ou no momento do dispatch:
+   ```bash
+   gh issue edit <N> --remove-label "<label-de-triagem>"
+   ```
+4. **Comportamento em `--headless`:** aplica igualmente a label de triagem se ela existir no repositório; nunca cria labels (`gh label create`). Sem equivalente no repo, não aplica e documenta a omissão no relatório final.
+5. **Não-escopo:** nunca aplique labels indicando execução em andamento (ex.: `in-progress` ou qualquer estado de execução). O estado de execução vive exclusivamente no worktree e no status file (`.claude/vetor/status/`), e o padrão do GitHub para status de fluxo é o campo Status do Projects.
 
 #### Agrupamento por afinidade
 
@@ -293,10 +327,13 @@ Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem Spec associ
   Issues do grupo ficam sem Lead para dar nome ao worktree/branch — voltam junto na próxima sessão);
   se é uma **Sequential Issue**, apenas ela sai e o restante do grupo (Lead + demais Sequential) segue
   normalmente. A issue (ou grupo) volta a ser candidata em uma sessão futura do coordinator, quando a
-  Spec existir (`/vetor:spec` roda fora deste fluxo, tipicamente numa sessão manual). **Um grupo
-  `SKIPPED` nunca é pendência para a transição de onda da Fase 4** — como não foi despachado, não há
-  branch skew a prevenir (as ondas ordenam merges de trabalho já despachado, não issues que nunca
-  saíram do plano); a transição de `O_i` para `O_{i+1}` ignora grupos `SKIPPED` de `O_i`.
+  Spec existir (`/vetor:spec` roda fora deste fluxo, tipicamente numa sessão manual). Aplique a label
+  de triagem existente no repositório conforme a tabela de mapeamento da Fase 1 (`needs-spec` ->
+  `spec-needed` -> `triage/needs-information`; se nenhuma existir, não aplique e nunca use
+  `gh label create`). **Um grupo `SKIPPED` nunca é pendência para a transição de onda da Fase 4** —
+  como não foi despachado, não há branch skew a prevenir (as ondas ordenam merges de trabalho já
+  despachado, não issues que nunca saíram do plano); a transição de `O_i` para `O_{i+1}` ignora grupos
+  `SKIPPED` de `O_i`.
 
 **Em `--headless`: nunca pergunte, nunca bloqueie.** Um gate síncrono aqui recriaria o mesmo deadlock
 por falta de interlocutor do worker preso em plan mode (issue #121 — ver `wiki/Decisoes-de-Design.md`).
@@ -390,6 +427,10 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
   cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
   Leia `../shared/references/issue-coordinator-dispatch.md` para timeout, transição de ondas e sincronização do root.
+- **Remoção de labels de triagem antes do dispatch:** ao despachar uma issue (Lead ou Sequential),
+  verifique se ela possui alguma label de triagem (`needs-spec`, `spec-needed`,
+  `triage/needs-information`, `blocked`, `status/blocked`). Se possuir, remova-a com
+  `gh issue edit <N> --remove-label "<label-de-triagem>"`.
 
   Antes de cada dispatch, leia `../shared/references/issue-coordinator-dispatch.md` para duplicidade, status file e retomada em worktree existente.
 
@@ -423,13 +464,16 @@ chat, **não escale ainda**: instrua-o via `SendMessage` a gravar o `BLOCKED_WAI
 (`Blocked on` / `Options` / `Recommendation`) primeiro, para que o estado sobreviva a um reinício.
 
 **Em `--headless`: não escale.** Registre no relatório final o agente (`<slug>` / Issue `#<N>`), o
-motivo do bloqueio e a recomendação do worker. Não conceda permissão, não escolha opção técnica e
-não redespache. Nunca mate um worker bloqueado para abrir vaga no teto `N`.
+motivo do bloqueio e a recomendação do worker. Se a issue for mantida bloqueada ou retirada da leva,
+aplique a label de bloqueio equivalente se já existir no repositório (`blocked` -> `status/blocked`;
+nunca execute `gh label create` — ver tabela de mapeamento da Fase 1). Não conceda permissão, não
+escolha opção técnica e não redespache. Nunca mate um worker bloqueado para abrir vaga no teto `N`.
 
 Fora do headless, leia o bloco `Blocked on` / `Options` / `Recommendation` e escale via
 `AskUserQuestion`, identificando o agente e transmitindo a recomendação. Opções conforme o tipo:
 - **Permissão bloqueada** (`<comando>`): permitir esta vez / permitir para este agente (auto-aprova
-  chamadas similares dele) / negar (registra "skipped") / parar agente.
+  chamadas similares dele) / negar (registra "skipped", aplicando label de bloqueio existente no repo
+  conforme a Fase 1 sem nunca criar labels) / parar agente.
 - **Decisão técnica**: as opções do bloco `Options`.
 
 Comunique a decisão ao sub-agente via `SendMessage`. Se a resposta exigir redespachar em worktree
@@ -522,3 +566,8 @@ O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido 
 - O gate de Spec/design (Fase 2) nunca bloqueia o dispatch em `--headless` — vira sinalização
   registrada no plano/relatório, nunca um `AskUserQuestion` síncrono (mesmo motivo do item acima:
   deadlock por falta de interlocutor, issue #121)
+- O coordinator nunca cria labels no GitHub (nunca executa `gh label create`). Aplica labels de
+  triagem existentes no repositório ao pular/bloquear issues e remove-as ao despachar; sem equivalente
+  no repo, não aplica
+- Nunca aplica labels de status de execução em andamento (ex.: `in-progress`); o estado de execução
+  vive exclusivamente no worktree e no status file
