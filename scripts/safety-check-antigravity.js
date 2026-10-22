@@ -9,7 +9,7 @@
  *   {
  *     "toolCall": {
  *       "name": "run_command",
- *       "args": { "CommandLine": "..." }
+ *       "args": { "CommandLine": "...", "Cwd": "..." }
  *     },
  *     ...
  *   }
@@ -78,7 +78,6 @@ function checkWorkerGate(command, cwd) {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 2000,
-      env: { ...process.env, GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL || "NUL" },
     };
     const gitDir = execFileSync("git", ["rev-parse", "--git-dir"], execOpts).trim();
     const commonDir = execFileSync("git", ["rev-parse", "--git-common-dir"], execOpts).trim();
@@ -178,7 +177,7 @@ function main() {
     allow();
   }
 
-  const cwd = input?.cwd ?? process.cwd();
+  const cwd = input?.toolCall?.args?.Cwd ?? input?.cwd ?? process.cwd();
 
   // 1. Bloqueia comandos destrutivos incondicionalmente
   checkDestructiveGit(command);
