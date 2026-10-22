@@ -11,7 +11,7 @@
 A criação e a **localização** do worktree são do harness (`isolation: "worktree"` na Fase 4) — não
 assuma path de worktree. O coordenador deriva apenas:
 1. **Slug:** kebab-case derivado da Lead Issue (máx 30 chars).
-2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue — o worker a cria como primeiro passo (`git checkout -b <branch>`). `<type>` segue a lista de `worktree-create`: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`. O transporte `--carry-changes` só vale no uso standalone, não para worktrees criados pelo harness.
+2. **Branch:** `<type>/<issue#>-<slug>` da Lead Issue — o worker a cria como primeiro passo (`git checkout -b <branch>`). `<type>` segue a lista de `worktree-create`: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`. Para issues spike, use o tipo `docs` (`docs/<issue#>-<slug>`). O transporte `--carry-changes` só vale no uso standalone, não para worktrees criados pelo harness.
 3. **Status File Path (absoluto, no root do repo):**
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md` — fica fora do worktree;
    formato em `../shared/references/agent-status.template.md`.
@@ -144,6 +144,11 @@ worker precisar de MCP adicional.
    indicar que o mapa de testes não está commitado (issue #327), injete explicitamente os comandos de
    teste resolvidos para os módulos da issue no prompt do worker, evitando que ele fique sem referências
    de teste no worktree.
+7. **Modo investigação para issues spike:** Se a issue for um `spike` (investigação/exploração para decisão futura), instrua o worker explicitamente:
+   - Modo investigação: sem TDD e sem loop de testes de produto/código.
+   - Entregável obrigatório: produzir `docs/investigations/<slug>.md` estruturado com Pergunta, Evidências (comandos/fontes reproduzíveis), Opções avaliadas e Recomendação.
+   - Critério de `GREEN`: o arquivo de relatório existe e `git diff --check` passa sem erros.
+   - O ship segue o caminho de PR só de docs (#427); a decisão continua humana e issues de follow-up não são criadas automaticamente.
 
 ### Dispatch para runtime externo (contrato mínimo de delegação)
 
