@@ -126,3 +126,32 @@ Deno.test("checkClarity: placeholder de template ('<nome>') não preenchido -> g
   assertEquals(result.fraction < 1, true);
   assertEquals(result.gaps.length > 0, true);
 });
+
+Deno.test("checkClarity: requisito com sintaxe de comando (<type>/<slug>, <branch>) dentro de crases não gera gap (#448)", () => {
+  const spec = COMPLETE_SPEC.replace(
+    "### RF-01 - X",
+    "### RF-01 - Suporte a `<type>/<slug>`",
+  ).replace(
+    "Descrição.",
+    "Executar `git checkout -b <type>/<slug>` e `<path>`.\n\n```bash\nvetor ship <branch>\n```\n\n- [ ] Deriva `<type>/<slug>` ou `<type>/<issue#>-<slug>` conforme argumento.",
+  );
+  const result = checkClarity(parseSpec(spec));
+  assertEquals(
+    result.gaps.some((g) => g.location === "RF-01" && /placeholder/i.test(g.problem)),
+    false,
+  );
+  assertEquals(result.fraction, 1);
+});
+
+Deno.test("checkClarity: placeholder copiado literalmente do template fora de crases continua gerando gap (#448)", () => {
+  const spec = COMPLETE_SPEC.replace(
+    "Descrição.",
+    "Preencha com o conteúdo real: <descrição do requisito>.",
+  );
+  const result = checkClarity(parseSpec(spec));
+  assertEquals(
+    result.gaps.some((g) => g.location === "RF-01" && /placeholder/i.test(g.problem)),
+    true,
+  );
+  assertEquals(result.fraction < 1, true);
+});

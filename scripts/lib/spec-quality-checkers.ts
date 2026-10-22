@@ -231,6 +231,14 @@ export function checkTestability(parsed: ParsedSpec): DimensionResult {
  * de #221 (que lida com texto preenchido mas vago/ambíguo). */
 const TEMPLATE_PLACEHOLDER_RE = /<[a-zà-ú][a-zà-ú\s-]*>/i;
 
+/** Remove blocos de código cercados (```...``` ou ~~~...~~~) e spans em linha (`...`)
+ * de um texto em Markdown, evitando falsos positivos no detector de placeholder de template
+ * causados por sintaxe de comando ou convenção de nomes (ex.: `<type>/<slug>`, `<branch>`) (#448). */
+function stripMarkdownCode(text: string): string {
+  const withoutBlocks = text.replace(/(?:```+|~~~+)[\s\S]*?(?:```+|~~~+)/g, " ");
+  return withoutBlocks.replace(/`+[^`\n]*?`+/g, " ");
+}
+
 // #221 (#203 §6): decisão não resolvida mas sinalizada explicitamente ("unknown but explicit") é
 // melhor que a mesma lacuna omitida em silêncio ("unknown and hidden"). Só a segunda é gap de
 // Clarity. Um requisito com `hasOpenMarker` (⚠️ ABERTO em algum lugar do seu texto) já tornou suas
@@ -260,7 +268,8 @@ export function checkClarity(parsed: ParsedSpec): DimensionResult {
   const strengths: string[] = [];
 
   const requirementsWithPlaceholder = parsed.requirements.filter((r) =>
-    TEMPLATE_PLACEHOLDER_RE.test(r.name) || TEMPLATE_PLACEHOLDER_RE.test(r.raw)
+    TEMPLATE_PLACEHOLDER_RE.test(stripMarkdownCode(r.name)) ||
+    TEMPLATE_PLACEHOLDER_RE.test(stripMarkdownCode(r.raw))
   );
   const requirementsWithHiddenOmission = parsed.requirements.filter((r) =>
     !r.hasOpenMarker && HIDDEN_OMISSION_RE.test(r.raw)
