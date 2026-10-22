@@ -55,6 +55,32 @@ test('vetor install -y com -engines claude-code instala com short flags', () => 
   });
 });
 
+test('vetor install --engines antigravity --yes sem TTY instala skills e subagentes com model: inherit em .agents/ e grava manifesto', () => {
+  withTempDir((dir) => {
+    const result = spawnSync(
+      process.execPath,
+      [binPath, 'install', '--engines', 'antigravity', '--yes'],
+      { cwd: dir, encoding: 'utf8' },
+    );
+
+    assert.equal(result.status, 0, `Process failed with stderr: ${result.stderr}`);
+    assert.match(result.stdout, /Engines selecionadas: Antigravity/);
+    assert.match(result.stdout, /arquivo\(s\) copiado\(s\)/);
+
+    const manifest = readManifest(dir);
+    const files = Object.keys(manifest.files);
+    assert.ok(files.length > 0, 'Manifesto deve conter arquivos');
+    assert.ok(files.some((f) => f.startsWith('.agents/skills/')), 'Skills do antigravity devem ser instaladas em .agents/skills/');
+    assert.ok(files.some((f) => f.startsWith('.agents/agents/')), 'Agentes do antigravity devem ser instalados em .agents/agents/');
+    assert.ok(!files.some((f) => f.includes('hooks')), 'Hooks não devem ser copiados para antigravity');
+
+    const workerPath = path.join(dir, '.agents', 'agents', 'issue-worker.md');
+    assert.ok(fs.existsSync(workerPath), 'issue-worker.md deve existir');
+    const workerContent = fs.readFileSync(workerPath, 'utf8');
+    assert.match(workerContent, /model:\s*inherit/);
+  });
+});
+
 test('vetor install --engines foo --yes sai com exit 1 e lista os ids válidos', () => {
   withTempDir((dir) => {
     const result = spawnSync(
