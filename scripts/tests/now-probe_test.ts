@@ -23,7 +23,7 @@ Deno.test("now probe tolera repo sem MCP e gh e é idempotente", async () => {
     assertEquals(first.defaultDispatchLabel, null);
     assertEquals(first.openIssuesTotal, null);
     assertEquals(first.dispatchableIssues, null);
-    assertEquals(first.backlogIssues, null);
+    assertEquals("backlogIssues" in first, false);
     assertEquals(first.mcps, []);
     assertEquals(first.aiMemoryContainerState, null);
     assertEquals(await snapshot(), before);
@@ -91,7 +91,6 @@ Deno.test("now probe detecta inicialização, defaultDispatchLabel e contagens d
       }
       issueCalls.push(args);
       const label = args.includes("--label") ? args[args.indexOf("--label") + 1] : null;
-      if (label === "backlog") return Promise.resolve(issues(2));
       if (label === "feature") return Promise.resolve(issues(3));
       // Acima do default de 30 do gh: só aparece inteiro se --limit for passado.
       return Promise.resolve(issues(45));
@@ -102,10 +101,16 @@ Deno.test("now probe detecta inicialização, defaultDispatchLabel e contagens d
     assertEquals(probed.defaultDispatchLabel, "feature");
     assertEquals(probed.openIssuesTotal, 45);
     assertEquals(probed.dispatchableIssues, 3);
-    assertEquals(probed.backlogIssues, 2);
+    assertEquals("backlogIssues" in probed, false);
     for (const args of issueCalls) {
       assert(args.includes("--limit"), `gh issue list sem --limit satura em 30: ${args.join(" ")}`);
+      const label = args.includes("--label") ? args[args.indexOf("--label") + 1] : null;
+      assert(
+        label !== "backlog",
+        `nenhuma chamada a gh deve usar a label backlog: ${args.join(" ")}`,
+      );
     }
+    assertEquals(issueCalls.length, 2);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -116,10 +121,12 @@ Deno.test("now probe sem defaultDispatchLabel conta todas as abertas como despac
   try {
     await Deno.mkdir(`${dir}/.claude/vetor`, { recursive: true });
     await Deno.writeTextFile(`${dir}/.claude/vetor/config.json`, JSON.stringify({}));
+    const issueCalls: string[][] = [];
     const mockExecutor: CommandExecutor = (_command, args) => {
       if (!(args.includes("issue") && args.includes("list"))) {
         return Promise.reject(new Error("mock fallback"));
       }
+      issueCalls.push(args);
       const n = args.includes("--label") ? 0 : 20;
       return Promise.resolve(JSON.stringify(Array.from({ length: n }, (_, i) => ({ number: i }))));
     };
@@ -127,7 +134,14 @@ Deno.test("now probe sem defaultDispatchLabel conta todas as abertas como despac
     assertEquals(probed.defaultDispatchLabel, null);
     assertEquals(probed.openIssuesTotal, 20);
     assertEquals(probed.dispatchableIssues, 20);
-    assertEquals(probed.backlogIssues, 0);
+    assertEquals("backlogIssues" in probed, false);
+    for (const args of issueCalls) {
+      const label = args.includes("--label") ? args[args.indexOf("--label") + 1] : null;
+      assert(
+        label !== "backlog",
+        `nenhuma chamada a gh deve usar a label backlog: ${args.join(" ")}`,
+      );
+    }
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
