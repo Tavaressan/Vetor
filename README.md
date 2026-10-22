@@ -118,8 +118,8 @@ Ele detecta o runtime do repositório, gera o mapeamento de comandos de teste e 
 **Automatizado** — do backlog ao merge:
 
 ```
-/vetor:backlog resiliência       # cria issues com label ai-generated
-/vetor:coordinator ai-generated    # despacha, implementa, testa, faz PR e merge
+/vetor:backlog resiliência       # cria issues ancoradas na doc
+/vetor:coordinator               # despacha, implementa, testa, faz PR e merge
 /vetor:guardian                          # audita o estado pós-merge
 ```
 
