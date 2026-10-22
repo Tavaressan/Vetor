@@ -5,6 +5,37 @@ Fontes consultadas:
 - Documentação oficial de plugins (`https://antigravity.google/docs/plugins` / `https://antigravity.google/docs/plugins.md`, consultada em 2026-10-19 na #397).
 - CLI `agy` instalado localmente (`agy plugin validate .`, v1.4.1, verificado em 2026-10-19).
 
+## Instalação e Atualização
+
+### 1. Global (Plugin do Antigravity via `agy`)
+Ideal para ter as skills e subagentes disponíveis globalmente em todas as sessões do Antigravity:
+
+```bash
+# Instalação inicial (clone temporário e registro global):
+git clone https://github.com/Tavaressan/Vetor.git /tmp/vetor-plugin && agy plugin install /tmp/vetor-plugin
+
+# No Windows (PowerShell):
+git clone https://github.com/Tavaressan/Vetor.git "$env:TEMP\vetor-plugin"; agy plugin install "$env:TEMP\vetor-plugin"
+```
+
+Para atualizar para a versão mais recente:
+```bash
+cd /tmp/vetor-plugin && git pull && agy plugin install .
+# ou desinstalar e reinstalar:
+agy plugin remove vetor && agy plugin install /tmp/vetor-plugin
+```
+
+### 2. Projeto Local (Workspace via CLI `vetor`)
+Para projetos individuais onde skills e subagentes devem residir no próprio repositório em `.agents/`:
+
+```bash
+# Instalação não-interativa (ideal para agentes e pipelines CI):
+npx @tavaressan/vetor install --engines antigravity --yes
+
+# Atualização segura a partir do manifesto do projeto:
+npx @tavaressan/vetor update
+```
+
 ## Hooks
 
 **Claude Code** (`hooks/hooks.json`):
@@ -12,14 +43,20 @@ Fontes consultadas:
 - **Proteção**: completa. Bloqueia escrita fora do worktree, obriga status file em estado terminal, injeta diagnostics de edição
 
 **Antigravity** (`hooks.json` na raiz):
-- ✅ `PreToolUse` (suportado e configurado)
+- ✅ `PreToolUse` (suportado e configurado para `run_command` via `node ./scripts/safety-check-antigravity.js`)
 - ⚠️ `PostToolUse` (evento existe no Antigravity, mas **não está configurado** no `hooks.json`)
 - ❌ `SubagentStop` (não existe. Antigravity tem um evento `Stop` genérico, mas não específico a subagentes; não é equivalente)
 - ❌ `SessionStart` (não suportado)
 - ❌ `WorktreeCreate` (não suportado)
-- **Proteção**: reduzida. Apenas prévia de push/escrita via `PreToolUse`; **sem** diagnostics de edição ou garantia de status file
+- **Proteção**: focada em segurança de comandos. Implementada pelo runner multiplataforma Node.js (`scripts/safety-check-antigravity.js`), que:
+  - Executa de forma transparente em Windows (`cmd /c` / PowerShell), macOS e Linux sem depender de Bash ou WSL.
+  - Implementa o contrato JSON estrito do Antigravity (`{"decision": "allow"}` ou `{"decision": "deny", "reason": "..."}`).
+  - Bloqueia pushes diretos para branches protegidas (`main`, `master`, `production`).
+  - Bloqueia comandos git destrutivos (`git reset --hard`, `git clean -f*`, `git branch -D`, `git checkout .`).
+  - Bloqueia push/PR de workers em estado não-GREEN dentro de worktrees linkados.
+  - Resiliente a falhas internas: erros imprevistos são logados em `stderr` e emitem `{"decision": "allow"}` para não travar execuções do agente em loops bloqueantes.
 
-Para usar o Vetor com Antigravity, a restrição crítica é que workers podem escrever fora do worktree (além do `status file`), encerrar sem preenchê-lo, e não recebem feedback de tipo. Recomenda-se manter a invocação manual (`/vetor:fix`, `/vetor:ship`) e **não usar `/vetor:coordinator`** com dispatch em background até que Antigravity suporte os eventos faltantes.
+Para usar o Vetor com Antigravity, a restrição crítica remanescente é que workers podem escrever fora do worktree (o Antigravity não possui evento de pré-escrita como o Claude Code), encerrar sem preencher o status file, e não recebem feedback de tipo. Recomenda-se manter a invocação manual (`/vetor:fix`, `/vetor:ship`) e **não usar `/vetor:coordinator`** com dispatch em background até que Antigravity suporte os eventos faltantes.
 
 ## Subagentes em Markdown nativo e `model: inherit` (issues #337 e #397)
 

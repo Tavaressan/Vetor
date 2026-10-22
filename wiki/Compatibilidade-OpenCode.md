@@ -251,7 +251,10 @@ contra o binário `codex` de verdade reconhecendo o resultado**. Ver `cli/test/p
 mesma suíte pula essa validação com um log explícito quando `codex` não está no PATH, em vez de
 simular o resultado) e o corpo da issue #300 para o procedimento manual pendente.
 
-**Achado colateral registrado nesta issue (#300), não corrigido (fora de escopo, YAGNI):**
+**Achado colateral registrado na issue #300 (resolvido na #359 e padronizado no README):**
+Execuções não-interativas (sem TTY / agentes) devem usar flags explícitas (`npx @tavaressan/vetor install --engines opencode --yes`), caso contrário o instalador cancela por segurança. Para atualização subsequente: `npx @tavaressan/vetor update`.
+
+**Comportamento histórico sem flags (#300):**
 `vetor install`, rodado a partir do binário publicado com stdin em pipe (qualquer processo filho
 sem TTY — é o caso de qualquer automação não-interativa, incluindo `npx vetor@latest` disparado por
 outro script), sempre cai no ramo "sessão não-interativa" de `prompts.js` (`input.isTTY` nunca é
