@@ -16,6 +16,7 @@
 | #46 | ⏭️ SKIPPED (aguardando insumo do usuário) | — | triagem Fase 1/2 — aguardando decisão/conteúdo do usuário |
 | #47 | ⏭️ SKIPPED (fora deste repositório) | — | triagem Fase 1/2 — escopo pertence a repositório externo |
 | #48 | ⏭️ SKIPPED (épico/acompanhamento) | — | triagem Fase 1/2 — issue agregadora sem código direto |
+| #49 | ⏭️ SKIPPED (bloqueada por #N) | — | dependência nativa GitHub — bloqueadora aberta fora da leva |
 
 Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> skipped.
 ```
@@ -26,11 +27,11 @@ que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resulta
 dependem do modo:
 - **Interativo**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
   `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`, `SKIPPED (fora deste repositório)`,
-  `SKIPPED (épico/acompanhamento)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
+  `SKIPPED (épico/acompanhamento)`, `SKIPPED (bloqueada por #N)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
   despachado" e pergunte ao usuário via `AskUserQuestion` se deve despachar agora.
 - **`--headless`**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
   `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`, `SKIPPED (fora deste repositório)`,
-  `SKIPPED (épico/acompanhamento)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
+  `SKIPPED (épico/acompanhamento)`, `SKIPPED (bloqueada por #N)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
   atingiram verde em modo headless (sem merge nessa fase). Se houver discrepância, apenas reporte o
   grupo como "não despachado" no campo de observações; não pergunte nem redespache.
 
