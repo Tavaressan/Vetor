@@ -143,7 +143,8 @@ gh label list --repo Tavaressan/Vetor --limit 100 --json name
 ```
 
 Se a label correspondente ao `Tipo` da issue (`bug`, `enhancement`, `docs`) existir no
-repositório-alvo, aplique-a via `--label "<tipo>"`. Se a label de tipo não existir no repo, omita o
+repositório-alvo, use o primeiro mapeamento existente no repo: `bug` → `bug`, `enhancement` →
+`enhancement`, `docs` → `documentation` ou `docs`. Se nenhum label correspondente existir, omita o
 argumento `--label`.
 
 #### 5.b — Criação da issue

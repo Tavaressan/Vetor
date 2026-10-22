@@ -30,8 +30,12 @@ Deno.test("issue #456: documenta leitura do endpoint REST e resumo de dependênc
   );
   assertStringIncludes(
     coordinatorSkill,
-    "issue_dependencies_summary",
+    "gh api repos/{owner}/{repo}/issues/<N> --jq .issue_dependencies_summary",
     "Deve documentar a opção de ler o resumo issue_dependencies_summary da issue",
+  );
+  assertFalse(
+    coordinatorSkill.includes("gh issue view <N> --json issue_dependencies_summary"),
+    "Não deve sugerir campo issue_dependencies_summary em gh issue view --json",
   );
 });
 

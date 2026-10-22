@@ -1,4 +1,4 @@
-import { assertFalse, assertStringIncludes } from "@std/assert";
+import { assertFalse, assertMatch, assertStringIncludes } from "@std/assert";
 
 const root = new URL("../../", import.meta.url);
 const retroSkill = await Deno.readTextFile(
@@ -22,6 +22,11 @@ Deno.test(
       retroSkill,
       "Aplica só a label de tipo existente no repo",
     );
+    assertMatch(
+      retroSkill,
+      /`bug` → `bug`, `enhancement` →\s+`enhancement`, `docs` → `documentation` ou `docs`/,
+    );
+    assertStringIncludes(retroSkill, "Se nenhum label correspondente existir, omita o");
     assertStringIncludes(retroSkill, "Nunca cria labels");
     assertFalse(
       retroSkill.includes("gh label create"),

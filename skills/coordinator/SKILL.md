@@ -139,17 +139,22 @@ O restante do fluxo é idêntico nos três modos (número, label, descoberta din
 **Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label (ou a descoberta
 dinâmica) traz de volta, na mesma leva, issues abertas manualmente/via integração externa e issues
 geradas por skills do plugin (`/vetor:backlog`, `/vetor:retro`, `/vetor:guardian`), sem distinção. A origem
-passa a ser identificada pelo rodapé que as skills geradoras escrevem no corpo (`body`):
-`🤖 Gerado por /vetor:` (ex.: `🤖 Gerado por /vetor:backlog`, `🤖 Gerado por /vetor:retro`,
-`🤖 Gerado por /vetor:guardian`).
+passa a ser identificada por uma linha do corpo (`body`) que começa com `🤖 Gerado por` seguida de
+`/vetor:<skill>`, com ou sem crases em volta do comando. A regex de referência (flag multilinha) é
+``^🤖 Gerado por `?/vetor:``. Exemplos reais:
+``🤖 Gerado por `/vetor:backlog` — [Claude Code](https://claude.ai/code)``,
+``🤖 Gerado por `/vetor:retro` — sessão em <projeto>`` e `🤖 Gerado por /vetor:guardian`.
+Menções ao rodapé no meio de uma frase ou de um item de checklist não contam.
 
 Antes de montar o agrupamento por afinidade, particione o resultado usando o `body` e os `labels` já retornados:
 
-- **Recomendadas pelo agente**: issues cujo `body` contenha o rodapé `🤖 Gerado por /vetor:` OU que
+- **Recomendadas pelo agente**: issues cujo `body` tenha uma linha que comece com `🤖 Gerado por` seguida
+  de `/vetor:<skill>` (com ou sem crases em volta do comando; menções no meio de uma frase ou item de
+  checklist não contam) OU que
   contenham a label `ai-generated` em `labels` (regra de transição para issues antigas já criadas com
   a label e sem rodapé, ex.: #403, #404 — leitura apenas; o plugin nunca aplica a label).
-- **Pedidas pelo usuário** (candidatas primárias): issues sem o rodapé `🤖 Gerado por /vetor:` no corpo
-  e sem a label `ai-generated`.
+- **Pedidas pelo usuário** (candidatas primárias): issues sem uma linha do corpo que comece com
+  `🤖 Gerado por` seguida de `/vetor:<skill>` e sem a label `ai-generated`.
 
 Monte o plano de dispatch priorizando o grupo "pedidas pelo usuário". Só inclua issues do grupo
 "recomendadas pelo agente" quando o primeiro grupo estiver **vazio** no filtro aplicado — ou,
@@ -264,7 +269,7 @@ conciliação manual depois. Para evitar isso, organize os grupos em **ondas top
    gh api repos/{owner}/{repo}/issues/<N>/dependencies/blocked_by
    ```
    (ou consulte o resumo `issue_dependencies_summary` do objeto da issue retornado por
-   `gh issue view <N> --json issue_dependencies_summary` / `gh api repos/{owner}/{repo}/issues/<N>`).
+   `gh api repos/{owner}/{repo}/issues/<N> --jq .issue_dependencies_summary`).
 
    Aplique os seguintes tratamentos para cada bloqueadora encontrada:
    - **Bloqueadora aberta e fora da leva**: a issue candidata não pode ser despachada nesta sessão;
