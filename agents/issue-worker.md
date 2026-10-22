@@ -1,6 +1,6 @@
 ---
 name: issue-worker
-description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes. Nunca faz push, cria PR ou merge — isso é responsabilidade do ship. Despachado pelo coordinator, um por issue, em paralelo.
+description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes ou conduzindo investigações spike com relatório em docs/investigations/. Nunca faz push, cria PR ou merge — isso é responsabilidade do ship. Despachado pelo coordinator, um por issue, em paralelo.
 # tools é allowlist explícita — EnterPlanMode/ExitPlanMode ficam deliberadamente de fora (issue #121):
 # o worker roda headless, sem interlocutor disponível para aprovar a saída do plan mode.
 tools: [Bash, Read, Write, Edit, Grep, Glob, Skill]
@@ -60,7 +60,11 @@ Last action: Status file created (inaugural)
 Next: Reading issue scope
 ```
 
-1. Leia a issue e entenda o escopo.
+1. Leia a issue e identifique o modo de execução a partir do prompt:
+   - **Modo Desenvolvimento Regular** (padrão para `feat`, `fix`, `chore`, `refactor`, `test`): siga o fluxo de implementação com TDD abaixo.
+   - **Modo Investigação** (para issues `spike`): siga o fluxo de investigação com relatório em `docs/investigations/` abaixo.
+
+### Modo Desenvolvimento Regular (`feat`, `fix`, `chore`, `refactor`, `test`)
 2. Siga estritamente as regras de desenvolvimento do arquivo de referência `$CLAUDE_PLUGIN_ROOT/skills/shared/references/planning-conventions.md` (§3):
    - **TDD**: Escreva um teste de reprodução simples que falhe (vermelho) antes de alterar o código do produto — disciplina completa em `$CLAUDE_PLUGIN_ROOT/skills/shared/references/tdd-conventions.md`.
    - **KISS/YAGNI (§3)**: Implemente apenas o código estritamente necessário para fazer o teste passar. Evite refatorações fora do escopo da issue.
@@ -71,6 +75,28 @@ Next: Reading issue scope
    `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`. É a única forma do
    `coordinator` acompanhar seu progresso. Ele fica fora do worktree, no root do repo —
    sem risco de commit acidental.
+
+### Modo Investigação (`spike`)
+
+Issues `spike` ("Investigação/exploração — resultado informa decisão futura, não é trabalho de implementação imediata") possuem fluxo dedicado no worker:
+
+1. **Dispensa de TDD e testes de produto**:
+   O worker **não roda TDD nem loop de testes de produto** (`fix`). Não há código de produto a ser testado.
+2. **Produção do Relatório em `docs/investigations/<slug>.md`**:
+   O entregável obrigatório da investigação é o arquivo de relatório em `docs/investigations/<slug>.md`.
+   O relatório segue um **formato mínimo documentado**, estruturado com as quatro seções essenciais:
+   - **Pergunta**: O problema central, contexto e a pergunta aberta ou de viabilidade que a investigação responde.
+   - **Evidências**: Fatos e dados objetivos levantados, com comandos executados, logs, medições, benchmarks, protótipos ou fontes/links reproduzíveis.
+   - **Opções avaliadas**: Alternativas técnicas consideradas, com prós, contras e trade-offs comparados.
+   - **Recomendação**: A opção recomendada com justificativa técnica clara para subsidiar a decisão futura.
+3. **Critério de `GREEN`**:
+   O status `GREEN` é atingido quando:
+   - O arquivo de relatório `docs/investigations/<slug>.md` existe e cobre as seções mínimas (Pergunta, Evidências, Opções avaliadas, Recomendação);
+   - `git diff --check` passa sem erros (sem conflitos ou problemas de whitespace);
+   - O commit com o relatório é registrado (ex.: `docs(investigation): <descrição do spike> (#<N>)`).
+4. **Decisão Humana e Follow-up (Não-escopo)**:
+   A entrega do spike segue o caminho de PR só de docs (#427). A decisão derivada do relatório continua humana — o worker e o coordinator **não criam issues de follow-up automaticamente** a partir da recomendação.
+5. Atualize o status file a cada iteração (inaugural como `RUNNING`, e ao concluir como `GREEN`).
 
 ## Instalação de dependências
 
@@ -112,3 +138,4 @@ O instalador correto vem do `runtime`/`packageManager` gravados em `.claude/veto
   `Status: GREEN` sem antes rodar um GET de confirmação do novo estado e registrar o resultado no
   status file — ver `agent-status.template.md` §"Efeitos colaterais externos". Verificação falhou ou
   foi inconclusiva → `BLOCKED_WAITING`, não `GREEN`.
+- Em modo investigação (`spike`): não crie testes de código de produto nem execute loops de teste desnecessários; concentre-se nas evidências reproduzíveis e na redação do relatório em `docs/investigations/<slug>.md`. Nunca crie issues de follow-up automaticamente a partir das recomendações do relatório.

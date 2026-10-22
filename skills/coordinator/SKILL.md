@@ -212,6 +212,28 @@ Mapeie o motivo aos labels existentes no repo alvo, usando o **primeiro da linha
 4. **Comportamento em `--headless`:** aplica igualmente a label de triagem se ela existir no repositório; nunca cria labels (`gh label create`). Sem equivalente no repo, não aplica e documenta a omissão no relatório final.
 5. **Não-escopo:** nunca aplique labels indicando execução em andamento (ex.: `in-progress` ou qualquer estado de execução). O estado de execução vive exclusivamente no worktree e no status file (`.claude/vetor/status/`), e o padrão do GitHub para status de fluxo é o campo Status do Projects.
 
+#### Detecção de issues spike (modo investigação)
+
+Issues do tipo `spike` ("Investigação/exploração — resultado informa decisão futura, não é trabalho de implementação imediata") possuem fluxo próprio de despacho, pois exigir TDD e testes de código de produto é inadequado para uma entrega cujo objetivo é uma decisão documentada:
+
+1. **Detecção**: reconheça uma issue como `spike` se:
+   - Possuir a label `spike` (ou o equivalente existente no repositório, ex.: `investigation`, `research`, `exploration`, consultados via `gh label list --limit 100 --json name`); OU
+   - O título iniciar por convenções como `spike:`, `spike(...)`, `investigação:`, `research:`; OU
+   - O corpo declarar explicitamente objetivo de spike ou investigação exploratória.
+2. **Isenção do Gate de Spec (Fase 2)**: issues `spike` são **isentas do gate de Spec** (dispensam Spec) — como seu propósito é explorar perguntas abertas antes de haver uma capacidade concreta a especificar (conforme `spec/SKILL.md` §0.1), não são bloqueadas pela ausência de Spec. Na tabela do plano da Fase 2, marque na coluna "Ação": `Despachar (Spike — modo investigação)`.
+3. **Provisionamento do worktree (Fase 3)**: utilize o tipo `docs` para a branch e worktree (`docs/<issue#>-<slug>`), formato nativo suportado por `worktree-create` (aceito desde #429).
+4. **Despacho em modo investigação (Fase 4)**: despache o worker com prompt específico de investigação:
+   - Sinalize que a issue deve ser executada em **modo investigação** (não em modo de desenvolvimento regular de código).
+   - **Dispensa de TDD e testes de produto**: o worker não roda TDD nem loop de testes de produto (não há código de produto a testar).
+   - **Entregável obrigatório**: produzir o relatório em `docs/investigations/<slug>.md`.
+   - **Formato mínimo documentado do relatório**:
+     1. Pergunta (a pergunta central ou problema a ser respondido)
+     2. Evidências (comandos executados, medições, logs, links ou fontes reproduzíveis)
+     3. Opções avaliadas (alternativas consideradas e seus trade-offs)
+     4. Recomendação (opção sugerida com justificativa para decisão futura)
+   - **Critério de `GREEN`**: status `GREEN` é atingido quando o arquivo `docs/investigations/<slug>.md` existir cobrindo as seções mínimas e `git diff --check` passar sem erros.
+5. **Entrega e follow-up (Fase 6)**: o PR gerado pelo `ship` segue o caminho de PR só de docs (#427). A decisão derivada do spike **continua humana** — o coordinator e o worker nunca criam issues de follow-up automaticamente a partir das recomendações.
+
 #### Agrupamento por afinidade
 
 Com as candidatas válidas em mãos, se houver mais de 3 issues, você pode delegar a proposta de
@@ -301,7 +323,7 @@ aplicado aqui à decisão "despachar como está, ou sinalizar a falta de uma Spe
    `spec/SKILL.md` §6) no corpo ou em algum comentário.
 4. **Gate**: sinalize apenas issues `não-trivial` **sem** Spec associada — nunca issues `trivial`
    (um bugfix que já chega com escopo claro não é bloqueado cegamente) nem issues `não-trivial` que já
-   têm Spec.
+   têm Spec, e nunca issues `spike` (investigações exploratórias dispensam Spec, ver "Detecção de issues spike").
 
 **Fora de `--headless`:** para cada issue sinalizada, pergunte via `AskUserQuestion` (uma pergunta por
 issue, ou agrupada se houver mais de uma — `planning-conventions.md` §3 "Regra das 3 perguntas"),
@@ -355,6 +377,7 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 |------|-------------------------|------------------------|-----------------|------|
 | O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet>  | Despachar |
 | O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet>  | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
+| O_1  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet>  | Despachar (Spike — modo investigação) |
 | —    | <slug-4>                | #<N5> (Lead)           | —               | SKIPPED (aguardando Spec) |
 | —    | <slug-5>                | #<N6> (Lead)           | —               | SKIPPED (aguardando insumo do usuário) |
 | —    | <slug-6>                | #<N7> (Lead)           | —               | SKIPPED (fora deste repositório) |
@@ -431,6 +454,9 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
   verifique se ela possui alguma label de triagem (`needs-spec`, `spec-needed`,
   `triage/needs-information`, `blocked`, `status/blocked`). Se possuir, remova-a com
   `gh issue edit <N> --remove-label "<label-de-triagem>"`.
+- **Despacho de issues spike (modo investigação):** se a issue for um `spike` (conforme detecção da Fase 1):
+  - Provisione o worktree com tipo `docs` (`docs/<issue#>-<slug>`, suportado desde #429).
+  - Despache o worker com prompt específico de modo investigação: dispensa TDD e testes de produto; exige relatório em `docs/investigations/<slug>.md` estruturado com Pergunta, Evidências (comandos/fontes reproduzíveis), Opções avaliadas e Recomendação; define critério de `GREEN` (relatório existe e `git diff --check` passa); e orienta que a entrega seguirá PR só de docs (#427), sem criação automática de issues de follow-up.
 
   Antes de cada dispatch, leia `../shared/references/issue-coordinator-dispatch.md` para duplicidade, status file e retomada em worktree existente.
 
@@ -507,7 +533,7 @@ Quando um agente atingir `GREEN`:
    ```
    /vetor:ship <issue#>
    ```
-3. Após merge bem-sucedido, atualize a tabela.
+3. Após merge bem-sucedido, atualize a tabela. Para grupos de spike/investigação, o `/vetor:ship` segue o caminho de PR só de docs (#427). A decisão decorrente do spike continua humana — issues de follow-up não são criadas automaticamente.
 
 Se `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
 
