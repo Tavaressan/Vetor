@@ -16,6 +16,8 @@ não precisa estar no caminho de quem só quer começar.
 
 - **[Arquitetura](Arquitetura.md)** — composição das skills, subagentes nativos, convenções geradas
   em `.claude/rules/vetor/` e observabilidade.
+- **[Desenvolvimento e Dogfooding](Desenvolvimento.md)** — como desenvolver o Vetor no próprio
+  repositório (`--plugin-dir`), precedência sobre o cache do marketplace e ciclo de recarga.
 - **[Hooks](Hooks.md)** — o que é aplicado por hook (e não por prompt), e como reutilizar
   `vetor-checks.sh in-worktree` em hooks do seu próprio projeto.
 - **[Decisões de design](Decisoes-de-Design.md)** — por que orquestração própria, o papel de Agent
