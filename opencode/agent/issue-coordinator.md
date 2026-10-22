@@ -43,14 +43,14 @@ merge serializado) é conceitualmente idêntico à versão Claude Code.
 ## Sintaxe
 
 ```
-opencode run --agent issue-coordinator "<label>"
+opencode run --agent issue-coordinator "[label]"
 opencode run --agent issue-coordinator "<n1>,<n2>,..."
 opencode run --agent issue-coordinator "--resume"
 opencode run --agent issue-coordinator
-opencode run --agent issue-coordinator "<label> --headless"
+opencode run --agent issue-coordinator "[label] --headless"
 ```
 
-- `<label>`: label das issues a despachar (default: `backlog`)
+- `[label]`: label das issues a despachar (sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado)
 - `<n1>,<n2>,...`: lista de números de issue separados por vírgula (regex `^[0-9]+(,[0-9]+)*$`)
 - sem argumento ou `--resume`: modo de retomada — reconstrói o estado a partir dos status files
   existentes (ver Fase 0)
@@ -160,30 +160,48 @@ Avalie o argumento recebido antes de qualquer outra fase:
      workers (Fase 2; pulada quando `N_rec = 1`) e vá direto para o monitoramento (Fase 5) — o estado em memória de `N` não
      sobrevive a um reinício do processo coordenador. Em `--headless`: não refaça a pergunta — use
      `N_rec` diretamente (ver Fase 2).
-  3. Se não houver nenhum worktree ativo com status file: caia no fluxo padrão como se fosse
-     `opencode run --agent issue-coordinator "backlog"`.
+  3. Se não houver nenhum worktree ativo com status file: caia no fluxo padrão a partir da Fase 1
+     (todas as issues abertas, ou `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado).
 - **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
   da Fase 1.
 
 ### 1 — Listar issues candidatas e analisar afinidades
 
-**Lista por número:**
-```bash
-for N in ${ARG//,/ }; do gh issue view "$N" --json number,title,labels,body; done
-```
+Se o argumento casar `^[0-9]+(,[0-9]+)*$`, trate-o como **lista por número**; caso contrário, como
+**label**. Se **nenhum argumento** for passado:
+- Verifique se `.claude/vetor/config.json` declara `defaultDispatchLabel`
+  - Se sim: use esse label (filtro explícito)
+  - Se não: descubra todas as issues abertas (sem filtro de label)
 
-**Label:**
-```bash
-gh issue list --label <label> --state open --json number,title,labels,body
-```
+O restante do fluxo é idêntico nos três modos (número, label, descoberta dinâmica).
 
-**Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label traz de volta,
-na mesma leva, issues abertas manualmente/via integração externa e issues geradas por `/retro` ou
-`/vetor:backlog` (label `ai-generated`), sem distinção. Antes do agrupamento de afinidade,
-particione o resultado usando o campo `labels`:
+- **Lista por número:**
+  ```bash
+  for N in ${ARG//,/ }; do gh issue view "$N" --json number,title,labels,body; done
+  ```
+- **Label ou defaultDispatchLabel:**
+  ```bash
+  gh issue list --label <label> --state open --json number,title,labels,body
+  ```
+- **Descoberta dinâmica (sem argumento, sem defaultDispatchLabel):**
+  ```bash
+  gh issue list --state open --json number,title,labels,body
+  ```
 
-- **Pedidas pelo usuário** (candidatas primárias): issues **sem** a label `ai-generated`.
-- **Recomendadas pelo agente**: issues **com** a label `ai-generated`.
+**Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label (ou a descoberta
+dinâmica) traz de volta, na mesma leva, issues abertas manualmente/via integração externa e issues
+geradas por skills do plugin (`/vetor:backlog`, `/vetor:retro`, `/vetor:guardian`), sem distinção. A origem
+passa a ser identificada pelo rodapé que as skills geradoras escrevem no corpo (`body`):
+`🤖 Gerado por /vetor:` (ex.: `🤖 Gerado por /vetor:backlog`, `🤖 Gerado por /vetor:retro`,
+`🤖 Gerado por /vetor:guardian`).
+
+Antes de montar o agrupamento por afinidade, particione o resultado usando o `body` e os `labels` já retornados:
+
+- **Recomendadas pelo agente**: issues cujo `body` contenha o rodapé `🤖 Gerado por /vetor:` OU que
+  contenham a label `ai-generated` em `labels` (regra de transição para issues antigas já criadas com
+  a label e sem rodapé, ex.: #403, #404 — leitura apenas; o plugin nunca aplica a label).
+- **Pedidas pelo usuário** (candidatas primárias): issues sem o rodapé `🤖 Gerado por /vetor:` no corpo
+  e sem a label `ai-generated`.
 
 Priorize o grupo "pedidas pelo usuário" no plano de dispatch. Só inclua "recomendadas pelo agente"
 quando o primeiro grupo estiver **vazio**, ou como itens extras claramente sinalizados como

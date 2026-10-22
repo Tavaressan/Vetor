@@ -133,11 +133,18 @@ O restante do fluxo é idêntico nos três modos (número, label, descoberta din
 
 **Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label (ou a descoberta
 dinâmica) traz de volta, na mesma leva, issues abertas manualmente/via integração externa e issues
-geradas por `/vetor:retro` ou `/vetor:backlog` (label `ai-generated`), sem distinção. Antes de
-montar o agrupamento por afinidade, particione o resultado usando o campo `labels` já retornado:
+geradas por skills do plugin (`/vetor:backlog`, `/vetor:retro`, `/vetor:guardian`), sem distinção. A origem
+passa a ser identificada pelo rodapé que as skills geradoras escrevem no corpo (`body`):
+`🤖 Gerado por /vetor:` (ex.: `🤖 Gerado por /vetor:backlog`, `🤖 Gerado por /vetor:retro`,
+`🤖 Gerado por /vetor:guardian`).
 
-- **Pedidas pelo usuário** (candidatas primárias): issues **sem** a label `ai-generated`.
-- **Recomendadas pelo agente**: issues **com** a label `ai-generated`.
+Antes de montar o agrupamento por afinidade, particione o resultado usando o `body` e os `labels` já retornados:
+
+- **Recomendadas pelo agente**: issues cujo `body` contenha o rodapé `🤖 Gerado por /vetor:` OU que
+  contenham a label `ai-generated` em `labels` (regra de transição para issues antigas já criadas com
+  a label e sem rodapé, ex.: #403, #404 — leitura apenas; o plugin nunca aplica a label).
+- **Pedidas pelo usuário** (candidatas primárias): issues sem o rodapé `🤖 Gerado por /vetor:` no corpo
+  e sem a label `ai-generated`.
 
 Monte o plano de dispatch priorizando o grupo "pedidas pelo usuário". Só inclua issues do grupo
 "recomendadas pelo agente" quando o primeiro grupo estiver **vazio** no filtro aplicado — ou,
