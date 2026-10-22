@@ -26,27 +26,29 @@ técnica do projeto ou decisões de arquitetura do projeto **não** entram aqui 
 ```
 
 Invocação manual, tipicamente ao final de uma sessão que usou uma ou mais skills do Vetor
-(`backlog`, `coordinator`, `guardian`, `worktree-create`, `ship`,
-`fix`, `issue-worker`).
+(`backlog`, `coordinator`, `guardian`, `worktree-create`, `ship`, `fix`, `issue-worker`).
 
 ---
 
 ## Referências
 
 > Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
-> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos `bash`/`deno run`,
-> prefixe o path absoluto desse diretório ao caminho relativo antes de executar — defina uma vez:
+> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos
+> `bash`/`deno run`, prefixe o path absoluto desse diretório ao caminho relativo antes de executar —
+> defina uma vez:
+>
 > ```bash
 > SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
 > ```
+>
 > e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
 
-- `../shared/references/mcp-availability.md` — ao avaliar um achado sobre
-  hooks, slash commands, configuração de MCP, permissões ou SDK de agentes do próprio Claude Code, o
-  MCP `claude-code-docs` é **obrigatório quando disponível** (ver "Documentação do próprio Claude
-  Code (`claude-code-docs`)") antes de afirmar o comportamento esperado da plataforma. Nota: há
-  sobreposição parcial com o agente `claude-code-guide` (dúvidas gerais do usuário sobre o produto) —
-  o `retro` usa o MCP para decisões internas sobre o comportamento do Vetor, não para responder
+- `../shared/references/mcp-availability.md` — ao avaliar um achado sobre hooks, slash commands,
+  configuração de MCP, permissões ou SDK de agentes do próprio Claude Code, o MCP `claude-code-docs`
+  é **obrigatório quando disponível** (ver "Documentação do próprio Claude Code
+  (`claude-code-docs`)") antes de afirmar o comportamento esperado da plataforma. Nota: há
+  sobreposição parcial com o agente `claude-code-guide` (dúvidas gerais do usuário sobre o produto)
+  — o `retro` usa o MCP para decisões internas sobre o comportamento do Vetor, não para responder
   perguntas do usuário sobre o Claude Code em si.
 
 ---
@@ -64,8 +66,8 @@ skill/agente do Vetor invocado, procure por sinais de fricção real — não in
   projeto).
 - **Uma alegação da skill se mostrou falsa** ao ser exercitada de verdade (ex.: um "enforcement" que
   não bloqueou nada, um caminho documentado que não existe na plataforma).
-- **Um efeito colateral não documentado** apareceu (ex.: arquivo escrito fora do esperado, chamada que
-  falhou silenciosamente).
+- **Um efeito colateral não documentado** apareceu (ex.: arquivo escrito fora do esperado, chamada
+  que falhou silenciosamente).
 - **Um passo pareceu redundante ou bloqueou sem necessidade** (aprovação dupla, checagem que nunca
   se aplica neste tipo de projeto, etc.).
 
@@ -79,13 +81,24 @@ Para cada achado real, monte:
 ### <Título curto e específico>
 
 **Tipo:** bug | enhancement | docs
+
 **Skill/arquivo afetado:** <ex.: skills/coordinator/SKILL.md>
+
 **Evidência:** <trecho da sessão que mostra o problema — cite o que aconteceu, não hipótese>
+
 **Descrição:** <o que está errado ou faltando, e o efeito prático>
+
 **Sugestão de fix:** <se houver uma direção clara; opcional caso a solução não seja óbvia>
+
+## Critério de aceite
+
+- [ ] <critério 1 verificável>
+- [ ] <critério 2 verificável>
 ```
 
-Priorize achados que **realmente aconteceram** nesta sessão sobre problemas hipotéticos.
+Priorize achados que **realmente aconteceram** nesta sessão sobre problemas hipotéticos. O checklist
+de **Critério de aceite** é obrigatório para que o gate do `coordinator` avalie o escopo com
+precisão.
 
 ### 3 — Verificar duplicatas no repositório do Vetor
 
@@ -94,43 +107,75 @@ atual). Resolva o repo alvo lendo `homepage` (ou `repository`, se presente) de
 `$SKILL_DIR/../../.claude-plugin/plugin.json` — hoje `Tavaressan/Vetor`.
 
 Use a CLI `gh`:
-  ```bash
-  gh issue list --repo Tavaressan/Vetor --search "<palavras-chave>" --state all
-  ```
+
+```bash
+gh issue list --repo Tavaressan/Vetor --search "<palavras-chave>" --state all
+```
 
 Se encontrar equivalente, não proponha criar de novo — anote como "já rastreado em #<N>" no resumo.
 
 ### 4 — Apresentar e aguardar aprovação
 
 Apresente a lista de issues candidatas (após remover duplicatas) e obtenha aprovação seguindo o
-mecanismo do ecossistema atual (`../shared/references/planning-conventions.md`
-§2.2 — plan mode nativo no Claude Code via `ExitPlanMode` se a sessão já estiver em plan mode, ou
-`AskUserQuestion` caso não esteja, `implementation_plan.md` com `request_feedback: true` no
-Antigravity, ou confirmação no chat).
+mecanismo do ecossistema atual (`../shared/references/planning-conventions.md` §2.2 — plan mode
+nativo no Claude Code via `ExitPlanMode` se a sessão já estiver em plan mode, ou `AskUserQuestion`
+caso não esteja, `implementation_plan.md` com `request_feedback: true` no Antigravity, ou
+confirmação no chat).
 
 **Pare** até a aprovação. O usuário pode aprovar todas, algumas, ou nenhuma.
 
 ### 5 — Criar as issues aprovadas — sempre no repo do Vetor, nunca no do projeto
 
-⚠️ **Restrição crítica:** estas issues vão para o repositório do **plugin** (`Tavaressan/Vetor`, lido
-do `plugin.json`), que quase sempre é diferente do repositório do projeto onde esta sessão está
+⚠️ **Restrição crítica:** estas issues vão para o repositório do **plugin** (`Tavaressan/Vetor`,
+lido do `plugin.json`), que quase sempre é diferente do repositório do projeto onde esta sessão está
 rodando. Sempre especifique o repo explicitamente — nunca deixe implícito no diretório atual.
 
-Use a CLI `gh`:
-  ```bash
-  gh issue create --repo Tavaressan/Vetor \
-    --title "<título>" \
-    --body "$(cat <<'EOF'
-  <corpo no formato de §2>
+#### 5.a — Política de labels
 
-  ---
-  🤖 Gerado por `/vetor:retro` — sessão em <projeto atual, sem dados sensíveis>
-  EOF
-  )"
-  ```
-  Não passe `--label retro` se não tiver certeza de que o label existe no repo alvo — `gh issue
-  create` falha se o label não existir. Tente sem label em caso de erro, e reporte a falha do label
-  sem abortar a criação da issue.
+- **Nunca cria labels** no repositório.
+- **Não aplica `ai-generated`** (nem `retro` ou `backlog`). A procedência e origem da issue são
+  registradas exclusivamente pelo rodapé obrigatório `🤖 Gerado por /vetor:retro`.
+- **Aplica só a label de tipo existente no repo**: consulte os labels existentes no repo alvo antes
+  de criar as issues.
+
+```bash
+gh label list --repo Tavaressan/Vetor --limit 100 --json name
+```
+
+Se a label correspondente ao `Tipo` da issue (`bug`, `enhancement`, `docs`) existir no
+repositório-alvo, aplique-a via `--label "<tipo>"`. Se a label de tipo não existir no repo, omita o
+argumento `--label`.
+
+#### 5.b — Criação da issue
+
+O rodapé `🤖 Gerado por /vetor:retro` permanece **obrigatório** no final do corpo da issue.
+
+Use a CLI `gh`:
+
+```bash
+# Se a label de tipo existir no repo alvo:
+gh issue create --repo Tavaressan/Vetor \
+  --title "<título>" \
+  --body "$(cat <<'EOF'
+<corpo no formato de §2>
+
+---
+🤖 Gerado por `/vetor:retro` — sessão em <projeto atual, sem dados sensíveis>
+EOF
+)" \
+  --label "<tipo>"
+
+# Se a label de tipo NÃO existir no repo alvo, omita --label:
+gh issue create --repo Tavaressan/Vetor \
+  --title "<título>" \
+  --body "$(cat <<'EOF'
+<corpo no formato de §2>
+
+---
+🤖 Gerado por `/vetor:retro` — sessão em <projeto atual, sem dados sensíveis>
+EOF
+)"
+```
 
 Se a criação falhar (repo inacessível, sem permissão, `gh`/MCP indisponível), **não perca o
 trabalho**: imprima a lista completa de issues candidatas no chat para o usuário copiar manualmente.
@@ -153,5 +198,9 @@ Já rastreados (duplicata, não recriado):
 - Nunca avalia o código ou as issues do projeto do usuário — só o comportamento do Vetor
 - Nunca cria issues sem aprovação explícita
 - Nunca cria issues no repositório do projeto atual — sempre no repo do Vetor (`plugin.json`)
+- Nunca cria labels no repositório — aplica só a label de tipo existente no repo
+- Não aplica ai-generated — a procedência é mantida pelo rodapé obrigatório
+- O rodapé `🤖 Gerado por /vetor:retro` permanece obrigatório em toda issue criada
+- Critério de aceite com checklist é obrigatório no template de toda issue candidata
 - Não força achados: sessão sem fricção real produz "nada a reportar", não issues artificiais
 - Evidência é obrigatória por achado — sem trecho real da sessão, não vira issue candidata
