@@ -11,38 +11,86 @@ Plugin de skills para automação de workflow de desenvolvimento — nativo do C
 
 Cobre o ciclo completo: **ideação → backlog → worktree isolado → fix autônomo → ship → guarda**.
 
-## Instalação
+## Instalação e Atualização
 
-**Via plugin do Claude Code** (comandos nativos do Claude Code, não funcionam em outros terminais):
+O Vetor pode ser instalado **globalmente** (no ambiente do usuário/harness) ou **localmente** (no diretório de um projeto específico).
 
+### Para Agentes de IA (Headless / TTY-less)
+
+Se você é um agente de IA (Antigravity, Claude Code, Cursor, Codex ou OpenCode) com a instrução de instalar ou atualizar o Vetor neste projeto ou ambiente, use os comandos determinísticos abaixo (sem prompts interativos):
+
+| Harness | Instalação Inicial (Headless) | Atualização | Escopo |
+|---|---|---|---|
+| **Antigravity** (Global) | Linux/macOS:<br>`git clone https://github.com/Tavaressan/Vetor.git /tmp/vetor-plugin && agy plugin install /tmp/vetor-plugin`<br><br>Windows (PowerShell):<br>`git clone https://github.com/Tavaressan/Vetor.git "$env:TEMP\vetor-plugin"; agy plugin install "$env:TEMP\vetor-plugin"` | `cd <clone-dir> && git pull && agy plugin install .`<br>*(ou `agy plugin remove vetor && agy plugin install <clone-dir>`)* | Global do usuário (`~/.gemini/config/plugins/`) |
+| **Antigravity** (Projeto) | `npx @tavaressan/vetor install --engines antigravity --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.agents/`) |
+| **Claude Code** (Global) | Comandos nativos no prompt:<br>`/plugin marketplace add Tavaressan/Vetor`<br>`/plugin install vetor@vetor` | `/plugin update vetor` | Global do usuário |
+| **Claude Code** (Projeto) | `npx @tavaressan/vetor install --engines claude-code --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.claude/`) |
+| **Cursor** (Projeto) | `npx @tavaressan/vetor install --engines cursor --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.cursor/`) |
+| **OpenAI Codex** (Projeto) | `npx @tavaressan/vetor install --engines codex --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.codex/` e `.agents/skills/`) |
+| **OpenCode** (Projeto) | `npx @tavaressan/vetor install --engines opencode --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.opencode/`) |
+
+> **Dica para multi-engine:** para instalar em múltiplos harnesses simultaneamente no projeto atual, use lista de IDs separada por vírgula:  
+> `npx @tavaressan/vetor install --engines claude-code,antigravity,cursor,codex,opencode --yes`
+
+### Instalação Manual por Desenvolvedor
+
+#### 1. Claude Code (Plugin Nativo)
+No prompt do Claude Code:
 ```
 /plugin marketplace add Tavaressan/Vetor
 /plugin install vetor@vetor
 ```
+Para atualizar: `/plugin update vetor`.
 
-**Via npm** (CLI multi-engine — Claude Code, Codex e outras engines suportadas):
-
+#### 2. Google Antigravity (Plugin Global via `agy`)
+Clone o repositório e registre o plugin globalmente no CLI `agy`:
+```bash
+# Clone em diretório temporário
+git clone https://github.com/Tavaressan/Vetor.git /tmp/vetor-plugin
+# Registra e instala o plugin
+agy plugin install /tmp/vetor-plugin
 ```
+*No Windows (PowerShell):*
+```powershell
+git clone https://github.com/Tavaressan/Vetor.git "$env:TEMP\vetor-plugin"
+agy plugin install "$env:TEMP\vetor-plugin"
+```
+
+#### 3. Via CLI `vetor` (npm / npx)
+Ideal para instalar em projetos locais com seleção interativa de harnesses detectados:
+```bash
+# Execução direta sem instalação global:
+npx @tavaressan/vetor install
+
+# Ou instalação global do CLI:
 npm install -g @tavaressan/vetor
 vetor install
 ```
+Para atualizar os arquivos instalados no projeto: `vetor update` (ou `npx @tavaressan/vetor update`).
 
-**Via Deno** (execução direta ou instalação global):
-
+#### 4. Via Deno (CLI)
 ```sh
 deno run -A npm:@tavaressan/vetor install
 deno install --global --compile -A npm:@tavaressan/vetor
 ```
-
-`-A` concede todas as permissões: o CLI lê e escreve no projeto, acessa variáveis de ambiente e, no `doctor`, executa `git`, `gh` e `deno`. O modo interativo sob Deno ainda requer validação manual em um terminal real.
+`-A` concede todas as permissões: o CLI lê e escreve no projeto, acessa variáveis de ambiente e executa ferramentas de checagem.
 
 <div align="center">
   <img src="assets/images/cli-banner.png" alt="vetor --help no terminal" width="600" />
 </div>
 
-Depois de qualquer um desses métodos, rode **`/vetor:install`** no projeto-alvo: ele detecta o runtime, gera o mapeamento de testes e grava a configuração em `.claude/vetor/`.
+### Configuração Inicial no Projeto
+Após a instalação das skills/plugin, execute no projeto-alvo:
+```
+/vetor:install
+```
+Ele detecta o runtime do repositório, gera o mapeamento de comandos de teste e grava a configuração em `.claude/vetor/`.
 
-**Pré-requisitos:** [Deno](https://deno.com) e `gh` CLI autenticado no PATH, e Git com suporte a `git worktree`. *(Opcionais: `npx` para o MCP `chrome-devtools`, Docker com plugin `docker mcp` para o MCP `docker`, `agy`/`opencode`/`codex` para delegação agnóstica de runtime — ver `delegate-to-runtime.md`.)*
+**Pré-requisitos mínimos:**
+- **[Deno](https://deno.com)** (`curl -fsSL https://deno.land/install.sh | sh` ou `winget install DenoLand.Deno`) — runtime essencial para execução das skills e scripts de inspeção do Vetor.
+- **[GitHub CLI `gh`](https://cli.github.com)** autenticado (`gh auth status`) — para integração com issues e pull requests.
+- **Git** com suporte a `git worktree` (Git >= 2.20).
+*(Opcionais: `npx` para o MCP `chrome-devtools`, Docker com plugin `docker mcp` para o MCP `docker`, `agy`/`opencode`/`codex` para delegação agnóstica de runtime — ver `delegate-to-runtime.md`.)*
 
 ## Skills
 
