@@ -77,4 +77,10 @@ legacy/                          # código aposentado — mantido como referênc
 
 ---
 
+## Desenvolvimento e Dogfooding
+
+Para detalhes sobre como executar o Vetor no próprio repositório carregando o plugin a partir do working tree (`claude --plugin-dir .`), precedência sobre o plugin em cache e comandos de recarga, consulte a página dedicada: **[Desenvolvimento e Dogfooding](Desenvolvimento.md)**.
+
+---
+
 [← Wiki do Vetor](Home.md)

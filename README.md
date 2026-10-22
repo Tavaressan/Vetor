@@ -134,6 +134,24 @@ Ele detecta o runtime do repositório, gera o mapeamento de comandos de teste e 
 
 > Para rodar o `/vetor:coordinator` com dispatch em background é preciso o modo de permissões autônomo — ver [Configuração › Permissões](wiki/Configuracao.md#permissões).
 
+## Desenvolvimento e Dogfooding
+
+Ao desenvolver ou testar o Vetor **no próprio repositório** (dogfooding):
+
+> **Atenção ao cache:** Se você já instalou o Vetor via marketplace (`/plugin install vetor@vetor`), iniciar o Claude Code normalmente (`claude`) **não** carrega as skills do seu working tree. O Claude Code utiliza por padrão a versão estática em cache (`~/.claude/plugins/cache/vetor/vetor/<versão>/`). Com isso, correções de skills mergeadas ou edições locais não têm efeito na sessão.
+
+### Carregando o plugin do working tree
+
+Inicie a sessão apontando explicitamente para a raiz do repositório:
+
+```bash
+claude --plugin-dir .
+```
+
+- **Precedência e resolução de conflitos:** A opção de sessão `--plugin-dir` tem precedência sobre o plugin do marketplace de mesmo nome (`vetor`). As skills, subagentes e hooks locais do working tree sobrepõem a versão em cache para aquela sessão, sem conflito de namespace ou necessidade de desinstalar o plugin global.
+- **Recarga em sessão ativa:** Alterações feitas em arquivos de `skills/`, `agents/` ou hooks durante uma sessão não entram em vigor imediatamente se já estiverem em memória. Use `/reload-plugins` no Claude Code para recarregar as definições locais ou reinicie a sessão.
+- **Mais detalhes:** Consulte o guia completo em [Desenvolvimento e Dogfooding](wiki/Desenvolvimento.md).
+
 ## Documentação
 
 A [**wiki**](wiki/Home.md) tem o detalhe:
@@ -146,6 +164,7 @@ A [**wiki**](wiki/Home.md) tem o detalhe:
 | [Hooks](wiki/Hooks.md) | O que é aplicado por hook, não por prompt |
 | [Decisões de design](wiki/Decisoes-de-Design.md) | Trade-offs e limitações conhecidas |
 | [Referência](wiki/Referencia.md) | Hard caps, custo de tokens, estrutura do repositório |
+| [Desenvolvimento](wiki/Desenvolvimento.md) | Dogfooding, carregamento via working tree (`--plugin-dir`), cache e recarga |
 | [Compatibilidade](wiki/Home.md#compatibilidade-com-outros-runtimes) | Antigravity, OpenAI Codex, OpenCode, Cursor |
 
 ## Créditos
