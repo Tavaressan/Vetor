@@ -1,4 +1,4 @@
-import { assertFalse, assertMatch, assertStringIncludes } from "@std/assert";
+import { assert, assertFalse, assertMatch, assertStringIncludes } from "@std/assert";
 
 const root = new URL("../../", import.meta.url);
 const claudeCoordinator = await Deno.readTextFile(
@@ -7,17 +7,47 @@ const claudeCoordinator = await Deno.readTextFile(
 const opencodeCoordinator = await Deno.readTextFile(
   new URL("opencode/agent/issue-coordinator.md", root),
 );
+const backlogSkill = await Deno.readTextFile(
+  new URL("skills/backlog/SKILL.md", root),
+);
+const retroSkill = await Deno.readTextFile(
+  new URL("skills/retro/SKILL.md", root),
+);
+const guardianSkill = await Deno.readTextFile(
+  new URL("skills/guardian/SKILL.md", root),
+);
+
+const footerLinePattern = /^🤖 Gerado por `?\/vetor:/;
+const documentedReference = "``^🤖 Gerado por `?/vetor:``";
+const checklistMention = "- [ ] O rodapé `🤖 Gerado por /vetor:retro` permanece obrigatório.";
+
+Deno.test("issue #453: linhas de rodapé geradas começam com o prefixo rastreável", () => {
+  for (
+    const [path, skill] of [
+      ["skills/backlog/SKILL.md", backlogSkill],
+      ["skills/retro/SKILL.md", retroSkill],
+      ["skills/guardian/SKILL.md", guardianSkill],
+    ]
+  ) {
+    const lines = skill.split(/\r?\n/).filter((line) => line.startsWith("🤖 Gerado por"));
+    assert(lines.length > 0, `${path} deve ter ao menos uma linha de rodapé`);
+    for (const line of lines) {
+      assertMatch(line, footerLinePattern, `${path}: linha não corresponde ao prefixo do rodapé`);
+    }
+  }
+  assertFalse(footerLinePattern.test(checklistMention));
+});
 
 Deno.test("issue #453: skills/coordinator/SKILL.md §1 particiona por rodapé 🤖 Gerado por /vetor: no body com transição de ai-generated", () => {
   // Identificação da origem pelo rodapé no body
   assertStringIncludes(
     claudeCoordinator,
-    "🤖 Gerado por /vetor:",
-    "skills/coordinator/SKILL.md deve mencionar o prefixo de rodapé 🤖 Gerado por /vetor:",
+    documentedReference,
+    "skills/coordinator/SKILL.md deve documentar a regex de referência",
   );
   assertMatch(
     claudeCoordinator,
-    /origem\s+passa\s+a\s+ser\s+identificada\s+pelo\s+rodapé[\s\S]*?`🤖 Gerado por \/vetor:`/i,
+    /origem\s+passa\s+a\s+ser\s+identificada\s+por\s+uma\s+linha[\s\S]*?Menções ao rodapé no meio de uma frase ou de um item de checklist\s+não contam/i,
     "skills/coordinator/SKILL.md deve descrever que a origem é identificada pelo rodapé",
   );
 
@@ -31,7 +61,7 @@ Deno.test("issue #453: skills/coordinator/SKILL.md §1 particiona por rodapé �
   // Recomendadas pelo agente: rodapé no body OU label ai-generated
   assertMatch(
     claudeCoordinator,
-    /\*\*Recomendadas pelo agente\*\*: issues cujo `body` contenha o rodapé `🤖 Gerado por \/vetor:` OU que\s+contenham a label `ai-generated`/i,
+    /\*\*Recomendadas pelo agente\*\*: issues cujo `body` tenha uma linha que comece com `🤖 Gerado por` seguida\s+de `\/vetor:<skill>`[\s\S]*?OU que\s+contenham a label `ai-generated`/i,
     "skills/coordinator/SKILL.md deve incluir rodapé OU label ai-generated como recomendadas pelo agente",
   );
 
@@ -45,7 +75,7 @@ Deno.test("issue #453: skills/coordinator/SKILL.md §1 particiona por rodapé �
   // Pedidas pelo usuário: sem rodapé e sem ai-generated
   assertMatch(
     claudeCoordinator,
-    /\*\*Pedidas pelo usuário\*\* \(candidatas primárias\): issues sem o rodapé `🤖 Gerado por \/vetor:` no corpo\s+e sem a label `ai-generated`/i,
+    /\*\*Pedidas pelo usuário\*\* \(candidatas primárias\): issues sem uma linha do corpo que comece com\s+`🤖 Gerado por` seguida de `\/vetor:<skill>` e sem a label `ai-generated`/i,
     "skills/coordinator/SKILL.md deve definir pedidas pelo usuário como sem rodapé e sem ai-generated",
   );
 });
@@ -54,12 +84,12 @@ Deno.test("issue #453: opencode/agent/issue-coordinator.md tem paridade com coor
   // Identificação da origem pelo rodapé no body
   assertStringIncludes(
     opencodeCoordinator,
-    "🤖 Gerado por /vetor:",
-    "opencode/agent/issue-coordinator.md deve mencionar o rodapé 🤖 Gerado por /vetor:",
+    documentedReference,
+    "opencode/agent/issue-coordinator.md deve documentar a regex de referência",
   );
   assertMatch(
     opencodeCoordinator,
-    /origem\s+passa\s+a\s+ser\s+identificada\s+pelo\s+rodapé[\s\S]*?`🤖 Gerado por \/vetor:`/i,
+    /origem\s+passa\s+a\s+ser\s+identificada\s+por\s+uma\s+linha[\s\S]*?Menções ao rodapé no meio de uma frase ou de um item de checklist\s+não contam/i,
     "opencode/agent/issue-coordinator.md deve descrever a detecção de origem pelo rodapé",
   );
 
@@ -73,7 +103,7 @@ Deno.test("issue #453: opencode/agent/issue-coordinator.md tem paridade com coor
   // Recomendadas pelo agente
   assertMatch(
     opencodeCoordinator,
-    /\*\*Recomendadas pelo agente\*\*: issues cujo `body` contenha o rodapé `🤖 Gerado por \/vetor:` OU que\s+contenham a label `ai-generated`/i,
+    /\*\*Recomendadas pelo agente\*\*: issues cujo `body` tenha uma linha que comece com `🤖 Gerado por` seguida\s+de `\/vetor:<skill>`[\s\S]*?OU que\s+contenham a label `ai-generated`/i,
     "opencode/agent/issue-coordinator.md deve classificar por rodapé OU label ai-generated",
   );
 
@@ -87,7 +117,7 @@ Deno.test("issue #453: opencode/agent/issue-coordinator.md tem paridade com coor
   // Pedidas pelo usuário
   assertMatch(
     opencodeCoordinator,
-    /\*\*Pedidas pelo usuário\*\* \(candidatas primárias\): issues sem o rodapé `🤖 Gerado por \/vetor:` no corpo\s+e sem a label `ai-generated`/i,
+    /\*\*Pedidas pelo usuário\*\* \(candidatas primárias\): issues sem uma linha do corpo que comece com\s+`🤖 Gerado por` seguida de `\/vetor:<skill>` e sem a label `ai-generated`/i,
     "opencode/agent/issue-coordinator.md deve definir pedidas pelo usuário sem rodapé e sem label",
   );
 });

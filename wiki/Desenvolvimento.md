@@ -42,9 +42,9 @@ claude plugin validate .
 
 Ao utilizar `--plugin-dir .` em um ambiente que já possui o Vetor instalado via marketplace:
 
-1. **Precedência em nível de sessão:** O Claude Code trata opções de linha de comando (`--plugin-dir` e `--plugin-url`) com precedência máxima sobre instalações persistentes nos escopos `user`, `project` ou `local`. Os componentes locais (skills, subagentes nativos, hooks e configurações de MCP) sobrepõem os componentes homônimos da versão em cache para aquela sessão.
-2. **Resolução de nomes e namespaces:** Não há colisão de nomes. Os slash commands `/vetor:<skill>` invocam as definições do diretório local apontado por `--plugin-dir`.
-3. **Isolamento e diagnóstico:** Para confirmar quais fontes de plugin estão ativas na sessão, execute `/plugin list` no prompt do Claude Code. Se desejar isolamento absoluto, você pode desinstalar temporariamente a versão do marketplace (`/plugin uninstall vetor`), embora o uso de `--plugin-dir` torne isso dispensável devido à sobreposição direta.
+1. **Precedência em nível de sessão:** O Claude Code trata opções de linha de comando (`--plugin-dir` e `--plugin-url`) com precedência sobre instalações persistentes nos escopos `user`, `project` ou `local`. Os componentes locais (skills, subagentes nativos, hooks e configurações de MCP) sobrepõem os componentes homônimos da versão em cache para aquela sessão, salvo quando o plugin está em `enabledPlugins` de managed settings. Nesse caso, a cópia de `--plugin-dir` é ignorada com a mensagem `--plugin-dir copy of "<name>" ignored: plugin is locked by managed settings`.
+2. **Resolução de nomes e namespaces:** Não há colisão de nomes. Salvo a exceção de managed settings do item 1, os slash commands `/vetor:<skill>` invocam as definições do diretório local apontado por `--plugin-dir`.
+3. **Isolamento e diagnóstico:** `claude plugin list` não mostra a substituição: a linha do marketplace continua aparecendo como habilitada porque reflete as settings. Para confirmar a substituição, inicie `claude --plugin-dir . --debug` e consulte o log em `~/.claude/debug/`, que registra `Plugin "vetor" from --plugin-dir overrides installed version`. Se desejar isolamento absoluto, você pode desinstalar temporariamente a versão do marketplace (`/plugin uninstall vetor`).
 
 ---
 
@@ -57,7 +57,7 @@ O Claude Code carrega as definições de skills, agentes e hooks na inicializaç
   ```text
   /reload-plugins
   ```
-- **Reinício da sessão:** Caso haja alterações estruturais em hooks de ciclo de vida (`PreToolUse`, `PostToolUse`) ou manifestos (`.claude-plugin/plugin.json`), encerre a sessão (`/exit`) e reinicie com `claude --plugin-dir .`.
+  Ele recarrega do disco o conjunto de plugins (skills, agentes, hooks, servidores MCP e LSP); só alterações em monitors exigem reiniciar a sessão.
 
 ---
 
