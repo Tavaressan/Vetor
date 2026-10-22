@@ -162,8 +162,10 @@ pule a issue e registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado 
 
 Nem toda issue aberta está pronta para despacho imediato por um subagente autônomo. Identifique e
 classifique antecipadamente issues não-despacháveis para que componham o plano e o Coordinator
-Report com resultados padronizados (issue #413):
+Report com resultados padronizados (issues #413, #456):
 
+- `SKIPPED (bloqueada por #N)`: issues cujo endpoint nativo de dependências (`blocked_by`) identifica
+  uma issue bloqueadora aberta que não faz parte da leva atual de despacho (issue #456).
 - `SKIPPED (aguardando insumo do usuário)`: issues que dependem de decisão estratégica, validação de
   banca/cliente, credenciais, assets, texto ou conteúdo humano indisponível nesta sessão.
 - `SKIPPED (fora deste repositório)`: issues cujo escopo pertence a outro repositório (ex.: README
@@ -198,23 +200,45 @@ default ANTES do merge de A causa branch skew: o worktree de B nunca verá as mu
 conciliação manual depois. Para evitar isso, organize os grupos em **ondas topológicas** (`O_1, O_2,
 ..., O_k`) antes de montar o plano da Fase 2:
 
-1. Para cada par de grupos, verifique **heurísticas best-effort** de dependência (não há grafo formal
-   de dependências no GitHub — esta detecção é sempre uma inferência, nunca um fato garantido):
+1. **Leitura de dependências nativas do GitHub (REST API)**:
+   Dependências entre issues ("blocked by" / "blocking") são nativas no GitHub desde 21/08/2025
+   (com API REST e filtros `is:blocked`/`is:blocking`). Para cada issue candidata, consulte as
+   dependências bloqueadoras via GitHub CLI / REST API:
+   ```bash
+   gh api repos/{owner}/{repo}/issues/<N>/dependencies/blocked_by
+   ```
+   (ou consulte o resumo `issue_dependencies_summary` do objeto da issue retornado por
+   `gh issue view <N> --json issue_dependencies_summary` / `gh api repos/{owner}/{repo}/issues/<N>`).
+
+   Aplique os seguintes tratamentos para cada bloqueadora encontrada:
+   - **Bloqueadora aberta e fora da leva**: a issue candidata não pode ser despachada nesta sessão;
+     sai da leva como `SKIPPED (bloqueada por #N)` (recebe Onda `—`, modelo `—` e justificativa clara
+     no plano e no Coordinator Report — ver "Triagem de despachabilidade").
+   - **Bloqueadora dentro da leva**: estabelece uma aresta do DAG como **fato** (não inferência): o
+     grupo da issue bloqueadora deve ser executado e mergeado antes do grupo da issue dependente (`A → B`).
+     A issue dependente é alocada para uma onda posterior (`O_2+`).
+
+2. **Fallback para heurística textual** (em caso de falha/indisponibilidade da API ou dependência não cadastrada):
+   Se a chamada à REST API falhar ou estiver indisponível (ex.: endpoint inacessível, erro de rede,
+   ou falta de permissão), ou para capturar dependências textuais não cadastradas formalmente no GitHub,
+   recorra às **heurísticas textuais best-effort**:
    - Título/corpo de uma issue do grupo B menciona explicitamente outro grupo/issue do grupo A (ex.:
-     "depende de #12", "após #12", "usa a entidade criada em #12").
+     "depende de #12", "blocked by #12", "após #12", "usa a entidade criada em #12").
    - Labels indicando ordem (ex.: `blocked-by`, `depends-on`) ou convenção do time.
    - Mesmo módulo/diretório, mas com evidência de ordem de criação de arquivo (ex.: B referencia uma
      classe, tabela ou migration que a descrição de A propõe criar pela primeira vez).
-2. Construa um DAG (grafo acíclico dirigido) de grupos: aresta `A → B` quando B depende de A. Se
-   houver ciclo aparente (heurística ambígua), trate como **não-dependente** e avise no plano — não
-   bloqueie o dispatch por uma inferência de baixa confiança.
-3. Derive as ondas por ordenação topológica: `O_1` contém todos os grupos sem dependência pendente;
+
+3. Construa o **DAG (grafo acíclico dirigido)** de grupos: aresta `A → B` quando B depende de A (arestas
+   nativas como fatos e heurísticas textuais como inferências complementares). Se houver ciclo aparente
+   (heurística ambígua), trate como **não-dependente** e avise no plano — não bloqueie o dispatch por
+   uma inferência de baixa confiança.
+4. Derive as ondas por ordenação topológica: `O_1` contém todos os grupos sem dependência pendente;
    `O_2` os que dependem só de grupos em `O_1`; e assim por diante.
-4. **Fallback:** se nenhuma dependência for detectável entre os grupos (caso mais comum), cada grupo
+5. **Fallback de ondas:** se nenhuma dependência (nativa ou textual) for detectável entre os grupos (caso mais comum), cada grupo
    forma sua própria onda e todas as ondas colapsam em uma só (`O_1`) — comportamento idêntico ao
    dispatch paralelo atual, sem mudança de comportamento observável.
-5. O usuário pode **corrigir manualmente** o agrupamento em ondas no plano da Fase 2 antes de aprovar
-   — a heurística é um ponto de partida, não uma decisão final.
+6. O usuário pode **corrigir manualmente** o agrupamento em ondas no plano da Fase 2 antes de aprovar
+   — dependências nativas e heurísticas são pontos de partida, cabendo ao usuário a validação final.
 
 ### 2 — Apresentar plano de dispatch e obter aprovação
 
@@ -298,11 +322,12 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 | —    | <slug-5>                | #<N6> (Lead)           | —               | SKIPPED (aguardando insumo do usuário) |
 | —    | <slug-6>                | #<N7> (Lead)           | —               | SKIPPED (fora deste repositório) |
 | —    | <slug-7>                | #<N8> (Lead)           | —               | SKIPPED (épico/acompanhamento) |
+| —    | <slug-8>                | #<N9> (Lead)           | —               | SKIPPED (bloqueada por #<B>) |
 | O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet>  | Aguardar O_1 |
 ```
 
 Se houver mais de uma onda, explique **por que** cada grupo da onda `O_2+` depende de um grupo de
-onda anterior (cite a issue/menção que fundamentou a heurística). Se todos os grupos couberem em
+onda anterior (cite a dependência nativa ou menção que fundamentou a aresta do DAG). Se todos os grupos couberem em
 `O_1`, omita a coluna de justificativa — é o caso comum, sem dependências detectadas.
 
 Se o plano incluir issues do grupo "recomendadas pelo agente" (Fase 1) — porque não havia issues
