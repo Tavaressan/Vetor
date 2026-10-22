@@ -53,7 +53,7 @@ npx @tavaressan/vetor update
   - Implementa o contrato JSON estrito do Antigravity (`{"decision": "allow"}` ou `{"decision": "deny", "reason": "..."}`).
   - Bloqueia pushes diretos para branches protegidas (`main`, `master`, `production`).
   - Bloqueia comandos git destrutivos (`git reset --hard`, `git clean -f*`, `git branch -D`, `git checkout .`).
-  - Bloqueia push/PR de workers em estado não-GREEN dentro de worktrees linkados.
+  - Bloqueia push/PR de workers em estado não-GREEN dentro de worktrees linkados (o diretório é resolvido pelo `toolCall.args.Cwd` do payload).
   - Resiliente a falhas internas: erros imprevistos são logados em `stderr` e emitem `{"decision": "allow"}` para não travar execuções do agente em loops bloqueantes.
 
 Para usar o Vetor com Antigravity, a restrição crítica remanescente é que workers podem escrever fora do worktree (o Antigravity não possui evento de pré-escrita como o Claude Code), encerrar sem preencher o status file, e não recebem feedback de tipo. Recomenda-se manter a invocação manual (`/vetor:fix`, `/vetor:ship`) e **não usar `/vetor:coordinator`** com dispatch em background até que Antigravity suporte os eventos faltantes.
