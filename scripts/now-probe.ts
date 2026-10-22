@@ -70,7 +70,6 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
   }
 
   const openIssuesTotal = await countOpenIssues(executor, cwd, null);
-  const backlogIssues = await countOpenIssues(executor, cwd, "backlog");
   // Issue #412: o que o coordinator despacharia sem argumento — label default ou todas as abertas.
   const dispatchableIssues = defaultDispatchLabel === null
     ? openIssuesTotal
@@ -107,7 +106,6 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     defaultDispatchLabel,
     openIssuesTotal,
     dispatchableIssues,
-    backlogIssues,
     aiMemoryContainerState,
     mcps,
     runtimes,
