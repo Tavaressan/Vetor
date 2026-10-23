@@ -5,14 +5,15 @@
 // aquele hook morria em silêncio e o gate não era aplicado.
 //
 // Contrato do Claude Code: recebe o evento em JSON no stdin; exit 2 BLOQUEIA a chamada.
-// Espelha a política de scripts/safety-check-antigravity.js, que serve ao Antigravity —
-// exceto pelo guard de escrita, que o Antigravity não tem como aplicar (lá o matcher só
-// cobre run_command).
+// A política de Bash vive em scripts/lib/safety-policy.ts e é compartilhada com
+// scripts/safety-check-antigravity.ts, que serve ao Antigravity — exceto pelo guard de escrita,
+// que o Antigravity não tem como aplicar (lá o matcher só cobre run_command).
 //
 // Três políticas:
 //   Worktree    — dentro de um worktree, o cwd precisa estar em .claude/worktrees/ da raiz
 //                 e continuar registrado em `git worktree list` (não pode ser stale).
-//   Bash        — não empurrar para branch protegida; não fazer push/PR de worker não-GREEN.
+//   Bash        — não fazer git destrutivo; não empurrar para branch protegida; não fazer
+//                 push/PR de worker não-GREEN (scripts/lib/safety-policy.ts).
 //   Edit/Write  — dentro de um worktree, não escrever fora dele; um agente vetor:issue-worker
 //                 nunca deveria escrever com cwd resolvendo para a raiz do projeto (fora de
 //                 qualquer worktree linkado) — se acontecer, é sinal de cwd mal resolvido pelo
@@ -35,16 +36,9 @@
 
 import { isWriteAllowed } from "./lib/guard.ts";
 import { run } from "./lib/project.ts";
-import {
-  agentBindingPath,
-  readStatus,
-  resolveWorktree,
-  statusFilePath,
-  type WorktreeInfo,
-} from "./lib/status.ts";
+import { evaluateShellCommand } from "./lib/safety-policy.ts";
+import { agentBindingPath, resolveWorktree, type WorktreeInfo } from "./lib/status.ts";
 import { evaluateFreshness } from "./lib/worktree.ts";
-
-const PROTECTED_BRANCHES = ["main", "master", "production"];
 
 interface HookInput {
   tool_name?: string;
@@ -92,20 +86,6 @@ function blocked(message: string): never {
   Deno.exit(2);
 }
 
-/** Extrai a branch de destino de um `git push [flags] [remote] <branch>[:<remote-branch>]`. */
-function pushDestination(command: string): string | null {
-  // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes de
-  // isolar por quebra de linha real, senão `git push \` seguido de `origin master` escaparia do
-  // regex abaixo e o destino real (`master`) nunca seria capturado.
-  const joined = command.replace(/\\\r?\n/g, " ");
-  const push = joined.match(/git push[^&|;\n]*/)?.[0];
-  if (!push) return null;
-
-  const last = push.trim().split(/\s+/).pop();
-  if (!last || last.startsWith("-")) return null;
-  return last.split(":")[0];
-}
-
 /**
  * Só se aplica dentro de um worktree linkado (`wt.isLinked`) E com `agentType` presente
  * (chamada por um subagente, ex.: `vetor:issue-worker`): a raiz do repositório principal
@@ -116,86 +96,6 @@ async function checkFreshness(wt: WorktreeInfo, agentType: string): Promise<void
   const list = await run("git", ["worktree", "list", "--porcelain"], wt.root);
   const message = evaluateFreshness(wt.toplevel, wt.root, list.stdout, agentType);
   if (message) blocked(message);
-}
-
-/**
- * Casa `git push`/`gh pr (create|ready|merge)` apenas no início do comando ou logo após um
- * separador de shell (`&&`, `||`, `;`, `|`) — nunca em qualquer posição da string. Sem isso,
- * o mesmo texto aparecendo como conteúdo dentro de um heredoc (ou de qualquer outra string, ex.
- * um `grep`/`echo` cujo argumento cita "git push") era tratado como se fosse o comando em si
- * (issue #161, mesma classe de falha do match ingênuo da #4/#123).
- */
-const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|ready|merge))/;
-
-/**
- * Comandos git destrutivos que descartam trabalho local sem chance de recuperação — bloqueados
- * incondicionalmente, independente de worktree/status file (ao contrário do WORKER_GATE_COMMAND_RE
- * acima, que só se aplica a workers não-GREEN). Mesma ancoragem: só casa no início do comando ou
- * logo após um separador de shell, nunca em qualquer posição da string — senão o mesmo texto
- * aparecendo como conteúdo dentro de um heredoc/echo seria tratado como se fosse o comando em si
- * (mesma classe de falso positivo das issues #123/#161). `git checkout \.` exige que o ponto seja
- * o argumento inteiro (fim do comando ou espaço em seguida) para não casar `git checkout .github`
- * (issue #184). `-[a-z]*f[a-z]*` casa `-f` em qualquer posição dentro do flag combinado de
- * `git clean` (ex.: `-xdf`, `-df`, não só `-fdx`) — a própria issue #184 cita `-xdf` como exemplo
- * que precisa ser bloqueado; achado do code-review da PR #200.
- */
-const DESTRUCTIVE_GIT_COMMAND_RE =
-  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$))/;
-
-function checkDestructiveGit(command: string): void {
-  // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes do
-  // match, senão `git reset \` seguido de `--hard` em nova linha escaparia do regex (mesma razão
-  // documentada em pushDestination acima; achado do code-review da PR #200).
-  const joined = command.replace(/\\\r?\n/g, " ");
-  const match = joined.match(DESTRUCTIVE_GIT_COMMAND_RE);
-  if (!match) return;
-
-  blocked(
-    `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: "${
-      match[1].trim()
-    }"\n` +
-      "git reset --hard / git clean -f* / git branch -D / git checkout . descartam trabalho " +
-      "local sem chance de recuperação — não são permitidos em nenhum contexto.",
-  );
-}
-
-function checkBash(command: string, wt: WorktreeInfo | null): void {
-  checkDestructiveGit(command);
-
-  const dest = pushDestination(command);
-  if (dest && PROTECTED_BRANCHES.includes(dest)) {
-    blocked(
-      "ERROR: Push to protected branches (main, master, production) is prohibited by Vetor Safety Hook.",
-    );
-  }
-
-  const gateMatch = command.match(WORKER_GATE_COMMAND_RE);
-  if (!gateMatch) return;
-  if (!wt?.isLinked) return;
-
-  let status = readStatus(statusFilePath(wt.root, wt.branch));
-  // Issue #323: se o status file no root não estiver GREEN ou não existir,
-  // consulta também o fallback local do worktree (<toplevel>/.claude/vetor-status.md)
-  if (status !== "GREEN") {
-    const localStatus = readStatus(`${wt.toplevel}/.claude/vetor-status.md`);
-    if (localStatus === "GREEN") {
-      status = "GREEN";
-    } else if (status === null && localStatus !== null) {
-      status = localStatus;
-    }
-  }
-  // Sem status file, a branch não pertence ao fluxo do coordinator: não interfere.
-  if (status === null) return;
-
-  if (status !== "GREEN") {
-    blocked(
-      `ERROR: worker não-GREEN (Status: ${
-        status || "desconhecido"
-      }) — push/PR bloqueado pelo Vetor Safety Hook.\n` +
-        `Trecho do comando que casou o gate: "${gateMatch[0].trim()}"\n` +
-        "Registre BLOCKED_WAITING no status file se precisar de intervenção; o ship faz a entrega após GREEN.",
-    );
-  }
 }
 
 /**
@@ -350,7 +250,10 @@ async function main() {
   // checkBash nunca rodava sob esse payload, deixando o gate de git destrutivo/push protegido
   // inerte no Cursor.
   const command = input.tool_input?.command ?? input.command;
-  if (typeof command === "string") checkBash(command, wt);
+  if (typeof command === "string") {
+    const verdict = await evaluateShellCommand(command, () => Promise.resolve(wt));
+    if (verdict.decision === "deny") blocked(verdict.reason);
+  }
   Deno.exit(0);
 }
 
