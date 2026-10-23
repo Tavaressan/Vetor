@@ -146,15 +146,15 @@ export async function main(args: string[]): Promise<number> {
       });
       for (const issue of report.issues) {
         findings++;
-        console.log(`${target.displayPath}:${issue.line ?? 1}: [${issue.rule}] ${issue.message}`);
+        console.info(`${target.displayPath}:${issue.line ?? 1}: [${issue.rule}] ${issue.message}`);
       }
     }
 
     for (const path of skipped) {
-      console.log(`draft-scan: ignorado (extensão fora da lista de texto): ${path}`);
+      console.info(`draft-scan: ignorado (extensão fora da lista de texto): ${path}`);
     }
     const summary = findings === 0 ? "nenhum achado" : `${findings} achado(s)`;
-    console.log(`draft-scan: ${targets.length} arquivo(s) escaneado(s), ${summary}.`);
+    console.info(`draft-scan: ${targets.length} arquivo(s) escaneado(s), ${summary}.`);
     return findings === 0 ? EXIT_CLEAN : EXIT_FINDINGS;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
