@@ -22,13 +22,15 @@ const { version: packageVersion } = require('../../package.json');
 // (`cursor-hooks.js`) e gravado como arquivo único em vez de entrar no loop genérico de
 // `SOURCE_DIRS` abaixo.
 //
-// Redundância conhecida e aceita (YAGNI, achado #4 do code-review da PR #282): quando
-// Claude Code E Cursor estão ambos selecionados, `skills/`/`agents/` são copiados tanto
-// para `.claude/` quanto para `.cursor/`, mesmo a wiki confirmando que o Cursor já lê
-// `.claude/skills/`/`.claude/agents/` nativamente para compatibilidade (ver
-// wiki/Compatibilidade-Cursor.md). Deduplicar exigiria decidir qual engine é a "fonte da
-// verdade" em disco e como reagir a edição de só uma das cópias — complexidade/risco maior
-// que o custo de ter uma cópia extra em disco. Não implementado de propósito.
+// Skills do Cursor em diretório compartilhado (#479, revisa a "redundância aceita" do achado #4
+// do code-review da PR #282): o Cursor lê skills de `.agents/skills/`, `.cursor/skills/` e,
+// por compatibilidade, de `.claude/skills/` e `.codex/skills/` (cursor.com/docs/skills,
+// consultada em 2026-10-23; a página não define precedência entre as raízes). Para não gravar
+// uma terceira cópia, `resolveCursorSkillsRoot` manda as skills do Cursor para `.agents/` quando
+// há Codex ou Antigravity, para `.claude/` quando há Claude Code, e só então para `.cursor/`.
+// `.claude/skills/` continua sendo do Claude Code quando também há Codex/Antigravity. As skills
+// são cópia byte-a-byte, então o dono extra entra na mesma entrada do manifesto
+// (`engines`); agents e hooks do Cursor não mudam de lugar (formato próprio, ver abaixo).
 //
 // Antigravity (#283, revisada na #397): `.antigravity` era uma convenção assumida sem
 // confirmação e foi removida na #283. A documentação oficial (`antigravity.google/docs/subagents`,
@@ -146,6 +148,94 @@ function listFilesRecursive(dir) {
     }
   }
   return result;
+}
+
+function ownersOf(entry) {
+  return entry.engines ?? [entry.engine];
+}
+
+// Raiz (`.agents`, `.claude` ou `.cursor`) onde as skills do Cursor são gravadas, dado o
+// conjunto de engines presentes (seleção atual mais as já registradas no manifesto, para que
+// `install` e `update` cheguem ao mesmo destino).
+function resolveCursorSkillsRoot(engineIds) {
+  if (engineIds.has('codex') || engineIds.has('antigravity')) return '.agents';
+  if (engineIds.has('claude-code')) return '.claude';
+  return '.cursor';
+}
+
+// Remove diretórios vazios de `startDir` até `stopDir` (inclusive), sem subir além dele.
+function removeEmptyDirsUpTo(startDir, stopDir) {
+  let dir = startDir;
+  while (dir === stopDir || dir.startsWith(stopDir + path.sep)) {
+    if (fs.readdirSync(dir).length) return;
+    fs.rmdirSync(dir);
+    dir = path.dirname(dir);
+  }
+}
+
+const SKILLS_KEY_PATTERN = /^(\.cursor|\.agents|\.claude)\/skills\/(.+)$/;
+
+/**
+ * Leva para `targetRoot` as skills que só o Cursor usa e que estão em outra raiz de skills
+ * (legado `.cursor/skills/`, ou `.agents/`/`.claude/` depois de um `uninstall --engines` que
+ * deixou o Cursor como único dono). Só migra arquivo íntegro (hash igual ao do manifesto):
+ * - editado pelo usuário: preservado, com aviso, e a entrada antiga continua no manifesto;
+ * - destino já existente que não é gerenciado nem íntegro: nada é sobrescrito, ambos ficam,
+ *   com aviso, e o Cursor não é registrado como dono do destino (dono não verificado);
+ * - destino gerenciado e íntegro: a cópia antiga é descartada e o Cursor vira dono do destino;
+ * - destino ausente: o arquivo é movido.
+ * Retorna os pares `{ from, to }` migrados.
+ */
+function migrateCursorSkills({ projectRoot, manifest, targetRoot, warnings, skipped }) {
+  const migrated = [];
+
+  for (const [oldKey, entry] of Object.entries(manifest.files)) {
+    const match = oldKey.match(SKILLS_KEY_PATTERN);
+    if (!match || match[1] === targetRoot) continue;
+    const owners = ownersOf(entry);
+    if (owners.length !== 1 || owners[0] !== 'cursor') continue;
+    if (match[2].split(/[\\/]/).includes('..')) continue;
+
+    const newKey = `${targetRoot}/skills/${match[2]}`;
+    const oldFile = path.join(projectRoot, ...oldKey.split('/'));
+    const newFile = path.join(projectRoot, ...newKey.split('/'));
+
+    if (!fs.existsSync(oldFile)) {
+      delete manifest.files[oldKey];
+      continue;
+    }
+    if (hashFile(oldFile) !== entry.sha256) {
+      warnings.push(`${oldKey}: arquivo editado pelo usuário; migração para ${targetRoot}/skills/ ignorada (o Cursor lê as duas cópias).`);
+      skipped.push({ path: oldKey, reason: 'user-modified' });
+      continue;
+    }
+
+    const targetEntry = manifest.files[newKey];
+    if (fs.existsSync(newFile)) {
+      if (!targetEntry || hashFile(newFile) !== targetEntry.sha256) {
+        warnings.push(`${newKey}: destino existente não gerenciado ou editado; migração de ${oldKey} ignorada.`);
+        skipped.push({ path: oldKey, reason: 'migration-blocked' });
+        continue;
+      }
+      fs.rmSync(oldFile);
+      targetEntry.engines = [...new Set([...ownersOf(targetEntry), 'cursor'])];
+    } else {
+      const targetOwners = targetEntry ? ownersOf(targetEntry) : [];
+      fs.mkdirSync(path.dirname(newFile), { recursive: true });
+      fs.renameSync(oldFile, newFile);
+      manifest.files[newKey] = {
+        sha256: entry.sha256,
+        engine: targetOwners[0] ?? 'cursor',
+        engines: [...new Set([...targetOwners, 'cursor'])],
+      };
+    }
+
+    delete manifest.files[oldKey];
+    removeEmptyDirsUpTo(path.dirname(oldFile), path.join(projectRoot, match[1], 'skills'));
+    migrated.push({ from: oldKey, to: newKey });
+  }
+
+  return migrated;
 }
 
 // Copia um único arquivo para o destino aplicando a mesma política de update seguro para
@@ -312,10 +402,11 @@ function installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, c
  * não é silenciosamente ignorada: entra em `enginesSkipped` para o chamador reportar ao
  * usuário.
  *
- * Retorna `{ copied, skipped, warnings, enginesSkipped }` com os paths relativos ao
+ * Retorna `{ copied, skipped, warnings, enginesSkipped, migrated }` com os paths relativos ao
  * projeto-alvo. `warnings` cobre perdas parciais que não impedem a instalação (ex.: evento
  * de hook sem tradução fiel para uma engine, ver `installCursorHooks`) — vazio quando não há
- * nada a avisar.
+ * nada a avisar. `migrated` lista os `{ from, to }` de skills do Cursor movidas para a raiz de
+ * skills compartilhada (ver `migrateCursorSkills`).
  */
 function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() } = {}) {
   if (!projectRoot) {
@@ -329,6 +420,15 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   const warnings = [];
   const enginesSkipped = [];
   const migrationBlockedTargets = new Set();
+  const migrated = [];
+
+  // Engines presentes = seleção desta chamada + as já registradas no manifesto, para que
+  // `install` e `update` (que parte só do manifesto) escolham a mesma raiz de skills do Cursor.
+  const presentEngineIds = new Set([
+    ...(engines ?? []).map((engine) => engine.id),
+    ...Object.values(manifest.files).flatMap(ownersOf),
+  ]);
+  const cursorSkillsRoot = resolveCursorSkillsRoot(presentEngineIds);
 
   // Migra somente skills legadas intactas, identificadas pelo hash do manifesto.
   // Se foram alteradas, preserva a cópia antiga e não cria uma duplicata gerenciada.
@@ -380,6 +480,13 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
         oldDir = path.dirname(oldDir);
       }
     }
+  }
+
+  // Depois da migração do Codex: ambas podem ter `.agents/skills/` como destino.
+  if ((engines ?? []).some((engine) => engine.id === 'cursor')) {
+    migrated.push(...migrateCursorSkills({
+      projectRoot, manifest, targetRoot: cursorSkillsRoot, warnings, skipped,
+    }));
   }
 
   for (const engine of engines ?? []) {
@@ -441,7 +548,9 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
           destRelativePath = mapped;
         }
 
-        const sourceDestRoot = ENGINE_SOURCE_DIR_DEST[engine.id]?.[sourceDirName] ?? destRootName;
+        const sourceDestRoot = engine.id === 'cursor' && sourceDirName === 'skills'
+          ? cursorSkillsRoot
+          : ENGINE_SOURCE_DIR_DEST[engine.id]?.[sourceDirName] ?? destRootName;
         const destFile = path.join(projectRoot, sourceDestRoot, sourceDirName, destRelativePath);
         const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
         if (engine.id === 'codex' && migrationBlockedTargets.has(manifestKey)) {
@@ -476,7 +585,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   }
 
   writeManifest(projectRoot, manifest);
-  return { copied, skipped, warnings, enginesSkipped };
+  return { copied, skipped, warnings, enginesSkipped, migrated };
 }
 
 module.exports = {

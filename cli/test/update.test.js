@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { update } = require('../lib/commands/update.js');
-const { writeManifest } = require('../lib/installer/manifest.js');
+const { writeManifest, readManifest, hashContent } = require('../lib/installer/manifest.js');
 const { installFiles: writerInstallFiles } = require('../lib/installer/writer.js');
 
 async function withTempDir(fn) {
@@ -127,5 +127,95 @@ test('update: não reporta como removida da fonte a chave antiga migrada do Code
     writeManifest(dir, { version: 1, files: { '.codex/skills/demo/SKILL.md': { sha256: 'old', engine: 'codex' } } });
     const output = await captureInfo(() => update(dir, { installFiles: () => ({ copied: [], skipped: [], warnings: ['migrada'] }) }));
     assert.doesNotMatch(output, /\.codex\/skills\/demo\/SKILL\.md: não existe mais/);
+  });
+});
+
+// Issue #479: com Cursor e outra engine que compartilhe um diretório de skills, o update não
+// recria `.cursor/skills/`, atualiza o destino compartilhado e migra instalações antigas.
+const CURSOR = { id: 'cursor', name: 'Cursor' };
+const ANTIGRAVITY = { id: 'antigravity', name: 'Antigravity' };
+const CLAUDE = { id: 'claude-code', name: 'Claude Code' };
+
+function makeSharedSkillSource(dir, content) {
+  const sourceRoot = path.join(dir, 'source');
+  fs.mkdirSync(path.join(sourceRoot, 'skills', 'demo'), { recursive: true });
+  fs.writeFileSync(path.join(sourceRoot, 'skills', 'demo', 'SKILL.md'), content);
+  return sourceRoot;
+}
+
+// Instalação anterior à #479: o Cursor tinha a sua própria cópia em `.cursor/skills/`.
+function addLegacyCursorSkill(dir, content, manifestContent = content) {
+  const legacy = path.join(dir, '.cursor', 'skills', 'demo', 'SKILL.md');
+  fs.mkdirSync(path.dirname(legacy), { recursive: true });
+  fs.writeFileSync(legacy, content);
+  const manifest = readManifest(dir);
+  manifest.files['.cursor/skills/demo/SKILL.md'] = {
+    sha256: hashContent(manifestContent), engine: 'cursor', engines: ['cursor'],
+  };
+  writeManifest(dir, manifest);
+  return legacy;
+}
+
+test('update: Cursor + Antigravity atualizam o destino compartilhado sem recriar .cursor/skills', async () => {
+  await withTempDir(async (dir) => {
+    const sourceRoot = makeSharedSkillSource(dir, 'v1\n');
+    writerInstallFiles({ projectRoot: dir, engines: [CURSOR, ANTIGRAVITY], sourceRoot });
+    fs.writeFileSync(path.join(sourceRoot, 'skills', 'demo', 'SKILL.md'), 'v2\n');
+
+    await captureInfo(() => update(dir, { installFiles: (args) => writerInstallFiles({ ...args, sourceRoot }) }));
+
+    assert.equal(fs.readFileSync(path.join(dir, '.agents', 'skills', 'demo', 'SKILL.md'), 'utf8'), 'v2\n');
+    assert.equal(fs.existsSync(path.join(dir, '.cursor', 'skills')), false);
+    const entry = readManifest(dir).files['.agents/skills/demo/SKILL.md'];
+    assert.deepEqual(entry.engines.slice().sort(), ['antigravity', 'cursor']);
+  });
+});
+
+test('update: skill compartilhada editada pelo usuário é preservada e reportada', async () => {
+  await withTempDir(async (dir) => {
+    const sourceRoot = makeSharedSkillSource(dir, 'v1\n');
+    writerInstallFiles({ projectRoot: dir, engines: [CURSOR, CLAUDE], sourceRoot });
+    const shared = path.join(dir, '.claude', 'skills', 'demo', 'SKILL.md');
+    fs.writeFileSync(shared, 'editada\n');
+    fs.writeFileSync(path.join(sourceRoot, 'skills', 'demo', 'SKILL.md'), 'v2\n');
+
+    const output = await captureInfo(() => update(dir, { installFiles: (args) => writerInstallFiles({ ...args, sourceRoot }) }));
+
+    assert.equal(fs.readFileSync(shared, 'utf8'), 'editada\n');
+    assert.match(output, /arquivo\(s\) não sobrescrito\(s\)/);
+    assert.equal(fs.existsSync(path.join(dir, '.cursor', 'skills')), false);
+  });
+});
+
+test('update: migra .cursor/skills para a raiz compartilhada e não reporta a chave antiga como removida da fonte', async () => {
+  await withTempDir(async (dir) => {
+    const sourceRoot = makeSharedSkillSource(dir, 'v1\n');
+    writerInstallFiles({ projectRoot: dir, engines: [ANTIGRAVITY], sourceRoot });
+    const legacy = addLegacyCursorSkill(dir, 'v1\n');
+
+    const output = await captureInfo(() => update(dir, { installFiles: (args) => writerInstallFiles({ ...args, sourceRoot }) }));
+
+    assert.equal(fs.existsSync(legacy), false);
+    assert.equal(fs.existsSync(path.join(dir, '.cursor', 'skills')), false);
+    const manifest = readManifest(dir);
+    assert.deepEqual(manifest.files['.agents/skills/demo/SKILL.md'].engines.slice().sort(), ['antigravity', 'cursor']);
+    assert.equal(manifest.files['.cursor/skills/demo/SKILL.md'], undefined);
+    assert.match(output, /1 arquivo\(s\) de skills do Cursor migrado\(s\)/);
+    assert.doesNotMatch(output, /não existe mais na fonte/);
+  });
+});
+
+test('update: skill do Cursor editada em .cursor/skills é preservada na migração e não vira órfã', async () => {
+  await withTempDir(async (dir) => {
+    const sourceRoot = makeSharedSkillSource(dir, 'v1\n');
+    writerInstallFiles({ projectRoot: dir, engines: [ANTIGRAVITY], sourceRoot });
+    const legacy = addLegacyCursorSkill(dir, 'editada\n', 'v1\n');
+
+    const output = await captureInfo(() => update(dir, { installFiles: (args) => writerInstallFiles({ ...args, sourceRoot }) }));
+
+    assert.equal(fs.readFileSync(legacy, 'utf8'), 'editada\n');
+    assert.match(output, /Aviso: \.cursor\/skills\/demo\/SKILL\.md: arquivo editado pelo usuário/);
+    assert.doesNotMatch(output, /não existe mais na fonte/);
+    assert.ok(readManifest(dir).files['.cursor/skills/demo/SKILL.md']);
   });
 });

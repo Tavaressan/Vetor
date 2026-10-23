@@ -83,12 +83,16 @@ async function install(cwd = process.cwd(), options = {}) {
     skipped,
     warnings = [],
     enginesSkipped = [],
+    migrated = [],
   } = installFiles({ projectRoot: cwd, engines: selected });
   console.info(`${copied.length} arquivo(s) copiado(s).`);
   if (skipped.length > 0) {
     console.info(
       `${skipped.length} arquivo(s) não sobrescrito(s) (editado(s) pelo usuário ou não gerado(s) pelo instalador).`,
     );
+  }
+  if (migrated.length > 0) {
+    console.info(`${migrated.length} arquivo(s) de skills do Cursor migrado(s) para o diretório de skills compartilhado.`);
   }
   for (const warning of warnings) {
     console.info(`Aviso: ${warning}`);
