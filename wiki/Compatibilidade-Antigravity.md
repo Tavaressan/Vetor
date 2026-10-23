@@ -43,18 +43,19 @@ npx @tavaressan/vetor update
 - **Proteção**: completa. Bloqueia escrita fora do worktree, obriga status file em estado terminal, injeta diagnostics de edição
 
 **Antigravity** (`hooks.json` na raiz):
-- ✅ `PreToolUse` (suportado e configurado para `run_command` via `node ./scripts/safety-check-antigravity.js`)
+- ✅ `PreToolUse` (suportado e configurado para `run_command` via `deno run -A ./scripts/safety-check-antigravity.ts`)
 - ⚠️ `PostToolUse` (evento existe no Antigravity, mas **não está configurado** no `hooks.json`)
 - ❌ `SubagentStop` (não existe. Antigravity tem um evento `Stop` genérico, mas não específico a subagentes; não é equivalente)
 - ❌ `SessionStart` (não suportado)
 - ❌ `WorktreeCreate` (não suportado)
-- **Proteção**: focada em segurança de comandos. Implementada pelo runner multiplataforma Node.js (`scripts/safety-check-antigravity.js`), que:
-  - Executa de forma transparente em Windows (`cmd /c` / PowerShell), macOS e Linux sem depender de Bash ou WSL.
-  - Implementa o contrato JSON estrito do Antigravity (`{"decision": "allow"}` ou `{"decision": "deny", "reason": "..."}`).
+- **Proteção**: focada em segurança de comandos. Implementada em Deno (`scripts/safety-check-antigravity.ts`), que aplica a mesma política do hook do Claude Code (`scripts/lib/safety-policy.ts`, uma única implementação) e:
+  - Executa com o Deno que o Vetor já exige, sem depender de Node.js, Bash ou WSL; precisa de `deno` e `git` no `PATH`.
+  - Implementa o contrato JSON estrito do Antigravity (`{"decision": "allow"}` ou `{"decision": "deny", "reason": "..."}`), sempre com exit code 0 e com o JSON como única saída em `stdout`.
   - Bloqueia pushes diretos para branches protegidas (`main`, `master`, `production`).
   - Bloqueia comandos git destrutivos (`git reset --hard`, `git clean -f*`, `git branch -D`, `git checkout .`).
   - Bloqueia push/PR de workers em estado não-GREEN dentro de worktrees linkados (o diretório é resolvido pelo `toolCall.args.Cwd` do payload).
-  - Resiliente a falhas internas: erros imprevistos são logados em `stderr` e emitem `{"decision": "allow"}` para não travar execuções do agente em loops bloqueantes.
+  - Resiliente a falhas internas: JSON inválido e erros imprevistos emitem `{"decision": "allow"}` para não travar execuções do agente em loops bloqueantes, com o diagnóstico em `stderr` (classe e mensagem do erro, nunca o payload nem o comando).
+  - Limites: só `toolCall.args.CommandLine` é avaliado (payload válido sem `CommandLine` string é liberado) e, sem `toolCall.args.Cwd`, vale o diretório do processo do hook. Não há guard de escrita (o matcher só cobre `run_command`). A documentação oficial do Antigravity não informa de qual diretório o caminho relativo `./scripts/...` do `hooks.json` é resolvido; essa verificação é feita no Antigravity real, no Windows, e registrada na PR da #476.
 
 Para usar o Vetor com Antigravity, a restrição crítica remanescente é que workers podem escrever fora do worktree (o Antigravity não possui evento de pré-escrita como o Claude Code), encerrar sem preencher o status file, e não recebem feedback de tipo. Recomenda-se manter a invocação manual (`/vetor:fix`, `/vetor:ship`) e **não usar `/vetor:coordinator`** com dispatch em background até que Antigravity suporte os eventos faltantes.
 
