@@ -98,6 +98,14 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
   for (const binary of ["agy", "codex", "opencode", "gemini"]) {
     runtimes[binary] = await findBinary(binary);
   }
+  const orchestrators: Record<string, boolean> = {
+    alethe: Boolean(Deno.env.get("ALETHE_ORCHESTRATOR") || Deno.env.get("ALETHE_SESSION_ID")),
+    orca: Boolean(
+      Deno.env.get("ORCA_ACTIVE") ||
+        Deno.env.get("ORCA_ORCHESTRATOR_ACTIVE") ||
+        Deno.env.get("ORCA_TASK_ID"),
+    ),
+  };
   return {
     branch: branch || null,
     clean: status === null ? null : status.length === 0,
@@ -109,6 +117,7 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     aiMemoryContainerState,
     mcps,
     runtimes,
+    orchestrators,
   };
 }
 

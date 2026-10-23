@@ -288,3 +288,41 @@ A decisão de fazer (ou não) merge continua **sempre** com o agente e o desenvo
 runtime delegado. Toda saída delegada continua sendo tratada como **rascunho não confiável** e
 **validada pelo agente antes de qualquer escrita** (commit, push, criação de PR ou merge). Em caso
 de dúvida sobre a qualidade do rascunho ou falha na validação dos testes, descarte-o e faça inline.
+
+
+---
+
+## 6. Delegação a Runtimes Orquestradores (Alethe, Orca e MCP)
+
+A delegação síncrona (§1-§4) é adequada para tarefas pontuais de texto em pipe. Para **tarefas completas de desenvolvimento, ondas de issues e geração de código com múltiplos arquivos**, o Vetor suporta orquestradores multiplexadores externos (issue #451, issue #482).
+
+O contrato é implementado de forma modular em `scripts/lib/orchestrator/`:
+
+### 6.1. Detecção e Seleção de Orquestrador
+
+- **Detecção Estática:** `OrchestratorRegistry.detectAvailable({ tools, env })` verifica o namespace MCP ativo (`mcp-availability.md`) e variáveis de ambiente do processo, com zero I/O de shell ou rede.
+- **Runtimes Suportados:**
+  - **Alethe** (`AletheAdapter`): mapeia `mcp__alethe__alethe_delegate`, `alethe_check`, `alethe_release`.
+  - **Orca** (`OrcaAdapter`): mapeia `mcp__orca__task_dispatch`, `mcp__orca__task_check`, `mcp__orca__task_release`.
+  - **Genérico** (`GenericMcpAdapter`): configurável via `.claude/vetor/config.json`.
+- **Preferência configurada:** `.claude/vetor/config.json` no bloco `delegation.orchestrator`:
+  ```json
+  {
+    "delegation": {
+      "orchestrator": {
+        "preferred": "orca",
+        "fallbackToNative": true,
+        "maxPollTimeoutMs": 50000
+      }
+    }
+  }
+  ```
+
+### 6.2. As 6 Salvaguardas do Contrato de Orquestração
+
+1. **Uma Chamada por Grupo (`one-call-per-group`):** Cada grupo ou issue despachada opera em seu próprio worktree isolado (`cwd`). Nunca multiplexe diretórios distintos na mesma chamada.
+2. **Proibição de Git/GitHub no Worker:** O worker opera estritamente criando e editando arquivos. Comandos `git checkout`, `git commit`, `git push` e `gh pr create` são estritamente proibidos no sandbox remoto.
+3. **Validação Soberana no Host pelo Coordinator:** Relatórios de testes do container são meramente informativos. O coordinator do Vetor roda a suíte de testes (`deno task test`, `npm test`, etc.) no host principal antes de qualquer aprovação.
+4. **Polling Seguro (`safePollTimeoutMs <= 50000`):** Toda chamada de monitoramento impõe teto estrito de 50 segundos para prevenir encerramento por timeout da camada de transporte MCP.
+5. **Liberação Prévia de Recursos (`release-before-cleanup`):** Invocação obrigatória de `adapter.release(handle)` antes de qualquer remoção de worktree (`safe-remove-worktree`), prevenindo o erro "Device or resource busy" no Windows/Linux.
+6. **Sanitização de Rascunhos (`DraftSanitizer`):** O coordinator executa `sanitizeDraftText()` (`scripts/lib/draft-sanitizer.ts`) para verificar ausência de bytes nulos, UTF-8 corrompido, crases literais `` `n `` e bashismos incompatíveis (`declare -A`).

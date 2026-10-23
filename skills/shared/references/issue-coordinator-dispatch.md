@@ -167,3 +167,15 @@ Quando o coordinator delegar o desenvolvimento de um grupo de issues a um runtim
    - O coordinator inicializa com `Status: RUNNING`, avança `Iteration: N/5` e atualiza para `GREEN` ou `FAILED_MAX_ITERATIONS` após a validação.
 5. **Limpeza do worktree do runtime**:
    - Concluído o trabalho (após commit e validação) ou em caso de descarte do rascunho, o worktree temporário do runtime deve ser removido com segurança via `vetor-checks.sh safe-remove-worktree <path>`.
+
+
+### Dispatch para orquestradores de agentes (Alethe, Orca e MCP)
+
+Quando o coordinator despachar sob um orquestrador multiplexador externo (conforme `scripts/lib/orchestrator/` e `delegate-to-runtime.md` §6):
+
+1. **Uma Chamada por Grupo (`one-call-per-group`)**:
+   - Cada grupo despachado utiliza `adapter.dispatch({ prompt, cwd: worktreePath })` apontando para o seu worktree isolado exclusivo. Nunca multiplexe múltiplos worktrees em uma única chamada.
+2. **Prompt Autocontido**:
+   - O prompt enviado ao worker do orquestrador deve conter a descrição completa da Lead Issue, Acceptance Criteria, comandos de teste mapeados e a proibição expressa de comandos `git` e `gh` no container/worker.
+3. **Liberação Prévia de Recursos (`release-before-cleanup`)**:
+   - Antes de qualquer remoção do worktree com `safe-remove-worktree`, é **obrigatório** invocar `adapter.release(handle)` para fechar handles de arquivo abertos no sistema operacional.

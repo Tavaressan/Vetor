@@ -5,7 +5,7 @@ license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 Você é o ponto de entrada diário do Vetor. Faça uma sondagem rápida, apresente o estado em poucas
@@ -21,8 +21,8 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
   script só lê configurações locais.
 - `../shared/references/memory-gotchas.md` — consultar gotchas e decisões no ai-memory quando
   disponível.
-- `../shared/references/delegate-to-runtime.md` — detecção estática dos runtimes de delegação
-  disponíveis.
+- `../shared/references/delegate-to-runtime.md` — detecção estática dos runtimes de delegação e
+  orquestradores disponíveis.
 
 ## Rotina
 
@@ -37,12 +37,13 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
    de despacho configurado (`defaultDispatchLabel`), a contagem total de issues abertas sem filtro
    (`openIssuesTotal`), a contagem do que o `coordinator` despacharia sem argumento
    (`dispatchableIssues` — issues com `defaultDispatchLabel` se configurado, senão todas as
-   abertas), MCPs declarados em `.mcp.json`, runtimes detectados e `aiMemoryContainerState`
-   (`running`, outro estado, `absent` ou `null` se Docker não responder). Falhas de comandos
-   opcionais não devem interromper o kickoff.
+   abertas), MCPs declarados em `.mcp.json`, runtimes detectados, status de variáveis de ambiente de
+   orquestradores (`orchestrators`) e `aiMemoryContainerState` (`running`, outro estado, `absent` ou
+   `null` se Docker não responder). Falhas de comandos opcionais não devem interromper o kickoff.
 
 2. Complemente a lista de MCPs declarados com os MCPs ativos na sessão conforme
-   `mcp-availability.md`. Os servidores Context7, Docker e ai-memory são relevantes para o sumário.
+   `mcp-availability.md`. Os servidores Context7, Docker, ai-memory e orquestradores (Alethe, Orca
+   ou custom) são relevantes para o sumário.
    Nunca tente conectar apenas para sondar; a sondagem do container Docker no passo 1 é
    somente-leitura. Considere ai-memory configurado nesta sessão somente se estiver ativo ou
    aparecer entre os MCPs que falharam ao conectar. Se não estiver configurado, não mencione receita
@@ -67,9 +68,10 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
 
 3. Apresente um sumário executivo conciso: inicialização do projeto (`config.json`), branch/estado
    limpo, worktrees existentes, total de issues abertas e despacháveis (`openIssuesTotal` e
-   `dispatchableIssues`), e disponibilidade de MCPs e runtimes. Diferencie configuração declarada de
-   ferramenta ativa na sessão; informe o estado do container ai-memory somente se ele estiver
-   configurado nesta sessão (ativo ou listado entre os MCPs que falharam ao conectar).
+   `dispatchableIssues`), disponibilidade de MCPs e runtimes de delegação CLI, e se há algum
+   orquestrador de agentes detectado (Alethe, Orca ou customizado). Diferencie configuração declarada
+   de ferramenta ativa na sessão; informe o estado do container ai-memory somente se ele estiver
+   configurado nesta sessão.
 
 4. Faça o priming explícito, condicionado a cada ferramenta estar disponível:
    - Se Context7 estiver disponível: **Use Context7 para documentação atualizada de bibliotecas.**
@@ -77,9 +79,10 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
      `project`: **Consulte ai-memory para gotchas e decisões** conforme
      `../shared/references/memory-gotchas.md`, passando ambos os valores juntos. Sem esses valores,
      pule consulta e registro.
-   - Se algum runtime estiver disponível: **Use agy/delegação para tarefas pesadas** conforme
+   - Se algum runtime CLI estiver disponível: **Use agy/delegação para tarefas pesadas** conforme
      `../shared/references/delegate-to-runtime.md`; respeite a seleção e anuência descritas na
      referência.
+   - Se algum orquestrador estiver disponível (Alethe, Orca ou customizado): **Use o orquestrador para despacho paralelo de workers e isolamento de worktree** conforme `../shared/references/delegate-to-runtime.md` §6.
    - Se Docker MCP estiver disponível, use-o apenas quando uma tarefa da sessão precisar inspecionar
      containers.
 
