@@ -9,7 +9,8 @@ Consumida por `ship`, `fix`, `backlog`, `guardian` e
 Generaliza o antigo acoplamento a um único CLI (`agy` — Google Antigravity/Gemini CLI): a
 delegação agora suporta qualquer runtime candidato (Gemini/`agy`, OpenCode/`opencode`,
 Codex/`codex`, ou outro CLI futuro), escolhido por disponibilidade no ambiente, preferência
-configurada e, quando ambíguo, anuência explícita do usuário (issue #247).
+configurada e, quando ambíguo, anuência explícita do usuário (issue #247). O orquestrador MCP
+Alethe também é um tipo de runtime de delegação, sem binário no PATH (§6, issue #480).
 
 ---
 
@@ -66,6 +67,10 @@ anexo de arquivo (ex.: `-f/--file` do `opencode`) se a tarefa permitir.
 (Exemplo mostra `opencode`; `codex` também tem stdin confirmado empiricamente para as tarefas de §4.
 Se preferir `agy`, consulte a linha da tabela do §1 para limitações e alternativas.)
 
+O valor `"alethe"` também é aceito em `delegation.preferredRuntime`: ele seleciona o orquestrador MCP
+do §6, detectado pelo namespace `mcp__alethe__*` e não por `command -v`. O Alethe não consome pipe,
+então as tarefas do §4 continuam nos CLIs.
+
 Ausência do bloco `delegation` (ou do `config.json` inteiro) nunca é erro — mesmo contrato do
 bloco `knowledge` (ver `skills/install/SKILL.md`).
 
@@ -73,9 +78,13 @@ bloco `knowledge` (ver `skills/install/SKILL.md`).
 
 Com `available` (lista detectada) e `preferred` (config, pode ser `null`):
 
-1. **`available` vazio** → siga **inline**. Nunca falhe nem peça instalação — a delegação é
+1. **`available` vazio** (e `preferred` não é um runtime MCP detectado, passo 2) → siga **inline**.
+   Nunca falhe nem peça instalação — a delegação é
    puramente opcional.
 2. **`preferred` configurado:**
+   - Se `preferred` é um runtime MCP detectado na sessão (hoje `alethe`, §6.1) → delegue para ele,
+     sem buscar binário no PATH. Runtimes MCP nunca entram na escolha sem preferência: não contam
+     como candidatos nos passos 3 e 4.
    - Se `preferred` está em `available` → delegue para `preferred`.
    - Se `preferred` **não** está em `available` → siga **inline**. Nunca substitua
      silenciosamente por outro candidato disponível: o usuário consentiu com um runtime
@@ -294,33 +303,69 @@ de dúvida sobre a qualidade do rascunho ou falha na validação dos testes, des
 
 ## 6. Delegação ao Orquestrador MCP (Alethe)
 
-A delegação síncrona (§1-§4) é adequada para tarefas pontuais de texto em pipe. Para **tarefas completas de desenvolvimento, ondas de issues e geração de código com múltiplos arquivos**, o Vetor suporta orquestradores multiplexadores externos (issue #451, issue #482).
+A delegação síncrona (§1-§4) serve a tarefas pontuais de texto em pipe. Para **tarefas completas de
+desenvolvimento, ondas de issues e geração de código com múltiplos arquivos**, o Alethe, um
+orquestrador acessado por ferramentas MCP, é um tipo de runtime (`mcp`) ao lado dos CLIs do §1. Ele
+não é um binário no PATH: a disponibilidade vem do namespace de ferramentas (issues #451, #480 e
+#482; código em `scripts/lib/orchestrator/`).
 
-O contrato é implementado de forma modular em `scripts/lib/orchestrator/`:
+**Fonte e validade dos fatos:** salvo indicação, o que segue vem da sonda real ao Alethe em
+2026-10-23 (job-67) e do schema das ferramentas MCP naquela data. Cada limite traz a sua fonte e
+data. Os fatos rotulados "observado" são empíricos: não são garantias universais do serviço e podem
+mudar entre versões ou sessões.
 
-### 6.1. Detecção e Seleção de Orquestrador
+### 6.1. Detecção e seleção
 
-- **Detecção Estática:** `OrchestratorRegistry.detectAvailable({ tools, env })` verifica o namespace MCP ativo (`mcp-availability.md`), com zero I/O de shell ou rede.
-- **Runtimes Suportados:**
-  - **Alethe** (`AletheAdapter`): mapeia `mcp__alethe__alethe_delegate`, `alethe_check`, `alethe_release`.
-- **Preferência configurada:** `.claude/vetor/config.json` no bloco `delegation.orchestrator`:
+- **Sinal único:** existência de ferramenta `mcp__alethe__*` na lista de ferramentas da sessão
+  (`mcp-availability.md`, seção "Orquestrador de agentes (Alethe)"); em código,
+  `OrchestratorRegistry.detectAvailable({ tools })`. Zero I/O de shell ou rede.
+- **Sem sinal fora do harness:** nenhuma variável de ambiente do Alethe foi observada num worker
+  Codex do Alethe em 2026-10-23, então variáveis de ambiente não indicam presença do orquestrador e
+  `scripts/now-probe.ts` não o detecta.
+- **Preferência:** `alethe` é aceito em `delegation.preferredRuntime` de `.claude/vetor/config.json`:
   ```json
-  {
-    "delegation": {
-      "orchestrator": {
-        "preferred": "alethe",
-        "fallbackToNative": true,
-        "maxPollTimeoutMs": 50000
-      }
-    }
-  }
+  { "delegation": { "preferredRuntime": "alethe" } }
   ```
+  Sem essa preferência o orquestrador nunca é escolhido em silêncio. Com a preferência e sem
+  `mcp__alethe__*` na sessão, o fluxo segue inline: nunca se substitui por outro runtime (§2).
+- **Escopo e anuência:** o acordo de escopo do §2.1 vale para o Alethe. As tarefas pipe do §4 não se
+  aplicam a ele; continuam nos CLIs.
 
-### 6.2. As 6 Salvaguardas do Contrato de Orquestração
+### 6.2. Ferramentas (schema observado em 2026-10-23, job-67)
 
-1. **Uma Chamada por Grupo (`one-call-per-group`):** Cada grupo ou issue despachada opera em seu próprio worktree isolado (`cwd`). Nunca multiplexe diretórios distintos na mesma chamada.
-2. **Proibição de Git/GitHub no Worker:** O worker opera estritamente criando e editando arquivos. Comandos `git checkout`, `git commit`, `git push` e `gh pr create` são estritamente proibidos no sandbox remoto.
-3. **Validação Soberana no Host pelo Coordinator:** Relatórios de testes do container são meramente informativos. O coordinator do Vetor roda a suíte de testes (`deno task test`, `npm test`, etc.) no host principal antes de qualquer aprovação.
-4. **Polling Seguro (`safePollTimeoutMs <= 50000`):** Toda chamada de monitoramento impõe teto estrito de 50 segundos para prevenir encerramento por timeout da camada de transporte MCP.
-5. **Liberação Prévia de Recursos (`release-before-cleanup`):** Invocação obrigatória de `adapter.release(handle)` antes de qualquer remoção de worktree (`safe-remove-worktree`), prevenindo o erro "Device or resource busy" no Windows/Linux.
-6. **Sanitização de Rascunhos (`DraftSanitizer`):** O coordinator executa `sanitizeDraftText()` (`scripts/lib/draft-sanitizer.ts`) para verificar ausência de bytes nulos, UTF-8 corrompido, crases literais `` `n `` e bashismos incompatíveis (`declare -A`).
+| Ferramenta | Argumentos | Resposta |
+|---|---|---|
+| `alethe_delegate` | `{ tasks: string[], agent, cwd, isolate, label, askForApproval, timeoutSeconds, webSearch }` | `{ accepted, runId, runningInParallel, concurrencyLimit, isolated, timeoutSeconds, jobs: [{ id, spec, worktree }], next }` |
+| `alethe_check` | `{ wait, timeoutMs, untilAllSettled }` | `{ deliveries: [{ seq, type: 'worker_done', jobId, outcome: 'succeeded', text }], workersStillBusy, note }` |
+| `alethe_release` | `{ jobIds: string[] }` | `{ released: [ids] }` |
+| `alethe_cancel` | `{ jobIds: string[] }` | não observada |
+
+O id de cada job está em `jobs[].id`. O `alethe_check` é global à sessão e entrega cada resultado uma
+única vez. O adaptador `AletheAdapter` (`scripts/lib/orchestrator/adapters/alethe.ts`) implementa
+essas chamadas; as skills em markdown chamam as ferramentas MCP diretamente.
+
+### 6.3. Contrato prático
+
+| # | Regra | Fonte e data |
+|---|---|---|
+| 1 | **Uma chamada `alethe_delegate` por grupo.** O `cwd` vale para a chamada inteira e é o worktree do grupo: passe-o sempre. Sem `cwd`, o Alethe usa o próprio diretório e `isolate: true` falha com `isolate needs a git repository`. | `cwd` por chamada: spike #451 §3.1 (sessão de 2026-10-21). Falha sem `cwd`: observado na sonda de 2026-10-23 (job-67). |
+| 2 | **Concorrência:** use o `concurrencyLimit` devolvido por `alethe_delegate`; não fixe um número. Despache até o limite e, atingido, aguarde uma vaga com `alethe_check` antes do próximo grupo, sem fila própria. | Valor 4 observado na sonda de 2026-10-23 (job-67); pode variar por sessão. A espera por vaga é escolha do contrato (Spec de 2026-10-23), sem fonte externa. |
+| 3 | **Tarefa autocontida:** `tasks` leva o texto integral da issue (corpo e critérios de aceite), os comandos de teste do `module-test-map` e as proibições da regra 4. | Spike #451 §4.3 item 2 (2026-10-22); Spec do contrato (2026-10-23). |
+| 4 | **Proibido no worker:** git que escreva (`checkout`, `add`, `commit`, `push`), `gh`, rede e editar o status file. | Spike #451 §3.1 (sessão de 2026-10-21); decisão do mantenedor de 2026-10-23. |
+| 5 | **Suítes e testes empíricos rodam no host.** Relatórios de teste do worker são informativos. | O sandbox do Codex observado não roda git (`dubious ownership`); o worker relatou 35 falhas que não se repetiram no host (413 a 420 testes verdes), spike #451 §3.1 item 2 (sessão de 2026-10-21). |
+| 6 | **`alethe_check` com `timeoutMs <= 50000`.** Guarde as entregas de outros jobs, que o `alethe_check` não repete. | Esperas de 90 s ou mais estouraram o timeout MCP e perderam entregas; com 50 s não houve falha (spike #451 §3.1 item 3, sessão de 2026-10-21). Entrega única: sonda de 2026-10-23. |
+| 7 | **`alethe_release` antes de remover o worktree** (`safe-remove-worktree` ou `git worktree remove`). | Sem o release, `git worktree remove` falhou com `Permission denied` no Windows (observado em 2026-10-22); a sessão de 2026-10-21 registrou "Device or resource busy" (spike #451 §3.1 item 6). |
+| 8 | **O diff é rascunho:** o coordinator o revisa e o escaneia antes de qualquer commit; descarte o que falhar. | Defeitos observados na revisão da sessão de 2026-10-21 (spike #451 §3.1 item 4). |
+| 9 | **Entrega vazia não é sucesso.** Quando o Codex atinge o limite de uso, o Alethe devolve `outcome: succeeded` com `text` vazio e `tokens: null`. Trate como falha e diagnostique com `codex exec` no host (§1). | Observado em 2026-10-23. |
+| 10 | **Sem retry automático:** falha de dispatch ou de check, ou entrega vazia, é reportada ao coordinator; descarte o rascunho e siga nativo/inline (§3). | Escolha do contrato (Spec de 2026-10-23), a mesma política do §3. |
+
+### 6.4. Fluxo
+
+1. Detecte o namespace e selecione o runtime (§6.1); obtenha a anuência de escopo (§2.1).
+2. Para cada grupo, crie o worktree (`worktree-create`) e chame `alethe_delegate` uma vez, com o
+   worktree como `cwd`.
+3. Recolha os resultados com `alethe_check` (regras 2 e 6) até cada job entregar `worker_done`.
+4. Revise o diff, escaneie o rascunho e rode os testes mapeados no host (regras 5 e 8). O status
+   file continua sendo mantido pelo coordinator.
+5. Chame `alethe_release` para o job e só então remova o worktree (regra 7). `alethe_cancel`
+   interrompe um job que não deve terminar.

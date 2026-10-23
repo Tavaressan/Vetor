@@ -126,11 +126,27 @@ interface). Não invoque para módulos puramente backend/CLI.
 
 ### Orquestrador de agentes (Alethe)
 
-Use quando o harness opera sob um orquestrador multiplexador externo para delegar ondas ou grupos
-de issues do `coordinator` com isolamento de worktree (`scripts/lib/orchestrator/`).
+Use quando a tarefa pede delegar grupos de issues do `coordinator` a workers com isolamento de
+worktree. O contrato completo, com fonte e data de cada limite, está em `delegate-to-runtime.md` §6.
 
-- **Com MCP (obrigatório quando sob o orquestrador):** detecte o adaptador ativo via `OrchestratorRegistry.detectAvailable({ tools })`. Despache através de `adapter.dispatch()`, monitore com `adapter.check()` respeitando `safePollTimeoutMs <= 50000`, e libere locks com `adapter.release()` antes da desmontagem do worktree (ver `delegate-to-runtime.md` §6).
-- **Sem MCP (fallback):** prossiga com o despacho via subagentes nativos do harness (`Agent({ isolation: "worktree" })`), como padrão do Vetor.
+- **Sinal de presença:** qualquer ferramenta `mcp__alethe__*` (ou `mcp__plugin_<plugin>_alethe__*`)
+  pela regra de segmento acima. Na sessão de 2026-10-21 apareceram `alethe_delegate`,
+  `alethe_check`, `alethe_status`, `alethe_send` e `alethe_release` (spike #451 §2.1); o schema das
+  ferramentas em 2026-10-23 inclui também `alethe_cancel`.
+- **Só o namespace:** não há sinal verificável fora do harness. Nenhuma variável de ambiente do
+  Alethe foi observada num worker Codex do Alethe em 2026-10-23; por isso nem o ambiente do processo
+  nem `scripts/now-probe.ts` servem de fonte. A detecção em código é
+  `OrchestratorRegistry.detectAvailable({ tools })`.
+- **Capacidades** (schema observado em 2026-10-23, job-67): delegar tarefas a workers num `cwd`
+  (`alethe_delegate`), recolher resultados (`alethe_check`), liberar jobs (`alethe_release`) e
+  cancelar (`alethe_cancel`). Argumentos, respostas e limites operacionais: `delegate-to-runtime.md`
+  §6.2 e §6.3.
+- **Com MCP:** selecione pela preferência `delegation.preferredRuntime: "alethe"`
+  (`delegate-to-runtime.md` §6.1). Despache com uma chamada `mcp__alethe__alethe_delegate` por grupo,
+  com o `cwd` do worktree; monitore com `alethe_check` e `timeoutMs <= 50000`; chame
+  `alethe_release` antes de remover o worktree.
+- **Sem MCP (fallback):** prossiga com o despacho via subagentes nativos do harness
+  (`Agent({ isolation: "worktree" })`), como padrão do Vetor.
 
 Cada skill que referencia este documento deve nomear o servidor esperado (ex.: "Observabilidade" na seção
 acima) antes de aplicar o mecanismo — este documento define *como* checar, não *quais* servidores
