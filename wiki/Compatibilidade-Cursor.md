@@ -67,11 +67,19 @@ as engines que o usam em `engines`.
   `.cursor/skills/` são movidas para a raiz compartilhada apenas se o hash em disco ainda bate com o
   manifesto; a entrada antiga sai do manifesto. Arquivo editado pelo usuário, ou destino
   compartilhado existente que não é gerenciado nem íntegro, é preservado com aviso e nunca
-  sobrescrito — nesse caso o Cursor lê as duas cópias.
+  sobrescrito — nesse caso o Cursor lê as duas cópias. A mesma convergência acontece na chamada que
+  muda o conjunto de engines (ex.: `install --engines claude-code` num projeto que já tem o
+  Cursor): o Cursor sai da raiz antiga (as skills só dele são movidas; nas compartilhadas ele deixa
+  de constar como dono) e passa a constar na nova, sem esperar um `update`. A skill legada do Codex
+  editada (`.codex/skills/`) continua bloqueando a cópia gerenciada em `.agents/skills/`, inclusive
+  a do Cursor.
 - **`.cursor/skills/` fora do manifesto** (skills do próprio usuário) é preservado, e o Vetor não grava
   novas skills ali enquanto houver raiz compartilhada.
 - **`vetor uninstall --engines <ids>`:** retira só as engines informadas; um arquivo compartilhado
   fica no disco enquanto outra engine o usar, e só é removido (se íntegro) quando o último dono sai.
+  Arquivo editado pelo usuário é preservado e continua no manifesto com `uninstalled: true`: segue
+  rastreável (`vetor status`, nova tentativa de `uninstall --engines`), mas `update` e `install` não
+  tratam a engine como instalada por causa dele.
 - **Ponto em aberto:** a documentação do Cursor consultada em 2026-10-23 não define precedência
   entre as raízes nem como nomes repetidos entre elas são tratados. Com Claude Code e
   Codex/Antigravity juntos o Cursor lê `.claude/skills/` e `.agents/skills/`, ou seja, duas cópias de
