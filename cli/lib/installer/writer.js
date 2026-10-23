@@ -181,25 +181,33 @@ function removeEmptyDirsUpTo(startDir, stopDir) {
 const SKILLS_KEY_PATTERN = /^(\.cursor|\.agents|\.claude)\/skills\/(.+)$/;
 
 /**
- * Leva para `targetRoot` as skills que só o Cursor usa e que estão em outra raiz de skills
- * (legado `.cursor/skills/`, ou `.agents/`/`.claude/` depois de um `uninstall --engines` que
- * deixou o Cursor como único dono). Só migra arquivo íntegro (hash igual ao do manifesto):
- * - editado pelo usuário: preservado, com aviso, e a entrada antiga continua no manifesto;
- * - destino já existente que não é gerenciado nem íntegro: nada é sobrescrito, ambos ficam,
- *   com aviso, e o Cursor não é registrado como dono do destino (dono não verificado);
- * - destino gerenciado e íntegro: a cópia antiga é descartada e o Cursor vira dono do destino;
- * - destino ausente: o arquivo é movido.
- * Retorna os pares `{ from, to }` migrados.
+ * Faz o Cursor convergir para `targetRoot` quando a raiz de skills dele mudou (instalação
+ * anterior à #479 em `.cursor/skills/`, ou conjunto de engines que mudou desde a última vez).
+ * Para cada skill do Cursor em outra raiz de skills:
+ * - com outros donos: o Cursor deixa de constar como dono (a cópia continua para eles); o
+ *   registro do Cursor em `targetRoot` fica a cargo da cópia de skills do Cursor em `installFiles`;
+ * - só dele: o arquivo é migrado, desde que íntegro (hash igual ao do manifesto):
+ *   - editado pelo usuário: preservado, com aviso, e a entrada antiga continua no manifesto;
+ *   - destino já existente que não é gerenciado nem íntegro: nada é sobrescrito, ambos ficam,
+ *     com aviso, e o Cursor não é registrado como dono do destino (dono não verificado);
+ *   - destino gerenciado e íntegro: a cópia antiga é descartada e o Cursor vira dono do destino;
+ *   - destino ausente: o arquivo é movido.
+ * Entrada marcada como `uninstalled` é ignorada. Retorna os pares `{ from, to }` migrados.
  */
 function migrateCursorSkills({ projectRoot, manifest, targetRoot, warnings, skipped }) {
   const migrated = [];
 
   for (const [oldKey, entry] of Object.entries(manifest.files)) {
     const match = oldKey.match(SKILLS_KEY_PATTERN);
-    if (!match || match[1] === targetRoot) continue;
+    if (!match || match[1] === targetRoot || entry.uninstalled) continue;
     const owners = ownersOf(entry);
-    if (owners.length !== 1 || owners[0] !== 'cursor') continue;
+    if (!owners.includes('cursor')) continue;
     if (match[2].split(/[\\/]/).includes('..')) continue;
+    if (owners.length > 1) {
+      entry.engines = owners.filter((id) => id !== 'cursor');
+      if (entry.engine === 'cursor') entry.engine = entry.engines[0];
+      continue;
+    }
 
     const newKey = `${targetRoot}/skills/${match[2]}`;
     const oldFile = path.join(projectRoot, ...oldKey.split('/'));
@@ -429,11 +437,16 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
 
   // Engines presentes = seleção desta chamada + as já registradas no manifesto, para que
   // `install` e `update` (que parte só do manifesto) escolham a mesma raiz de skills do Cursor.
+  // Entrada marcada como `uninstalled` (arquivo editado que sobrou de `uninstall --engines`)
+  // não conta: a engine foi removida.
   const presentEngineIds = new Set([
     ...(engines ?? []).map((engine) => engine.id),
-    ...Object.values(manifest.files).flatMap(ownersOf),
+    ...Object.values(manifest.files).filter((entry) => !entry.uninstalled).flatMap(ownersOf),
   ]);
   const cursorSkillsRoot = resolveCursorSkillsRoot(presentEngineIds);
+  // Cursor registrado no manifesto mas fora da seleção desta chamada (ex.: `install --engines
+  // claude-code` num projeto que já tem o Cursor): só as skills dele acompanham a mudança de raiz.
+  const cursorSkillsOnly = presentEngineIds.has('cursor') && !(engines ?? []).some((engine) => engine.id === 'cursor');
 
   // Migra somente skills legadas intactas, identificadas pelo hash do manifesto.
   // Se foram alteradas, preserva a cópia antiga e não cria uma duplicata gerenciada.
@@ -488,13 +501,17 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   }
 
   // Depois da migração do Codex: ambas podem ter `.agents/skills/` como destino.
-  if ((engines ?? []).some((engine) => engine.id === 'cursor')) {
+  if (presentEngineIds.has('cursor')) {
     migrated.push(...migrateCursorSkills({
       projectRoot, manifest, targetRoot: cursorSkillsRoot, warnings, skipped,
     }));
   }
 
-  for (const engine of engines ?? []) {
+  const installEngines = cursorSkillsOnly
+    ? [...(engines ?? []), { id: 'cursor', name: 'Cursor', skillsOnly: true }]
+    : (engines ?? []);
+
+  for (const engine of installEngines) {
     const destRootName = ENGINE_DEST_DIR[engine.id];
     if (!destRootName) {
       enginesSkipped.push({
@@ -534,6 +551,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
 
     for (const sourceDirName of SOURCE_DIRS) {
       if (excludedSourceDirs.includes(sourceDirName)) continue;
+      if (engine.skillsOnly && sourceDirName !== 'skills') continue;
 
       if (engine.id === 'cursor' && sourceDirName === 'hooks') {
         installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, copied, skipped, warnings });
@@ -558,8 +576,9 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
           : ENGINE_SOURCE_DIR_DEST[engine.id]?.[sourceDirName] ?? destRootName;
         const destFile = path.join(projectRoot, sourceDestRoot, sourceDirName, destRelativePath);
         const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
-        if (engine.id === 'codex' && migrationBlockedTargets.has(manifestKey)) {
-          skipped.push({ path: manifestKey, reason: 'migration-blocked' });
+        // Skill legada do Codex editada: nenhuma cópia gerenciada nova no destino, nem a do Cursor.
+        if ((engine.id === 'codex' || engine.id === 'cursor') && migrationBlockedTargets.has(manifestKey)) {
+          pushSkipped(skipped, manifestKey, 'migration-blocked');
           continue;
         }
         if (engine.id === 'cursor' && sourceDirName === 'agents') {

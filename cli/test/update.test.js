@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { update } = require('../lib/commands/update.js');
+const { uninstall } = require('../lib/commands/uninstall.js');
 const { writeManifest, readManifest, hashContent } = require('../lib/installer/manifest.js');
 const { installFiles: writerInstallFiles } = require('../lib/installer/writer.js');
 
@@ -217,5 +218,51 @@ test('update: skill do Cursor editada em .cursor/skills é preservada na migraç
     assert.match(output, /Aviso: \.cursor\/skills\/demo\/SKILL\.md: arquivo editado pelo usuário/);
     assert.doesNotMatch(output, /não existe mais na fonte/);
     assert.ok(readManifest(dir).files['.cursor/skills/demo/SKILL.md']);
+  });
+});
+
+// Revisão da PR #491, achado 1: engine desinstalada com `--engines` não volta no `update` por
+// causa de um arquivo editado que ficou preservado.
+test('update: engine desinstalada com arquivo editado preservado não é reinstalada', async () => {
+  await withTempDir(async (dir) => {
+    const sourceRoot = makeSharedSkillSource(dir, 'v1\n');
+    fs.mkdirSync(path.join(sourceRoot, 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(sourceRoot, 'agents', 'demo.md'), 'agente v1\n');
+    writerInstallFiles({
+      projectRoot: dir, sourceRoot, engines: [CLAUDE, CURSOR, { id: 'codex', name: 'Codex' }],
+    });
+    const editedAgent = path.join(dir, '.claude', 'agents', 'demo.md');
+    fs.writeFileSync(editedAgent, 'editado pelo usuário\n');
+
+    await captureInfo(() => uninstall(dir, { yes: true, engines: 'claude-code' }));
+    const engineIds = [];
+    const output = await captureInfo(() => update(dir, { installFiles: (args) => {
+      engineIds.push(...args.engines.map((engine) => engine.id));
+      return writerInstallFiles({ ...args, sourceRoot });
+    } }));
+
+    assert.deepEqual(engineIds.sort(), ['codex', 'cursor']);
+    assert.equal(fs.existsSync(path.join(dir, '.claude', 'skills', 'demo', 'SKILL.md')), false);
+    assert.equal(fs.readFileSync(editedAgent, 'utf8'), 'editado pelo usuário\n');
+    const manifest = readManifest(dir);
+    assert.equal(manifest.files['.claude/agents/demo.md'].uninstalled, true);
+    assert.deepEqual(Object.keys(manifest.files).filter((key) => key.startsWith('.claude/')), ['.claude/agents/demo.md']);
+    assert.doesNotMatch(output, /\.claude\/agents\/demo\.md: não existe mais na fonte/);
+    // Sem Claude Code ativo, o Cursor fica com a raiz compartilhada do Codex.
+    assert.deepEqual(manifest.files['.agents/skills/demo/SKILL.md'].engines.slice().sort(), ['codex', 'cursor']);
+  });
+});
+
+test('update: manifesto só com entradas de engines desinstaladas não atualiza nada', async () => {
+  await withTempDir(async (dir) => {
+    writeManifest(dir, { version: 1, files: {
+      '.claude/agents/demo.md': { sha256: 'abc', engine: 'claude-code', engines: ['claude-code'], uninstalled: true },
+    } });
+
+    const output = await captureInfo(() => update(dir, { installFiles: () => {
+      throw new Error('installFiles não deveria ser chamado sem engine ativa');
+    } }));
+
+    assert.match(output, /Nenhuma engine ativa/);
   });
 });

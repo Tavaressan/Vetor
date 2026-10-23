@@ -38,8 +38,15 @@ function update(cwd = process.cwd(), options = {}) {
     return;
   }
 
-  const engineIds = [...new Set(Object.values(manifestBefore.files).flatMap((entry) => entry.engines ?? [entry.engine]))];
+  // Entrada `uninstalled` (arquivo editado que sobrou de `uninstall --engines`) não reativa a engine.
+  const activeEntries = Object.values(manifestBefore.files).filter((entry) => !entry.uninstalled);
+  const engineIds = [...new Set(activeEntries.flatMap((entry) => entry.engines ?? [entry.engine]))];
   const engines = engineIds.map((id) => ({ id, name: ENGINE_NAME_BY_ID.get(id) ?? id }));
+
+  if (engines.length === 0) {
+    console.info('Nenhuma engine ativa neste projeto: só restam arquivos preservados de engines desinstaladas.');
+    return;
+  }
 
   console.info(`Atualizando engines: ${engines.map((engine) => engine.name).join(', ')}.`);
 
@@ -64,6 +71,7 @@ function update(cwd = process.cwd(), options = {}) {
   const touched = new Set([...copied, ...skipped.map((entry) => entry.path), ...migrated.map((entry) => entry.from)]);
   for (const key of keysBefore) {
     if (key.startsWith('.codex/skills/') && manifestBefore.files[key].engine === 'codex') continue;
+    if (manifestBefore.files[key].uninstalled) continue;
     if (!touched.has(key)) {
       console.info(`${key}: não existe mais na fonte (não removido — use "vetor uninstall" se quiser limpar).`);
     }

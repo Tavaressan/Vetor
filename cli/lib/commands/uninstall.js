@@ -60,7 +60,9 @@ function confirmUninstall(message, { input = process.stdin, output = process.std
  * nenhum dono resta — arquivo em diretório compartilhado (ex.: `.agents/skills/` usado por
  * Codex, Antigravity e Cursor) continua no disco, com os donos restantes no manifesto, enquanto
  * outra engine o usar. Quando o último dono sai, valem as regras acima (íntegro remove,
- * editado preserva e continua registrado).
+ * editado preserva e continua registrado). Nesse caso a entrada preservada mantém os donos
+ * originais, mas ganha `uninstalled: true`: `update`/`install` não tratam a engine como
+ * instalada por causa dela, e uma nova tentativa de `--engines` a considera sem donos vivos.
  *
  * `readManifest`/`writeManifest`/`hashFile`/`confirm`/`input`/`output` são injetáveis para
  * testes.
@@ -119,6 +121,8 @@ async function uninstall(cwd = process.cwd(), options = {}) {
   const remainingFiles = {};
 
   for (const [key, entry] of entries) {
+    // Entrada que continuará no manifesto quando o arquivo for preservado.
+    let retainedEntry = entry;
     if (selectedIds) {
       const owners = ownersOf(entry);
       const remainingOwners = owners.filter((id) => !selectedIds.has(id));
@@ -126,11 +130,14 @@ async function uninstall(cwd = process.cwd(), options = {}) {
         remainingFiles[key] = entry;
         continue;
       }
-      if (remainingOwners.length > 0) {
+      // Entrada já marcada como desinstalada não tem dono vivo: os donos listados são os que
+      // saíram antes, então esta tentativa a trata como a última.
+      if (remainingOwners.length > 0 && !entry.uninstalled) {
         remainingFiles[key] = { ...entry, engine: remainingOwners[0], engines: remainingOwners };
         kept.push(key);
         continue;
       }
+      retainedEntry = { ...entry, uninstalled: true };
     }
 
     const destFile = path.resolve(cwd, ...key.split('/'));
@@ -139,7 +146,7 @@ async function uninstall(cwd = process.cwd(), options = {}) {
 
     if (!isInsideProject) {
       preserved.push({ path: key, reason: 'outside-project-root' });
-      remainingFiles[key] = entry;
+      remainingFiles[key] = retainedEntry;
       continue;
     }
 
@@ -150,7 +157,7 @@ async function uninstall(cwd = process.cwd(), options = {}) {
 
     if (hashFile(destFile) !== entry.sha256) {
       preserved.push({ path: key, reason: 'user-modified' });
-      remainingFiles[key] = entry;
+      remainingFiles[key] = retainedEntry;
       continue;
     }
 

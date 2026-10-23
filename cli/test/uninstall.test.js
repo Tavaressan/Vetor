@@ -231,6 +231,39 @@ test('uninstall --engines: skill compartilhada editada pelo usuário é preserva
   });
 });
 
+// Revisão da PR #491, achado 1: o arquivo editado fica rastreável (entrada e donos originais),
+// mas marcado como desinstalado para que `update` e `install` não tratem a engine como ativa.
+test('uninstall --engines: arquivo editado preservado fica marcado como desinstalado e mantém os donos para nova tentativa', async () => {
+  await withTempDir(async (dir) => {
+    const { skill } = seedSharedFiles(dir, { skillContent: 'editada\n', skillManifestContent: 'original\n' });
+
+    await captureInfo(() => uninstall(dir, { yes: true, engines: ['codex', 'cursor'] }));
+
+    const entry = readManifest(dir).files['.agents/skills/demo/SKILL.md'];
+    assert.equal(entry.uninstalled, true);
+    assert.deepEqual(entry.engines, ['codex', 'cursor']);
+    assert.equal(readManifest(dir).files['.cursor/agents/demo.md'], undefined);
+
+    // O usuário desfaz a edição e repete o comando: agora o arquivo íntegro sai.
+    fs.writeFileSync(skill, 'original\n');
+    await captureInfo(() => uninstall(dir, { yes: true, engines: 'codex' }));
+    assert.equal(fs.existsSync(skill), false);
+    assert.equal(fs.existsSync(manifestPathFor(dir)), false);
+  });
+});
+
+test('uninstall sem --engines: arquivo editado preservado continua registrado sem marca de desinstalado', async () => {
+  await withTempDir(async (dir) => {
+    seedSharedFiles(dir, { skillContent: 'editada\n', skillManifestContent: 'original\n' });
+
+    await captureInfo(() => uninstall(dir, { yes: true }));
+
+    const entry = readManifest(dir).files['.agents/skills/demo/SKILL.md'];
+    assert.equal(entry.uninstalled, undefined);
+    assert.deepEqual(entry.engines, ['codex', 'cursor']);
+  });
+});
+
 test('uninstall --engines: engine sem arquivos no manifesto não altera nada', async () => {
   await withTempDir(async (dir) => {
     const { skill, agent } = seedSharedFiles(dir);

@@ -1065,3 +1065,87 @@ test('installFiles: Cursor que passa a ficar sozinho recebe de volta em .cursor/
   });
 });
 
+// Revisão da PR #491, achado 2: a raiz de skills do Cursor converge na mesma chamada em que o
+// conjunto de engines muda, mesmo quando o Cursor não está entre as engines da chamada.
+test('installFiles: adicionar Claude Code a um projeto só com Cursor move as skills do Cursor para .claude/skills na mesma chamada', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE] });
+      assert.deepEqual(skillOwners(projectRoot, '.cursor'), ['cursor']);
+
+      const { migrated } = installFiles({ projectRoot, sourceRoot, engines: [CLAUDE_ENGINE] });
+
+      assert.equal(fs.existsSync(path.join(projectRoot, '.cursor', 'skills')), false);
+      assert.deepEqual(skillOwners(projectRoot, '.claude'), ['claude-code', 'cursor']);
+      assert.deepEqual(migrated, [{ from: '.cursor/skills/demo/SKILL.md', to: '.claude/skills/demo/SKILL.md' }]);
+      assert.equal(readManifest(projectRoot).files['.cursor/skills/demo/SKILL.md'], undefined);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: adicionar Codex a Claude Code + Cursor tira o Cursor de .claude/skills e o registra em .agents/skills', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      installFiles({ projectRoot, sourceRoot, engines: [CLAUDE_ENGINE, CURSOR_ENGINE] });
+      assert.deepEqual(skillOwners(projectRoot, '.claude'), ['claude-code', 'cursor']);
+
+      installFiles({ projectRoot, sourceRoot, engines: [CODEX_ENGINE] });
+
+      assert.deepEqual(skillOwners(projectRoot, '.claude'), ['claude-code']);
+      assert.deepEqual(skillOwners(projectRoot, '.agents'), ['codex', 'cursor']);
+      assert.equal(fs.existsSync(path.join(projectRoot, '.cursor', 'skills')), false);
+      // O que não é skill do Cursor não é reinstalado pela chamada que só trouxe o Codex.
+      assert.ok(readManifest(projectRoot).files['.cursor/agents/demo.md']);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+// Revisão da PR #491, achado 3: a trava de migração do Codex vale também para o Cursor.
+test('installFiles: skill legada do Codex editada bloqueia a cópia gerenciada em .agents/skills também para o Cursor', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const legacy = writeManagedSkill(projectRoot, '.codex', 'editada pelo usuário\n', ['codex'], {
+        manifestContent: 'original\n',
+      });
+
+      const { skipped, warnings } = installFiles({ projectRoot, sourceRoot, engines: [CODEX_ENGINE, CURSOR_ENGINE] });
+
+      assert.equal(fs.readFileSync(legacy, 'utf8'), 'editada pelo usuário\n');
+      assert.equal(skillExists(projectRoot, '.agents'), false);
+      assert.equal(skillExists(projectRoot, '.cursor'), false);
+      assert.equal(readManifest(projectRoot).files['.agents/skills/demo/SKILL.md'], undefined);
+      assert.deepEqual(
+        skipped.filter((entry) => entry.path === '.agents/skills/demo/SKILL.md'),
+        [{ path: '.agents/skills/demo/SKILL.md', reason: 'migration-blocked' }],
+      );
+      assert.match(warnings.join('\n'), /\.codex\/skills\/demo\/SKILL\.md: arquivo editado pelo usuário/);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+// Revisão da PR #491, achado 1: dono marcado como desinstalado não conta para a escolha da raiz.
+test('installFiles: engine desinstalada com arquivo editado preservado não fixa a raiz de skills do Cursor', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const { writeManifest } = require('../lib/installer/manifest.js');
+      const edited = path.join(projectRoot, '.claude', 'agents', 'demo.md');
+      fs.mkdirSync(path.dirname(edited), { recursive: true });
+      fs.writeFileSync(edited, 'editado\n');
+      writeManifest(projectRoot, { version: 1, files: {
+        '.claude/agents/demo.md': { sha256: sha256('original\n'), engine: 'claude-code', engines: ['claude-code'], uninstalled: true },
+      } });
+
+      installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE] });
+
+      assert.deepEqual(skillOwners(projectRoot, '.cursor'), ['cursor']);
+      assert.equal(skillExists(projectRoot, '.claude'), false);
+      assert.equal(fs.readFileSync(edited, 'utf8'), 'editado\n');
+      assert.equal(readManifest(projectRoot).files['.claude/agents/demo.md'].uninstalled, true);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+

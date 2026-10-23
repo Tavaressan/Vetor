@@ -270,6 +270,40 @@ test('vetor uninstall --engines retira só as engines informadas e mantém a ski
   });
 });
 
+// Revisão da PR #491, achado 2: a raiz do Cursor converge na chamada que muda o conjunto de
+// engines, então desinstalar a engine antiga não deixa arquivo "em uso por outra engine".
+test('vetor install de uma nova engine move o Cursor de raiz e uninstall --engines da antiga não deixa skills órfãs', () => {
+  withTempDir((dir) => {
+    const run = (...args) => {
+      const result = spawnSync(process.execPath, [binPath, ...args], { cwd: dir, encoding: 'utf8' });
+      assert.equal(result.status, 0, `Process failed with stderr: ${result.stderr}`);
+      return result.stdout;
+    };
+    const skillKeys = (root) => Object.keys(readManifest(dir).files).filter((key) => key.startsWith(`${root}/skills/`));
+
+    run('install', '--engines', 'cursor', '--yes');
+    assert.ok(skillKeys('.cursor').length > 0, 'Cursor sozinho grava em .cursor/skills');
+
+    run('install', '--engines', 'claude-code', '--yes');
+    assert.equal(skillKeys('.cursor').length, 0, 'Cursor sai de .cursor/skills na mesma chamada');
+    assert.equal(fs.existsSync(path.join(dir, '.cursor', 'skills')), false);
+
+    run('install', '--engines', 'codex', '--yes');
+    for (const key of skillKeys('.claude')) {
+      assert.deepEqual(readManifest(dir).files[key].engines, ['claude-code'], key);
+    }
+    for (const key of skillKeys('.agents')) {
+      assert.deepEqual(readManifest(dir).files[key].engines.slice().sort(), ['codex', 'cursor'], key);
+    }
+
+    const claudeSkills = skillKeys('.claude');
+    assert.ok(claudeSkills.length > 0);
+    run('uninstall', '--engines', 'claude-code', '--yes');
+    assert.ok(claudeSkills.every((key) => !fs.existsSync(path.join(dir, ...key.split('/')))), '.claude/skills não fica órfão');
+    assert.ok(skillKeys('.agents').every((key) => fs.existsSync(path.join(dir, ...key.split('/')))), '.agents/skills continua atendendo Cursor e Codex');
+  });
+});
+
 test('vetor uninstall --engines com ID inválido sai com exit 1 e não remove nada', () => {
   withTempDir((dir) => {
     const cleanRelPath = '.claude/skills/demo/SKILL.md';
