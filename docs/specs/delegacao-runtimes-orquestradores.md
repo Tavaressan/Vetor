@@ -91,9 +91,10 @@ Formalizar no Vetor uma camada de abstração normativa e polimórfica para orqu
 
 **Acceptance Criteria:**
 - [ ] `isAvailable` retorna verdadeiro se houver ferramenta casando com `matchesMcpServer(tool, "alethe")` ou se `env.ALETHE_ORCHESTRATOR` / `env.ALETHE_SESSION_ID` estiver definido.
-- [ ] `dispatch` chama `mcp__alethe__alethe_delegate` com `{ prompt, cwd, backend }` e extrai o `job_id`.
-- [ ] `check` chama `mcp__alethe__alethe_check` com `{ job_id, timeoutMs }`, limitando estritamente `timeoutMs <= 50000` (50s).
-- [ ] `release` chama `mcp__alethe__alethe_release` com `{ job_id }`.
+- [ ] `dispatch` chama `mcp__alethe__alethe_delegate` com `{ tasks: [prompt], cwd, agent }` e extrai o id de `jobs[0].id`.
+- [ ] `check` chama `mcp__alethe__alethe_check` com `{ wait: true, untilAllSettled: false, timeoutMs }`, limitando estritamente `timeoutMs <= 50000` (50s). Como o `alethe_check` é global e entrega cada resultado uma vez, o adapter guarda as entregas de outros jobs até o `check` e o `release` deles.
+- [ ] `release` chama `mcp__alethe__alethe_release` com `{ jobIds: [id] }`; `cancel` chama `mcp__alethe__alethe_cancel` com `{ jobIds: [id] }`.
+- Formato das respostas observado numa sonda real em 2026-10-23 (job-67).
 - [ ] Declara `requiresExplicitRelease: true` em suas capacidades.
 
 ### RF-04 - Adaptador Concreto para Orca (`OrcaAdapter`)

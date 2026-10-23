@@ -4,11 +4,17 @@
  * Mapeia as ferramentas canônicas do Alethe (mcp__alethe__*), impondo isolamento
  * de worktree, teto estrito de polling (timeoutMs <= 50s) e liberação prévia
  * obrigatória de recursos.
+ *
+ * Formato das respostas observado em 2026-10-23 numa sonda real (job-67):
+ * - alethe_delegate → { accepted, runId, jobs: [{ id, spec, worktree }], next }
+ * - alethe_check → { deliveries: [{ seq, type: "worker_done", jobId, outcome: "succeeded", text }],
+ *   workersStillBusy, note }
+ * - alethe_release → { released: [id] }
+ * O alethe_check é global à sessão e entrega cada resultado uma única vez.
  */
 
 import { matchesMcpServer } from "../../mcp.ts";
 import type {
-  JobExecutionStatus,
   OrchestratorAdapter,
   OrchestratorCapabilities,
   OrchestratorCheckResult,
@@ -28,9 +34,18 @@ export const ALETHE_CAPABILITIES: OrchestratorCapabilities = {
   supportsCancellation: true,
 };
 
+interface AletheDelivery {
+  type: string;
+  jobId: string;
+  outcome?: string | null;
+  text?: string;
+}
+
 export class AletheAdapter implements OrchestratorAdapter {
   readonly id = ALETHE_ADAPTER_ID;
   readonly capabilities = ALETHE_CAPABILITIES;
+  // Entregas já consumidas do alethe_check, guardadas por job até o release
+  private readonly deliveries = new Map<string, AletheDelivery>();
 
   isAvailable(context: OrchestratorProbeContext): boolean {
     // 1. In-harness: presença de qualquer ferramenta do servidor MCP 'alethe'
@@ -46,16 +61,26 @@ export class AletheAdapter implements OrchestratorAdapter {
     input: OrchestratorDispatchInput,
     toolCaller: ToolCaller,
   ): Promise<OrchestratorJobHandle> {
-    const rawResult = await toolCaller("mcp__alethe__alethe_delegate", {
-      prompt: input.prompt,
-      cwd: input.cwd,
-      backend: input.preferredWorker ?? "codex",
-      ...(input.metadata ? { metadata: input.metadata } : {}),
-    });
+    const agent = input.preferredWorker ?? "codex";
+    if (!this.capabilities.supportedWorkers.includes(agent)) {
+      throw new Error(
+        `Alethe não suporta o worker "${agent}" (aceita: ${
+          this.capabilities.supportedWorkers.join(", ")
+        })`,
+      );
+    }
 
-    const jobId = extractJobId(rawResult);
+    const raw = parseToolResult(
+      await toolCaller("mcp__alethe__alethe_delegate", {
+        tasks: [input.prompt],
+        cwd: input.cwd,
+        agent,
+      }),
+    );
+
+    const jobId = extractJobId(raw);
     if (!jobId) {
-      throw new Error("Alethe delegate não retornou um job_id válido");
+      throw new Error("Alethe delegate não retornou um id de job em jobs[0].id");
     }
 
     return {
@@ -77,19 +102,31 @@ export class AletheAdapter implements OrchestratorAdapter {
       this.capabilities.safePollTimeoutMs,
     );
 
-    const raw = await toolCaller("mcp__alethe__alethe_check", {
-      job_id: handle.jobId,
-      timeoutMs,
-    });
+    // untilAllSettled: false devolve na primeira entrega, sem esperar os demais jobs
+    const raw = parseToolResult(
+      await toolCaller("mcp__alethe__alethe_check", {
+        wait: true,
+        untilAllSettled: false,
+        timeoutMs,
+      }),
+    );
 
-    const status = normalizeAletheStatus(raw);
-    const summary = extractSummary(raw);
-    const error = extractError(raw);
+    // Guarda as entregas de outros jobs, que o alethe_check não repete
+    for (const delivery of extractDeliveries(raw)) {
+      this.deliveries.set(delivery.jobId, delivery);
+    }
 
+    const delivery = this.deliveries.get(handle.jobId);
+    if (!delivery) return { status: "running", rawOutput: raw };
+    if (delivery.type !== "worker_done") {
+      return { status: "running", summary: delivery.text, rawOutput: raw };
+    }
+    if (delivery.outcome === "succeeded") {
+      return { status: "completed", summary: delivery.text, rawOutput: raw };
+    }
     return {
-      status,
-      summary,
-      error,
+      status: "failed",
+      error: delivery.text ?? `outcome: ${delivery.outcome}`,
       rawOutput: raw,
     };
   }
@@ -99,87 +136,36 @@ export class AletheAdapter implements OrchestratorAdapter {
     toolCaller: ToolCaller,
   ): Promise<void> {
     await toolCaller("mcp__alethe__alethe_release", {
-      job_id: handle.jobId,
+      jobIds: [handle.jobId],
     });
+    this.deliveries.delete(handle.jobId);
   }
 
   async cancel(
     handle: OrchestratorJobHandle,
     toolCaller: ToolCaller,
   ): Promise<void> {
-    // Alethe release também encerra/cancela jobs ativos associados
-    await this.release(handle, toolCaller);
+    await toolCaller("mcp__alethe__alethe_cancel", {
+      jobIds: [handle.jobId],
+    });
   }
+}
+
+// O resultado de uma ferramenta MCP chega como texto JSON
+function parseToolResult(output: unknown): unknown {
+  return typeof output === "string" ? JSON.parse(output) : output;
 }
 
 function extractJobId(output: unknown): string | null {
-  if (typeof output === "string") {
-    // Pode vir como JSON serializado ou string direta
-    try {
-      const parsed = JSON.parse(output);
-      if (typeof parsed?.job_id === "string") return parsed.job_id;
-      if (typeof parsed?.id === "string") return parsed.id;
-    } catch {
-      if (output.trim()) return output.trim();
-    }
-  }
-
-  if (typeof output === "object" && output !== null) {
-    const record = output as Record<string, unknown>;
-    if (typeof record.job_id === "string") return record.job_id;
-    if (typeof record.id === "string") return record.id;
-  }
-
-  return null;
+  const jobs = (output as { jobs?: { id?: unknown }[] } | null)?.jobs;
+  const id = Array.isArray(jobs) ? jobs[0]?.id : undefined;
+  return typeof id === "string" ? id : null;
 }
 
-function normalizeAletheStatus(output: unknown): JobExecutionStatus {
-  if (typeof output !== "object" || output === null) {
-    return "running";
-  }
-
-  const record = output as Record<string, unknown>;
-  const rawStatus = String(record.status ?? record.state ?? "").toLowerCase().trim();
-
-  switch (rawStatus) {
-    case "completed":
-    case "done":
-    case "finished":
-    case "success":
-      return "completed";
-    case "failed":
-    case "error":
-      return "failed";
-    case "cancelled":
-    case "canceled":
-    case "aborted":
-      return "cancelled";
-    case "running":
-    case "in_progress":
-      return "running";
-    case "queued":
-    case "pending":
-      return "queued";
-    default:
-      return "running";
-  }
-}
-
-function extractSummary(output: unknown): string | undefined {
-  if (typeof output === "object" && output !== null) {
-    const record = output as Record<string, unknown>;
-    if (typeof record.summary === "string") return record.summary;
-    if (typeof record.message === "string") return record.message;
-    if (typeof record.output === "string") return record.output;
-  }
-  return undefined;
-}
-
-function extractError(output: unknown): string | undefined {
-  if (typeof output === "object" && output !== null) {
-    const record = output as Record<string, unknown>;
-    if (typeof record.error === "string") return record.error;
-    if (typeof record.details === "string") return record.details;
-  }
-  return undefined;
+function extractDeliveries(output: unknown): AletheDelivery[] {
+  const deliveries = (output as { deliveries?: unknown } | null)?.deliveries;
+  if (!Array.isArray(deliveries)) return [];
+  return deliveries.filter((delivery): delivery is AletheDelivery =>
+    typeof delivery?.jobId === "string" && typeof delivery?.type === "string"
+  );
 }
