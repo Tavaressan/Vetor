@@ -56,13 +56,13 @@ function createMockAdapter(
 Deno.test("OrchestratorRegistry - cadastro e busca de adaptadores", () => {
   const registry = new OrchestratorRegistry();
   const alethe = createMockAdapter("alethe", "Alethe", () => false);
-  const orca = createMockAdapter("orca", "Orca", () => false);
+  const other = createMockAdapter("outro", "Outro", () => false);
 
-  registry.register(alethe).register(orca);
+  registry.register(alethe).register(other);
 
   assertEquals(registry.list().length, 2);
   assertEquals(registry.get("alethe")?.id, "alethe");
-  assertEquals(registry.get("orca")?.id, "orca");
+  assertEquals(registry.get("outro")?.id, "outro");
   assertEquals(registry.get("desconhecido"), undefined);
 });
 
@@ -71,19 +71,15 @@ Deno.test("OrchestratorRegistry - detectAvailable filtra adaptadores ativos", ()
   const alethe = createMockAdapter(
     "alethe",
     "Alethe",
-    (ctx) =>
-      ctx.tools.includes("mcp__alethe__alethe_delegate") ||
-      ctx.env?.ALETHE_ORCHESTRATOR === "1",
+    (ctx) => ctx.tools.includes("mcp__alethe__alethe_delegate"),
   );
-  const orca = createMockAdapter(
-    "orca",
-    "Orca",
-    (ctx) =>
-      ctx.tools.includes("mcp__orca__task_dispatch") ||
-      ctx.env?.ORCA_ACTIVE === "1",
+  const other = createMockAdapter(
+    "outro",
+    "Outro",
+    (ctx) => ctx.tools.includes("mcp__outro__dispatch"),
   );
 
-  registry.register(alethe).register(orca);
+  registry.register(alethe).register(other);
 
   // Nenhum ativo
   assertEquals(
@@ -98,19 +94,19 @@ Deno.test("OrchestratorRegistry - detectAvailable filtra adaptadores ativos", ()
   });
   assertEquals(detectedTool.map((a) => a.id), ["alethe"]);
 
-  // Orca via env var
-  const detectedEnv = registry.detectAvailable({
-    tools: [],
-    env: { ORCA_ACTIVE: "1" },
+  // Outro orquestrador via tool
+  const detectedOther = registry.detectAvailable({
+    tools: ["mcp__outro__dispatch"],
+    env: {},
   });
-  assertEquals(detectedEnv.map((a) => a.id), ["orca"]);
+  assertEquals(detectedOther.map((a) => a.id), ["outro"]);
 
   // Ambos ativos
   const detectedBoth = registry.detectAvailable({
-    tools: ["mcp__alethe__alethe_delegate", "mcp__orca__task_dispatch"],
+    tools: ["mcp__alethe__alethe_delegate", "mcp__outro__dispatch"],
     env: {},
   });
-  assertEquals(detectedBoth.map((a) => a.id), ["alethe", "orca"]);
+  assertEquals(detectedBoth.map((a) => a.id), ["alethe", "outro"]);
 });
 
 Deno.test("OrchestratorRegistry.select - nenhum disponível -> native", () => {
@@ -139,10 +135,10 @@ Deno.test("OrchestratorRegistry.select - único disponível sem preferência -> 
 Deno.test("OrchestratorRegistry.select - múltiplos disponíveis sem preferência, interativo -> ask", () => {
   const registry = new OrchestratorRegistry();
   const alethe = createMockAdapter("alethe", "Alethe", () => true);
-  const orca = createMockAdapter("orca", "Orca", () => true);
+  const other = createMockAdapter("outro", "Outro", () => true);
 
   const result = registry.select({
-    available: [alethe, orca],
+    available: [alethe, other],
     interactive: true,
   });
 
@@ -157,10 +153,10 @@ Deno.test("OrchestratorRegistry.select - múltiplos disponíveis sem preferênci
 Deno.test("OrchestratorRegistry.select - múltiplos disponíveis sem preferência, headless -> native", () => {
   const registry = new OrchestratorRegistry();
   const alethe = createMockAdapter("alethe", "Alethe", () => true);
-  const orca = createMockAdapter("orca", "Orca", () => true);
+  const other = createMockAdapter("outro", "Outro", () => true);
 
   const result = registry.select({
-    available: [alethe, orca],
+    available: [alethe, other],
     interactive: false,
   });
 
@@ -175,16 +171,16 @@ Deno.test("OrchestratorRegistry.select - múltiplos disponíveis sem preferênci
 Deno.test("OrchestratorRegistry.select - preferência configurada e disponível -> seleciona a preferência", () => {
   const registry = new OrchestratorRegistry();
   const alethe = createMockAdapter("alethe", "Alethe", () => true);
-  const orca = createMockAdapter("orca", "Orca", () => true);
+  const other = createMockAdapter("outro", "Outro", () => true);
 
   const result = registry.select({
-    available: [alethe, orca],
-    preferred: "orca",
+    available: [alethe, other],
+    preferred: "outro",
     interactive: true,
   });
 
   assertEquals(result.action, "orchestrate");
-  assertEquals(result.adapter?.id, "orca");
+  assertEquals(result.adapter?.id, "outro");
   assertEquals(result.reason, "preferência configurada e disponível");
 });
 
@@ -194,7 +190,7 @@ Deno.test("OrchestratorRegistry.select - preferência configurada mas indisponí
 
   const result = registry.select({
     available: [alethe],
-    preferred: "orca",
+    preferred: "outro",
     interactive: true,
   });
 

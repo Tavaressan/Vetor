@@ -32,7 +32,7 @@ avalie com o usuário qual worker continua.
 
 ---
 
-**5.d — Monitoramento sob Orquestradores (Alethe, Orca, MCP)**
+**5.d — Monitoramento sob o orquestrador MCP (Alethe)**
 
 Quando um grupo foi despachado via `OrchestratorAdapter` (`scripts/lib/orchestrator/`):
 

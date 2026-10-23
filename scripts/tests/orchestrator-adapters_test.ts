@@ -1,10 +1,8 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { AletheAdapter } from "../lib/orchestrator/adapters/alethe.ts";
-import { OrcaAdapter } from "../lib/orchestrator/adapters/orca.ts";
-import { GenericMcpAdapter } from "../lib/orchestrator/adapters/generic-mcp.ts";
 import type { ToolCaller } from "../lib/orchestrator/types.ts";
 
-Deno.test("AletheAdapter - isAvailable por namespace e env", () => {
+Deno.test("AletheAdapter - isAvailable só pelo namespace mcp__alethe__*", () => {
   const adapter = new AletheAdapter();
 
   assertEquals(adapter.isAvailable({ tools: [] }), false);
@@ -16,9 +14,13 @@ Deno.test("AletheAdapter - isAvailable por namespace e env", () => {
     adapter.isAvailable({ tools: ["mcp__plugin_vetor_alethe__alethe_delegate"] }),
     true,
   );
+  // Nenhuma variável ALETHE* foi observada num worker Codex do Alethe em 2026-10-23
   assertEquals(
-    adapter.isAvailable({ tools: [], env: { ALETHE_ORCHESTRATOR: "1" } }),
-    true,
+    adapter.isAvailable({
+      tools: [],
+      env: { ALETHE_ORCHESTRATOR: "1", ALETHE_SESSION_ID: "sessao-1" },
+    }),
+    false,
   );
 });
 
@@ -152,92 +154,4 @@ Deno.test("AletheAdapter - cancel chama alethe_cancel com jobIds", async () => {
     name: "mcp__alethe__alethe_cancel",
     args: { jobIds: ["job-c"] },
   }]);
-});
-
-Deno.test("OrcaAdapter - isAvailable por namespace e env", () => {
-  const adapter = new OrcaAdapter();
-
-  assertEquals(adapter.isAvailable({ tools: [] }), false);
-  assertEquals(
-    adapter.isAvailable({ tools: ["mcp__orca__task_dispatch"] }),
-    true,
-  );
-  assertEquals(
-    adapter.isAvailable({ tools: [], env: { ORCA_ACTIVE: "1" } }),
-    true,
-  );
-});
-
-Deno.test("OrcaAdapter - dispatch, check e release", async () => {
-  const adapter = new OrcaAdapter();
-  const recordedCalls: { name: string; args: Record<string, unknown> }[] = [];
-
-  const mockToolCaller: ToolCaller = (name, args) => {
-    recordedCalls.push({ name, args });
-    if (name === "mcp__orca__task_dispatch") {
-      return Promise.resolve({ task_id: "orca-task-777" });
-    }
-    if (name === "mcp__orca__task_check") {
-      return Promise.resolve({
-        status: "success",
-        message: "Orca finalizou a tarefa",
-      });
-    }
-    if (name === "mcp__orca__task_release") {
-      return Promise.resolve({ released: true });
-    }
-    return Promise.reject(new Error(`Tool inesperada: ${name}`));
-  };
-
-  const handle = await adapter.dispatch(
-    {
-      prompt: "Tarefa Orca",
-      cwd: "C:/worktree/orca",
-      preferredWorker: "claude",
-    },
-    mockToolCaller,
-  );
-
-  assertEquals(handle.jobId, "orca-task-777");
-  assertEquals(recordedCalls[0].name, "mcp__orca__task_dispatch");
-
-  const checkRes = await adapter.check(handle, {}, mockToolCaller);
-  assertEquals(checkRes.status, "completed");
-  assertEquals(checkRes.summary, "Orca finalizou a tarefa");
-
-  await adapter.release(handle, mockToolCaller);
-  assertEquals(recordedCalls[2].name, "mcp__orca__task_release");
-});
-
-Deno.test("GenericMcpAdapter - configuração arbitrária e execução", async () => {
-  const generic = new GenericMcpAdapter({
-    id: "custom-swarm",
-    dispatchTool: "mcp__custom__dispatch",
-    checkTool: "mcp__custom__poll",
-    releaseTool: "mcp__custom__destroy",
-  });
-
-  assertEquals(generic.isAvailable({ tools: [] }), false);
-  assertEquals(generic.isAvailable({ tools: ["mcp__custom__dispatch"] }), true);
-
-  const recordedCalls: { name: string; args: Record<string, unknown> }[] = [];
-  const mockToolCaller: ToolCaller = (name, args) => {
-    recordedCalls.push({ name, args });
-    if (name === "mcp__custom__dispatch") return Promise.resolve({ id: "custom-job-1" });
-    if (name === "mcp__custom__poll") return Promise.resolve({ state: "running" });
-    if (name === "mcp__custom__destroy") return Promise.resolve({ ok: true });
-    return Promise.reject(new Error("Unknown tool"));
-  };
-
-  const handle = await generic.dispatch(
-    { prompt: "Tarefa custom", cwd: "C:/worktree/custom" },
-    mockToolCaller,
-  );
-  assertEquals(handle.jobId, "custom-job-1");
-
-  const checkRes = await generic.check(handle, {}, mockToolCaller);
-  assertEquals(checkRes.status, "running");
-
-  await generic.release(handle, mockToolCaller);
-  assertEquals(recordedCalls[2].name, "mcp__custom__destroy");
 });

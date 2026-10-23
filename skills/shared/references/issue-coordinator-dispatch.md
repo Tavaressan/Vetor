@@ -169,7 +169,7 @@ Quando o coordinator delegar o desenvolvimento de um grupo de issues a um runtim
    - Concluído o trabalho (após commit e validação) ou em caso de descarte do rascunho, o worktree temporário do runtime deve ser removido com segurança via `vetor-checks.sh safe-remove-worktree <path>`.
 
 
-### Dispatch para orquestradores de agentes (Alethe, Orca e MCP)
+### Dispatch para o orquestrador MCP (Alethe)
 
 Quando o coordinator despachar sob um orquestrador multiplexador externo (conforme `scripts/lib/orchestrator/` e `delegate-to-runtime.md` §6):
 

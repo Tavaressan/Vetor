@@ -61,7 +61,7 @@ desses três é `mcp__plugin_vetor_<server>__`.
 | Documentação de ferramentas/libs (Context7) | `mcp__context7__` (ou `mcp__plugin_<plugin>_context7__`) | **Obrigatório quando disponível** (ver issue vetor#163) — qualquer skill que precise pesquisar comportamento de uma ferramenta/lib/framework/API externa (`issue-worker`, `fix`, `guardian`, `backlog`) |
 | Documentação do próprio Claude Code (`claude-code-docs`) | `mcp__claude-code-docs__` (ou `mcp__plugin_<plugin>_claude-code-docs__`) | **Obrigatório quando disponível** (ver issue vetor#164) — qualquer skill que precise responder sobre o funcionamento do próprio Claude Code (hooks, slash commands, MCP, permissões, SDK) (`vetor` (setup), `retro`) |
 | Memória ai-memory | `mcp__ai-memory__` | `fix` / `issue-worker` (consulta preventiva e registro opcional de gotchas; ver `memory-gotchas.md`) |
-| Orquestradores de Agentes (Alethe, Orca, genéricos) | `mcp__alethe__` / `mcp__orca__` / custom | `coordinator`, `now` (delegação assíncrona de workers em worktrees isolados; ver `delegate-to-runtime.md` §6 e issue #482) |
+| Orquestrador de agentes (Alethe) | `mcp__alethe__` | `coordinator`, `now` (delegação assíncrona de workers em worktrees isolados; ver `delegate-to-runtime.md` §6) |
 
 ### Documentação de ferramentas/libs (Context7)
 
@@ -124,7 +124,7 @@ interface). Não invoque para módulos puramente backend/CLI.
 - **Sem MCP (fallback):** prossiga sem reprodução visual — baseie o diagnóstico/fix na descrição do
   bug, logs de erro e testes existentes, como já era feito antes deste mecanismo.
 
-### Orquestradores de Agentes (Alethe, Orca, genéricos)
+### Orquestrador de agentes (Alethe)
 
 Use quando o harness opera sob um orquestrador multiplexador externo para delegar ondas ou grupos
 de issues do `coordinator` com isolamento de worktree (`scripts/lib/orchestrator/`).

@@ -292,7 +292,7 @@ de dúvida sobre a qualidade do rascunho ou falha na validação dos testes, des
 
 ---
 
-## 6. Delegação a Runtimes Orquestradores (Alethe, Orca e MCP)
+## 6. Delegação ao Orquestrador MCP (Alethe)
 
 A delegação síncrona (§1-§4) é adequada para tarefas pontuais de texto em pipe. Para **tarefas completas de desenvolvimento, ondas de issues e geração de código com múltiplos arquivos**, o Vetor suporta orquestradores multiplexadores externos (issue #451, issue #482).
 
@@ -300,17 +300,15 @@ O contrato é implementado de forma modular em `scripts/lib/orchestrator/`:
 
 ### 6.1. Detecção e Seleção de Orquestrador
 
-- **Detecção Estática:** `OrchestratorRegistry.detectAvailable({ tools, env })` verifica o namespace MCP ativo (`mcp-availability.md`) e variáveis de ambiente do processo, com zero I/O de shell ou rede.
+- **Detecção Estática:** `OrchestratorRegistry.detectAvailable({ tools, env })` verifica o namespace MCP ativo (`mcp-availability.md`), com zero I/O de shell ou rede.
 - **Runtimes Suportados:**
   - **Alethe** (`AletheAdapter`): mapeia `mcp__alethe__alethe_delegate`, `alethe_check`, `alethe_release`.
-  - **Orca** (`OrcaAdapter`): mapeia `mcp__orca__task_dispatch`, `mcp__orca__task_check`, `mcp__orca__task_release`.
-  - **Genérico** (`GenericMcpAdapter`): configurável via `.claude/vetor/config.json`.
 - **Preferência configurada:** `.claude/vetor/config.json` no bloco `delegation.orchestrator`:
   ```json
   {
     "delegation": {
       "orchestrator": {
-        "preferred": "orca",
+        "preferred": "alethe",
         "fallbackToNative": true,
         "maxPollTimeoutMs": 50000
       }

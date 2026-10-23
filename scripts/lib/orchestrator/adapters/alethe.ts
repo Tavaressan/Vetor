@@ -6,7 +6,8 @@
  * obrigatória de recursos.
  *
  * Formato das respostas observado em 2026-10-23 numa sonda real (job-67):
- * - alethe_delegate → { accepted, runId, jobs: [{ id, spec, worktree }], next }
+ * - alethe_delegate → { accepted, runId, runningInParallel, concurrencyLimit, isolated,
+ *   timeoutSeconds, jobs: [{ id, spec, worktree }], next }
  * - alethe_check → { deliveries: [{ seq, type: "worker_done", jobId, outcome: "succeeded", text }],
  *   workersStillBusy, note }
  * - alethe_release → { released: [id] }
@@ -48,13 +49,9 @@ export class AletheAdapter implements OrchestratorAdapter {
   private readonly deliveries = new Map<string, AletheDelivery>();
 
   isAvailable(context: OrchestratorProbeContext): boolean {
-    // 1. In-harness: presença de qualquer ferramenta do servidor MCP 'alethe'
-    const hasTool = context.tools.some((tool) => matchesMcpServer(tool, "alethe"));
-    if (hasTool) return true;
-
-    // 2. Out-of-harness: presença de variáveis de ambiente injetadas pelo Alethe
-    const env = context.env ?? {};
-    return Boolean(env.ALETHE_ORCHESTRATOR || env.ALETHE_SESSION_ID);
+    // Só o namespace mcp__alethe__*: nenhuma variável ALETHE* foi observada num worker
+    // Codex do Alethe em 2026-10-23, então env não é sinal de presença.
+    return context.tools.some((tool) => matchesMcpServer(tool, "alethe"));
   }
 
   async dispatch(

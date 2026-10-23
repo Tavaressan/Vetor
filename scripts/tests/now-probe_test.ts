@@ -26,7 +26,8 @@ Deno.test("now probe tolera repo sem MCP e gh e é idempotente", async () => {
     assertEquals("backlogIssues" in first, false);
     assertEquals(first.mcps, []);
     assertEquals(first.aiMemoryContainerState, null);
-    assertEquals(first.orchestrators, { alethe: false, orca: false });
+    // Sem sinal verificável fora do harness (env ALETHE*/ORCA* não observadas em 2026-10-23)
+    assertEquals("orchestrators" in first, false);
     assertEquals(await snapshot(), before);
   } finally {
     await Deno.remove(dir, { recursive: true });
@@ -148,20 +149,19 @@ Deno.test("now probe sem defaultDispatchLabel conta todas as abertas como despac
   }
 });
 
-Deno.test("now probe detecta variáveis de ambiente de orquestradores (Alethe e Orca)", async () => {
+Deno.test("now probe ignora variáveis de ambiente de orquestradores", async () => {
   const dir = await Deno.makeTempDir();
   try {
     Deno.env.set("ALETHE_ORCHESTRATOR", "1");
-    Deno.env.set("ORCA_ACTIVE", "1");
+    Deno.env.set("ALETHE_SESSION_ID", "sessao-1");
 
     const fail: CommandExecutor = () => Promise.reject(new Error("comando indisponível"));
     const probed = await probeNow(dir, fail);
 
-    assertEquals(probed.orchestrators.alethe, true);
-    assertEquals(probed.orchestrators.orca, true);
+    assertEquals("orchestrators" in probed, false);
   } finally {
     Deno.env.delete("ALETHE_ORCHESTRATOR");
-    Deno.env.delete("ORCA_ACTIVE");
+    Deno.env.delete("ALETHE_SESSION_ID");
     await Deno.remove(dir, { recursive: true });
   }
 });
