@@ -14,7 +14,11 @@
 export type IssueSeverity = "error" | "warning";
 
 export interface DraftSanitizeIssue {
-  rule: "utf8-control-chars" | "corrupted-markdown-escape" | "stripped-jsdoc" | "bash-declare-assoc";
+  rule:
+    | "utf8-control-chars"
+    | "corrupted-markdown-escape"
+    | "stripped-jsdoc"
+    | "bash-declare-assoc";
   message: string;
   line?: number;
   severity: IssueSeverity;
@@ -26,6 +30,7 @@ export interface DraftSanitizeReport {
 }
 
 // Regex para caracteres de controle indesejados (exclui \t, \n, \r)
+// deno-lint-ignore no-control-regex
 const CONTROL_CHARS_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]|\uFFFD/;
 
 // Regex para sequências de crase literais de newline no Markdown (comum em geradores Codex Windows/POSIX)
@@ -54,7 +59,8 @@ export function sanitizeDraftText(
     if (CONTROL_CHARS_RE.test(line)) {
       issues.push({
         rule: "utf8-control-chars",
-        message: "Linha contém caractere de controle cru ou caractere de substituição UTF-8 corrompido (\\uFFFD)",
+        message:
+          "Linha contém caractere de controle cru ou caractere de substituição UTF-8 corrompido (\\uFFFD)",
         line: i + 1,
         severity: "error",
       });
@@ -81,7 +87,8 @@ export function sanitizeDraftText(
       if (BASH_DECLARE_ASSOC_RE.test(lines[i])) {
         issues.push({
           rule: "bash-declare-assoc",
-          message: "Script shell utiliza 'declare -A' (Bash 4+), incompatível com macOS (Bash 3.2) e shells POSIX",
+          message:
+            "Script shell utiliza 'declare -A' (Bash 4+), incompatível com macOS (Bash 3.2) e shells POSIX",
           line: i + 1,
           severity: "error",
         });
@@ -92,7 +99,8 @@ export function sanitizeDraftText(
   // 4. Checagem de preservação de JSDoc em arquivos TypeScript/JavaScript
   if (
     options.originalText &&
-    (filename.endsWith(".ts") || filename.endsWith(".js") || filename.endsWith(".tsx") || filename.endsWith(".jsx"))
+    (filename.endsWith(".ts") || filename.endsWith(".js") || filename.endsWith(".tsx") ||
+      filename.endsWith(".jsx"))
   ) {
     const originalDocs = options.originalText.match(JSDOC_BLOCK_RE) ?? [];
     const draftDocs = text.match(JSDOC_BLOCK_RE) ?? [];
@@ -100,7 +108,8 @@ export function sanitizeDraftText(
     if (originalDocs.length > 0 && draftDocs.length === 0) {
       issues.push({
         rule: "stripped-jsdoc",
-        message: `O rascunho removeu todos os ${originalDocs.length} blocos JSDoc pré-existentes no arquivo`,
+        message:
+          `O rascunho removeu todos os ${originalDocs.length} blocos JSDoc pré-existentes no arquivo`,
         severity: "warning",
       });
     }

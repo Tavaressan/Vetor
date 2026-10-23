@@ -87,8 +87,7 @@ export class OrchestratorRegistry {
       }
       return {
         action: "native",
-        reason:
-          "preferência configurada indisponível; fallback nativo sem substituição silenciosa",
+        reason: "preferência configurada indisponível; fallback nativo sem substituição silenciosa",
       };
     }
 
@@ -109,8 +108,7 @@ export class OrchestratorRegistry {
 
     return {
       action: "native",
-      reason:
-        "múltiplos orquestradores sem preferência em sessão headless; sem anuência possível",
+      reason: "múltiplos orquestradores sem preferência em sessão headless; sem anuência possível",
     };
   }
 }

@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { AletheAdapter } from "../lib/orchestrator/adapters/alethe.ts";
 import { OrcaAdapter } from "../lib/orchestrator/adapters/orca.ts";
 import { GenericMcpAdapter } from "../lib/orchestrator/adapters/generic-mcp.ts";

@@ -68,12 +68,20 @@ Deno.test("OrchestratorRegistry - cadastro e busca de adaptadores", () => {
 
 Deno.test("OrchestratorRegistry - detectAvailable filtra adaptadores ativos", () => {
   const registry = new OrchestratorRegistry();
-  const alethe = createMockAdapter("alethe", "Alethe", (ctx) =>
-    ctx.tools.includes("mcp__alethe__alethe_delegate") ||
-    ctx.env?.ALETHE_ORCHESTRATOR === "1");
-  const orca = createMockAdapter("orca", "Orca", (ctx) =>
-    ctx.tools.includes("mcp__orca__task_dispatch") ||
-    ctx.env?.ORCA_ACTIVE === "1");
+  const alethe = createMockAdapter(
+    "alethe",
+    "Alethe",
+    (ctx) =>
+      ctx.tools.includes("mcp__alethe__alethe_delegate") ||
+      ctx.env?.ALETHE_ORCHESTRATOR === "1",
+  );
+  const orca = createMockAdapter(
+    "orca",
+    "Orca",
+    (ctx) =>
+      ctx.tools.includes("mcp__orca__task_dispatch") ||
+      ctx.env?.ORCA_ACTIVE === "1",
+  );
 
   registry.register(alethe).register(orca);
 

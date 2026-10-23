@@ -141,9 +141,9 @@ dinâmica) traz de volta, na mesma leva, issues abertas manualmente/via integra�
 geradas por skills do plugin (`/vetor:backlog`, `/vetor:retro`, `/vetor:guardian`), sem distinção. A origem
 passa a ser identificada por uma linha do corpo (`body`) que começa com `🤖 Gerado por` seguida de
 `/vetor:<skill>`, com ou sem crases em volta do comando. A regex de referência (flag multilinha) é
-`^🤖 Gerado por `?/vetor:`. Exemplos reais:
-`🤖 Gerado por `/vetor:backlog` — [Claude Code](https://claude.ai/code)`,
-`🤖 Gerado por `/vetor:retro` — sessão em <projeto>` e `🤖 Gerado por /vetor:guardian`.
+``^🤖 Gerado por `?/vetor:``. Exemplos reais:
+``🤖 Gerado por `/vetor:backlog` — [Claude Code](https://claude.ai/code)``,
+``🤖 Gerado por `/vetor:retro` — sessão em <projeto>`` e `🤖 Gerado por /vetor:guardian`.
 Menções ao rodapé no meio de uma frase ou de um item de checklist não contam.
 
 Antes de montar o agrupamento por afinidade, particione o resultado usando o `body` e os `labels` já retornados:
