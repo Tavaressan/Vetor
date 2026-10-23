@@ -92,6 +92,31 @@ Deno.test("issue #480: §2 inclui o runtime MCP no algoritmo de seleção sem es
   assertStringIncludes(text, "Runtimes MCP nunca entram na escolha sem preferência");
 });
 
+Deno.test("issue #481: o algoritmo documenta mcpAvailable e a escolha só por preferência", () => {
+  const algorithm = squash(section(reference, "## 2. Algoritmo de seleção"));
+  assertStringIncludes(
+    algorithm,
+    "selectDelegationRuntime({ available, mcpAvailable, preferred, interactive });",
+  );
+  assertStringIncludes(algorithm, "só os escolhe quando coincidem com `preferred`");
+  const detection = squash(section(reference, "### 6.1. Detecção e seleção"));
+  assertStringIncludes(detection, 'informa `mcpAvailable: ["alethe"]`');
+  assertStringIncludes(
+    detection,
+    "Sem a preferência, `selectDelegationRuntime` nunca escolhe o orquestrador em silêncio",
+  );
+});
+
+Deno.test("issue #481: /vetor:now cita o Alethe quando mcp__alethe__* está ativo e registra o probe como não implementado", async () => {
+  const now = squash(await Deno.readTextFile(new URL("skills/now/SKILL.md", root)));
+  assertStringIncludes(now, "cite o Alethe quando `mcp__alethe__*` estiver ativo na sessão");
+  assertStringIncludes(now, "Se `mcp__alethe__*` estiver ativo: **Use o orquestrador Alethe");
+  assertStringIncludes(now, "`delegation.preferredRuntime` é `alethe`");
+  assertStringIncludes(now, "sem a preferência, não o escolha em silêncio");
+  assertStringIncludes(now, "A detecção de orquestrador no probe não está implementada");
+  assertEquals(now.includes("`orchestrators`"), false);
+});
+
 Deno.test("issue #480: cada regra do contrato prático traz fonte e data", () => {
   const rows = section(reference, "### 6.3. Contrato prático")
     .split(/\r?\n/)

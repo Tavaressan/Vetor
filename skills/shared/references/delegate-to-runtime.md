@@ -108,9 +108,13 @@ Lógica de referência (implementada e testada em `scripts/lib/delegation-runtim
 `scripts/tests/delegation-runtime_test.ts`):
 
 ```ts
-selectDelegationRuntime({ available, preferred, interactive });
+selectDelegationRuntime({ available, mcpAvailable, preferred, interactive });
 // => { action: "inline" | "delegate" | "ask", runtime?, reason }
 ```
+
+`mcpAvailable` (opcional) lista os runtimes MCP que a skill detectou no namespace de ferramentas, por
+exemplo `["alethe"]`. A função não procura binário para eles e só os escolhe quando coincidem com
+`preferred`.
 
 Skills que rodam em Deno podem importar a função diretamente; skills descritas só em markdown
 devem seguir o mesmo algoritmo em prosa (passos 1-4 acima).
@@ -326,8 +330,10 @@ mudar entre versões ou sessões.
   ```json
   { "delegation": { "preferredRuntime": "alethe" } }
   ```
-  Sem essa preferência o orquestrador nunca é escolhido em silêncio. Com a preferência e sem
-  `mcp__alethe__*` na sessão, o fluxo segue inline: nunca se substitui por outro runtime (§2).
+  A skill informa `mcpAvailable: ["alethe"]` ao `selectDelegationRuntime` quando `mcp__alethe__*`
+  está ativo. Sem a preferência, `selectDelegationRuntime` nunca escolhe o orquestrador em silêncio.
+  Com a preferência e sem `mcp__alethe__*` na sessão, o fluxo segue inline: nunca se substitui por
+  outro runtime (§2).
 - **Escopo e anuência:** o acordo de escopo do §2.1 vale para o Alethe. As tarefas pipe do §4 não se
   aplicam a ele; continuam nos CLIs.
 
