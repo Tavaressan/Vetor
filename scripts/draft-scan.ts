@@ -6,7 +6,8 @@
  *   deno run -A scripts/draft-scan.ts --base <ref>
  *
  * Com `--base`, varre os arquivos de texto alterados em relação a `<ref>` (diff do working tree
- * contra a base, mais arquivos novos não rastreados) e compara os blocos JSDoc com a base.
+ * contra a base, mais arquivos novos não rastreados) e compara os blocos JSDoc com a base. O
+ * repositório é o do diretório atual: rode a CLI de dentro do worktree que contém o rascunho.
  *
  * Códigos de saída: 0 = limpo; 1 = achados (um por linha, `arquivo:linha: [regra] mensagem`);
  * 2 = falha interna ou de uso, com diagnóstico em stderr. Uma falha nunca sai como "limpo".

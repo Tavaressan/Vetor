@@ -124,6 +124,8 @@ Deno.test("issue #483: o contrato exige a varredura draft-scan.ts e a CLI existe
     rules,
     '`deno run -A "$SKILL_DIR/../../scripts/draft-scan.ts" --base <ref>` (ou `<arquivo...>`)',
   );
+  assertStringIncludes(rules, "Execute-a de dentro do worktree do grupo");
+  assertStringIncludes(rules, "`--base HEAD` quando o worker não commita");
   assertStringIncludes(rules, "2 = falha da varredura, que nunca vale como limpo");
   assertStringIncludes(rules, "`supports only unibyte and UTF-8 locales`");
   assertStringIncludes(rules, "observado em 2026-10-23");
