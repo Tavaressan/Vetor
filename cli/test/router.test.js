@@ -101,6 +101,7 @@ test('vetor uninstall --help exibe ajuda do comando e não executa o uninstall',
   assert.equal(result.status, 0);
   assert.match(result.stdout, /Uso: vetor uninstall/);
   assert.match(result.stdout, /Remove os arquivos instalados pelo Vetor/);
+  assert.match(result.stdout, /--engines/);
   assert.match(result.stdout, /-y, --yes/);
 });
 
