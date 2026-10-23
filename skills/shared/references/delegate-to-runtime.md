@@ -361,7 +361,7 @@ essas chamadas; as skills em markdown chamam as ferramentas MCP diretamente.
 | 5 | **Suítes e testes empíricos rodam no host.** Relatórios de teste do worker são informativos. | O sandbox do Codex observado não roda git (`dubious ownership`); o worker relatou 35 falhas que não se repetiram no host (413 a 420 testes verdes), spike #451 §3.1 item 2 (sessão de 2026-10-21). |
 | 6 | **`alethe_check` com `timeoutMs <= 50000`.** Guarde as entregas de outros jobs, que o `alethe_check` não repete. | Esperas de 90 s ou mais estouraram o timeout MCP e perderam entregas; com 50 s não houve falha (spike #451 §3.1 item 3, sessão de 2026-10-21). Entrega única: sonda de 2026-10-23. |
 | 7 | **`alethe_release` antes de remover o worktree** (`safe-remove-worktree` ou `git worktree remove`). | Sem o release, `git worktree remove` falhou com `Permission denied` no Windows (observado em 2026-10-22); a sessão de 2026-10-21 registrou "Device or resource busy" (spike #451 §3.1 item 6). |
-| 8 | **O diff é rascunho:** o coordinator o revisa e o escaneia antes de qualquer commit; descarte o que falhar. | Defeitos observados na revisão da sessão de 2026-10-21 (spike #451 §3.1 item 4). |
+| 8 | **O diff é rascunho:** o coordinator o revisa e executa a varredura obrigatória `deno run -A "$SKILL_DIR/../../scripts/draft-scan.ts" --base <ref>` (ou `<arquivo...>`) antes de qualquer commit. Saída 0 = limpo; 1 = achados, cada um como `arquivo:linha`; 2 = falha da varredura, que nunca vale como limpo. Descarte ou corrija o que falhar. | Defeitos observados na revisão da sessão de 2026-10-21 (spike #451 §3.1 item 4). `grep -P` no Git Bash falhou com `supports only unibyte and UTF-8 locales` e, com stderr redirecionado, pareceu limpo (observado em 2026-10-23): por isso a varredura é uma CLI própria, issue #483. |
 | 9 | **Entrega vazia não é sucesso.** Quando o Codex atinge o limite de uso, o Alethe devolve `outcome: succeeded` com `text` vazio e `tokens: null`. Trate como falha e diagnostique com `codex exec` no host (§1). | Observado em 2026-10-23. |
 | 10 | **Sem retry automático:** falha de dispatch ou de check, ou entrega vazia, é reportada ao coordinator; descarte o rascunho e siga nativo/inline (§3). | Escolha do contrato (Spec de 2026-10-23), a mesma política do §3. |
 
@@ -371,7 +371,10 @@ essas chamadas; as skills em markdown chamam as ferramentas MCP diretamente.
 2. Para cada grupo, crie o worktree (`worktree-create`) e chame `alethe_delegate` uma vez, com o
    worktree como `cwd`.
 3. Recolha os resultados com `alethe_check` (regras 2 e 6) até cada job entregar `worker_done`.
-4. Revise o diff, escaneie o rascunho e rode os testes mapeados no host (regras 5 e 8). O status
-   file continua sendo mantido pelo coordinator.
+4. Revise o diff, execute a varredura `draft-scan.ts` e rode os testes mapeados no host (regras 5
+   e 8). A varredura cobre bytes de controle fora de TAB, LF e CR, BOM, mojibake (U+00C3 seguido de
+   continuação, U+00E2 U+20AC e U+FFFD), UTF-8 inválido, acento trocado por `?` no meio da palavra,
+   a sequência `` `n `` em Markdown, `declare -A` em `.sh` e blocos JSDoc a menos em `.ts` em relação
+   à base. O status file continua sendo mantido pelo coordinator.
 5. Chame `alethe_release` para o job e só então remova o worktree (regra 7). `alethe_cancel`
    interrompe um job que não deve terminar.

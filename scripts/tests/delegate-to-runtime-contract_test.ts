@@ -117,6 +117,24 @@ Deno.test("issue #481: /vetor:now cita o Alethe quando mcp__alethe__* está ativ
   assertEquals(now.includes("`orchestrators`"), false);
 });
 
+Deno.test("issue #483: o contrato exige a varredura draft-scan.ts e a CLI existe", async () => {
+  const rules = squash(section(reference, "### 6.3. Contrato prático"));
+  assertStringIncludes(rules, "executa a varredura obrigatória");
+  assertStringIncludes(
+    rules,
+    '`deno run -A "$SKILL_DIR/../../scripts/draft-scan.ts" --base <ref>` (ou `<arquivo...>`)',
+  );
+  assertStringIncludes(rules, "2 = falha da varredura, que nunca vale como limpo");
+  assertStringIncludes(rules, "`supports only unibyte and UTF-8 locales`");
+  assertStringIncludes(rules, "observado em 2026-10-23");
+
+  const flow = squash(section(reference, "### 6.4. Fluxo"));
+  assertStringIncludes(flow, "execute a varredura `draft-scan.ts`");
+
+  const cli = await Deno.readTextFile(new URL("scripts/draft-scan.ts", root));
+  assertStringIncludes(cli, "--base <ref>");
+});
+
 Deno.test("issue #480: cada regra do contrato prático traz fonte e data", () => {
   const rows = section(reference, "### 6.3. Contrato prático")
     .split(/\r?\n/)
