@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./scripts/safety-check-antigravity.js"
+            "command": "deno run -A ./scripts/safety-check-antigravity.ts"
           }
         ]
       }
