@@ -7,11 +7,13 @@ mecanismo que aplica uma política de fato — instrução em prompt o agente po
 
 | Evento | Matcher | Script | O que faz |
 |--------|---------|--------|-----------|
-| `PreToolUse` | `Bash\|Edit\|Write` | `safety-check.ts` / `safety-check-antigravity.js` | Barra push para branch protegida; barra push/PR de worker não-GREEN; restringe escrita fora do worktree ao `issue-worker` (exceto status file e caminhos fora do repositório); em `Edit`/`Write`, correlaciona `agent_id` com o worktree resolvido para detectar cwd contaminado entre workers em paralelo (issue #63) |
+| `PreToolUse` | `Bash\|Edit\|Write` | `safety-check.ts` / `safety-check-antigravity.ts` | Barra push para branch protegida; barra push/PR de worker não-GREEN; restringe escrita fora do worktree ao `issue-worker` (exceto status file e caminhos fora do repositório); em `Edit`/`Write`, correlaciona `agent_id` com o worktree resolvido para detectar cwd contaminado entre workers em paralelo (issue #63) |
 | `PostToolUse` | `Edit\|Write` | `check-edit.ts` | Roda o typecheck no arquivo editado e injeta o erro no contexto do agente |
 | `SubagentStop` | `vetor:issue-worker` | `check-status.ts` | Impede o worker de encerrar sem status file em estado terminal |
 | `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor:install` |
 | `WorktreeCreate` | — | `prepare-worktree.ts` | Cria o worktree e prepara as dependências |
+
+As regras de Bash do `PreToolUse` (git destrutivo, push para branch protegida, push/PR de worker não-GREEN) vivem em `scripts/lib/safety-policy.ts` e são as mesmas nos dois hooks. O `safety-check.ts` (Claude Code) as traduz para exit 2 com a mensagem em `stderr`; o `safety-check-antigravity.ts` (matcher `run_command`, `hooks.json` da raiz, executado com `deno run -A`) as traduz para JSON `allow`/`deny` no `stdout` com exit 0, libera em caso de JSON inválido ou erro interno e não aplica o guard de escrita.
 
 O relaxamento da #374 (confinar escrita apenas quando `agent_type` identifica `issue-worker`) vale somente no Claude Code. Codex (`PreToolUse`) e Cursor não incluem `agent_type` nesse payload e usam `--strict-worktree-writes`; OpenCode `tool.execute.before` também não inclui `agent` e aplica o guard estrito por cwd.
 
