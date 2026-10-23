@@ -37,44 +37,51 @@ async function runCli(input: unknown): Promise<{ code: number }> {
 
 Deno.test("model-health CLI - ApiError 429 com retry-after grava model-health.json", async () => {
   const repo = await makeRepo();
-  const now = Date.now();
+  try {
+    const now = Date.now();
 
-  await runCli({
-    model: "anthropic/claude-sonnet-4-5",
-    statusCode: 429,
-    responseHeaders: { "retry-after": "20" },
-    message: "rate limited",
-    cwd: repo,
-  });
+    await runCli({
+      model: "anthropic/claude-sonnet-4-5",
+      statusCode: 429,
+      responseHeaders: { "retry-after": "20" },
+      message: "rate limited",
+      cwd: repo,
+    });
 
-  const path = `${repo}/.claude/vetor/status/model-health.json`;
-  const file = JSON.parse(await Deno.readTextFile(path));
-  const entry = file["anthropic/claude-sonnet-4-5"];
+    const path = `${repo}/.claude/vetor/status/model-health.json`;
+    const file = JSON.parse(await Deno.readTextFile(path));
+    const entry = file["anthropic/claude-sonnet-4-5"];
 
-  assertEquals(entry.status, "degraded");
-  assertEquals(entry.lastError, "HTTP 429: rate limited");
-  // até 2s de tolerância pelo tempo de subida do processo `deno run`.
-  const expected = now + 20_000;
-  const diff = Math.abs(entry.until - expected);
-  if (diff > 5_000) throw new Error(`until fora da tolerância esperada: diff=${diff}ms`);
+    assertEquals(entry.status, "degraded");
+    assertEquals(entry.lastError, "HTTP 429: rate limited");
+    // até 2s de tolerância pelo tempo de subida do processo `deno run`.
+    const expected = now + 20_000;
+    const diff = Math.abs(entry.until - expected);
+    if (diff > 5_000) throw new Error(`until fora da tolerância esperada: diff=${diff}ms`);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 Deno.test("model-health CLI - status não relacionado a rate limit não grava nada", async () => {
   const repo = await makeRepo();
-
-  const result = await runCli({
-    model: "anthropic/claude-sonnet-4-5",
-    statusCode: 500,
-    message: "internal error",
-    cwd: repo,
-  });
-
-  assertEquals(result.code, 0);
-  let exists = true;
   try {
-    await Deno.stat(`${repo}/.claude/vetor/status/model-health.json`);
-  } catch {
-    exists = false;
+    const result = await runCli({
+      model: "anthropic/claude-sonnet-4-5",
+      statusCode: 500,
+      message: "internal error",
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 0);
+    let exists = true;
+    try {
+      await Deno.stat(`${repo}/.claude/vetor/status/model-health.json`);
+    } catch {
+      exists = false;
+    }
+    assertEquals(exists, false);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
   }
-  assertEquals(exists, false);
 });

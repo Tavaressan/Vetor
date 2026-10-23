@@ -59,61 +59,75 @@ function toForwardSlashes(path: string): string {
 
 Deno.test("cria opencode.json com a regra external_directory quando o arquivo não existe", async () => {
   const repo = await makeRepo();
+  try {
+    const result = await runCli({ cwd: repo });
 
-  const result = await runCli({ cwd: repo });
-
-  assertEquals(result.code, 0);
-  const config = await readOpencodeJson(repo);
-  const rule = (config.permission as { external_directory?: Record<string, string> })
-    .external_directory;
-  assertEquals(rule?.[`${toForwardSlashes(repo)}/.claude/vetor/**`], "allow");
+    assertEquals(result.code, 0);
+    const config = await readOpencodeJson(repo);
+    const rule = (config.permission as { external_directory?: Record<string, string> })
+      .external_directory;
+    assertEquals(rule?.[`${toForwardSlashes(repo)}/.claude/vetor/**`], "allow");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 Deno.test("mescla a regra num opencode.json existente sem apagar outras chaves", async () => {
   const repo = await makeRepo();
-  await Deno.writeTextFile(
-    `${repo}/opencode.json`,
-    JSON.stringify({
-      "$schema": "https://opencode.ai/config.json",
-      mcp: { docker: { type: "local", command: ["docker-mcp"] } },
-      permission: { external_directory: { "/algum/outro/path/**": "ask" } },
-    }),
-  );
+  try {
+    await Deno.writeTextFile(
+      `${repo}/opencode.json`,
+      JSON.stringify({
+        "$schema": "https://opencode.ai/config.json",
+        mcp: { docker: { type: "local", command: ["docker-mcp"] } },
+        permission: { external_directory: { "/algum/outro/path/**": "ask" } },
+      }),
+    );
 
-  const result = await runCli({ cwd: repo });
+    const result = await runCli({ cwd: repo });
 
-  assertEquals(result.code, 0);
-  const config = await readOpencodeJson(repo);
-  assertEquals((config.mcp as Record<string, unknown>).docker !== undefined, true);
-  const rule = (config.permission as { external_directory?: Record<string, string> })
-    .external_directory;
-  assertEquals(rule?.[`${toForwardSlashes(repo)}/.claude/vetor/**`], "allow");
-  assertEquals(rule?.["/algum/outro/path/**"], "ask");
+    assertEquals(result.code, 0);
+    const config = await readOpencodeJson(repo);
+    assertEquals((config.mcp as Record<string, unknown>).docker !== undefined, true);
+    const rule = (config.permission as { external_directory?: Record<string, string> })
+      .external_directory;
+    assertEquals(rule?.[`${toForwardSlashes(repo)}/.claude/vetor/**`], "allow");
+    assertEquals(rule?.["/algum/outro/path/**"], "ask");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 Deno.test("idempotente: segunda chamada não altera o conteúdo já correto", async () => {
   const repo = await makeRepo();
+  try {
+    const first = await runCli({ cwd: repo });
+    assertEquals(first.code, 0);
+    const afterFirst = await Deno.readTextFile(`${repo}/opencode.json`);
 
-  const first = await runCli({ cwd: repo });
-  assertEquals(first.code, 0);
-  const afterFirst = await Deno.readTextFile(`${repo}/opencode.json`);
+    const second = await runCli({ cwd: repo });
+    assertEquals(second.code, 0);
+    const afterSecond = await Deno.readTextFile(`${repo}/opencode.json`);
 
-  const second = await runCli({ cwd: repo });
-  assertEquals(second.code, 0);
-  const afterSecond = await Deno.readTextFile(`${repo}/opencode.json`);
-
-  assertEquals(afterSecond, afterFirst);
+    assertEquals(afterSecond, afterFirst);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 Deno.test("não sobrescreve opencode.json existente e ilegível — falha com mensagem acionável", async () => {
   const repo = await makeRepo();
-  await Deno.writeTextFile(`${repo}/opencode.json`, "{ isto não é json válido");
+  try {
+    await Deno.writeTextFile(`${repo}/opencode.json`, "{ isto não é json válido");
 
-  const result = await runCli({ cwd: repo });
+    const result = await runCli({ cwd: repo });
 
-  assertEquals(result.code, 1);
-  const raw = await Deno.readTextFile(`${repo}/opencode.json`);
-  assertEquals(raw, "{ isto não é json válido");
+    assertEquals(result.code, 1);
+    const raw = await Deno.readTextFile(`${repo}/opencode.json`);
+    assertEquals(raw, "{ isto não é json válido");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 // Issue #307 (mesma classe já corrigida em resolve-model.ts): no Git Bash do Windows, `$(pwd)`
@@ -130,14 +144,17 @@ Deno.test({
   ignore: Deno.build.os !== "windows",
   fn: async () => {
     const repo = await makeRepo();
+    try {
+      const result = await runCli({ cwd: toPosixPath(repo) });
 
-    const result = await runCli({ cwd: toPosixPath(repo) });
-
-    assertEquals(result.code, 0);
-    const config = await readOpencodeJson(repo);
-    const rule = (config.permission as { external_directory?: Record<string, string> })
-      .external_directory;
-    assertEquals(rule?.[`${toForwardSlashes(repo)}/.claude/vetor/**`], "allow");
+      assertEquals(result.code, 0);
+      const config = await readOpencodeJson(repo);
+      const rule = (config.permission as { external_directory?: Record<string, string> })
+        .external_directory;
+      assertEquals(rule?.[`${toForwardSlashes(repo)}/.claude/vetor/**`], "allow");
+    } finally {
+      await Deno.remove(repo, { recursive: true });
+    }
   },
 });
 
@@ -161,46 +178,58 @@ function ruleOf(config: Record<string, unknown>): Record<string, string> | undef
 
 Deno.test("com worktree, grava a regra também no opencode.json do worktree e o exclui do git — issue #389", async () => {
   const repo = await makeRepo();
-  const worktree = await makeLinkedWorktree(repo);
+  try {
+    const worktree = await makeLinkedWorktree(repo);
 
-  const result = await runCli({ cwd: repo, worktree: ".claude/worktrees/wt" });
+    const result = await runCli({ cwd: repo, worktree: ".claude/worktrees/wt" });
 
-  assertEquals(result.code, 0);
-  const key = `${toForwardSlashes(repo)}/.claude/vetor/**`;
-  assertEquals(ruleOf(await readOpencodeJson(repo))?.[key], "allow");
-  assertEquals(ruleOf(await readOpencodeJson(worktree))?.[key], "allow");
-  // O worker não pode enxergar o arquivo como mudança a commitar.
-  assertEquals(await gitOutput(["status", "--porcelain"], worktree), "");
+    assertEquals(result.code, 0);
+    const key = `${toForwardSlashes(repo)}/.claude/vetor/**`;
+    assertEquals(ruleOf(await readOpencodeJson(repo))?.[key], "allow");
+    assertEquals(ruleOf(await readOpencodeJson(worktree))?.[key], "allow");
+    // O worker não pode enxergar o arquivo como mudança a commitar.
+    assertEquals(await gitOutput(["status", "--porcelain"], worktree), "");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 Deno.test("com worktree, segunda chamada é idempotente (sem duplicar o exclude) — issue #389", async () => {
   const repo = await makeRepo();
-  const worktree = await makeLinkedWorktree(repo);
+  try {
+    const worktree = await makeLinkedWorktree(repo);
 
-  await runCli({ cwd: repo, worktree });
-  const before = await Deno.readTextFile(`${worktree}/opencode.json`);
-  const result = await runCli({ cwd: repo, worktree });
+    await runCli({ cwd: repo, worktree });
+    const before = await Deno.readTextFile(`${worktree}/opencode.json`);
+    const result = await runCli({ cwd: repo, worktree });
 
-  assertEquals(result.code, 0);
-  assertEquals(await Deno.readTextFile(`${worktree}/opencode.json`), before);
-  const excludePath = await gitOutput(
-    ["rev-parse", "--path-format=absolute", "--git-path", "info/exclude"],
-    worktree,
-  );
-  const lines = (await Deno.readTextFile(excludePath)).split(/\r?\n/);
-  assertEquals(lines.filter((line) => line === "/opencode.json").length, 1);
+    assertEquals(result.code, 0);
+    assertEquals(await Deno.readTextFile(`${worktree}/opencode.json`), before);
+    const excludePath = await gitOutput(
+      ["rev-parse", "--path-format=absolute", "--git-path", "info/exclude"],
+      worktree,
+    );
+    const lines = (await Deno.readTextFile(excludePath)).split(/\r?\n/);
+    assertEquals(lines.filter((line) => line === "/opencode.json").length, 1);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 Deno.test("recusa alterar opencode.json versionado no worktree — issue #389", async () => {
   const repo = await makeRepo();
-  await Deno.writeTextFile(`${repo}/opencode.json`, '{ "mcp": {} }\n');
-  await git(["add", "opencode.json"], repo);
-  await git(["commit", "-q", "-m", "config versionada"], repo);
-  const worktree = await makeLinkedWorktree(repo);
-  const original = await Deno.readTextFile(`${worktree}/opencode.json`);
+  try {
+    await Deno.writeTextFile(`${repo}/opencode.json`, '{ "mcp": {} }\n');
+    await git(["add", "opencode.json"], repo);
+    await git(["commit", "-q", "-m", "config versionada"], repo);
+    const worktree = await makeLinkedWorktree(repo);
+    const original = await Deno.readTextFile(`${worktree}/opencode.json`);
 
-  const result = await runCli({ cwd: repo, worktree });
+    const result = await runCli({ cwd: repo, worktree });
 
-  assertEquals(result.code, 1);
-  assertEquals(await Deno.readTextFile(`${worktree}/opencode.json`), original);
+    assertEquals(result.code, 1);
+    assertEquals(await Deno.readTextFile(`${worktree}/opencode.json`), original);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });

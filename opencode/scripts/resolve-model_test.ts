@@ -49,49 +49,61 @@ async function runCli(
 
 Deno.test("resolve-model CLI - sem model-health.json escolhe o primeiro da lista", async () => {
   const repo = await makeRepo();
-  const result = await runCli({
-    fallback: ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"],
-    cwd: repo,
-  });
-  assertEquals(result.code, 0);
-  assertEquals(result.stdout, "anthropic/claude-haiku-4-5");
+  try {
+    const result = await runCli({
+      fallback: ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"],
+      cwd: repo,
+    });
+    assertEquals(result.code, 0);
+    assertEquals(result.stdout, "anthropic/claude-haiku-4-5");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 Deno.test("resolve-model CLI - preferencial degraded (sintético) cai para o próximo", async () => {
   const repo = await makeRepo();
-  await writeModelHealth(repo, {
-    "anthropic/claude-haiku-4-5": {
-      status: "degraded",
-      until: Date.now() + 60_000,
-      lastError: "HTTP 429",
-    },
-  });
+  try {
+    await writeModelHealth(repo, {
+      "anthropic/claude-haiku-4-5": {
+        status: "degraded",
+        until: Date.now() + 60_000,
+        lastError: "HTTP 429",
+      },
+    });
 
-  const result = await runCli({
-    fallback: ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"],
-    cwd: repo,
-  });
+    const result = await runCli({
+      fallback: ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"],
+      cwd: repo,
+    });
 
-  assertEquals(result.code, 0);
-  assertEquals(result.stdout, "anthropic/claude-sonnet-4-5");
+    assertEquals(result.code, 0);
+    assertEquals(result.stdout, "anthropic/claude-sonnet-4-5");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 Deno.test("resolve-model CLI - todos degraded sai com código 1 e sem stdout", async () => {
   const repo = await makeRepo();
-  const until = Date.now() + 60_000;
-  await writeModelHealth(repo, {
-    "anthropic/claude-haiku-4-5": { status: "degraded", until, lastError: "HTTP 429" },
-    "anthropic/claude-sonnet-4-5": { status: "degraded", until, lastError: "HTTP 429" },
-  });
+  try {
+    const until = Date.now() + 60_000;
+    await writeModelHealth(repo, {
+      "anthropic/claude-haiku-4-5": { status: "degraded", until, lastError: "HTTP 429" },
+      "anthropic/claude-sonnet-4-5": { status: "degraded", until, lastError: "HTTP 429" },
+    });
 
-  const result = await runCli({
-    fallback: ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"],
-    cwd: repo,
-  });
+    const result = await runCli({
+      fallback: ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"],
+      cwd: repo,
+    });
 
-  assertEquals(result.code, 1);
-  assertEquals(result.stdout, "");
-  assertStringIncludes(result.stderr, "degraded");
+    assertEquals(result.code, 1);
+    assertEquals(result.stdout, "");
+    assertStringIncludes(result.stderr, "degraded");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 // Issue #307: no Git Bash do Windows, `$(pwd)` produz um path POSIX-style (`/c/Users/...`), não
@@ -110,6 +122,28 @@ Deno.test({
   ignore: Deno.build.os !== "windows",
   fn: async () => {
     const repo = await makeRepo();
+    try {
+      await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
+      await Deno.writeTextFile(
+        `${repo}/.claude/vetor/config.json`,
+        JSON.stringify({
+          modelFallback: { simple: ["openai/gpt-5-mini", "anthropic/claude-haiku-4-5"] },
+        }),
+      );
+
+      const result = await runCli({ tier: "simple", cwd: toPosixPath(repo) });
+
+      assertEquals(result.code, 0);
+      assertEquals(result.stdout, "openai/gpt-5-mini");
+    } finally {
+      await Deno.remove(repo, { recursive: true });
+    }
+  },
+});
+
+Deno.test("resolve-model CLI - usa tier de config.json quando fallback não é passado", async () => {
+  const repo = await makeRepo();
+  try {
     await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
     await Deno.writeTextFile(
       `${repo}/.claude/vetor/config.json`,
@@ -118,27 +152,13 @@ Deno.test({
       }),
     );
 
-    const result = await runCli({ tier: "simple", cwd: toPosixPath(repo) });
+    const result = await runCli({ tier: "simple", cwd: repo });
 
     assertEquals(result.code, 0);
     assertEquals(result.stdout, "openai/gpt-5-mini");
-  },
-});
-
-Deno.test("resolve-model CLI - usa tier de config.json quando fallback não é passado", async () => {
-  const repo = await makeRepo();
-  await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
-  await Deno.writeTextFile(
-    `${repo}/.claude/vetor/config.json`,
-    JSON.stringify({
-      modelFallback: { simple: ["openai/gpt-5-mini", "anthropic/claude-haiku-4-5"] },
-    }),
-  );
-
-  const result = await runCli({ tier: "simple", cwd: repo });
-
-  assertEquals(result.code, 0);
-  assertEquals(result.stdout, "openai/gpt-5-mini");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
 });
 
 // Issue #312: o default embutido anterior assumia provider `anthropic` direto
@@ -156,13 +176,16 @@ Deno.test(
   "resolve-model CLI - sem config.json e sem fallback explícito falha cedo (código 2) com mensagem acionável",
   async () => {
     const repo = await makeRepo();
+    try {
+      const result = await runCli({ tier: "simple", cwd: repo });
 
-    const result = await runCli({ tier: "simple", cwd: repo });
-
-    assertEquals(result.code, 2);
-    assertEquals(result.stdout, "");
-    assertStringIncludes(result.stderr, "modelFallback.simple");
-    assertStringIncludes(result.stderr, "config.json");
+      assertEquals(result.code, 2);
+      assertEquals(result.stdout, "");
+      assertStringIncludes(result.stderr, "modelFallback.simple");
+      assertStringIncludes(result.stderr, "config.json");
+    } finally {
+      await Deno.remove(repo, { recursive: true });
+    }
   },
 );
 
@@ -170,16 +193,20 @@ Deno.test(
   "resolve-model CLI - config.json presente mas sem modelFallback para o tier falha cedo (código 2)",
   async () => {
     const repo = await makeRepo();
-    await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
-    await Deno.writeTextFile(
-      `${repo}/.claude/vetor/config.json`,
-      JSON.stringify({ runtime: "deno" }),
-    );
+    try {
+      await Deno.mkdir(`${repo}/.claude/vetor`, { recursive: true });
+      await Deno.writeTextFile(
+        `${repo}/.claude/vetor/config.json`,
+        JSON.stringify({ runtime: "deno" }),
+      );
 
-    const result = await runCli({ tier: "complex", cwd: repo });
+      const result = await runCli({ tier: "complex", cwd: repo });
 
-    assertEquals(result.code, 2);
-    assertEquals(result.stdout, "");
-    assertStringIncludes(result.stderr, "modelFallback.complex");
+      assertEquals(result.code, 2);
+      assertEquals(result.stdout, "");
+      assertStringIncludes(result.stderr, "modelFallback.complex");
+    } finally {
+      await Deno.remove(repo, { recursive: true });
+    }
   },
 );

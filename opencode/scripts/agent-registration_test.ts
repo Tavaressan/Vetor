@@ -44,23 +44,27 @@ Deno.test({
   ignore: !AVAILABLE,
   fn: async () => {
     const dir = await Deno.makeTempDir();
-    await copyDir(OPENCODE_SRC, `${dir}/.opencode`);
+    try {
+      await copyDir(OPENCODE_SRC, `${dir}/.opencode`);
 
-    const out = await new Deno.Command("opencode", {
-      args: ["agent", "list"],
-      cwd: dir,
-      stdout: "piped",
-      stderr: "piped",
-    }).output();
+      const out = await new Deno.Command("opencode", {
+        args: ["agent", "list"],
+        cwd: dir,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
 
-    const stdout = new TextDecoder().decode(out.stdout);
-    // Linha de agente real, ex. "issue-coordinator (primary)" — não basta checar substring: o
-    // JSON de permissões impresso logo abaixo de cada agente contém paths de external_directory que
-    // incluem "issue-coordinator" mesmo quando ele só existe como skill (falso positivo). O `mode`
-    // também é checado: a issue #306 pede explicitamente `mode: primary` (é o agent de entrada,
-    // invocado diretamente pelo usuário — diferente de `issue-worker`/`code-review`, despachados
-    // programaticamente pelo próprio coordinator).
-    assertMatch(stdout, /^issue-coordinator \(primary\)/m);
+      const stdout = new TextDecoder().decode(out.stdout);
+      // Linha de agente real, ex. "issue-coordinator (primary)" — não basta checar substring: o
+      // JSON de permissões impresso logo abaixo de cada agente contém paths de external_directory que
+      // incluem "issue-coordinator" mesmo quando ele só existe como skill (falso positivo). O `mode`
+      // também é checado: a issue #306 pede explicitamente `mode: primary` (é o agent de entrada,
+      // invocado diretamente pelo usuário — diferente de `issue-worker`/`code-review`, despachados
+      // programaticamente pelo próprio coordinator).
+      assertMatch(stdout, /^issue-coordinator \(primary\)/m);
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
   },
 });
 
@@ -76,17 +80,21 @@ Deno.test({
   ignore: !AVAILABLE,
   fn: async () => {
     const dir = await Deno.makeTempDir();
-    await copyDir(OPENCODE_SRC, `${dir}/.opencode`);
+    try {
+      await copyDir(OPENCODE_SRC, `${dir}/.opencode`);
 
-    const out = await new Deno.Command("opencode", {
-      args: ["agent", "list"],
-      cwd: dir,
-      stdout: "piped",
-      stderr: "piped",
-    }).output();
+      const out = await new Deno.Command("opencode", {
+        args: ["agent", "list"],
+        cwd: dir,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
 
-    const stdout = new TextDecoder().decode(out.stdout);
-    assertMatch(stdout, /^issue-worker \(primary\)/m);
-    assertMatch(stdout, /^code-review \(primary\)/m);
+      const stdout = new TextDecoder().decode(out.stdout);
+      assertMatch(stdout, /^issue-worker \(primary\)/m);
+      assertMatch(stdout, /^code-review \(primary\)/m);
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
   },
 });
