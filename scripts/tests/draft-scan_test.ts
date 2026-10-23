@@ -184,8 +184,10 @@ Deno.test("draft-scan --base: compara com uma base anterior ao commit do worker"
     assertEquals(fromBase.code, 1, fromBase.stdout + fromBase.stderr);
     assertStringIncludes(fromBase.stdout, "src.ts:1: [stripped-jsdoc]");
 
+    // Depois do commit do worker, --base HEAD não tem o que escanear: é falha, nunca limpo
     const fromHead = await run(["--base", "HEAD"], dir);
-    assertEquals(fromHead.code, 0, fromHead.stdout + fromHead.stderr);
+    assertEquals(fromHead.code, 2, fromHead.stdout + fromHead.stderr);
+    assertStringIncludes(fromHead.stderr, "nenhum arquivo de texto para escanear");
   });
 });
 

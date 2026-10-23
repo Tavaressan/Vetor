@@ -118,12 +118,22 @@ export class AletheAdapter implements OrchestratorAdapter {
     if (delivery.type !== "worker_done") {
       return { status: "running", summary: delivery.text, rawOutput: raw };
     }
-    if (delivery.outcome === "succeeded") {
+    const text = delivery.text?.trim();
+    if (delivery.outcome === "succeeded" && text) {
       return { status: "completed", summary: delivery.text, rawOutput: raw };
+    }
+    if (delivery.outcome === "succeeded") {
+      // Regra 9 do contrato: com o Codex sem cota, o Alethe entrega succeeded com text vazio
+      return {
+        status: "failed",
+        error:
+          "entrega vazia com outcome succeeded (ex.: limite de uso do Codex); confira com codex exec no host",
+        rawOutput: raw,
+      };
     }
     return {
       status: "failed",
-      error: delivery.text ?? `outcome: ${delivery.outcome}`,
+      error: text || `outcome: ${delivery.outcome}`,
       rawOutput: raw,
     };
   }

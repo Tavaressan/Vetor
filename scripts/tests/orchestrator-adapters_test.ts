@@ -88,6 +88,18 @@ Deno.test("AletheAdapter - dispatch, check e release no formato real com teto se
   assertEquals(recordedCalls[2].args, { jobIds: ["job-67"] });
 });
 
+Deno.test("AletheAdapter - entrega succeeded com text vazio é falha (regra 9 do contrato)", async () => {
+  const adapter = new AletheAdapter();
+  const handle = { orchestratorId: "alethe", jobId: "job-v", cwd: "C:/wt/v", dispatchedAt: 0 };
+  const mockToolCaller: ToolCaller = () =>
+    Promise.resolve({
+      deliveries: [{ type: "worker_done", jobId: "job-v", outcome: "succeeded", text: "" }],
+    });
+
+  const result = await adapter.check(handle, {}, mockToolCaller);
+  assertEquals(result.status, "failed");
+});
+
 Deno.test("AletheAdapter - entrega de outro job fica guardada até o check e o release dele", async () => {
   const adapter = new AletheAdapter();
   const handleA = { orchestratorId: "alethe", jobId: "job-a", cwd: "C:/wt/a", dispatchedAt: 0 };

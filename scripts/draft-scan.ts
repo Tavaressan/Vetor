@@ -8,9 +8,11 @@
  * Com `--base`, varre os arquivos de texto alterados em relação a `<ref>` (diff do working tree
  * contra a base, mais arquivos novos não rastreados) e compara os blocos JSDoc com a base. O
  * repositório é o do diretório atual: rode a CLI de dentro do worktree que contém o rascunho.
+ * Com `<arquivo...>` não há base, então a regra de JSDoc removido não roda.
  *
  * Códigos de saída: 0 = limpo; 1 = achados (um por linha, `arquivo:linha: [regra] mensagem`);
- * 2 = falha interna ou de uso, com diagnóstico em stderr. Uma falha nunca sai como "limpo".
+ * 2 = falha interna ou de uso, com diagnóstico em stderr. Uma falha nunca sai como "limpo", e
+ * nenhum arquivo para escanear também é falha (ex.: `--base HEAD` depois do commit do worker).
  */
 
 import { scanDraftBytes } from "./lib/draft-sanitizer.ts";
@@ -136,6 +138,11 @@ export async function main(args: string[]): Promise<number> {
       ({ targets, skipped } = await collectBaseTargets(parsed.baseRef));
     } else {
       targets = parsed.files.map((path) => ({ readPath: path, displayPath: path }));
+    }
+    if (targets.length === 0) {
+      throw new Error(
+        "nenhum arquivo de texto para escanear; com --base, use uma ref anterior aos commits do worker (ex.: o merge-base com a branch default)",
+      );
     }
 
     let findings = 0;
