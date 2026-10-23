@@ -916,7 +916,11 @@ test('installFiles: skill compartilhada editada pelo usuário não é sobrescrit
 
       assert.equal(fs.readFileSync(shared, 'utf8'), 'editada\n');
       assert.deepEqual(skillOwners(projectRoot, '.agents'), ['antigravity']);
-      assert.ok(skipped.some((entry) => entry.path === '.agents/skills/demo/SKILL.md' && entry.reason === 'user-modified'));
+      // Arquivo compartilhado é tentado uma vez por dono, mas reportado uma vez só.
+      assert.deepEqual(
+        skipped.filter((entry) => entry.path === '.agents/skills/demo/SKILL.md'),
+        [{ path: '.agents/skills/demo/SKILL.md', reason: 'user-modified' }],
+      );
       assert.equal(fs.existsSync(path.join(projectRoot, '.cursor', 'skills')), false);
     } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
   });
@@ -958,6 +962,26 @@ test('installFiles: migração descarta a cópia antiga do Cursor quando o desti
       assert.equal(migrated.length, 1);
       assert.deepEqual(skillOwners(projectRoot, '.claude'), ['claude-code', 'cursor']);
       assert.equal(readManifest(projectRoot).files['.cursor/skills/demo/SKILL.md'], undefined);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: migrações legadas do Codex e do Cursor para a mesma skill convergem em .agents/skills com os dois donos', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const codexLegacy = writeManagedSkill(projectRoot, '.codex', 'conteúdo antigo\n', ['codex']);
+      const cursorLegacy = writeManagedSkill(projectRoot, '.cursor', 'conteúdo antigo\n', ['cursor']);
+
+      const { migrated, warnings } = installFiles({ projectRoot, sourceRoot, engines: [CODEX_ENGINE, CURSOR_ENGINE] });
+
+      assert.equal(fs.existsSync(codexLegacy), false);
+      assert.equal(fs.existsSync(cursorLegacy), false);
+      assert.deepEqual(skillOwners(projectRoot, '.agents'), ['codex', 'cursor']);
+      assert.deepEqual(migrated, [{ from: '.cursor/skills/demo/SKILL.md', to: '.agents/skills/demo/SKILL.md' }]);
+      assert.deepEqual(warnings, []);
+      const keys = Object.keys(readManifest(projectRoot).files).filter((key) => key.includes('/skills/'));
+      assert.deepEqual(keys, ['.agents/skills/demo/SKILL.md']);
     } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
   });
 });

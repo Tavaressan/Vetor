@@ -154,6 +154,11 @@ function ownersOf(entry) {
   return entry.engines ?? [entry.engine];
 }
 
+// Arquivo compartilhado por várias engines é tentado uma vez por dono: reporta uma vez só.
+function pushSkipped(skipped, key, reason) {
+  if (!skipped.some((entry) => entry.path === key)) skipped.push({ path: key, reason });
+}
+
 // Raiz (`.agents`, `.claude` ou `.cursor`) onde as skills do Cursor são gravadas, dado o
 // conjunto de engines presentes (seleção atual mais as já registradas no manifesto, para que
 // `install` e `update` cheguem ao mesmo destino).
@@ -250,14 +255,14 @@ function copyManagedFile({ sourceFile, destFile, manifestKey, manifest, engineId
     if (!existingEntry) {
       // Arquivo existe no destino mas não consta no manifesto: não foi este
       // instalador que o gerou. Nunca sobrescreve nem deleta.
-      skipped.push({ path: manifestKey, reason: 'unmanaged' });
+      pushSkipped(skipped, manifestKey, 'unmanaged');
       return;
     }
 
     const destHash = hashFile(destFile);
     if (destHash !== existingEntry.sha256) {
       // Editado pelo usuário desde a última instalação: nunca sobrescreve sem sinalizar.
-      skipped.push({ path: manifestKey, reason: 'user-modified' });
+      pushSkipped(skipped, manifestKey, 'user-modified');
       return;
     }
     const owners = existingEntry.engines ?? [existingEntry.engine];
@@ -301,14 +306,14 @@ function writeManaged({ destFile, manifestKey, contentHash, write, engineId, man
     if (!existingEntry) {
       // Arquivo existe no destino mas não consta no manifesto: não foi este
       // instalador que o gerou. Nunca sobrescreve nem deleta.
-      skipped.push({ path: manifestKey, reason: 'unmanaged' });
+      pushSkipped(skipped, manifestKey, 'unmanaged');
       return;
     }
 
     const destHash = hashFile(destFile);
     if (destHash !== existingEntry.sha256) {
       // Editado pelo usuário desde a última instalação: nunca sobrescreve sem sinalizar.
-      skipped.push({ path: manifestKey, reason: 'user-modified' });
+      pushSkipped(skipped, manifestKey, 'user-modified');
       return;
     }
     const owners = existingEntry.engines ?? [existingEntry.engine];

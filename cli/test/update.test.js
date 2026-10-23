@@ -182,7 +182,7 @@ test('update: skill compartilhada editada pelo usuário é preservada e reportad
     const output = await captureInfo(() => update(dir, { installFiles: (args) => writerInstallFiles({ ...args, sourceRoot }) }));
 
     assert.equal(fs.readFileSync(shared, 'utf8'), 'editada\n');
-    assert.match(output, /arquivo\(s\) não sobrescrito\(s\)/);
+    assert.match(output, /1 arquivo\(s\) não sobrescrito\(s\)/);
     assert.equal(fs.existsSync(path.join(dir, '.cursor', 'skills')), false);
   });
 });
