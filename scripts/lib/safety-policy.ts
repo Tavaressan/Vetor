@@ -17,6 +17,15 @@ export type SafetyDecision = { decision: "allow" } | { decision: "deny"; reason:
 const PROTECTED_BRANCHES = ["main", "master", "production"];
 
 /**
+ * Casa o `git push` apenas na posição de comando (início, ou logo após `&`, `|`, `;` ou quebra de
+ * linha), como o gate de worker (issue #161). Como as flags são ignoradas em qualquer posição, o
+ * texto `git push origin main --force` dentro de uma mensagem de commit, heredoc ou echo seria
+ * tomado por um push real. O custo é aceito: `VAR=x git push ...`, `(git push ...)` e
+ * `then git push ...` não são reconhecidos.
+ */
+const PUSH_COMMAND_RE = /(?:^|[&|;\n])\s*(git push[^&|;\n]*)/;
+
+/**
  * Extrai os destinos de um `git push [flags] [remote] [<src>[:<dst>]...]`: o lado direito de cada
  * refspec (ou o próprio token, quando não há `:`).
  *
@@ -32,7 +41,7 @@ function pushDestinations(command: string): string[] {
   // isolar por quebra de linha real, senão `git push \` seguido de `origin master` escaparia do
   // regex abaixo e o destino real (`master`) nunca seria capturado.
   const joined = command.replace(/\\\r?\n/g, " ");
-  const push = joined.match(/git push[^&|;\n]*/)?.[0];
+  const push = joined.match(PUSH_COMMAND_RE)?.[1];
   if (!push) return [];
 
   return push.trim().split(/\s+/).slice(2)

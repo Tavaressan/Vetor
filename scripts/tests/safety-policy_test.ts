@@ -68,3 +68,23 @@ Deno.test("issue #488: branch protegida em outro comando do mesmo texto não blo
   await assertAllowed("git push origin feature --force && echo main");
   await assertAllowed("git push origin feature\ngit log main");
 });
+
+Deno.test("issue #488: o texto 'git push origin main --force' como conteúdo não é um push", async () => {
+  // Mesma classe das issues #123/#161: o texto citado dentro de outro comando não é o comando.
+  await assertAllowed('git commit -m "nunca rode git push origin main --force"');
+  await assertAllowed("echo 'git push origin master -u'");
+  await assertAllowed(
+    "git commit -q -F - <<'EOF'\nfix: `git push origin main --force` passava\nEOF",
+  );
+});
+
+Deno.test("issue #488: push na posição de comando continua bloqueado", async () => {
+  await assertDenied("cd repo\ngit push origin main");
+  await assertDenied("echo hi && git push origin master --force");
+  await assertDenied("echo hi || git push --force origin main");
+  await assertDenied("make build; git push origin production -u");
+  await assertDenied("git log | git push origin main --force");
+  await assertDenied("sleep 1 & git push origin main --force");
+  await assertDenied("  git push origin main --force");
+  await assertDenied("git push \\\norigin main --force");
+});
