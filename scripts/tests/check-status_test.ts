@@ -175,7 +175,6 @@ Deno.test("check-status permite worker com Status: GREEN (terminal) — issue #7
   }
 });
 
-
 Deno.test("check-status permite worker com Status: PR_STAGED (terminal) — issue #493", async () => {
   const { root, worktreePath } = await makeLinkedWorktree("fix-staged");
   try {

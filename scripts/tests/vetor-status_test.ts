@@ -186,7 +186,6 @@ Deno.test("vetor-status.sh anota status GREEN com PR aberta ou mergeada via gh p
   }
 });
 
-
 Deno.test("vetor-status.sh anota status PR_STAGED com PR aberta via gh pr list (issue #493)", async () => {
   const root = await makeRepo("main");
   const mockBinDir = await createMockGh("fix-staged=123=OPEN");
