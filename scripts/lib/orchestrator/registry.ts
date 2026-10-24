@@ -2,8 +2,8 @@
  * Registro e resolução polimórfica de orquestradores (issue #482).
  *
  * Gerencia adaptadores de orquestradores (hoje só o Alethe), realiza a detecção estática
- * de disponibilidade e resolve a seleção de acordo com as preferências configuradas e o
- * modo de execução (interativo vs headless).
+ * de disponibilidade e resolve a seleção pela preferência configurada: sem preferência o
+ * orquestrador não é escolhido (issue #504).
  */
 
 import type {
@@ -17,7 +17,7 @@ export interface OrchestratorSelectionInput {
   available: OrchestratorAdapter[];
   /** Preferência configurada pelo usuário (`delegation.preferredRuntime`) */
   preferred?: string | null;
-  /** Se a sessão é interativa (há usuário para responder) ou headless/automática */
+  /** Sessão interativa ou headless. Hoje não altera a seleção: sem preferência, o resultado é o mesmo. */
   interactive?: boolean;
 }
 
@@ -55,18 +55,18 @@ export class OrchestratorRegistry {
   }
 
   /**
-   * Algoritmo agnóstico de seleção de orquestrador (paridade conceitual com issue #247):
+   * Algoritmo agnóstico de seleção de orquestrador, na mesma regra que `selectDelegationRuntime`
+   * aplica ao runtime MCP (issue #504): o orquestrador só é escolhido pela preferência.
    *
    * 1. available vazio -> native (sem erro nem bloqueio).
    * 2. preferred configurado e disponível -> orchestrate para a preferência.
    * 3. preferred configurado mas indisponível -> native (nunca substitui silenciosamente por outro).
-   * 4. sem preferred e exatamente 1 candidato -> orchestrate direto (sem ambiguidade).
-   * 5. sem preferred e 2+ candidatos:
-   *    - em sessão interativa -> ask (pergunta ao usuário).
-   *    - em sessão headless -> native (fallback determinístico sem supor preferências).
+   * 4. sem preferred -> native, com 1 ou mais candidatos e em qualquer modo de sessão. Ninguém
+   *    consentiu com o orquestrador, então ele nunca é escolhido em silêncio nem oferecido por
+   *    `ask`; `interactive` não altera o resultado.
    */
   select(input: OrchestratorSelectionInput): OrchestratorSelection {
-    const { available, interactive = false } = input;
+    const { available } = input;
     const preferred = input.preferred ?? null;
 
     if (available.length === 0) {
@@ -91,24 +91,9 @@ export class OrchestratorRegistry {
       };
     }
 
-    if (available.length === 1) {
-      return {
-        action: "orchestrate",
-        adapter: available[0],
-        reason: "único orquestrador disponível",
-      };
-    }
-
-    if (interactive) {
-      return {
-        action: "ask",
-        reason: "múltiplos orquestradores disponíveis sem preferência configurada",
-      };
-    }
-
     return {
       action: "native",
-      reason: "múltiplos orquestradores sem preferência em sessão headless; sem anuência possível",
+      reason: "orquestrador disponível, mas sem preferência configurada; sem escolha silenciosa",
     };
   }
 }

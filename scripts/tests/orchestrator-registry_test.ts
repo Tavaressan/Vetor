@@ -121,52 +121,38 @@ Deno.test("OrchestratorRegistry.select - nenhum disponível -> native", () => {
   );
 });
 
-Deno.test("OrchestratorRegistry.select - único disponível sem preferência -> orchestrate direto", () => {
-  const registry = new OrchestratorRegistry();
-  const alethe = createMockAdapter("alethe", "Alethe", () => true);
+// Issue #504: mesma regra de selectDelegationRuntime para runtime MCP. Sem preferência
+// configurada o orquestrador nunca é escolhido em silêncio, seja qual for a quantidade de
+// candidatos e o modo da sessão.
+const noPreferenceReason =
+  "orquestrador disponível, mas sem preferência configurada; sem escolha silenciosa";
 
-  const result = registry.select({ available: [alethe], interactive: false });
+for (const interactive of [true, false]) {
+  const mode = interactive ? "interativo" : "headless";
 
-  assertEquals(result.action, "orchestrate");
-  assertEquals(result.adapter?.id, "alethe");
-  assertEquals(result.reason, "único orquestrador disponível");
-});
+  Deno.test(`OrchestratorRegistry.select - único disponível sem preferência, ${mode} -> native`, () => {
+    const registry = new OrchestratorRegistry();
+    const alethe = createMockAdapter("alethe", "Alethe", () => true);
 
-Deno.test("OrchestratorRegistry.select - múltiplos disponíveis sem preferência, interativo -> ask", () => {
-  const registry = new OrchestratorRegistry();
-  const alethe = createMockAdapter("alethe", "Alethe", () => true);
-  const other = createMockAdapter("outro", "Outro", () => true);
+    const result = registry.select({ available: [alethe], interactive });
 
-  const result = registry.select({
-    available: [alethe, other],
-    interactive: true,
+    assertEquals(result.action, "native");
+    assertEquals(result.adapter, undefined);
+    assertEquals(result.reason, noPreferenceReason);
   });
 
-  assertEquals(result.action, "ask");
-  assertEquals(result.adapter, undefined);
-  assertEquals(
-    result.reason,
-    "múltiplos orquestradores disponíveis sem preferência configurada",
-  );
-});
+  Deno.test(`OrchestratorRegistry.select - múltiplos disponíveis sem preferência, ${mode} -> native`, () => {
+    const registry = new OrchestratorRegistry();
+    const alethe = createMockAdapter("alethe", "Alethe", () => true);
+    const other = createMockAdapter("outro", "Outro", () => true);
 
-Deno.test("OrchestratorRegistry.select - múltiplos disponíveis sem preferência, headless -> native", () => {
-  const registry = new OrchestratorRegistry();
-  const alethe = createMockAdapter("alethe", "Alethe", () => true);
-  const other = createMockAdapter("outro", "Outro", () => true);
+    const result = registry.select({ available: [alethe, other], interactive });
 
-  const result = registry.select({
-    available: [alethe, other],
-    interactive: false,
+    assertEquals(result.action, "native");
+    assertEquals(result.adapter, undefined);
+    assertEquals(result.reason, noPreferenceReason);
   });
-
-  assertEquals(result.action, "native");
-  assertEquals(result.adapter, undefined);
-  assertEquals(
-    result.reason,
-    "múltiplos orquestradores sem preferência em sessão headless; sem anuência possível",
-  );
-});
+}
 
 Deno.test("OrchestratorRegistry.select - preferência configurada e disponível -> seleciona a preferência", () => {
   const registry = new OrchestratorRegistry();
