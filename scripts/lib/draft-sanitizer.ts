@@ -9,7 +9,8 @@
  * 2. Mojibake (UTF-8 lido como Latin-1/Windows-1252) e U+FFFD.
  * 3. Acento trocado por `?` no meio de uma palavra.
  * 4. Quebras literais mal escapadas em Markdown (sequências `n).
- * 5. Remoção indevida de blocos JSDoc pré-existentes.
+ * 5. Remoção indevida de blocos JSDoc pré-existentes, comparada pelo símbolo documentado. Blocos
+ *    de membros e cabeçalhos de módulo não têm símbolo e são comparados só por contagem.
  * 6. Bashismos restritos (ex.: declare -A) em scripts shell.
  * 7. UTF-8 inválido (só em `scanDraftBytes`, que lê bytes).
  *
@@ -84,8 +85,67 @@ const BASH_DECLARE_ASSOC_RE = /\bdeclare\s+-A\b/;
 // Linha inteira de comentário em shell: pode citar `declare -A` para explicar por que evitá-lo
 const SHELL_COMMENT_LINE_RE = /^\s*#/;
 
-// Regex para blocos JSDoc
-const JSDOC_BLOCK_RE = /\/\*\*[\s\S]*?\*\//g;
+// Bloco JSDoc e, num lookahead que não o consome, a primeira linha de código depois dele (linhas
+// em branco e comentários `//` no meio são ignorados): é ela que diz o que o bloco documenta.
+const JSDOC_WITH_NEXT_LINE_RE = /\/\*\*[\s\S]*?\*\/(?=\s*(?:\/\/[^\n]*\n\s*)*([^\n]*))/g;
+
+// Declaração nomeada (função, constante, classe, interface, tipo ou enum), com os modificadores
+// usuais. Membros de classe/interface e cabeçalhos de módulo não casam e ficam sem nome.
+const DECLARATION_RE =
+  /^(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:const\s+enum|function\*?|const|let|var|class|interface|type|enum)\s+([\p{L}_$][\p{L}\p{N}_$]*)/u;
+
+interface JsdocInventory {
+  /** Nomes de declaração com JSDoc */
+  documented: Set<string>;
+  /** Nomes de todas as declarações do arquivo */
+  declared: Set<string>;
+  /** Blocos JSDoc cuja linha seguinte não é uma declaração nomeada */
+  unnamed: number;
+}
+
+function declarationName(line: string): string | undefined {
+  return DECLARATION_RE.exec(line.trimStart())?.[1];
+}
+
+function inventoryJsdoc(text: string): JsdocInventory {
+  const documented = new Set<string>();
+  let unnamed = 0;
+  for (const match of text.matchAll(JSDOC_WITH_NEXT_LINE_RE)) {
+    const name = declarationName(match[1]);
+    if (name) documented.add(name);
+    else unnamed++;
+  }
+  const declared = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const name = declarationName(line);
+    if (name) declared.add(name);
+  }
+  return { documented, declared, unnamed };
+}
+
+/**
+ * Descreve o JSDoc que a base tem e o rascunho perdeu, ou `undefined` se nada foi perdido.
+ * Declaração nomeada: acusa o nome que a base documenta, que o rascunho ainda declara e não
+ * documenta. Apagar ou renomear o símbolo com o seu JSDoc não acusa. Blocos sem nome: só a
+ * contagem, porque não há símbolo para comparar.
+ */
+function describeLostJsdoc(baseText: string, draftText: string): string | undefined {
+  const base = inventoryJsdoc(baseText);
+  const draft = inventoryJsdoc(draftText);
+  const parts: string[] = [];
+
+  const stripped = [...base.documented].filter((name) =>
+    draft.declared.has(name) && !draft.documented.has(name)
+  );
+  if (stripped.length > 0) parts.push(`JSDoc removido de: ${stripped.join(", ")}`);
+
+  if (draft.unnamed < base.unnamed) {
+    parts.push(
+      `${draft.unnamed} bloco(s) JSDoc sem declaração nomeada (membro ou cabeçalho) contra ${base.unnamed} na base`,
+    );
+  }
+  return parts.length > 0 ? parts.join("; ") : undefined;
+}
 
 function hasQuestionMarkAccent(line: string): boolean {
   return line.split(/\s+/).some((token) =>
@@ -160,23 +220,15 @@ export function sanitizeDraftText(
     }
   }
 
-  // Preservação de JSDoc em arquivos TypeScript/JavaScript, comparando a contagem de blocos com a
-  // base. O achado vale para o arquivo inteiro e é reportado na linha 1.
+  // Preservação de JSDoc em arquivos TypeScript/JavaScript, comparada com a base pelo símbolo
+  // documentado. O achado vale para o arquivo inteiro e é reportado na linha 1.
   if (
     options.originalText &&
     (filename.endsWith(".ts") || filename.endsWith(".js") || filename.endsWith(".tsx") ||
       filename.endsWith(".jsx"))
   ) {
-    const originalDocs = options.originalText.match(JSDOC_BLOCK_RE) ?? [];
-    const draftDocs = text.match(JSDOC_BLOCK_RE) ?? [];
-
-    if (draftDocs.length < originalDocs.length) {
-      report(
-        "stripped-jsdoc",
-        `O rascunho tem ${draftDocs.length} bloco(s) JSDoc contra ${originalDocs.length} na base: bloco(s) removido(s)`,
-        1,
-      );
-    }
+    const lost = describeLostJsdoc(options.originalText, text);
+    if (lost) report("stripped-jsdoc", `JSDoc perdido em relação à base. ${lost}`, 1);
   }
 
   issues.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
