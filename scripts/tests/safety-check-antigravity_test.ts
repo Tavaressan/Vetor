@@ -129,6 +129,24 @@ Deno.test("bloqueia push para branch protegida com flags (--force, -u)", async (
   assertDeny(decision, /Push to protected branches/);
 });
 
+Deno.test("bloqueia push para branch protegida com flag depois do destino (issue #488)", async () => {
+  for (
+    const command of [
+      "git push origin main --force",
+      "git push origin master -u",
+      "git push origin HEAD:main --force",
+    ]
+  ) {
+    const { decision } = await runAntigravity(runCommandPayload(command));
+    assertDeny(decision, /Push to protected branches/);
+  }
+});
+
+Deno.test("permite push para branch não protegida com flag depois do destino (issue #488)", async () => {
+  const { decision } = await runAntigravity(runCommandPayload("git push origin feature --force"));
+  assertEquals(decision, { decision: "allow" });
+});
+
 Deno.test("permite push para branch de feature não protegida fora de worktree linkado", async () => {
   const repo = await makeRepo("feat/test");
   try {

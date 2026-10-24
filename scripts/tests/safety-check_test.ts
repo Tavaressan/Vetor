@@ -604,6 +604,35 @@ Deno.test("issue #123 (review): git push com continuação de linha (\\) para ma
   }
 });
 
+Deno.test("issue #488: git push para branch protegida com flag depois do destino é bloqueado", async () => {
+  const repo = await makeRepo("main");
+  try {
+    for (const command of ["git push origin main --force", "git push origin master -u"]) {
+      const result = await runHook({ tool_name: "Bash", tool_input: { command }, cwd: repo });
+
+      assertEquals(result.code, 2, command);
+      assertStringIncludes(result.stderr, "protected branches");
+    }
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("issue #488: git push de branch não protegida com flag depois do destino continua liberado", async () => {
+  const repo = await makeRepo("main");
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git push origin feature --force" },
+      cwd: repo,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
 Deno.test("issue #161: heredoc contendo o texto 'git push'/'gh pr create' como conteúdo não dispara o gate de worker não-GREEN", async () => {
   const { root, worktreePath } = await makeLinkedWorktree("worker-a");
   await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
