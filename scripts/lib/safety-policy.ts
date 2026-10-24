@@ -16,18 +16,37 @@ export type SafetyDecision = { decision: "allow" } | { decision: "deny"; reason:
 
 const PROTECTED_BRANCHES = ["main", "master", "production"];
 
-/** Extrai a branch de destino de um `git push [flags] [remote] <branch>[:<remote-branch>]`. */
-function pushDestination(command: string): string | null {
+/**
+ * Casa o `git push` apenas na posição de comando (início, ou logo após `&`, `|`, `;` ou quebra de
+ * linha), como o gate de worker (issue #161). Como as flags são ignoradas em qualquer posição, o
+ * texto `git push origin main --force` dentro de uma mensagem de commit, heredoc ou echo seria
+ * tomado por um push real. O custo é aceito: `VAR=x git push ...`, `(git push ...)` e
+ * `then git push ...` não são reconhecidos.
+ */
+const PUSH_COMMAND_RE = /(?:^|[&|;\n])\s*(git push[^&|;\n]*)/;
+
+/**
+ * Extrai os destinos de um `git push [flags] [remote] [<src>[:<dst>]...]`: o lado direito de cada
+ * refspec (ou o próprio token, quando não há `:`).
+ *
+ * Todo token que não é flag conta como destino possível, em qualquer posição — não só o último.
+ * É a escolha mais simples e que falha para o lado seguro: sem uma lista de flags que recebem
+ * valor em token separado (`-o <opção>`, `--repo <url>`, `--push-option <x>`), o valor da flag
+ * nunca esconde o destino real (`git push origin main -o ci.skip`), e vários refspecs
+ * (`git push origin feature main`) são todos avaliados. O custo é aceito: um remote ou valor de
+ * flag chamado literalmente `main`/`master`/`production` também é bloqueado.
+ */
+function pushDestinations(command: string): string[] {
   // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes de
   // isolar por quebra de linha real, senão `git push \` seguido de `origin master` escaparia do
   // regex abaixo e o destino real (`master`) nunca seria capturado.
   const joined = command.replace(/\\\r?\n/g, " ");
-  const push = joined.match(/git push[^&|;\n]*/)?.[0];
-  if (!push) return null;
+  const push = joined.match(PUSH_COMMAND_RE)?.[1];
+  if (!push) return [];
 
-  const last = push.trim().split(/\s+/).pop();
-  if (!last || last.startsWith("-")) return null;
-  return last.split(":")[0];
+  return push.trim().split(/\s+/).slice(2)
+    .filter((token) => !token.startsWith("-"))
+    .map((token) => token.split(":").pop()!);
 }
 
 /**
@@ -58,7 +77,7 @@ const DESTRUCTIVE_GIT_COMMAND_RE =
 function checkDestructiveGit(command: string): string | null {
   // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes do
   // match, senão `git reset \` seguido de `--hard` em nova linha escaparia do regex (mesma razão
-  // documentada em pushDestination acima; achado do code-review da PR #200).
+  // documentada em pushDestinations acima; achado do code-review da PR #200).
   const joined = command.replace(/\\\r?\n/g, " ");
   const match = joined.match(DESTRUCTIVE_GIT_COMMAND_RE);
   if (!match) return null;
@@ -72,8 +91,7 @@ function checkDestructiveGit(command: string): string | null {
 
 /** Devolve o motivo do bloqueio, ou null se o destino do push não é uma branch protegida. */
 function checkProtectedPush(command: string): string | null {
-  const dest = pushDestination(command);
-  if (dest && PROTECTED_BRANCHES.includes(dest)) {
+  if (pushDestinations(command).some((dest) => PROTECTED_BRANCHES.includes(dest))) {
     return "ERROR: Push to protected branches (main, master, production) is prohibited by Vetor Safety Hook.";
   }
   return null;
