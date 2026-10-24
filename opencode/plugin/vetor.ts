@@ -6,6 +6,10 @@
 // caminho relativo a si mesmo (`../scripts/...`), dentro da mesma pasta `opencode/` copiada
 // para o projeto-alvo — ver README, seção "Compatibilidade com OpenCode".
 //
+// `.opencode/scripts/` é gerado pelo instalador (`vetor install --engines opencode`) a partir dos
+// scripts canônicos em `scripts/` mais os módulos exclusivos de `opencode/scripts/` (issue #477) —
+// `opencode/` sozinho não basta para o plugin achar `safety-check.ts` e `check-edit.ts`.
+//
 // A lógica de segurança em si NÃO foi duplicada: este plugin só traduz o payload do OpenCode
 // (`{tool, sessionID, args, agent}`) para o formato que scripts/safety-check.ts e
 // scripts/check-edit.ts já esperam no stdin (o mesmo usado pelo Claude Code e pelo Codex) e
@@ -79,9 +83,10 @@ function runDenoScript(
   script: string,
   payload: HookInput | Record<string, unknown>,
   timeoutMs: number,
+  args: string[] = [],
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const child = spawn("deno", ["run", "-A", join(SCRIPTS_DIR, script)], {
+    const child = spawn("deno", ["run", "-A", join(SCRIPTS_DIR, script), ...args], {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -177,7 +182,11 @@ export const VetorPlugin = async ({ directory, worktree }: {
       if (!["bash", "edit", "write"].includes(input.tool)) return;
 
       const payload = toHookInput(input, output, cwd);
-      const { code, stderr } = await runDenoScript("safety-check.ts", payload, 300_000);
+      // `tool.execute.before` não traz o `agent` do worker (wiki/Hooks.md), então o guard de
+      // escrita precisa ser estrito por cwd, como no Codex e no Cursor (issue #384).
+      const { code, stderr } = await runDenoScript("safety-check.ts", payload, 300_000, [
+        "--strict-worktree-writes",
+      ]);
       if (code === 2) {
         throw new Error(stderr.trim() || "Bloqueado pelo Vetor Safety Hook.");
       }

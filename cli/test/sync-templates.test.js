@@ -41,6 +41,24 @@ function makeFakeMonorepoRoot(dir) {
   // templates/ para o pacote publicado — ver ENGINE_NATIVE_SOURCE_DIR em writer.js.
   fs.mkdirSync(path.join(dir, 'opencode', 'agent'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'opencode', 'agent', 'demo.md'), 'opencode agent v1\n');
+  makeFakeOpencodeScripts(dir);
+}
+
+// Issue #477: o OpenCode não versiona mais cópias dos scripts; o prepack leva para templates/
+// só o canônico que ele usa (entradas explícitas e dependências locais), nunca scripts/ inteiro.
+function makeFakeOpencodeScripts(dir) {
+  const write = (relPath, content) => {
+    const file = path.join(dir, ...relPath.split('/'));
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+  };
+  write('scripts/check-edit.ts', 'import { isWithin } from "./lib/guard.ts";\n');
+  write('scripts/safety-check.ts', 'import { evaluate } from "./lib/safety-policy.ts";\n');
+  write('scripts/vetor-checks.sh', '#!/usr/bin/env bash\n');
+  write('scripts/vetor-status.sh', '#!/usr/bin/env bash\n');
+  write('scripts/lib/guard.ts', 'export const isWithin = 1;\n');
+  write('scripts/lib/safety-policy.ts', 'export const evaluate = 1;\n');
+  write('scripts/nao-usado.ts', 'export const unused = 1;\n');
 }
 
 test('syncTemplates: popula templatesDir com skills/, agents/, hooks/, opencode/ de monorepoRoot', () => {
@@ -50,7 +68,7 @@ test('syncTemplates: popula templatesDir com skills/, agents/, hooks/, opencode/
 
       const synced = syncTemplates({ monorepoRoot, templatesDir });
 
-      assert.deepEqual(synced.sort(), [...SOURCE_DIRS].sort());
+      assert.deepEqual(synced.sort(), [...SOURCE_DIRS, 'scripts'].sort());
       assert.equal(
         fs.readFileSync(path.join(templatesDir, 'skills', 'demo', 'SKILL.md'), 'utf8'),
         'conteúdo v1\n',
@@ -58,6 +76,62 @@ test('syncTemplates: popula templatesDir com skills/, agents/, hooks/, opencode/
       assert.ok(fs.existsSync(path.join(templatesDir, 'agents', 'demo.md')));
       assert.ok(fs.existsSync(path.join(templatesDir, 'hooks', 'hooks.json')));
       assert.ok(fs.existsSync(path.join(templatesDir, 'opencode', 'agent', 'demo.md')));
+    });
+  });
+});
+
+test('syncTemplates: leva para templates/scripts/ só o canônico do OpenCode, com as dependências', () => {
+  withTempDir((monorepoRoot) => {
+    withTempDir((templatesDir) => {
+      makeFakeMonorepoRoot(monorepoRoot);
+
+      syncTemplates({ monorepoRoot, templatesDir });
+
+      for (
+        const relPath of [
+          'check-edit.ts',
+          'safety-check.ts',
+          'vetor-checks.sh',
+          'vetor-status.sh',
+          'lib/guard.ts',
+          'lib/safety-policy.ts',
+        ]
+      ) {
+        assert.ok(
+          fs.existsSync(path.join(templatesDir, 'scripts', ...relPath.split('/'))),
+          `templates/scripts/${relPath} ausente`,
+        );
+      }
+      assert.ok(!fs.existsSync(path.join(templatesDir, 'scripts', 'nao-usado.ts')));
+    });
+  });
+});
+
+test('syncTemplates: falha indicando o path quando uma dependência canônica do OpenCode some', () => {
+  withTempDir((monorepoRoot) => {
+    withTempDir((templatesDir) => {
+      makeFakeMonorepoRoot(monorepoRoot);
+      fs.rmSync(path.join(monorepoRoot, 'scripts', 'lib', 'safety-policy.ts'));
+
+      assert.throws(
+        () => syncTemplates({ monorepoRoot, templatesDir }),
+        /lib\/safety-policy\.ts/,
+      );
+    });
+  });
+});
+
+test('syncTemplates: recria templates/scripts/ do zero — não deixa script órfão', () => {
+  withTempDir((monorepoRoot) => {
+    withTempDir((templatesDir) => {
+      makeFakeMonorepoRoot(monorepoRoot);
+      const orphan = path.join(templatesDir, 'scripts', 'removido.ts');
+      fs.mkdirSync(path.dirname(orphan), { recursive: true });
+      fs.writeFileSync(orphan, 'export {};\n');
+
+      syncTemplates({ monorepoRoot, templatesDir });
+
+      assert.ok(!fs.existsSync(orphan));
     });
   });
 });
