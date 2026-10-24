@@ -354,7 +354,7 @@ essas chamadas; as skills em markdown chamam as ferramentas MCP diretamente.
 
 | # | Regra | Fonte e data |
 |---|---|---|
-| 1 | **Uma chamada `alethe_delegate` por grupo.** O `cwd` vale para a chamada inteira e é o worktree do grupo: passe-o sempre. Sem `cwd`, o Alethe usa o próprio diretório e `isolate: true` falha com `isolate needs a git repository`. | `cwd` por chamada: spike #451 §3.1 (sessão de 2026-10-21). Falha sem `cwd`: observado na sonda de 2026-10-23 (job-67). |
+| 1 | **Uma chamada `alethe_delegate` por grupo.** O `cwd` vale para a chamada inteira e é o worktree do grupo: passe-o sempre. Sem `cwd`, o Alethe usa o próprio diretório e `isolate: true` falha com `isolate needs a git repository`. **`isolate`:** com `cwd` num worktree do Vetor, use `isolate: false`, e o job roda nesse diretório. Com `isolate: true` o Alethe cria `.alethe/worktrees/job-N` com a branch `alethe/agent-job-N`, que exige `git worktree remove` e `git branch -d` depois do `alethe_release`. Use `isolate: true` só em tarefa sem worktree próprio (ex.: rascunho de Spec). | `cwd` por chamada: spike #451 §3.1 (sessão de 2026-10-21). Falha sem `cwd`: observado na sonda de 2026-10-23 (job-67). `isolate`: observado em 2026-10-23 (`cwd` num worktree do coordinator: com `isolate: false` o job rodou nesse diretório; com `isolate: true` o Alethe criou `.alethe/worktrees/job-N` e a branch `alethe/agent-job-N`). A escolha de `false` com worktree do Vetor é do contrato (issue #504). |
 | 2 | **Concorrência:** use o `concurrencyLimit` devolvido por `alethe_delegate`; não fixe um número. Despache até o limite e, atingido, aguarde uma vaga com `alethe_check` antes do próximo grupo, sem fila própria. | Valor 4 observado na sonda de 2026-10-23 (job-67); pode variar por sessão. A espera por vaga é escolha do contrato (Spec de 2026-10-23), sem fonte externa. |
 | 3 | **Tarefa autocontida:** `tasks` leva o texto integral da issue (corpo e critérios de aceite), os comandos de teste do `module-test-map` e as proibições da regra 4. | Spike #451 §4.3 item 2 (2026-10-22); Spec do contrato (2026-10-23). |
 | 4 | **Proibido no worker:** git que escreva (`checkout`, `add`, `commit`, `push`), `gh`, rede e editar o status file. | Spike #451 §3.1 (sessão de 2026-10-21); decisão do mantenedor de 2026-10-23. |
@@ -374,7 +374,18 @@ essas chamadas; as skills em markdown chamam as ferramentas MCP diretamente.
 4. Revise o diff, execute a varredura `draft-scan.ts` e rode os testes mapeados no host (regras 5
    e 8). A varredura cobre bytes de controle fora de TAB, LF e CR, BOM, mojibake (U+00C3 seguido de
    continuação, U+00E2 U+20AC e U+FFFD), UTF-8 inválido, acento trocado por `?` no meio da palavra,
-   a sequência `` `n `` em Markdown, `declare -A` em `.sh` e blocos JSDoc a menos em `.ts` em relação
-   à base. O status file continua sendo mantido pelo coordinator.
+   a sequência `` `n `` em Markdown, `declare -A` em `.sh` e JSDoc removido em `.ts` em relação à
+   base. Os blocos de JSDoc são comparados pelo símbolo documentado (a primeira linha de código depois
+   do bloco): acusa o símbolo que a base documentava, que o rascunho ainda declara e não documenta.
+   **Limitações conhecidas** (issue #504), a conferir no diff:
+   - Apagar ou renomear o símbolo não acusa, porque o nome documentado na base deixa de ser
+     declarado: renomear e descartar o JSDoc na mesma mudança passa despercebido.
+   - Blocos de membros e cabeçalhos de módulo são comparados só por contagem, por não terem
+     declaração nomeada para comparar; apagar um membro com o seu JSDoc acusa.
+   - Um arquivo renomeado ou movido aparece como novo (`--no-renames`), sem comparação de JSDoc
+     com o arquivo de origem.
+   - Só vale para `.ts`, `.tsx`, `.js` e `.jsx`.
+
+   O status file continua sendo mantido pelo coordinator.
 5. Chame `alethe_release` para o job e só então remova o worktree (regra 7). `alethe_cancel`
    interrompe um job que não deve terminar.
