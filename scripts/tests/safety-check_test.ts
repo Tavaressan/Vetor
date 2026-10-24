@@ -633,6 +633,51 @@ Deno.test("issue #488: git push de branch não protegida com flag depois do dest
   }
 });
 
+Deno.test("issue #490: push a partir de um subdiretório do checkout principal não cai no gate de worker não-GREEN", async () => {
+  // Branch não protegida + status file RUNNING no root: se o subdiretório fosse tratado como
+  // worktree linkado, o gate bloquearia o push — é o que o teste precisa alcançar.
+  const root = await makeRepo("feat-x");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/feat-x.md`,
+    "Status: RUNNING\nIteration: 1/5 (Issue #1)\n",
+  );
+  await Deno.mkdir(`${root}/sub`);
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git push origin feat-x" },
+      cwd: `${root}/sub`,
+    });
+
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("issue #490: push a partir de um subdiretório de worktree linkado não-GREEN continua bloqueado", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("worker-a");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/worker-a.md`,
+    "Status: RUNNING\nIteration: 1/5 (Issue #1)\n",
+  );
+  await Deno.mkdir(`${worktreePath}/sub`);
+  try {
+    const result = await runHook({
+      tool_name: "Bash",
+      tool_input: { command: "git push origin worker-a" },
+      cwd: `${worktreePath}/sub`,
+    });
+
+    assertEquals(result.code, 2);
+    assertStringIncludes(result.stderr, "worker não-GREEN");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("issue #161: heredoc contendo o texto 'git push'/'gh pr create' como conteúdo não dispara o gate de worker não-GREEN", async () => {
   const { root, worktreePath } = await makeLinkedWorktree("worker-a");
   await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
