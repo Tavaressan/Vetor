@@ -12,6 +12,7 @@
 #   migrations                 exit 1 se há versões de migration duplicadas (convenção Flyway)
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
+#   validate-ship-args [args]  valida e parseia flags do /vetor:ship (--prepare, --finalize, legado)
 #   carry-changes <worktree-path> <branch>  transporta as mudanças rastreadas do root para o
 #                               worktree recém-criado e limpa o root (#428). exit 3 = falhou antes
 #                               do backup (root intacto, worktree devolvido a HEAD, pode remover);
@@ -104,6 +105,65 @@ case "$cmd" in
       echo "$hits" >&2
       exit 1
     fi
+    ;;
+
+  validate-ship-args)
+    shift
+    mode="full"
+    target=""
+
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --prepare)
+          if [ "$mode" != "full" ]; then
+            echo "ERRO: flags conflitantes no ship (--prepare e --finalize não podem ser usadas juntas)" >&2
+            exit 1
+          fi
+          mode="prepare"
+          shift
+          ;;
+        --finalize)
+          if [ "$mode" != "full" ]; then
+            echo "ERRO: flags conflitantes no ship (--prepare e --finalize não podem ser usadas juntas)" >&2
+            exit 1
+          fi
+          mode="finalize"
+          shift
+          if [ $# -eq 0 ] || [[ "$1" == --* ]]; then
+            echo "ERRO: --finalize exige o número da PR como argumento (ex.: /vetor:ship --finalize 42)" >&2
+            exit 1
+          fi
+          target="$1"
+          shift
+          ;;
+        --*)
+          echo "ERRO: flag desconhecida para /vetor:ship: \"$1\"" >&2
+          exit 1
+          ;;
+        *)
+          if [ -n "$target" ]; then
+            echo "ERRO: argumentos excessivos no ship: \"$1\"" >&2
+            exit 1
+          fi
+          target="$1"
+          shift
+          ;;
+      esac
+    done
+
+    if [ "$mode" = "finalize" ]; then
+      if ! [[ "$target" =~ ^[1-9][0-9]*$ ]]; then
+        echo "ERRO: PR-number para --finalize deve ser um inteiro positivo, recebido \"$target\"" >&2
+        exit 1
+      fi
+    elif [ -n "$target" ]; then
+      if ! [[ "$target" =~ ^[1-9][0-9]*$ ]]; then
+        echo "ERRO: issue# para ship deve ser um inteiro positivo, recebido \"$target\"" >&2
+        exit 1
+      fi
+    fi
+
+    echo "$mode $target" | sed 's/ *$//'
     ;;
 
   validate-issue-ref)

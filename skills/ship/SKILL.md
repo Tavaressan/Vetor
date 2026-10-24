@@ -1,24 +1,26 @@
 ---
 name: ship
-description: Pipeline headless de entrega — test → push → PR draft → CI → merge → sync root → cleanup. Deve ser executado de dentro de um worktree.
+description: Pipeline desacoplado de entrega — suporta --prepare (validação, push, PR draft, CI e revisões em background), --finalize (verificação, squash merge, sync root e cleanup) e modo monolítico sequencial legado. Deve ser executado de dentro de um worktree.
 license: MIT
 compatibility: Claude Code
 metadata:
   author: vitortavares
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
-Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e verde de um worktree até o merge na branch default, sem intervenção manual exceto quando review é necessário.
+Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e verde de um worktree até o merge na branch default, de forma modular e desacoplada em duas etapas (--prepare e --finalize) ou no fluxo sequencial legado de ponta a ponta.
 
 ---
 
 ## Sintaxe
 
 ```
-/vetor:ship [issue#]
+/vetor:ship [--prepare [issue#] | --finalize <PR-number> | [issue#]]
 ```
 
-- `[issue#]`: opcional — número da issue GitHub para incluir `Closes #N` no PR
+- `--prepare [issue#]`: submodo de preparação concorrente (Pre-Ship) — executa validações locais (§1 a §4.b), push da branch (§5), criação de PR draft (§6), disparo em background de CI (§7) e revisões consultivas (§8.5), grava status `PR_STAGED` com o número/URL da PR (§8.7) e encerra sem tentar merge.
+- `--finalize <PR-number>`: submodo de finalização (Fast Merge Gate) — verifica CI (§7 e §8) e reviews (§8.5–§9), executa squash merge via `vetor-merge.sh` (§10), sincroniza root determinístico (§11) e executa cleanup do worktree (§12).
+- `[issue#]`: execução sequencial monolítica completa legada (passos 1 a 12), mantendo 100% de retrocompatibilidade.
 
 ---
 
@@ -51,6 +53,17 @@ Você é o pipeline de entrega do Vetor. Sua missão é levar código testado e 
 
 ## Comportamento
 
+### 0 — Validação de argumentos e seleção de modo
+
+```bash
+read -r SHIP_MODE SHIP_TARGET < <(bash "$SKILL_DIR/../../scripts/vetor-checks.sh" validate-ship-args "$@")
+```
+
+De acordo com `SHIP_MODE`:
+- `prepare`: executa os passos 1 a 6, o disparo de CI (§7) e revisões consultivas (§8.5) em background, grava status `PR_STAGED` (§8.7) e encerra com exit 0 sem tentar merge.
+- `finalize`: `SHIP_TARGET` contém o `<PR-number>`. Pula os passos 2 a 6 e executa estritamente a verificação de CI (§7 e §8), verificação de reviews (§8.5–§9), squash merge via `vetor-merge.sh` (§10), sincronização do root (§11) e cleanup (§12).
+- `full` (modo padrão legado, sem flags): executa o ciclo sequencial completo dos passos 1 a 12 de ponta a ponta. Se `SHIP_TARGET` estiver preenchido, ele representa a issue GitHub a ser referenciada em `Closes #N`.
+
 ### 1 — Guarda de contexto
 
 ```bash
@@ -62,6 +75,8 @@ Se sair não-zero, **aborte**: `/vetor:ship` deve rodar de dentro de um worktree
 
 Este comando **nunca muda de diretório por conta própria** — quem o invoca de outro contexto (ex.:
 `coordinator`, cujo cwd é o root) deve fazer `cd` para o worktree antes.
+
+*(Se `SHIP_MODE` for `finalize`, pule diretamente para o passo 7).*
 
 ### 2 — Sincronizar com a branch default
 
@@ -196,6 +211,13 @@ Se `mergeable` == `CONFLICTING` (ou `mergeStateStatus` == `DIRTY`), **não pross
 ao passo 2 e refaça a sincronização/merge seguindo `conflict-resolution.md` (incluindo a checagem de
 2 pais do §2 acima) antes de repetir este passo.
 
+**Em `--prepare`:** não bloqueie aguardando conclusão do CI. Realize apenas o trigger ou verificação inicial:
+```bash
+gh pr checks <PR-number> >/dev/null 2>&1 || true
+```
+e siga diretamente para o passo 8.5.
+
+**Em `full` e `--finalize`:** execute o monitoramento bloqueante:
 ```bash
 gh pr checks <PR-number> --watch
 ```
@@ -221,6 +243,8 @@ gh pr checks <PR-number>
 ```
 
 ### 8 — Classificação de erros e loop de fix (máximo 3 iterações)
+
+*(Executado em `full` e `--finalize` caso algum check remoto falhe).*
 
 Para cada falha detectada:
 
@@ -298,21 +322,22 @@ Havendo módulo alterado, execute as duas revisões:
      model: "sonnet"
    })
    ```
+
    O harness **sempre** despacha subagentes em background — não existe modo síncrono, e o retorno
    imediato é apenas a confirmação de que o agente foi lançado, nunca o resultado da revisão.
-   **Bloqueante-leve:** antes de prosseguir para o passo 9, aguarde a notificação de conclusão deste
-   subagente (ele publica os achados como comentário na PR ao terminar). Os achados continuam
-   **consultivos** — não bloqueiam o merge por si só —, mas aguardar garante que eles cheguem a
-   tempo de virar decisão (ou commit corretivo) antes do merge, em vez de serem descobertos depois.
 
 2. **Security review** (segurança da aplicação — OWASP: injeção, XSS, segredos expostos): verifique
    se a skill nativa `security-review` está disponível nesta sessão. **Se não estiver, pule
    silenciosamente.** Se estiver, invoque-a conforme §8.6 abaixo.
 
+**Comportamento por modo:**
+- **Em `--prepare`:** os subagentes consultivos são despachados em background. Não aguarde o retorno da análise: prossiga imediatamente para o passo 8.7 para registrar `PR_STAGED` e encerrar.
+- **Em `full`:** aguarde a notificação de conclusão deste subagente (bloqueante-leve) antes de prosseguir para o passo 9.
+- **Em `--finalize`:** verifique se os relatórios consultivos foram postados como comentários na PR antes do merge.
+
 **Nunca pare o pipeline por causa dos achados** — mesmo com itens `blocker` ou vulnerabilidades,
-prossiga para o passo 9 assim que ambas as revisões tiverem retornado. Quem decide agir é o humano,
-lendo o comentário na PR. Se um dos despachos falhar (rate limit, erro de ferramenta), registre no
-sumário e prossiga.
+os achados são consultivos; quem decide agir é o humano, lendo o comentário na PR. Se um dos despachos
+falhar (rate limit, erro de ferramenta), registre no sumário e prossiga.
 
 ### 8.6 — Security review (skill nativa)
 
@@ -335,26 +360,68 @@ fi
 ```
 
 Se `git rev-parse --verify -q origin/HEAD` continuar falhando após a tentativa (ex.: repositório sem conexão ou sem remote configurado),
-**não invoque a skill**: registre no sumário de ship que a revisão de segurança foi pulada por falta de `origin/HEAD` e prossiga
-diretamente para o passo 9.
+**não invoque a skill**: registre no sumário de ship que a revisão de segurança foi pulada por falta de `origin/HEAD` e prossiga.
 
 Caso o ponteiro esteja válido:
 ```
 Invoque a skill nativa `security-review` sem argumento de diff — ela lê a branch atual.
 ```
 
-Ao receber a resposta final (o relatório em markdown), publique-o você mesmo:
+Ao receber a resposta final (o relatório em markdown), publique-o:
 ```bash
 gh pr comment <PR-number> --body "<relatório de security-review recebido>"
 ```
 
-**Proporção do protocolo de sub-tasks:** o protocolo de sub-tasks paralelas da skill nativa (uma
-por vulnerabilidade candidata, para filtrar falso-positivo) é desenhado para diffs grandes. Para
-diffs pequenos — heurística sugerida: abaixo de ~200 linhas alteradas, já filtrados pelo
-`vetor:code-review` do §8.5 — peça à skill para analisar inline, sem abrir o protocolo completo de
-sub-tasks por vulnerabilidade. Acima desse limiar, deixe a skill decidir seu próprio protocolo.
+### 8.7 — Registro de PR_STAGED e encerramento do Pre-Ship
+
+*(Executado estritamente em `--prepare`).*
+
+Logo após disparar o CI (§7) e as revisões consultivas (§8.5) em background, obtenha os dados da PR:
+```bash
+PR_NUMBER=$(gh pr view --json number -q .number)
+PR_URL=$(gh pr view --json url -q .url)
+HEAD_SHA=$(git rev-parse HEAD)
+BRANCH=$(git branch --show-current)
+REPO_ROOT=$(bash "$SKILL_DIR/../../scripts/vetor-checks.sh" repo-root)
+```
+
+1. Atualize o status file `<REPO_ROOT>/.claude/vetor/status/<branch com / trocada por ->.md`:
+```markdown
+# Agent Status — <branch>
+Updated: <ISO 8601>
+Status: PR_STAGED
+PR: #<PR_NUMBER> (<PR_URL>)
+Last action: Pre-ship concluído (PR draft #<PR_NUMBER> criado, CI e revisões consultivas disparados em background)
+Next: Aguardando checks de CI e revisões consultivas para finalização via /vetor:ship --finalize <PR_NUMBER>
+```
+
+2. Grave os metadados do Pre-Ship em `<REPO_ROOT>/.claude/vetor/status/<branch com / trocada por ->-preship.json`:
+```bash
+cat <<EOF > "$REPO_ROOT/.claude/vetor/status/${BRANCH//\//-}-preship.json"
+{
+  "branch": "$BRANCH",
+  "prNumber": $PR_NUMBER,
+  "prUrl": "$PR_URL",
+  "headSha": "$HEAD_SHA",
+  "stagedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "ciStatus": "PENDING",
+  "reviewsStatus": "PENDING"
+}
+EOF
+```
+
+3. Exiba o resumo de conclusão:
+```
+Pre-ship concluído com sucesso.
+PR Draft: #<PR_NUMBER> (<PR_URL>)
+Status registrado: PR_STAGED
+Pronto para Fast Merge Gate (/vetor:ship --finalize <PR_NUMBER>).
+```
+**Encerre o pipeline aqui com exit 0 sem tentar merge.**
 
 ### 9 — Verificar review
+
+*(Executado em `full` e `--finalize`).*
 
 ```bash
 gh pr view <PR-number> --json reviewDecision
@@ -369,6 +436,8 @@ Aguardando aprovação antes de prosseguir com merge.
 **Pare.** Não entre em loop tentando merge.
 
 ### 10 — Merge
+
+*(Executado em `full` e `--finalize`).*
 
 ```bash
 bash "$SKILL_DIR/../../scripts/vetor-merge.sh" <PR-number>
@@ -389,6 +458,8 @@ aprovação explícita via `AskUserQuestion`** e só repita após o "sim". **Nun
 
 ### 11 — Sincronizar root
 
+*(Executado em `full` e `--finalize`).*
+
 ```bash
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 ```
@@ -405,6 +476,8 @@ git reset --hard "origin/$DEFAULT_BRANCH"
 ```
 
 ### 12 — Cleanup
+
+*(Executado em `full` e `--finalize`).*
 
 Descubra o path real do worktree via `git worktree list` (não assuma convenção de path — a
 localização é do harness). No Windows, manter o cwd da sessão dentro do worktree bloqueia a exclusão
@@ -450,3 +523,5 @@ branch, status file e cache de arquivos tocados). Lembre-se de mudar para o root
 - Preserva worktree intacto em caso de falha (para inspeção manual)
 - As revisões do passo 8.5 são sempre consultivas — achados nunca bloqueiam o merge
 - O circuit breaker de infraestrutura (§8.a) pausa sem consumir iterações de fix
+- O submodo `--prepare` encerra no passo 8.7 com status `PR_STAGED` e nunca tenta merge
+- O submodo `--finalize` exige `<PR-number>` válido e executa os passos 7 a 12

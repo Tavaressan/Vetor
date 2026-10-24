@@ -85,15 +85,15 @@ for f in "$STATUS_DIR"/*.md; do
   seen_branches="${seen_branches}${name}
 "
 
-  if [ "$status" = "GREEN" ] && [ -n "$prs" ]; then
+  if { [ "$status" = "GREEN" ] || [ "$status" = "PR_STAGED" ]; } && [ -n "$prs" ]; then
     pr_info=$(printf '%s\n' "$prs" | grep "^${name}=" | head -1 || echo "")
     if [ -n "$pr_info" ]; then
       pr_num=$(printf '%s\n' "$pr_info" | cut -d'=' -f2)
       pr_state=$(printf '%s\n' "$pr_info" | cut -d'=' -f3)
       if [ "$pr_state" = "OPEN" ]; then
-        status="GREEN (PR #${pr_num} aberta)"
+        status="${status} (PR #${pr_num} aberta)"
       elif [ "$pr_state" = "MERGED" ]; then
-        status="GREEN (já mergeado via #${pr_num})"
+        status="${status} (já mergeado via #${pr_num})"
       fi
     fi
   fi

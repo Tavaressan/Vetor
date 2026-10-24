@@ -117,7 +117,7 @@ async function main() {
     : "";
   block(
     `O status file do worker não está em estado terminal (${observed}).\n` +
-      `Escreva ${statusFile} com um Status entre GREEN, FAILED_MAX_ITERATIONS ou ` +
+      `Escreva ${statusFile} com um Status entre GREEN, PR_STAGED, FAILED_MAX_ITERATIONS ou ` +
       "BLOCKED_WAITING antes de encerrar — o coordinator depende dele para agregar o " +
       "resultado. O formato está em skills/shared/references/agent-status.template.md." +
       prepareNote,

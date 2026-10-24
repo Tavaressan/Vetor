@@ -185,3 +185,27 @@ Deno.test("vetor-status.sh anota status GREEN com PR aberta ou mergeada via gh p
     await Deno.remove(root, { recursive: true });
   }
 });
+
+
+Deno.test("vetor-status.sh anota status PR_STAGED com PR aberta via gh pr list (issue #493)", async () => {
+  const root = await makeRepo("main");
+  const mockBinDir = await createMockGh("fix-staged=123=OPEN");
+  const pathEnv = `${mockBinDir}:${Deno.env.get("PATH") || ""}`;
+  try {
+    const wtStaged = `${root}/.claude/worktrees/fix-staged`;
+    await run("git", ["worktree", "add", "-b", "fix-staged", wtStaged], root);
+
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-staged.md`,
+      "Status: PR_STAGED\nIteration: 1/5 (Issue #123)\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root, { PATH: pathEnv });
+
+    assertStringIncludes(stdout, "PR_STAGED (PR #123 aberta)");
+  } finally {
+    await Deno.remove(mockBinDir, { recursive: true });
+    await Deno.remove(root, { recursive: true });
+  }
+});
