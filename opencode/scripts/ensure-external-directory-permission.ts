@@ -44,8 +44,9 @@
 //   1 - opencode.json existente não é JSON válido, ou `<worktree>/opencode.json` é versionado;
 //       a mensagem de stderr diz o que fazer.
 
-import { normalizeCwd, readJson } from "./lib/project.ts";
-import { resolveWorktree } from "./lib/status.ts";
+import { readJson } from "../../scripts/lib/project.ts";
+import { resolveWorktree } from "../../scripts/lib/status.ts";
+import { normalizeCwd } from "./lib/cwd.ts";
 
 interface Payload {
   cwd?: string;

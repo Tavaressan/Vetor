@@ -77,6 +77,26 @@ test('npm pack --dry-run inclui arquivos concretos sincronizados de skills/, age
     paths.includes('templates/opencode/agent/issue-worker.md'),
     'templates/opencode/agent/issue-worker.md ausente do pacote — prepack não sincronizou opencode/',
   );
+
+  // Issue #477: o canônico que o OpenCode usa vai para templates/scripts/ (o instalador gera
+  // .opencode/scripts/ a partir dele), com as dependências locais; nenhum espelho em opencode/.
+  for (
+    const canonical of [
+      'safety-check.ts',
+      'check-edit.ts',
+      'lib/safety-policy.ts',
+      'lib/project.ts',
+    ]
+  ) {
+    assert.ok(
+      paths.includes(`templates/scripts/${canonical}`),
+      `templates/scripts/${canonical} ausente do pacote — prepack não sincronizou o canônico do OpenCode`,
+    );
+  }
+  assert.ok(
+    !paths.includes('templates/opencode/scripts/safety-check.ts'),
+    'templates/opencode/scripts/safety-check.ts é um espelho que a issue #477 eliminou',
+  );
 });
 
 // Issue #300: os testes acima validam só o conteúdo *declarado* do pacote (`npm pack
@@ -193,6 +213,11 @@ test(
             path.join(installedRoot, 'templates', 'opencode', 'agent', 'issue-worker.md'),
           ),
         );
+        assert.ok(
+          fs.existsSync(
+            path.join(installedRoot, 'templates', 'scripts', 'lib', 'safety-policy.ts'),
+          ),
+        );
 
         // Achado desta issue (#300), documentado em wiki/Compatibilidade-OpenCode.md: o
         // prompt interativo (`prompts.js`) decide "sessão não-interativa" por
@@ -245,6 +270,21 @@ test(
             fs.existsSync(path.join(projectDir, '.opencode', 'agent', 'issue-worker.md')),
           );
           assert.ok(!fs.existsSync(path.join(projectDir, '.opencode', 'agents')));
+          // Issue #477: o plugin resolve `SCRIPTS_DIR = ../scripts` — o instalador gera esse
+          // diretório a partir do canônico empacotado, inclusive o módulo novo da #476.
+          for (
+            const script of [
+              'safety-check.ts',
+              'check-edit.ts',
+              'lib/safety-policy.ts',
+              'resolve-model.ts',
+            ]
+          ) {
+            assert.ok(
+              fs.existsSync(path.join(projectDir, '.opencode', 'scripts', ...script.split('/'))),
+              `.opencode/scripts/${script} ausente após instalar do tarball`,
+            );
+          }
 
           // Codex: subagentes achatados para .toml — nunca o path aninhado nem o .md de
           // outra engine (tradução de formato, não cópia genérica).

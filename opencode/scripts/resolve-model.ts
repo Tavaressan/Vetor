@@ -26,8 +26,9 @@
 // em `.claude/vetor/config.json`, o script falha cedo (código 1, sem stdout) com mensagem acionável
 // em vez de devolver um modelo que o `opencode run` downstream pode rejeitar.
 
-import { normalizeCwd, readJson } from "./lib/project.ts";
-import { resolveWorktree } from "./lib/status.ts";
+import { readJson } from "../../scripts/lib/project.ts";
+import { resolveWorktree } from "../../scripts/lib/status.ts";
+import { normalizeCwd } from "./lib/cwd.ts";
 import { pickHealthyModel, readModelHealthFile } from "./lib/model-health.ts";
 
 interface Payload {

@@ -5,6 +5,8 @@ const path = require('node:path');
 
 const { hashFile, hashContent, readManifest, writeManifest } = require('./manifest.js');
 const { translateHooksForCursor } = require('./cursor-hooks.js');
+const { resolveOpencodeScripts, rewriteNativeScriptImports } = require('./opencode-scripts.js');
+const { resolveOpencodeSkillFiles } = require('./opencode-skills.js');
 const { version: packageVersion } = require('../../package.json');
 
 // Decisão de escopo (issue #255, revisada na #283): destino nativo por engine é o
@@ -87,6 +89,11 @@ const ENGINE_SOURCE_DIR_DEST = {
 // `opencode/mcp.jsonc` é copiado como referência; o merge do bloco `mcp` em
 // `opencode.json` do projeto-alvo continua manual (documentado na wiki) — automatizar
 // merge de JSON de config alheio está fora de escopo (YAGNI).
+//
+// `.opencode/scripts/` (#477) não é só cópia de `opencode/scripts/`: os scripts que o plugin e o
+// agent invocam vêm do canônico em `scripts/` (lista explícita de entradas e dependências locais,
+// ver `opencode-scripts.js`), e `opencode/scripts/` guarda apenas os módulos exclusivos do
+// OpenCode, cujos imports do canônico são reescritos para o layout instalado.
 const ENGINE_NATIVE_SOURCE_DIR = {
   opencode: 'opencode',
 };
@@ -166,6 +173,17 @@ function resolveCursorSkillsRoot(engineIds) {
   if (engineIds.has('codex') || engineIds.has('antigravity')) return '.agents';
   if (engineIds.has('claude-code')) return '.claude';
   return '.cursor';
+}
+
+// Arquivos que o OpenCode recebe do canônico em vez de uma cópia versionada em `opencode/`, como
+// pares `{ source, dest }` (`dest` relativo a `.opencode/`): os scripts (#477) e a skill do
+// coordinator com as referências dela (#478). Cada lista falha com o path se faltar algo.
+function resolveOpencodeGeneratedFiles(sourceRoot) {
+  const scripts = resolveOpencodeScripts(sourceRoot).map((relPath) => ({
+    source: path.join(sourceRoot, 'scripts', ...relPath.split('/')),
+    dest: `scripts/${relPath}`,
+  }));
+  return [...scripts, ...resolveOpencodeSkillFiles(sourceRoot)];
 }
 
 // Remove diretórios vazios de `startDir` até `stopDir` (inclusive), sem subir além dele.
@@ -528,14 +546,55 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
       // pelos SOURCE_DIRS agnósticos abaixo.
       const nativeSourceDir = path.join(sourceRoot, nativeSourceDirName);
       if (fs.existsSync(nativeSourceDir)) {
+        const generatedFiles = engine.id === 'opencode' ? resolveOpencodeGeneratedFiles(sourceRoot) : [];
+        const generatedKeys = new Set(generatedFiles.map(({ dest }) => `${destRootName}/${dest}`));
+
         for (const sourceFile of listFilesRecursive(nativeSourceDir)) {
           const relativeToSourceDir = path.relative(nativeSourceDir, sourceFile);
+          const relativePosix = relativeToSourceDir.split(path.sep).join('/');
           const destFile = path.join(projectRoot, destRootName, relativeToSourceDir);
           const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
+
+          // Os gerados vêm do canônico (abaixo); uma cópia versionada em `opencode/` reabriria a
+          // duplicação que as #477 e #478 eliminaram.
+          if (generatedKeys.has(manifestKey)) {
+            throw new Error(
+              `OpenCode: ${nativeSourceDirName}/${relativePosix} duplica um arquivo gerado a partir de scripts/ ou skills/; remova a cópia.`,
+            );
+          }
+
+          if (engine.id === 'opencode' && relativePosix.startsWith('scripts/') && relativePosix.endsWith('.ts')) {
+            const content = rewriteNativeScriptImports(fs.readFileSync(sourceFile, 'utf8'), relativePosix);
+            writeManaged({
+              destFile,
+              manifestKey,
+              contentHash: hashContent(content),
+              write: () => fs.writeFileSync(destFile, content, 'utf8'),
+              engineId: engine.id,
+              manifest,
+              copied,
+              skipped,
+            });
+            continue;
+          }
+
           copyManagedFile({
             sourceFile,
             destFile,
             manifestKey,
+            manifest,
+            engineId: engine.id,
+            copied,
+            skipped,
+          });
+        }
+
+        for (const { source, dest } of generatedFiles) {
+          const destFile = path.join(projectRoot, destRootName, ...dest.split('/'));
+          copyManagedFile({
+            sourceFile: source,
+            destFile,
+            manifestKey: path.relative(projectRoot, destFile).split(path.sep).join('/'),
             manifest,
             engineId: engine.id,
             copied,

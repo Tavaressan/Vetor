@@ -80,86 +80,66 @@ Deno.test("issue #453: skills/coordinator/SKILL.md §1 particiona por rodapé �
   );
 });
 
-Deno.test("issue #453: opencode/agent/issue-coordinator.md tem paridade com coordinator do Claude na partição por rodapé", () => {
-  // Identificação da origem pelo rodapé no body
+// Issue #478: o agent do OpenCode é fino e carrega esta mesma skill pela ferramenta `skill`, então
+// a regra de origem pelo rodapé vive só em skills/coordinator/SKILL.md (testado acima). O agent não
+// pode voltar a carregar uma cópia do texto, que é o que divergia da skill antes da #478.
+Deno.test("issue #453: opencode/agent/issue-coordinator.md herda a partição por rodapé da skill, sem duplicar o texto", () => {
   assertStringIncludes(
     opencodeCoordinator,
-    documentedReference,
-    "opencode/agent/issue-coordinator.md deve documentar a regex de referência",
-  );
-  assertMatch(
-    opencodeCoordinator,
-    /origem\s+passa\s+a\s+ser\s+identificada\s+por\s+uma\s+linha[\s\S]*?Menções ao rodapé no meio de uma frase ou de um item de checklist\s+não contam/i,
-    "opencode/agent/issue-coordinator.md deve descrever a detecção de origem pelo rodapé",
+    'name: "coordinator"',
+    "opencode/agent/issue-coordinator.md deve mandar carregar a skill coordinator",
   );
 
-  // Partição usando body e labels
-  assertMatch(
-    opencodeCoordinator,
-    /particione\s+o\s+resultado\s+usando\s+o\s+`body`\s+e\s+os\s+`labels`/i,
-    "opencode/agent/issue-coordinator.md deve instruir partição por body e labels",
-  );
-
-  // Recomendadas pelo agente
-  assertMatch(
-    opencodeCoordinator,
-    /\*\*Recomendadas pelo agente\*\*: issues cujo `body` tenha uma linha que comece com `🤖 Gerado por` seguida\s+de `\/vetor:<skill>`[\s\S]*?OU que\s+contenham a label `ai-generated`/i,
-    "opencode/agent/issue-coordinator.md deve classificar por rodapé OU label ai-generated",
-  );
-
-  // Transição (leitura apenas)
-  assertMatch(
-    opencodeCoordinator,
-    /regra de transição[\s\S]*?leitura apenas; o plugin nunca aplica a label/i,
-    "opencode/agent/issue-coordinator.md deve documentar a transição de leitura",
-  );
-
-  // Pedidas pelo usuário
-  assertMatch(
-    opencodeCoordinator,
-    /\*\*Pedidas pelo usuário\*\* \(candidatas primárias\): issues sem uma linha do corpo que comece com\s+`🤖 Gerado por` seguida de `\/vetor:<skill>` e sem a label `ai-generated`/i,
-    "opencode/agent/issue-coordinator.md deve definir pedidas pelo usuário sem rodapé e sem label",
-  );
+  for (
+    const duplicated of [
+      documentedReference,
+      "Pedidas pelo usuário",
+      "Recomendadas pelo agente",
+      "regra de transição",
+    ]
+  ) {
+    assertFalse(
+      opencodeCoordinator.includes(duplicated),
+      `opencode/agent/issue-coordinator.md não deve repetir "${duplicated}", que é da skill`,
+    );
+  }
 });
 
-Deno.test("issue #453: opencode/agent/issue-coordinator.md deixa de ter backlog como label default", () => {
-  // Não tem mais (default: `backlog`) na Sintaxe
-  assertFalse(
-    opencodeCoordinator.includes("default: `backlog`"),
-    "opencode/agent/issue-coordinator.md não deve conter 'default: `backlog`'",
-  );
-  assertFalse(
-    opencodeCoordinator.includes("default: backlog"),
-    "opencode/agent/issue-coordinator.md não deve conter 'default: backlog'",
-  );
+Deno.test("issue #453: o coordinator deixa de ter backlog como label default (skill e agent do OpenCode)", () => {
+  for (
+    const [path, document] of [
+      ["skills/coordinator/SKILL.md", claudeCoordinator],
+      ["opencode/agent/issue-coordinator.md", opencodeCoordinator],
+    ]
+  ) {
+    assertFalse(
+      document.includes("default: `backlog`"),
+      path + " não deve conter 'default: `backlog`'",
+    );
+    assertFalse(
+      document.includes("default: backlog"),
+      `${path} não deve conter 'default: backlog'`,
+    );
+    assertFalse(
+      document.includes('issue-coordinator "backlog"'),
+      `${path} não deve ter fallback com issue-coordinator "backlog"`,
+    );
+  }
 
-  // Documenta que [label] sem argumento usa todas as issues abertas ou defaultDispatchLabel
+  // [label] sem argumento usa todas as issues abertas ou defaultDispatchLabel — regra da skill.
   assertMatch(
-    opencodeCoordinator,
+    claudeCoordinator,
     /`\[label\]`: label das issues a despachar \(sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel`/,
-    "opencode/agent/issue-coordinator.md deve documentar [label] com regra de todas as abertas ou defaultDispatchLabel",
-  );
-
-  // Fase 0 resume não cai em issue-coordinator 'backlog'
-  assertFalse(
-    opencodeCoordinator.includes('issue-coordinator "backlog"'),
-    'opencode/agent/issue-coordinator.md não deve ter fallback com issue-coordinator "backlog"',
+    "skills/coordinator/SKILL.md deve documentar [label] com regra de todas as abertas ou defaultDispatchLabel",
   );
   assertMatch(
-    opencodeCoordinator,
-    /Se não houver nenhum worktree ativo com status file: caia no fluxo padrão a partir da Fase 1\s+\(todas as issues abertas, ou `defaultDispatchLabel`/,
-    "opencode/agent/issue-coordinator.md Fase 0 deve cair no fluxo padrão sem backlog fixo",
-  );
-
-  // Fase 1 documenta verificação de defaultDispatchLabel e descoberta dinâmica
-  assertMatch(
-    opencodeCoordinator,
+    claudeCoordinator,
     /Verifique se `\.claude\/vetor\/config\.json` declara `defaultDispatchLabel`/,
-    "opencode/agent/issue-coordinator.md deve documentar verificação de defaultDispatchLabel",
+    "skills/coordinator/SKILL.md deve documentar verificação de defaultDispatchLabel",
   );
   assertMatch(
-    opencodeCoordinator,
+    claudeCoordinator,
     /Descoberta dinâmica \(sem argumento, sem defaultDispatchLabel\):/,
-    "opencode/agent/issue-coordinator.md deve documentar descoberta dinâmica",
+    "skills/coordinator/SKILL.md deve documentar descoberta dinâmica",
   );
 });

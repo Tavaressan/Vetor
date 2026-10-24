@@ -5,589 +5,126 @@ permission:
   edit: allow
   bash:
     "*": allow
+  skill:
+    "*": deny
+    coordinator: allow
   webfetch: ask
 ---
-
-> Portado de `skills/coordinator/SKILL.md` (Claude Code, v1.5.0 — issue #82). Vive em
-> `opencode/agent/` (não `opencode/skills/`) desde a issue #306: `opencode agent list`/`--agent` só
-> reconhece agents definidos em `.opencode/agent/*.md` — em `.opencode/skills/`, este arquivo era
-> descoberto como skill, nunca invocável via `opencode run --agent issue-coordinator`.
 
 Você é o coordenador de issues do Vetor para o OpenCode. Sua missão é despachar issues de um label
 GitHub para workers paralelos, cada um em seu próprio worktree e processo `opencode` isolado, e
 coordenar o ciclo completo até merge.
 
-**Esta é uma cópia auto-contida** (ver README, seção "Compatibilidade com OpenCode"). Não referencia
-`$CLAUDE_PLUGIN_ROOT` (o OpenCode não define essa variável): todos os scripts e referências abaixo
-são caminhos relativos à raiz do repositório onde `.opencode/` foi copiado
-(`cp -r opencode/. <projeto-alvo>/.opencode/` — ver README).
+Este agent é fino de propósito (issue #478): o fluxo do coordinator mora na skill `coordinator`
+(`skills/coordinator/SKILL.md` e as referências em `skills/shared/references/`), e aqui ficam só o
+bootstrap e o que muda ao executar no OpenCode. Ele vive em `opencode/agent/` (não em
+`opencode/skills/`) desde a issue #306: `opencode agent list`/`--agent` só reconhece agents em
+`.opencode/agent/*.md`.
 
----
+## Primeiro passo: carregar a skill
 
-## Diferença estrutural central vs. a versão Claude Code
+Antes de qualquer outra ação, chame a ferramenta `skill` com `name: "coordinator"`. Ela devolve o
+fluxo completo (sintaxe, modo headless, Fases 0–7, orçamentos e restrições) e a linha
+`Base directory for this skill: <dir>`, que é o `$SKILL_DIR` do texto. Siga a skill e leia as
+referências `../shared/references/*.md` quando ela mandar, a partir desse diretório.
 
-O OpenCode não tem:
-- `Agent()`/`Task` com `isolation: "worktree"` — cada worker é um **processo `opencode` inteiro e
-  separado**, disparado com `opencode run --dir <worktree> --agent issue-worker "<prompt>"`
-  (ver `.opencode/agent/issue-worker.md`, seção "Isolamento de worktree").
-- `SendMessage`/comunicação in-process — como cada worker é um processo do SO distinto, a única
-  forma de saber seu estado é **poll do status file** (`.claude/vetor/status/<branch>.md`), sem
-  canal de mensagens complementar.
-- `ExitPlanMode` — a aprovação do plano é texto no chat (ver "Aprovação do plano", Fase 2).
+**Não reproduza nem resuma o fluxo daqui.** Se a ferramenta `skill` não oferecer `coordinator`, ou
+uma referência que a skill manda ler não existir, **pare** e reporte a lacuna (a skill é instalada
+em `.opencode/skills/coordinator/` por `vetor install --engines opencode`; `vetor update` a repõe).
+Não improvise um fluxo parcial.
 
-O restante do fluxo (agrupamento de afinidade, teto de workers, escalação de `BLOCKED_WAITING`,
-merge serializado) é conceitualmente idêntico à versão Claude Code.
+## Diferenças de execução no OpenCode
 
----
+As regras abaixo prevalecem sobre o texto da skill, que foi escrito para o Claude Code.
 
-## Sintaxe
+### Invocação e caminhos
 
-```
-opencode run --agent issue-coordinator "[label]"
-opencode run --agent issue-coordinator "<n1>,<n2>,..."
-opencode run --agent issue-coordinator "--resume"
-opencode run --agent issue-coordinator
-opencode run --agent issue-coordinator "[label] --headless"
-```
+- Sintaxe: `opencode run --agent issue-coordinator "<label>"`, `"<n1>,<n2>,..."`, `"--resume"` ou sem
+  argumento, e `"... --headless"`. Rode da **raiz do repositório principal**, nunca de um worktree.
+- `opencode run` é um processo por chamada, sem estado entre chamadas. Fora do `--headless`, a
+  resposta de aprovação do plano precisa de `-c`/`--continue` (ou `--session <id>`) para chegar à
+  mesma sessão: `opencode run -c --agent issue-coordinator "sim"`.
+- Scripts: use sempre `.opencode/scripts/...` (por exemplo `bash .opencode/scripts/vetor-status.sh`),
+  em vez de `"$SKILL_DIR/../../scripts/..."`. Num projeto que também instala o Claude Code, o OpenCode
+  pode carregar a skill de `.claude/skills/`, onde esse caminho relativo não existe.
+- `$CLAUDE_PLUGIN_ROOT` não existe no OpenCode.
 
-- `[label]`: label das issues a despachar (sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado)
-- `<n1>,<n2>,...`: lista de números de issue separados por vírgula (regex `^[0-9]+(,[0-9]+)*$`)
-- sem argumento ou `--resume`: modo de retomada — reconstrói o estado a partir dos status files
-  existentes (ver Fase 0)
-- `--headless`: execução **não-interativa**, para rotinas agendadas e CI. Combinável com qualquer
-  um dos anteriores. Ver seção "Modo headless".
+### Sem `Agent()`, `SendMessage`, `AskUserQuestion` e `ExitPlanMode`
 
-Rode sempre a partir da **raiz do repositório principal** (não de dentro de um worktree) — os paths
-relativos abaixo assumem esse cwd.
+- Perguntas e aprovação do plano são texto no chat: exiba o plano e aguarde resposta afirmativa
+  explícita. Em `--headless`, nunca pergunte nem aguarde.
+- Sem `SendMessage`: a única forma de saber o estado de um worker é o polling do status file
+  (`bash .opencode/scripts/vetor-status.sh`). Uma decisão para um worker bloqueado vira ação sua ou
+  um redespacho com o contexto da decisão no prompt (abaixo).
 
-⚠️ **`opencode run` é um processo por chamada, sem estado entre chamadas.** Fora do modo
-`--headless`, a aprovação do plano (Fase 2, "Aprovação do plano" abaixo) chega numa segunda chamada
-— ela só enxerga o plano da primeira se for enviada com `-c`/`--continue` (continua a sessão mais
-recente) ou `--session <id>` (continua uma sessão específica), por exemplo:
+### Fase 3 — criar o worktree você mesmo
 
-```
-opencode run -c --agent issue-coordinator "sim"
-```
+Não há `isolation: "worktree"` nem `/vetor:worktree-create`. Crie o worktree antes de disparar o
+worker, um `git worktree add` de cada vez (evita `git index lock`):
 
-Sem `-c`/`--session`, a segunda chamada começa uma sessão nova, sem memória do plano exibido na
-Fase 2.
-
----
-
-## Referências (self-contained, sem `$CLAUDE_PLUGIN_ROOT`)
-
-- `.opencode/scripts/vetor-status.sh` — tabela de monitoramento (cópia direta de `scripts/vetor-status.sh`)
-- `.opencode/scripts/vetor-checks.sh` — checagens determinísticas (`default-branch`, `in-worktree`,
-  `migrations`, `debug-scan`, `validate-issue-ref`; cópia direta de `scripts/vetor-checks.sh`)
-- `.opencode/scripts/resolve-model.ts` — fallback de modelo/provedor (issue #84): lê
-  `modelFallback.<tier>` de `.claude/vetor/config.json` e `.claude/vetor/status/model-health.json`
-  (issue #83), devolve no stdout o primeiro modelo saudável ou sai com código 1 se todos degraded
-- `.opencode/scripts/ensure-external-directory-permission.ts` — garante (idempotente) a regra
-  `permission.external_directory` para `<repo-root>/.claude/vetor/**` em `<repo-root>/opencode.json`
-  e em `<worktree>/opencode.json` (issues #313, #389), sem a qual todo dispatch de
-  `issue-worker`/`code-review` auto-rejeita leitura/escrita fora do worktree — ver Fase 4,
-  "Permissão external_directory"
-- `.opencode/agent/issue-worker.md` — subagente/processo despachado por grupo de issues na Fase 4
-- Comandos de teste: `.claude/vetor/module-test-map.md`, ou auto-detecção a partir do CI na ausência dela
-- Procedimento de validação manual do porte contra uma instalação real do OpenCode:
-  `wiki/Compatibilidade-OpenCode.md`, seção "Validação manual do coordinator"
-- Formato do status file: ver "Status file" abaixo — embutido inline (curto o bastante para não
-  justificar mais um arquivo cross-referenciado; a versão Claude Code usa
-  `skills/shared/references/agent-status.template.md` via `$CLAUDE_PLUGIN_ROOT`)
-
-### Status file
-
-Path: `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md`. Formato:
-
-```markdown
-# Agent Status — <branch>
-Updated: <ISO 8601>
-Status: RUNNING | BLOCKED_WAITING | GREEN | FAILED_MAX_ITERATIONS
-Iteration: <N>/5 (Issue #<M>)
-Last action: <última ação executada>
-Next: <próximo passo planejado>
-```
-
-`BLOCKED_WAITING` exige adicionalmente:
-
-```markdown
-Blocked on: <o que precisa — permissão, decisão técnica>
-Options:
-1. <opção sugerida>
-2. <opção alternativa>
-Recommendation: <opção recomendada e por quê>
-```
-
-`FAILED_MAX_ITERATIONS`: o worker também cria `FAIL_ANALYSIS.md` no root do worktree.
-
----
-
-## Modo headless
-
-A flag `--headless` substitui os pontos de interação humana do fluxo — sem `AskUserQuestion`/
-`ExitPlanMode` no OpenCode, a interação normal já é texto no chat; o que muda é a ausência total de
-espera por resposta:
-
-| Fase | Interativo | Headless |
-|------|-----------|----------|
-| 2 — teto de workers | Pergunta em texto livre no chat (pula se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
-| 2 — aprovação do plano | Exibe o plano e aguarda resposta afirmativa | Não aguarda; registra o plano no relatório final |
-| 5.b — `BLOCKED_WAITING` | Apresenta ao usuário no chat e aguarda decisão | Não escala; mantém o grupo bloqueado e reporta |
-| 5.c — circuit breaker | Pergunta se deve pausar | Sempre pausa: para de despachar e reporta |
-
-Além disso, em `--headless`:
-
-- **A Fase 6 (merge) não roda.** Nunca rode `git push`, `gh pr create`, `gh pr ready` ou
-  `gh pr merge`. Grupos em `GREEN` são reportados como prontos para ship (branch + path do worktree).
-- **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
-  `BLOCKED_WAITING` e aparece no relatório final.
-- **Ausência de trabalho não é falha.** Se não houver issue elegível, encerre com um relatório de
-  uma linha. Não force dispatch para parecer produtivo.
-
----
-
-## Comportamento
-
-### 0 — Detecção de modo
-
-Avalie o argumento recebido antes de qualquer outra fase:
-
-- **Sem argumento** ou **`--resume`**: modo de retomada.
-  1. Rode `bash .opencode/scripts/vetor-status.sh` para listar os worktrees ativos com status file.
-     O script cruza os status files com `gh pr list` anotando branches `GREEN` que já possuem PR aberta
-     (`GREEN (PR #N aberta)`) ou mergeada (`GREEN (já mergeado via #N)`).
-  2. Se houver ao menos um status file ativo: pule as Fases 1–3, refaça a pergunta de teto de
-     workers (Fase 2; pulada quando `N_rec = 1`) e vá direto para o monitoramento (Fase 5) — o estado em memória de `N` não
-     sobrevive a um reinício do processo coordenador. Em `--headless`: não refaça a pergunta — use
-     `N_rec` diretamente (ver Fase 2).
-  3. Se não houver nenhum worktree ativo com status file: caia no fluxo padrão a partir da Fase 1
-     (todas as issues abertas, ou `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado).
-- **Lista de números** (`^[0-9]+(,[0-9]+)*$`) ou **label explícito**: siga o fluxo padrão a partir
-  da Fase 1.
-
-### 1 — Listar issues candidatas e analisar afinidades
-
-Se o argumento casar `^[0-9]+(,[0-9]+)*$`, trate-o como **lista por número**; caso contrário, como
-**label**. Se **nenhum argumento** for passado:
-- Verifique se `.claude/vetor/config.json` declara `defaultDispatchLabel`
-  - Se sim: use esse label (filtro explícito)
-  - Se não: descubra todas as issues abertas (sem filtro de label)
-
-O restante do fluxo é idêntico nos três modos (número, label, descoberta dinâmica).
-
-- **Lista por número:**
-  ```bash
-  for N in ${ARG//,/ }; do gh issue view "$N" --json number,title,labels,body; done
-  ```
-- **Label ou defaultDispatchLabel:**
-  ```bash
-  gh issue list --label <label> --state open --json number,title,labels,body
-  ```
-- **Descoberta dinâmica (sem argumento, sem defaultDispatchLabel):**
-  ```bash
-  gh issue list --state open --json number,title,labels,body
-  ```
-
-**Priorização: pedidas pelo usuário vs. recomendadas pelo agente.** O modo por label (ou a descoberta
-dinâmica) traz de volta, na mesma leva, issues abertas manualmente/via integração externa e issues
-geradas por skills do plugin (`/vetor:backlog`, `/vetor:retro`, `/vetor:guardian`), sem distinção. A origem
-passa a ser identificada por uma linha do corpo (`body`) que começa com `🤖 Gerado por` seguida de
-`/vetor:<skill>`, com ou sem crases em volta do comando. A regex de referência (flag multilinha) é
-``^🤖 Gerado por `?/vetor:``. Exemplos reais:
-``🤖 Gerado por `/vetor:backlog` — [Claude Code](https://claude.ai/code)``,
-``🤖 Gerado por `/vetor:retro` — sessão em <projeto>`` e `🤖 Gerado por /vetor:guardian`.
-Menções ao rodapé no meio de uma frase ou de um item de checklist não contam.
-
-Antes de montar o agrupamento por afinidade, particione o resultado usando o `body` e os `labels` já retornados:
-
-- **Recomendadas pelo agente**: issues cujo `body` tenha uma linha que comece com `🤖 Gerado por` seguida
-  de `/vetor:<skill>` (com ou sem crases em volta do comando; menções no meio de uma frase ou item de
-  checklist não contam) OU que
-  contenham a label `ai-generated` em `labels` (regra de transição para issues antigas já criadas com
-  a label e sem rodapé, ex.: #403, #404 — leitura apenas; o plugin nunca aplica a label).
-- **Pedidas pelo usuário** (candidatas primárias): issues sem uma linha do corpo que comece com
-  `🤖 Gerado por` seguida de `/vetor:<skill>` e sem a label `ai-generated`.
-
-Priorize o grupo "pedidas pelo usuário" no plano de dispatch. Só inclua "recomendadas pelo agente"
-quando o primeiro grupo estiver **vazio**, ou como itens extras claramente sinalizados como
-"recomendação do agente" no plano da Fase 2.
-
-Para cada issue candidata, verifique se já há PR aberto ou se a branch correspondente já foi entregue:
 ```bash
-gh pr list --search "closes:#<N>" --state open --json number,title
-```
-Se já houver PR (ou se `vetor-status.sh` reportar `GREEN (PR #N aberta)` ou `GREEN (já mergeado via #N)`):
-pule a issue, registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado (#<PR>)".
-
-**Triagem de despachabilidade (issue #413).** Nem toda issue aberta pode ser resolvida por um worker
-autônomo. Classifique antes do agrupamento:
-
-- `SKIPPED (aguardando insumo do usuário)`: depende de decisão, validação externa, credenciais,
-  assets ou texto que só o usuário tem.
-- `SKIPPED (fora deste repositório)`: o escopo pertence a outro repositório (ou a um projeto ainda
-  sem repo).
-- `SKIPPED (épico/acompanhamento)`: issue agregadora ou de acompanhamento, sem unidade de código
-  despachável.
-
-Essas issues saem da leva: Onda `—`, modelo `—`, Ação `SKIPPED (<motivo>)` e justificativa no plano
-e no relatório. Se for a Lead, o grupo inteiro sai; se for Sequential, só ela. Grupos `SKIPPED` nunca
-bloqueiam a transição de ondas da Fase 4.
-
-**Agrupamento de afinidade** (delegação opcional a um runtime externo disponível no `PATH` —
-Gemini/`agy`, OpenCode/`opencode`, Codex/`codex` — detecção estática + algoritmo de seleção
-agnóstico de provedor em `skills/shared/references/delegate-to-runtime.md` §1-2 no plugin Claude
-Code; sem equivalente próprio em `.opencode/scripts`. Só delegue se exatamente um candidato estiver
-disponível, ou se houver preferência configurada, ou mediante confirmação explícita do usuário
-quando ambíguo — nunca escolha silenciosamente entre 2+ candidatos sem anuência; qualquer falha do
-CLI delegado, não só ausência do binário, cai para o caminho inline abaixo, sem retry):
-```bash
-gh issue list --label <label> --state open --json number,title,labels,body | <runtime> -p "Analise estas issues em formato JSON e sugira um agrupamento de afinidade. Retorne o resultado em formato markdown estruturado indicando para cada grupo a Lead Issue (principal/mais antiga), as issues secundárias subsequentes do grupo, o slug sugerido e se o modelo/provedor ideal de execução deve ser o mais barato (ajustes simples/chore) ou o mais capaz (features complexas/refactor)."
+git worktree add ".claude/worktrees/<slug>" -b "<type>/<issue#>-<slug>"
 ```
 
-Sem nenhum runtime disponível ou com 3 ou menos issues, agrupe inline: título/labels/descrição
-correlatos → mesma Lead Issue + Sequential Issues, resolvidas sequencialmente pelo mesmo worker no
-mesmo worktree.
+### Fase 4 — cada worker é um processo `opencode` separado
 
-**Ondas de despacho (DAG Waves).** Grupos paralelos podem depender causalmente uns dos outros (ex.:
-grupo B usa uma entidade/migration criada pelo grupo A). Despachar B a partir do branch default
-antes do merge de A causa branch skew: o worktree de B nunca vê as mudanças de A. Antes de montar o
-plano da Fase 2, organize os grupos em **ondas topológicas** (`O_1, O_2, ..., O_k`):
+Antes de **cada** dispatch, inclusive redespacho e `--resume`, e depois da checagem de duplicidade
+da skill:
 
-1. Aplique heurísticas **best-effort** (não há grafo formal de dependências no GitHub): menção
-   explícita de um grupo a outro no título/corpo ("depende de #12", "após #12"), labels de ordem
-   (`blocked-by`, `depends-on`), ou mesmo módulo com evidência de que um grupo consome algo que o
-   outro propõe criar pela primeira vez.
-2. Monte um DAG de grupos (`A → B` quando B depende de A). Ciclo aparente ou heurística ambígua →
-   trate como não-dependente; não bloqueie o dispatch por inferência de baixa confiança.
-3. Ordene topologicamente: `O_1` = grupos sem dependência pendente; `O_2` = dependentes só de `O_1`;
-   e assim por diante.
-4. **Fallback** (caso comum): sem dependência detectável, todos os grupos formam `O_1` — comportamento
-   idêntico ao dispatch paralelo atual.
-5. O usuário pode corrigir manualmente o agrupamento em ondas no plano da Fase 2 antes de aprovar.
-
-### 2 — Apresentar plano de dispatch e obter aprovação
-
-Monte o plano estruturado:
-
-```markdown
-# Plano de Execução Vetor — Coordinator (OpenCode)
-
-Coordenando issues com a label: <label>
-
-## Ações Propostas
-
-| Onda | Grupo (Slug) | Lead/Sequential Issues | Modelo/Provedor Sugerido | Ação |
-|---|---|---|---|---|
-| O_1 | <slug-1> | #<N1> (Lead), #<M1> | <provider/model> | Despachar |
-| O_1 | <slug-2> | #<N3> (Lead) | <provider/model> | Despachar |
-| — | <slug-4> | #<N5> (Lead) | — | SKIPPED (aguardando insumo do usuário) |
-| O_2 | <slug-3> | #<N4> (Lead) | <provider/model> | Aguardar O_1 |
-```
-
-Se o plano incluir issues "recomendadas pelo agente" (Fase 1) — por ausência de issues pedidas pelo
-usuário pendentes, ou como itens extras opcionais —, sinalize cada uma na coluna "Ação" (ex.:
-"Despachar (recomendação do agente)") para distinguir a origem na aprovação.
-
-Se houver mais de uma onda, explique por que cada grupo de `O_2+` depende de um grupo de onda
-anterior. Se tudo couber em `O_1`, é o caso comum — sem dependência detectada.
-
-**Modelo/provedor sugerido**: classifique cada grupo em um `tier` — `simple` (todas as issues são
-`chore`/`fix` pequenos) ou `complex` (há `feat`/`refactor`, ou mais de 2 issues) — e mostre no plano
-o **primeiro item** de `modelFallback.<tier>` (`.claude/vetor/config.json` — obrigatório desde a
-issue #312) como sugestão. O `tier` (não um modelo fixo) é o que vale
-para o dispatch real na Fase 4, resolvido ali contra `model-health.json` (issue #83) — pode diferir
-do sugerido aqui se estiver `degraded` no momento do dispatch.
-
-#### Pergunta sobre teto de workers simultâneos
-
-Antes de pedir aprovação:
-1. Calcule `N_rec = min(largura da maior onda, maxConcurrentWorkers de .claude/vetor/config.json
-   — senão 5)`. Acima de ~8 workers, sinalize que custo agregado e ruído de monitoramento crescem
-   mais rápido que o ganho de paralelismo — é recomendação, não limite; a decisão é do usuário.
-2. **Com `N_rec = 1` (ou largura da maior onda = 1): não pergunte** (issue #414). Não há escolha
-   real de concorrência; adote `N = 1`, registre no plano e pule para "Aprovação do plano" abaixo.
-   **Em `--headless`: não pergunte.** Adote `N = N_rec`, registre no relatório final (Fase 7) o
-   valor e como foi calculado, e pule para "Aprovação do plano" abaixo.
-
-   Fora do headless, pergunte ao usuário no chat (texto livre — sem `AskUserQuestion` nativo):
-   `"Quantos workers simultâneos usar nesta rodada? Recomendado: <N_rec> (<justificativa em 1
-   linha>). Alternativas: 1 (serializado) ou um valor customizado."`
-3. Armazene a resposta como `N` para a Fase 4 — vale para toda a sessão de dispatch, inclusive
-   retomada (repita a pergunta antes de despachar qualquer `QUEUED`, salvo quando `N_rec = 1`; em
-   `--headless`, apenas recalcule `N_rec`).
-
-#### Aprovação do plano
-
-**Em `--headless`: não aguarde resposta.** Inclua o plano no relatório final (Fase 7) e siga para a
-Fase 3.
-
-Fora do headless — sem `ExitPlanMode` nem `implementation_plan.md` no OpenCode: **exiba o plano no
-chat e aguarde resposta textual afirmativa explícita** (ex.: "sim", "prosseguir") antes de despachar
-qualquer processo `opencode run`. Trocas manuais de modelo/provedor ou teto valem na Fase 4.
-
-⚠️ A resposta de aprovação precisa ser enviada com `-c`/`--continue` (ou `--session <id>`) para
-continuar a **mesma sessão** do plano exibido — ver aviso em "Sintaxe" acima. Sem isso, `opencode
-run --agent issue-coordinator "sim"` começa uma sessão nova, sem contexto da Fase 2.
-
-### 3 — Fase de criação (serializada)
-
-Para cada grupo aprovado:
-1. **Slug:** kebab-case da Lead Issue (máx 30 chars).
-2. **Branch:** `<type>/<issue#>-<slug>`.
-3. **Worktree path:** `.claude/worktrees/<slug>` na raiz do repositório principal — **crie você
-   mesmo** antes de disparar o `opencode run --dir` (não há harness nativo equivalente ao
-   `isolation: "worktree"` do Claude Code):
+1. **Permissão `external_directory` (issues #313, #389).** O worker roda com `--dir <worktree>`, mas
+   `config.json`, `module-test-map.md` e o status file ficam em `<repo-root>/.claude/vetor/`, fora
+   dele; sem uma regra explícita, o `opencode run` não-interativo auto-rejeita esse acesso. Rode,
+   com `$(pwd -W 2>/dev/null || pwd)` e não `$(pwd)` cru (no Git Bash do Windows, `pwd` sozinho pode
+   devolver um mount MSYS que o Deno nativo não resolve):
    ```bash
-   git worktree add ".claude/worktrees/<slug>" -b "<type>/<issue#>-<slug>"
+   echo '{"cwd": "'"$(pwd -W 2>/dev/null || pwd)"'", "worktree": ".claude/worktrees/<slug>"}' | deno run -A .opencode/scripts/ensure-external-directory-permission.ts
    ```
-   ⚠️ **Serializada** — rode um `git worktree add` de cada vez, para evitar `git index lock`.
-4. **Status File Path:**
-   `<repo-root>/.claude/vetor/status/<branch com / trocada por ->.md`.
+   Idempotente: grava a regra em `<repo-root>/opencode.json` e em `<worktree>/opencode.json`. Se sair
+   com código 1 (`opencode.json` inválido, ou versionado pelo projeto), pare o dispatch deste grupo,
+   reproduza a mensagem no chat e não prossiga sem a regra.
+2. **Modelo (issues #84, #312, #395).** Classifique o grupo em `tier` — `simple` (só `chore`/`fix`
+   pequenos) ou `complex` (há `feat`/`refactor`, ou mais de 2 issues) — e resolva o modelo:
+   ```bash
+   echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd -W 2>/dev/null || pwd)"'"}' | deno run -A .opencode/scripts/resolve-model.ts
+   ```
+   - Código 0: o stdout é o `<provider/model>` a usar (primeiro de `modelFallback.<tier>` em
+     `.claude/vetor/config.json` que não esteja `degraded` em `model-health.json`).
+   - Código 1: todos os modelos do tier estão `degraded` (transitório). Não despache; mantenha o
+     grupo `QUEUED`, avise no chat e tente no próximo ciclo de monitoramento.
+   - Código 2: `modelFallback.<tier>` não está configurado (erro permanente do projeto). Pare o
+     dispatch de **todos** os grupos pendentes, reproduza a mensagem do script e oriente a configurar
+     `modelFallback.simple`/`modelFallback.complex` (`opencode models` ajuda a descobrir um válido).
+     Workers já despachados continuam.
+   - A coluna "Modelo / Backend" do plano mostra o primeiro item de `modelFallback.<tier>` como
+     sugestão; vale o resultado do `resolve-model.ts` no momento do dispatch.
 
-### 4 — Fase de desenvolvimento (processos paralelos, com teto de concorrência e ondas)
+Então dispare um processo por grupo, em background, dentro do teto `N`, com o prompt do worker no
+formato de `../shared/references/issue-coordinator-dispatch.md` (Lead, Sequenciais, branch já
+criada, Status File Path):
 
-Cada worker é um processo `opencode` do SO — não há tool `task` in-process nem `Agent()`. Respeite o
-teto `N` da Fase 2 e as ondas da Fase 1:
-
-- Ordene os grupos por prioridade (ordem das issues no label) **dentro de cada onda**.
-- Despache até `N` grupos, **estritamente dentro da onda corrente** (`O_i`). Grupos de `O_{i+1}` ou
-  posterior nunca são despachados enquanto houver grupo de `O_i` ainda não mergeado — mesmo com vaga
-  no teto `N`. Ficam `QUEUED (aguardando O_i)` na tabela de monitoramento.
-- Dentro da onda corrente: quando um worker atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou
-  `BLOCKED_WAITING` sem resposta pendente, despache o próximo grupo `QUEUED` da mesma onda, mantendo
-  o número de workers ativos no teto.
-- **Transição de onda:** só inicie `O_{i+1}` depois que (a) todos os grupos de `O_i` chegarem a
-  `GREEN` e passarem pela Fase 6 (merge), e (b) o branch default estiver sincronizado com esses
-  merges (`git fetch && git log origin/<default> -1` antes do primeiro `git worktree add` de
-  `O_{i+1}`). Um grupo de `O_i` em `FAILED_MAX_ITERATIONS`/`BLOCKED_WAITING` sem resolução bloqueia a
-  transição — reporte como pendência em vez de avançar a onda.
-- Se um worker de onda posterior reportar erro por dependência ausente de um grupo anterior ainda não
-  mergeado, é sinal de dependência não detectada pela heurística da Fase 1: pause o grupo, registre
-  no relatório e corrija o agrupamento em ondas na próxima sessão.
-
-⚠️ **Checagem de duplicidade** (antes de despachar cada grupo): rode
-`bash .opencode/scripts/vetor-status.sh` e cruze as issues do grupo candidato contra as issues já
-`RUNNING`/`BLOCKED_WAITING`/`GREEN` (ainda não mergeado) em outro status file. Se colidir, alerte no
-chat e pule o dispatch.
-
-**Permissão `external_directory` para `.claude/vetor/` (issue #313 — antes de todo dispatch, inclusive
-redespacho/`--resume`).** O worker roda com `--dir <worktree>` (cwd fixado no worktree), mas
-`config.json`, `module-test-map.md` e o status file vivem em `<repo-root>/.claude/vetor/`, fora da
-árvore do worktree. Sem uma regra explícita, o OpenCode trata esse acesso como `external_directory`
-(default `"*": "ask"`) e, em `opencode run` não-interativo, **auto-rejeita** em vez de bloquear
-esperando input — o worker nunca chega a ler `config.json`, nem a escrever o próprio status file.
-⚠️ Use `$(pwd -W 2>/dev/null || pwd)`, não `$(pwd)` cru: no Git Bash do Windows, `pwd` sozinho pode
-devolver um mount MSYS sem letra de unidade (ex. `/tmp/...`), que o Deno nativo do Windows não
-resolve — `normalizeCwd()` (issue #307) só cobre o padrão `/<letra>/...`, não mounts arbitrários.
-`pwd -W` (builtin do Git Bash) devolve o path nativo direto, sem essa lacuna; confirmado contra o
-CLI real que o comando cru com `$(pwd)` falha (`writefile ... NotFound`) exatamente nesse cenário.
-Rode, passando o worktree que o worker vai receber em `--dir`:
-```bash
-echo '{"cwd": "'"$(pwd -W 2>/dev/null || pwd)"'", "worktree": ".claude/worktrees/<slug>"}' | deno run -A .opencode/scripts/ensure-external-directory-permission.ts
-```
-Isso garante (cria ou mescla, idempotente — seguro de chamar antes de todo dispatch, inclusive quando
-a Fase 3 não roda de novo) uma regra `permission.external_directory` apontando para
-`<repo-root>/.claude/vetor/**` em `<repo-root>/opencode.json` **e** em `<worktree>/opencode.json`.
-O segundo é obrigatório a partir do opencode 1.19.0 (issue #389): com `--dir <worktree>`, a config
-resolvida pelo worker não inclui o `opencode.json` da raiz (`opencode debug config` rodado no
-worktree mostra a regra ausente), então só a regra da raiz deixava o worker auto-rejeitado. O script
-também põe `/opencode.json` no `info/exclude` do repositório, para o worker não commitar o arquivo
-(ele traz um path absoluto da máquina). Se o script sair com código 1 (`opencode.json` existente não
-é JSON válido, ou o projeto versiona `opencode.json`), pare o dispatch deste grupo, reproduza a
-mensagem de erro no chat e não prossiga sem a regra — o worker despachado sem ela trava já na
-primeira leitura de `config.json`.
-
-**Resolução de modelo/provedor (issue #84 — antes de montar o comando de dispatch).** Para o `tier`
-do grupo (Fase 2), rode (mesma ressalva de `$(pwd -W ...)` acima, issue #313):
-```bash
-echo '{"tier": "<simple|complex>", "cwd": "'"$(pwd -W 2>/dev/null || pwd)"'"}' | deno run -A .opencode/scripts/resolve-model.ts
-```
-- **Código 0:** stdout traz o modelo/provedor saudável a usar (`<provider/model>`) — primeiro da
-  lista `modelFallback.<tier>` que não estiver `degraded` e não expirado em `model-health.json`
-  (escrito pelo hook `event`, issue #83). Se o preferencial estiver saudável, é ele mesmo.
-- **Código 1:** todos os modelos do tier estão `degraded` (transitório) — **não despache este
-  grupo**. Mantenha-o `QUEUED`, registre no chat `⚠️ Grupo <slug> aguardando modelo saudável (todos
-  os fallbacks de "<tier>" degraded)` e tente de novo no próximo ciclo de monitoramento (Fase 5).
-- **Código 2 (issue #312):** `modelFallback.<tier>` não está configurado em
-  `.claude/vetor/config.json` do projeto-alvo (erro de configuração **permanente**, não
-  transitório — nunca trate como `QUEUED`, pois não muda sozinho num próximo ciclo). Pare o
-  dispatch de **todos** os grupos pendentes (o problema não é por grupo, é do projeto), reproduza a
-  mensagem de erro do script no chat/relatório final (Fase 7) e oriente o usuário a configurar
-  `modelFallback.simple`/`modelFallback.complex` em `.claude/vetor/config.json` com um
-  provider/modelo válido para o ambiente atual (`opencode models`/`opencode auth list` ajudam a
-  descobrir qual) antes de rodar o coordinator de novo. Grupos já despachados continuam normalmente;
-  não cancele workers em andamento.
-
-Só então monte o comando de dispatch (um processo em background por grupo, dentro do teto),
-usando o modelo resolvido:
 ```bash
 opencode run --dir ".claude/worktrees/<slug>" --agent issue-worker --model "<provider/model resolvido>" \
-  "Lead Issue #<N> (título, body, critérios de aceite). Issues Sequenciais: #<M1>, #<M2>
-   (idem). Branch <type>/<issue#>-<slug> já criada. Status File Path: <path absoluto>.
-   Atualize-o a cada iteração de cada issue (Iteration: <i>/5 (Issue #<M>))." \
+  "<prompt do worker>" \
   > ".claude/vetor/status/<branch com / trocada por ->.log" 2>&1 &
 ```
 
-Guarde o PID (`$!`) só como referência de debug local — a fonte de verdade do progresso é sempre o
-status file, nunca o processo do SO (pode ter sido lançado em outra sessão do coordenador).
+O PID (`$!`) é só referência de debug: a fonte de verdade do progresso é o status file.
 
-⚠️ **Redespacho de worktree existente** (retomada, resposta a `BLOCKED_WAITING`, ou redespacho após
-`FAILED_MAX_ITERATIONS`): **não** rode `git worktree add` de novo — reaproveite o worktree existente
-(`git worktree list` para confirmar o path), rode de novo o `ensure-external-directory-permission.ts`
-acima com `"worktree": "<path-existente>"` e dispare só o `opencode run --dir <path-existente>
---agent issue-worker --model "<provider/model resolvido>" "..."`.
-- **Escalação de tier após `FAILED_MAX_ITERATIONS` (issue #395):** quando um grupo `simple` atingir
-  `FAILED_MAX_ITERATIONS`, redespache **uma vez** com `tier: complex`, resolvido por
-  `resolve-model.ts`. Um grupo que já é `complex` **não escala**.
+**Redespacho de worktree existente** (retomada, resposta a `BLOCKED_WAITING`, ou depois de
+`FAILED_MAX_ITERATIONS`): não rode `git worktree add` de novo. Confirme o path com
+`git worktree list`, rode de novo o `ensure-external-directory-permission.ts` com
+`"worktree": "<path-existente>"` e dispare só o `opencode run --dir <path-existente> --agent
+issue-worker --model "<provider/model resolvido>" "<contexto>"`. Depois de `FAILED_MAX_ITERATIONS`
+em grupo `simple`, redespache **uma vez** com `tier: complex`, resolvido por `resolve-model.ts`; um
+grupo que já é `complex` não escala.
 
-### 5 — Monitoramento (via polling de arquivo)
+### Fases 6 e 7 — merge e fechamento
 
-Sem canal de mensagens entre processos, o coordenador monitora por **polling periódico** do status
-file (ex.: a cada 1-2 minutos, ou sob demanda quando o usuário pedir "status"):
-
-**5.a — Tabela de status**
-```bash
-bash .opencode/scripts/vetor-status.sh
-```
-Reproduza a tabela no chat, acrescentando as linhas dos grupos `QUEUED` e a coluna `Onda` (Fase 1) —
-o script não conhece o DAG, essa coluna vem do plano da Fase 2. Grupos de onda posterior aparecem
-como `QUEUED (aguardando O_i)`.
-
-⚠️ **Duplicidade entre workers**: extraia `Issue #<M>` de cada `Iteration:` de todos os status files
-ativos (`RUNNING`, `BLOCKED_WAITING`, `GREEN` não mergeado) e cruze-os. Se a mesma issue aparecer em
-mais de um worktree, sinalize no chat.
-
-**5.b — Escalação de bloqueios**
-
-**Em `--headless`: não escale.** Registre no relatório final (Fase 7) o agente (`<slug>`/Issue
-`#<N>`), o motivo do bloqueio e a recomendação do worker. Não conceda permissão, não escolha opção
-técnica e não redespache. Nunca mate um worker bloqueado para abrir vaga no teto `N`.
-
-Fora do headless, se um status file estiver em `BLOCKED_WAITING`: leia `Blocked on`/`Options`/
-`Recommendation` e apresente ao usuário no chat (texto — sem `AskUserQuestion` nativo), identificando
-`<slug>`/`Issue #<N>` e a recomendação do worker.
-- **Permissão bloqueada**: pergunte se deve permitir esta vez / negar / parar o worker. Sem
-  `SendMessage`, a resposta vira **ação do coordenador**: rode o comando aprovado você mesmo dentro
-  do worktree (`cd <worktree> && <comando>`), ou — mais comum, já que `opencode run` não fica
-  esperando input depois de escrever `BLOCKED_WAITING` — redespache um novo `opencode run --dir
-  <worktree-existente> --agent issue-worker "<contexto da decisão tomada>"` sem `git worktree add`
-  (nota de redespacho, Fase 4).
-- **Decisão técnica**: idem — registre a decisão e redespache com o contexto necessário no prompt.
-
-**5.c — Circuit Breaker**: se 2+ grupos falharem com `FAILED_MAX_ITERATIONS` e assinaturas de erro
-idênticas (`Last action`/`FAIL_ANALYSIS.md` parecidos), pare de despachar novos `QUEUED` e pergunte
-ao usuário se deve investigar antes de continuar. **Em `--headless`: não pergunte — sempre pause.**
-Deixe os workers ativos terminarem e vá direto para o relatório final (Fase 7), destacando a
-assinatura de erro comum.
-
-### 6 — Fase de merge (serializada)
-
-⚠️ **Em `--headless` esta fase inteira é pulada.** Não rode `git push`, `gh pr create`, `gh pr ready`
-nem `gh pr merge`. Liste os grupos `GREEN` no relatório final (Fase 7) como prontos para ship, com a
-branch e o path do worktree (obtido via `git worktree list`), e encerre.
-
-Quando um status file atingir `GREEN`:
-1. Confirme lendo o arquivo.
-2. Localize o worktree real: `git worktree list` (correlacione pela branch do grupo).
-3. `cd <path-do-worktree>` e rode o pipeline de entrega equivalente ao `ship` do Claude
-   Code — se ele não tiver sido portado ainda para o OpenCode neste repositório, rode manualmente:
-   `<comando de teste> && git push -u origin <branch> && gh pr create ... && gh pr merge --squash`.
-4. Após merge bem-sucedido, execute `bash .opencode/scripts/vetor-checks.sh
-   safe-remove-worktree <path>` e atualize a tabela. Se a checagem apontar um worktree filho,
-   pare o cleanup e alerte com o path do filho; nunca rode `git worktree remove <path>` diretamente.
-
-Se falhar (CI vermelho, review required): marque na tabela e continue com outros grupos.
-
-### 7 — Relatório final
-
-**Antes do relatório, volte ao root e sincronize.** A Fase 6 faz `cd` para dentro do worktree de
-cada grupo; sem um retorno explícito, a sessão termina com o git preso na branch de um worktree —
-possivelmente já mergeada e obsoleta.
-
-```bash
-cd "$(git worktree list | head -1 | awk '{print $1}')"   # a 1ª linha é sempre o root
-bash .opencode/scripts/vetor-checks.sh sync-root
-```
-
-`sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se
-imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de descartar trabalho.
-
-Após todos os grupos terminarem (ou timeout de 90 minutos):
-
-```
-## Coordinator Report (OpenCode)
-
-| Issue | Resultado | PR | Detalhes |
-|-------|----------|-----|----------|
-| #42 | ✅ Merged | #87 | squash merged |
-| #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preservado |
-| #44 | ⏸️ Review required | #89 | awaiting human review |
-| #45 | ⏭️ SKIPPED (aguardando Spec) | — | gate de Spec/design, Fase 2 — usuário optou por gerar a Spec antes |
-| #46 | ⏭️ SKIPPED (aguardando insumo do usuário) | — | triagem Fase 1/2 — aguardando decisão/conteúdo do usuário |
-| #47 | ⏭️ SKIPPED (fora deste repositório) | — | triagem Fase 1/2 — escopo pertence a repositório externo |
-| #48 | ⏭️ SKIPPED (épico/acompanhamento) | — | triagem Fase 1/2 — issue agregadora sem código direto |
-
-Resumo: <N> merged, <M> falharam, <K> aguardando review, <J> skipped.
-```
-
-### Checkpoint de fechamento de onda (issue #246)
-
-Após montar o Coordinator Report acima, confirme que a lista de grupos originalmente planejados na
-Fase 2 bate 1:1 com os resultados reportados — **nenhum grupo do plano aprovado deve ficar sem uma
-linha de resultado**. Resultados válidos dependem do modo:
-
-- **Interativo**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`,
-  `BLOCKED_WAITING`, `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`,
-  `SKIPPED (fora deste repositório)`, `SKIPPED (épico/acompanhamento)`. Se houver discrepância
-  (grupo do plano não aparece acima), reporte-o como "não despachado" e pergunte ao usuário no chat
-  se deve despachar agora.
-- **`--headless`**: `Merged`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`,
-  `BLOCKED_WAITING`, `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`,
-  `SKIPPED (fora deste repositório)`, `SKIPPED (épico/acompanhamento)` ou `GREEN (pronto para ship)`
-  — este último status aparece para grupos que atingiram verde em modo headless (sem merge nessa
-  fase). Se houver discrepância, apenas reporte o grupo como "não despachado" no campo de observações;
-  não pergunte nem redespache.
-
-**Em `--headless`, o relatório é a única saída da execução** — ninguém acompanhou o processo, então
-ele precisa ser autossuficiente. Acrescente ao formato acima:
-
-- O plano de dispatch da Fase 2 (não aprovado por ninguém, apenas registrado).
-- O teto `N` usado e como foi calculado.
-- Para cada grupo `GREEN`: branch e path do worktree (via `git worktree list`), marcados como
-  **prontos para ship** — já que a Fase 6 não rodou.
-- Para cada grupo `BLOCKED_WAITING`: o bloqueio e a recomendação do worker, para decisão humana.
-- Se o circuit breaker disparou: a assinatura de erro comum e quais grupos ficaram sem despachar.
-- Se não houve nenhuma issue elegível para despacho: um relatório de uma linha informando isso, sem
-  forçar dispatch para parecer produtivo.
-
----
-
-## Orçamentos e hard caps
-
-- 5 iterações por worker é **orçamento sugerido**, não hard cap enforced (contabilizado pelo próprio
-  `issue-worker` no status file, sem checagem automática — issue #156). Ao atingir a 5ª iteração sem
-  verde, o worker deve registrar `BLOCKED_WAITING` ou `FAILED_MAX_ITERATIONS`, nunca decidir sozinho
-  continuar.
-- Timeout global de 90 minutos para o coordenador (este sim, hard cap real) — configurável via
-  `maxSessionMinutes` em `.claude/vetor/config.json` (default 90). O teto restringe novos dispatches e
-  o início de novas ondas; ships e workers ativos podem concluir.
-- Iterações em `BLOCKED_WAITING` não contam contra o orçamento de 5
-
-O número de processos simultâneos **não é um hard cap**: é o valor `N` decidido pelo usuário na
-Fase 2 (default recomendado `maxConcurrentWorkers` de `.claude/vetor/config.json`, senão 5).
-
----
-
-## Restrições
-
-- `git worktree add` e a fase de merge são sempre serializados — nunca em paralelo
-- Fonte de verdade: status files (`.claude/vetor/status/`) + `gh pr list` + `gh pr checks` — nunca
-  estado em memória do processo coordenador (pode ser reiniciado a qualquer momento)
-- Nunca lance um worker sem `--dir` apontando para um worktree válido já criado
-- Se interrompido, reconstrua o estado com `.opencode/scripts/vetor-status.sh` + `gh pr list` —
-  nunca dependa de PID de processo (pode já ter terminado ou sido lançado em outra sessão)
-- Ao fim de toda sessão (Fase 7), o root fica na branch principal e sincronizado — nunca preso numa
-  branch de worktree de grupo
-- Em `--headless`: nunca aguarde resposta em chat, nunca rode a Fase 6 (merge/ship), nunca
-  auto-aprove permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
-  relatório e pare — não improvise
+- O `ship` não foi portado para o OpenCode. Em grupo `GREEN` (fora do `--headless`), entre no
+  worktree real (`git worktree list`) e rode o pipeline equivalente: `<comando de teste> && git push
+  -u origin <branch> && gh pr create ... && gh pr merge --squash`. Depois do merge, rode
+  `bash .opencode/scripts/vetor-checks.sh safe-remove-worktree <path>`; se a checagem apontar um
+  worktree filho, pare o cleanup e alerte — nunca rode `git worktree remove` direto.
+- Antes do relatório, volte ao root e rode `bash .opencode/scripts/vetor-checks.sh sync-root`.
+- O relatório final tem o título `## Coordinator Report (OpenCode)` e segue
+  `../shared/references/issue-coordinator-report.md`.

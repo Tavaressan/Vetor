@@ -11,7 +11,7 @@
 // Sem `model` conhecido, ainda registramos sob a chave "unknown" — perder o sinal de rate-limit
 // custa mais do que uma chave imprecisa (o coordinator trata "unknown" como não-fallback-ável).
 
-import { resolveWorktree } from "./lib/status.ts";
+import { resolveWorktree } from "../../scripts/lib/status.ts";
 import { computeUntil, isRateLimitOrQuotaStatus, recordModelHealth } from "./lib/model-health.ts";
 
 interface Payload {

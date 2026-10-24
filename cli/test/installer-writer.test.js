@@ -29,7 +29,11 @@ function sha256(content) {
 // `agents/` inclui os 3 formatos que coexistem na fonte real (issue #283):
 // `demo.md` (Claude Code/Cursor), `demo/agent.json` (Antigravity) e `demo/codex.toml`
 // (Codex) — para provar que cada engine só recebe o seu, não os três.
-function makeFakeSourceRoot() {
+//
+// `opencodeShared: true` acrescenta o que o OpenCode recebe do canônico (scripts e skill do
+// coordinator, ver `addFakeOpencodeShared`) — fica fora do padrão para não aparecer na lista de
+// arquivos copiados das demais engines.
+function makeFakeSourceRoot({ opencodeShared = false } = {}) {
   const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vetor-writer-source-'));
   fs.mkdirSync(path.join(sourceRoot, 'skills', 'demo'), { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, 'skills', 'demo', 'SKILL.md'), 'conteúdo v1\n');
@@ -59,7 +63,37 @@ function makeFakeSourceRoot() {
     'opencode skill v1\n',
   );
 
+  if (opencodeShared) addFakeOpencodeShared(sourceRoot);
+
   return sourceRoot;
+}
+
+// Issue #477: `.opencode/scripts/` é gerado do canônico em `scripts/` (as quatro entradas
+// explícitas mais as dependências locais) e dos módulos exclusivos de `opencode/scripts/`, que
+// importam o canônico por caminho real e são reescritos para o layout instalado.
+function addFakeOpencodeShared(root, { prefix = '' } = {}) {
+  const write = (relPath, content) => {
+    const file = path.join(root, prefix, ...relPath.split('/'));
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+  };
+
+  write('scripts/check-edit.ts', 'import { isWithin } from "./lib/guard.ts";\n');
+  write('scripts/safety-check.ts', 'import { evaluate } from "./lib/safety-policy.ts";\n');
+  write('scripts/vetor-checks.sh', '#!/usr/bin/env bash\n');
+  write('scripts/vetor-status.sh', '#!/usr/bin/env bash\n');
+  write('scripts/lib/guard.ts', 'export const isWithin = 1;\n');
+  write('scripts/lib/safety-policy.ts', 'import { status } from "./status.ts";\nexport const evaluate = status;\n');
+  write('scripts/lib/status.ts', 'export const status = 1;\n');
+  // Issue #478: o agent do OpenCode carrega a skill `coordinator` pela ferramenta `skill`.
+  write('skills/coordinator/SKILL.md', 'Leia `../shared/references/ref.md`.\n');
+  write('skills/shared/references/ref.md', 'referência v1\n');
+  write('skills/shared/references/nao-citada.md', 'ninguém cita\n');
+  write(
+    'opencode/scripts/resolve-model.ts',
+    'import { status } from "../../scripts/lib/status.ts";\nimport { cwd } from "./lib/cwd.ts";\n',
+  );
+  write('opencode/scripts/lib/cwd.ts', 'export const cwd = 1;\n');
 }
 
 const CLAUDE_ENGINE = { id: 'claude-code', name: 'Claude Code', detected: true };
@@ -582,7 +616,7 @@ test('installFiles: sem eventos descartados, "warnings" vem vazio', () => {
 // por referenciar `$CLAUDE_PLUGIN_ROOT`, e um `agents/` plural que o OpenCode não escaneia).
 test('installFiles: copia a árvore opencode/ achatada para .opencode/ quando OpenCode é selecionada', () => {
   withTempDir((projectRoot) => {
-    const sourceRoot = makeFakeSourceRoot();
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
     try {
       const { copied } = installFiles({
         projectRoot,
@@ -654,6 +688,7 @@ test('installFiles: OpenCode resolve via defaultSourceRoot() mesmo no layout de 
         path.join(packageRoot, 'templates', 'opencode', 'agent', 'demo.md'),
         'opencode agent v1\n',
       );
+      addFakeOpencodeShared(packageRoot, { prefix: 'templates' });
 
       const sourceRoot = defaultSourceRoot({ packageRoot });
       assert.equal(sourceRoot, path.join(packageRoot, 'templates'));
@@ -666,8 +701,176 @@ test('installFiles: OpenCode resolve via defaultSourceRoot() mesmo no layout de 
 
       assert.ok(copied.includes('.opencode/agent/demo.md'));
       assert.ok(fs.existsSync(path.join(projectRoot, '.opencode', 'agent', 'demo.md')));
+      assert.ok(fs.existsSync(path.join(projectRoot, '.opencode', 'scripts', 'lib', 'safety-policy.ts')));
     } finally {
       fs.rmSync(fakeParent, { recursive: true, force: true });
+    }
+  });
+});
+
+const OPENCODE_SELECTED = [{ id: 'opencode', name: 'OpenCode', detected: false }];
+
+// Issue #477: nenhum dos oito espelhos é versionado em opencode/scripts/; o instalador gera
+// `.opencode/scripts/` a partir de `scripts/` — inclusive a dependência nova da #476 — e o plugin
+// (`SCRIPTS_DIR = ../scripts`) encontra tudo no destino.
+test('installFiles: OpenCode gera .opencode/scripts/ a partir do canônico, com as dependências locais', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
+    try {
+      const { copied, skipped } = installFiles({
+        projectRoot,
+        engines: OPENCODE_SELECTED,
+        sourceRoot,
+      });
+
+      assert.deepEqual(skipped, []);
+      for (
+        const generated of [
+          '.opencode/scripts/check-edit.ts',
+          '.opencode/scripts/safety-check.ts',
+          '.opencode/scripts/vetor-checks.sh',
+          '.opencode/scripts/vetor-status.sh',
+          '.opencode/scripts/lib/guard.ts',
+          '.opencode/scripts/lib/safety-policy.ts',
+          '.opencode/scripts/lib/status.ts',
+        ]
+      ) {
+        assert.ok(copied.includes(generated), `${generated} não foi gerado`);
+      }
+
+      const installed = path.join(projectRoot, '.opencode', 'scripts', 'lib', 'safety-policy.ts');
+      assert.equal(
+        fs.readFileSync(installed, 'utf8'),
+        fs.readFileSync(path.join(sourceRoot, 'scripts', 'lib', 'safety-policy.ts'), 'utf8'),
+      );
+      assert.equal(
+        readManifest(projectRoot).files['.opencode/scripts/lib/safety-policy.ts'].engine,
+        'opencode',
+      );
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('installFiles: OpenCode reescreve o import do canônico nos módulos exclusivos e preserva o resto', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
+    try {
+      installFiles({ projectRoot, engines: OPENCODE_SELECTED, sourceRoot });
+
+      const exclusive = fs.readFileSync(
+        path.join(projectRoot, '.opencode', 'scripts', 'resolve-model.ts'),
+        'utf8',
+      );
+      assert.equal(
+        exclusive,
+        'import { status } from "./lib/status.ts";\nimport { cwd } from "./lib/cwd.ts";\n',
+      );
+      assert.ok(fs.existsSync(path.join(projectRoot, '.opencode', 'scripts', 'lib', 'cwd.ts')));
+      // O manifesto guarda o hash do conteúdo reescrito, o que o update seguro compara depois.
+      assert.equal(
+        readManifest(projectRoot).files['.opencode/scripts/resolve-model.ts'].sha256,
+        sha256(exclusive),
+      );
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('installFiles: OpenCode é idempotente com os scripts gerados', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
+    try {
+      installFiles({ projectRoot, engines: OPENCODE_SELECTED, sourceRoot });
+      const second = installFiles({ projectRoot, engines: OPENCODE_SELECTED, sourceRoot });
+
+      assert.deepEqual(second.skipped, []);
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+// Issue #478: o agent carrega a skill pela ferramenta `skill`; o OpenCode a descobre em
+// `.opencode/skills/<nome>/SKILL.md`. Só o coordinator e as referências dele, mantendo o caminho
+// relativo `../shared/references/` — não as demais skills do plugin.
+test('installFiles: OpenCode instala a skill coordinator e as referências citadas em .opencode/skills/', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
+    try {
+      const { copied, skipped } = installFiles({
+        projectRoot,
+        engines: OPENCODE_SELECTED,
+        sourceRoot,
+      });
+
+      assert.deepEqual(skipped, []);
+      assert.ok(copied.includes('.opencode/skills/coordinator/SKILL.md'));
+      assert.ok(copied.includes('.opencode/skills/shared/references/ref.md'));
+      assert.ok(!copied.includes('.opencode/skills/shared/references/nao-citada.md'));
+      // `skills/demo/` é uma skill do plugin que o OpenCode não recebe; a de
+      // `opencode/skills/demo/` (árvore nativa) continua sendo copiada como antes.
+      assert.equal(
+        fs.readFileSync(path.join(projectRoot, '.opencode', 'skills', 'demo', 'SKILL.md'), 'utf8'),
+        'opencode skill v1\n',
+      );
+
+      // A skill resolve a referência pelo caminho relativo que ela mesma usa.
+      const skillDir = path.join(projectRoot, '.opencode', 'skills', 'coordinator');
+      assert.ok(fs.existsSync(path.join(skillDir, '..', 'shared', 'references', 'ref.md')));
+      assert.equal(readManifest(projectRoot).files['.opencode/skills/coordinator/SKILL.md'].engine, 'opencode');
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('installFiles: OpenCode falha indicando o path quando a skill coordinator some da fonte', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
+    try {
+      fs.rmSync(path.join(sourceRoot, 'skills', 'coordinator'), { recursive: true });
+
+      assert.throws(
+        () => installFiles({ projectRoot, engines: OPENCODE_SELECTED, sourceRoot }),
+        /skills\/coordinator\/SKILL\.md/,
+      );
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('installFiles: OpenCode falha indicando o path quando uma dependência canônica some', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
+    try {
+      fs.rmSync(path.join(sourceRoot, 'scripts', 'lib', 'safety-policy.ts'));
+
+      assert.throws(
+        () => installFiles({ projectRoot, engines: OPENCODE_SELECTED, sourceRoot }),
+        /lib\/safety-policy\.ts/,
+      );
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('installFiles: OpenCode recusa um espelho de script canônico versionado em opencode/scripts/', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
+    try {
+      fs.writeFileSync(path.join(sourceRoot, 'opencode', 'scripts', 'lib', 'status.ts'), 'export const status = 2;\n');
+
+      assert.throws(
+        () => installFiles({ projectRoot, engines: OPENCODE_SELECTED, sourceRoot }),
+        /opencode\/scripts\/lib\/status\.ts/,
+      );
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
     }
   });
 });
@@ -734,7 +937,7 @@ test('agents/*.md reais: usam model: inherit e listas YAML compatíveis com agy 
 // preservando `model: haiku`/`sonnet` nas cópias do Claude Code.
 test('installFiles: grava "model: inherit" em .cursor/agents/*.md no lugar de haiku|sonnet, preservando Claude Code e idempotência', () => {
   withTempDir((projectRoot) => {
-    const sourceRoot = makeFakeSourceRoot();
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
     try {
       fs.writeFileSync(
         path.join(sourceRoot, 'agents', 'issue-worker.md'),
@@ -848,7 +1051,7 @@ test('installFiles: Cursor + Codex compartilham .agents/skills', () => {
 
 test('installFiles: Cursor + Claude Code sem Codex nem Antigravity compartilham .claude/skills', () => {
   withTempDir((projectRoot) => {
-    const sourceRoot = makeFakeSourceRoot();
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
     try {
       installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE, CLAUDE_ENGINE, OPENCODE_ENGINE] });
 
@@ -861,7 +1064,7 @@ test('installFiles: Cursor + Claude Code sem Codex nem Antigravity compartilham 
 
 test('installFiles: Cursor + OpenCode (que não grava skills genéricas) continua em .cursor/skills', () => {
   withTempDir((projectRoot) => {
-    const sourceRoot = makeFakeSourceRoot();
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
     try {
       installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE, OPENCODE_ENGINE] });
 
@@ -874,7 +1077,7 @@ test('installFiles: Cursor + OpenCode (que não grava skills genéricas) continu
 
 test('installFiles: com as cinco engines as skills ficam em no máximo duas raízes e .claude/skills é só do Claude Code', () => {
   withTempDir((projectRoot) => {
-    const sourceRoot = makeFakeSourceRoot();
+    const sourceRoot = makeFakeSourceRoot({ opencodeShared: true });
     try {
       installFiles({
         projectRoot,

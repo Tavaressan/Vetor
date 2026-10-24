@@ -22,6 +22,9 @@
 // OpenCode selecionado, rodando a partir do pacote npm, não copiaria nada (o guard
 // `fs.existsSync` de `installFiles()` tornaria isso um no-op silencioso).
 //
+// `scripts` adicionada na issue #477: o canônico que o OpenCode usa (e que deixou de ser copiado
+// em `opencode/scripts/`) vai para `templates/scripts/`; ver `syncOpencodeScripts` abaixo.
+//
 // Escopo deliberadamente restrito (issue #255, redespacho): copia as pastas inteiras e
 // (para skills/agents/hooks) agnósticas de engine, sem nenhuma adaptação de formato por
 // destino (isso é um gap conhecido e documentado em writer.js, fora do escopo deste
@@ -29,6 +32,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+
+const { resolveOpencodeScripts } = require('../lib/installer/opencode-scripts.js');
 
 const SOURCE_DIRS = ['skills', 'agents', 'hooks', 'opencode'];
 
@@ -58,7 +63,28 @@ function syncTemplates({ monorepoRoot = MONOREPO_ROOT, templatesDir = TEMPLATES_
     synced.push(dirName);
   }
 
+  if (syncOpencodeScripts({ monorepoRoot, templatesDir })) synced.push('scripts');
+
   return synced;
+}
+
+// Issue #477: `opencode/scripts/` não versiona mais cópias dos scripts canônicos. O instalador gera
+// `.opencode/scripts/` a partir de `<sourceRoot>/scripts/`; no pacote publicado esse `sourceRoot` é
+// `templates/`, então o prepack leva para `templates/scripts/` só o canônico que o OpenCode usa
+// (entradas explícitas e dependências locais, ver opencode-scripts.js), não `scripts/` inteiro.
+// Sem a árvore `opencode/` na fonte não há nada a gerar. Retorna se algo foi sincronizado.
+function syncOpencodeScripts({ monorepoRoot, templatesDir }) {
+  const dest = path.join(templatesDir, 'scripts');
+  fs.rmSync(dest, { recursive: true, force: true });
+
+  if (!fs.existsSync(path.join(monorepoRoot, 'opencode'))) return false;
+
+  for (const relPath of resolveOpencodeScripts(monorepoRoot)) {
+    const target = path.join(dest, ...relPath.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(path.join(monorepoRoot, 'scripts', ...relPath.split('/')), target);
+  }
+  return true;
 }
 
 // Issue #316: sincroniza o LICENSE da raiz do monorepo para cli/LICENSE no prepack,
