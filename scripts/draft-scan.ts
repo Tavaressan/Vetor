@@ -37,6 +37,8 @@ const TEXT_EXTENSIONS = new Set([
   ".markdown",
   ".sh",
   ".bash",
+  ".ps1",
+  ".py",
   ".yml",
   ".yaml",
   ".toml",
@@ -44,6 +46,9 @@ const TEXT_EXTENSIONS = new Set([
   ".html",
   ".css",
 ]);
+
+// Dotfiles de texto do repositório: valem pelo nome inteiro, já que não têm extensão própria
+const TEXT_FILENAMES = new Set([".gitignore", ".gitattributes"]);
 
 interface ScanTarget {
   /** Caminho usado para ler o arquivo no disco */
@@ -57,8 +62,11 @@ interface ScanTarget {
 class UsageError extends Error {}
 
 function isTextFile(path: string): boolean {
-  const dot = path.lastIndexOf(".");
-  return dot !== -1 && TEXT_EXTENSIONS.has(path.slice(dot).toLowerCase());
+  // O git emite "/" também no Windows
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  if (TEXT_FILENAMES.has(name)) return true;
+  const dot = name.lastIndexOf(".");
+  return dot !== -1 && TEXT_EXTENSIONS.has(name.slice(dot).toLowerCase());
 }
 
 async function git(cwd: string, args: string[]): Promise<Uint8Array> {
