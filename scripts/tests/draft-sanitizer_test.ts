@@ -230,6 +230,100 @@ Deno.test("DraftSanitizer - JSDoc reescrito, acrescentado ou sem base não acusa
   assertEquals(rulesOf("sem docs", "notas.md", jsdocOriginal), []);
 });
 
+Deno.test("DraftSanitizer - JSDoc removido de um símbolo e acrescentado a outro é erro (issue #504)", () => {
+  // Mesma contagem de blocos que a base: só a comparação pelo símbolo documentado enxerga.
+  const draft = `
+/**
+ * Adiciona dois números inteiros.
+ */
+export function add(a: number, b: number) {
+  return a + b;
+}
+
+export function sub(a: number, b: number) {
+  return a - b;
+}
+
+/** Multiplica dois números. */
+export const mul = (a: number, b: number) => a * b;
+`;
+  const report = sanitizeDraftText(draft, { filename: "math.ts", originalText: jsdocOriginal });
+
+  assertEquals(report.issues.map((issue) => issue.rule), ["stripped-jsdoc"]);
+  assertEquals(report.issues[0].line, 1);
+  assertEquals(report.issues[0].message.includes("sub"), true, report.issues[0].message);
+  assertEquals(report.issues[0].message.includes("add"), false, report.issues[0].message);
+});
+
+Deno.test("DraftSanitizer - símbolo apagado ou renomeado com o seu JSDoc não é remoção de JSDoc", () => {
+  const withoutSub = `
+/**
+ * Adiciona dois números inteiros.
+ */
+export function add(a: number, b: number) {
+  return a + b;
+}
+`;
+  assertEquals(rulesOf(withoutSub, "math.ts", jsdocOriginal), []);
+
+  const renamed = jsdocOriginal.replace("function sub(", "function subtract(");
+  assertEquals(rulesOf(renamed, "math.ts", jsdocOriginal), []);
+});
+
+Deno.test("DraftSanitizer - o JSDoc é atribuído à declaração seguinte, com modificadores e comentário no meio", () => {
+  const base = `
+/** Constante. */
+export const LIMIT = 1;
+
+/** Assíncrona. */
+export async function load() {}
+
+/** Classe. */
+export default class Box {}
+
+/** Contrato. */
+// deno-lint-ignore no-empty-interface
+export interface Shape {}
+
+/** Alias. */
+export type Id = string;
+`;
+  const stripped = base.replace(/\/\*\*.*\*\/\n/g, "");
+  const report = sanitizeDraftText(stripped, { filename: "all.ts", originalText: base });
+
+  assertEquals(report.issues.map((issue) => issue.rule), ["stripped-jsdoc"]);
+  for (const name of ["LIMIT", "load", "Box", "Shape", "Id"]) {
+    assertEquals(
+      report.issues[0].message.includes(name),
+      true,
+      `${name}: ${report.issues[0].message}`,
+    );
+  }
+  assertEquals(rulesOf(base, "all.ts", base), []);
+});
+
+Deno.test("DraftSanitizer - blocos sem declaração de nível superior (membros, cabeçalho) seguem comparados por contagem", () => {
+  const base = `
+/** Cabeçalho do módulo. */
+
+import { x } from "./x.ts";
+
+export interface Shape {
+  /** Largura. */
+  readonly width: number;
+  /** Altura. */
+  readonly height: number;
+}
+`;
+  const oneMemberLess = base.replace("  /** Altura. */\n", "");
+  assertEquals(rulesOf(oneMemberLess, "shape.ts", base), ["stripped-jsdoc"]);
+
+  const noHeader = base.replace("/** Cabeçalho do módulo. */\n", "");
+  assertEquals(rulesOf(noHeader, "shape.ts", base), ["stripped-jsdoc"]);
+
+  assertEquals(rulesOf(base, "shape.ts", base), []);
+});
+
 Deno.test("scanDraftBytes - UTF-8 inválido é achado com a linha da substituição", () => {
   const bytes = new Uint8Array([0x61, 0x0a, 0x62, 0xff, 0x0a]);
   const report = scanDraftBytes(bytes, { filename: "code.ts" });

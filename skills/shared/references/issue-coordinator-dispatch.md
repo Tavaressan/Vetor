@@ -174,7 +174,7 @@ Quando o coordinator delegar o desenvolvimento de um grupo de issues a um runtim
 Quando o coordinator despachar sob o Alethe (contrato com a fonte e a data de cada limite em `delegate-to-runtime.md` §6):
 
 1. **Uma Chamada por Grupo (`one-call-per-group`)**:
-   - Cada grupo usa uma chamada `mcp__alethe__alethe_delegate` com `cwd` igual ao seu worktree isolado exclusivo. O `cwd` vale para a chamada inteira: nunca multiplexe worktrees e sempre o passe, pois sem ele o Alethe usa o próprio diretório e `isolate: true` falha (§6.3, regra 1).
+   - Cada grupo usa uma chamada `mcp__alethe__alethe_delegate` com `cwd` igual ao seu worktree isolado exclusivo. O `cwd` vale para a chamada inteira: nunca multiplexe worktrees e sempre o passe, pois sem ele o Alethe usa o próprio diretório e `isolate: true` falha. Como o `cwd` já é um worktree do Vetor, passe `isolate: false` (com `true` o Alethe cria outro worktree e uma branch `alethe/agent-job-N` para limpar depois; §6.3, regra 1).
 2. **Prompt Autocontido**:
    - `tasks` contém o texto integral da Lead Issue (corpo e Acceptance Criteria), os comandos de teste mapeados e a proibição expressa de git que escreva, `gh`, rede e edição do status file no worker (§6.3, regras 3 e 4).
 3. **Concorrência**:
