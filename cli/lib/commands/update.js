@@ -20,7 +20,9 @@ const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.nam
  *
  * Arquivo que constava no manifesto antes desta rodada e não aparece em `copied` nem
  * `skipped` depois é órfão (fonte removeu o arquivo, ex.: skill descontinuada): reportado,
- * nunca apagado — deleção fica reservada ao comando `uninstall`.
+ * nunca apagado — deleção fica reservada ao comando `uninstall`. Chave que `installFiles`
+ * migrou de `.cursor/skills/` para a raiz de skills compartilhada (`migrated`, #479) não é
+ * órfã: deixou o manifesto de propósito.
  *
  * `readManifest`/`installFiles` são injetáveis para testes.
  */
@@ -36,12 +38,19 @@ function update(cwd = process.cwd(), options = {}) {
     return;
   }
 
-  const engineIds = [...new Set(Object.values(manifestBefore.files).flatMap((entry) => entry.engines ?? [entry.engine]))];
+  // Entrada `uninstalled` (arquivo editado que sobrou de `uninstall --engines`) não reativa a engine.
+  const activeEntries = Object.values(manifestBefore.files).filter((entry) => !entry.uninstalled);
+  const engineIds = [...new Set(activeEntries.flatMap((entry) => entry.engines ?? [entry.engine]))];
   const engines = engineIds.map((id) => ({ id, name: ENGINE_NAME_BY_ID.get(id) ?? id }));
+
+  if (engines.length === 0) {
+    console.info('Nenhuma engine ativa neste projeto: só restam arquivos preservados de engines desinstaladas.');
+    return;
+  }
 
   console.info(`Atualizando engines: ${engines.map((engine) => engine.name).join(', ')}.`);
 
-  const { copied, skipped, warnings = [] } = installFiles({ projectRoot: cwd, engines });
+  const { copied, skipped, warnings = [], migrated = [] } = installFiles({ projectRoot: cwd, engines });
 
   console.info(`${manifestBefore.packageVersion ?? 'desconhecida'} → ${cliVersion}`);
 
@@ -51,13 +60,18 @@ function update(cwd = process.cwd(), options = {}) {
       `${skipped.length} arquivo(s) não sobrescrito(s) (editado(s) pelo usuário ou não gerado(s) pelo instalador).`,
     );
   }
+  if (migrated.length > 0) {
+    console.info(`${migrated.length} arquivo(s) de skills do Cursor migrado(s) para o diretório de skills compartilhado.`);
+  }
   for (const warning of warnings) {
     console.info(`Aviso: ${warning}`);
   }
 
-  const touched = new Set([...copied, ...skipped.map((entry) => entry.path)]);
+  // Chave migrada saiu do manifesto de propósito: não é órfã da fonte.
+  const touched = new Set([...copied, ...skipped.map((entry) => entry.path), ...migrated.map((entry) => entry.from)]);
   for (const key of keysBefore) {
     if (key.startsWith('.codex/skills/') && manifestBefore.files[key].engine === 'codex') continue;
+    if (manifestBefore.files[key].uninstalled) continue;
     if (!touched.has(key)) {
       console.info(`${key}: não existe mais na fonte (não removido — use "vetor uninstall" se quiser limpar).`);
     }

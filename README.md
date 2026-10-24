@@ -25,7 +25,7 @@ Se você é um agente de IA (Antigravity, Claude Code, Cursor, Codex ou OpenCode
 | **Antigravity** (Projeto) | `npx @tavaressan/vetor install --engines antigravity --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.agents/`) |
 | **Claude Code** (Global) | Comandos nativos no prompt:<br>`/plugin marketplace add Tavaressan/Vetor`<br>`/plugin install vetor@vetor` | `/plugin update vetor` | Global do usuário |
 | **Claude Code** (Projeto) | `npx @tavaressan/vetor install --engines claude-code --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.claude/`) |
-| **Cursor** (Projeto) | `npx @tavaressan/vetor install --engines cursor --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.cursor/`) |
+| **Cursor** (Projeto) | `npx @tavaressan/vetor install --engines cursor --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.cursor/`; as skills vão para `.agents/skills/` ou `.claude/skills/` quando Codex, Antigravity ou Claude Code também estão instalados) |
 | **OpenAI Codex** (Projeto) | `npx @tavaressan/vetor install --engines codex --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.codex/` e `.agents/skills/`) |
 | **OpenCode** (Projeto) | `npx @tavaressan/vetor install --engines opencode --yes` | `npx @tavaressan/vetor update` | Local do workspace (`.opencode/`) |
 
