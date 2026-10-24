@@ -183,6 +183,36 @@ Deno.test("issue #480: o contrato prático documenta os limites do Alethe", () =
   ) assertStringIncludes(text, piece);
 });
 
+Deno.test("issue #504: a regra 1 diz qual isolate usar e cita os fatos observados com a data", () => {
+  const rule = section(reference, "### 6.3. Contrato prático")
+    .split(/\r?\n/)
+    .find((line) => line.startsWith("| 1 |"));
+  assert(rule, "regra 1 ausente");
+  const text = squash(rule);
+  for (
+    const piece of [
+      "com `cwd` num worktree do Vetor, use `isolate: false`",
+      "o job roda nesse diretório",
+      "o Alethe cria `.alethe/worktrees/job-N` com a branch `alethe/agent-job-N`",
+      "`git worktree remove` e `git branch -d` depois do `alethe_release`",
+      "`isolate: true` só em tarefa sem worktree próprio (ex.: rascunho de Spec)",
+      "`isolate`: observado em 2026-10-23",
+    ]
+  ) assertStringIncludes(text, piece);
+});
+
+Deno.test("issue #504: as limitações da varredura de JSDoc ficam registradas no fluxo", () => {
+  const flow = squash(section(reference, "### 6.4. Fluxo"));
+  assertStringIncludes(flow, "comparados pelo símbolo documentado");
+  assertStringIncludes(flow, "renomear e descartar o JSDoc na mesma mudança passa despercebido");
+  assertStringIncludes(
+    flow,
+    "Blocos de membros e cabeçalhos de módulo são comparados só por contagem",
+  );
+  assertStringIncludes(flow, "arquivo renomeado ou movido aparece como novo");
+  assertStringIncludes(flow, "sem comparação de JSDoc");
+});
+
 async function listFiles(directory: URL): Promise<URL[]> {
   const files: URL[] = [];
   for await (const entry of Deno.readDir(directory)) {

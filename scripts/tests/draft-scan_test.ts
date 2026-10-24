@@ -155,6 +155,49 @@ Deno.test("draft-scan --base: varre alterados e novos, compara JSDoc e lista o q
   });
 });
 
+Deno.test("draft-scan --base: .ps1, .py e dotfiles de texto são escaneados, nunca ignorados (issue #504)", async () => {
+  await withTempDir(async (dir) => {
+    await git(dir, "init", "-q");
+    await Deno.writeTextFile(`${dir}/base.txt`, "base\n");
+    await git(dir, "add", ".");
+    await git(dir, "commit", "-q", "-m", "base");
+
+    // Cada arquivo novo carrega um achado (BOM ou mojibake). Os dotfiles só têm comentário, para
+    // não alterar o que o git considera não rastreado.
+    await Deno.writeTextFile(`${dir}/run.ps1`, "\u{feff}Write-Output 'oi'\n");
+    await Deno.writeTextFile(`${dir}/tool.py`, "# linha com \u{c3}\u{a9} quebrado\n");
+    await Deno.writeTextFile(`${dir}/.gitignore`, "# linha com \u{c3}\u{a9} quebrado\n");
+    await Deno.mkdir(`${dir}/sub`);
+    await Deno.writeTextFile(`${dir}/sub/.gitattributes`, "\u{feff}# atributos\n");
+
+    const result = await run(["--base", "HEAD"], dir);
+    assertEquals(result.code, 1, result.stdout + result.stderr);
+    assertStringIncludes(result.stdout, "run.ps1:1: [bom]");
+    assertStringIncludes(result.stdout, "tool.py:1: [mojibake]");
+    assertStringIncludes(result.stdout, ".gitignore:1: [mojibake]");
+    assertStringIncludes(result.stdout, "sub/.gitattributes:1: [bom]");
+    assertEquals(result.stdout.includes("ignorado"), false, result.stdout);
+    assertStringIncludes(result.stdout, "4 arquivo(s) escaneado(s), 4 achado(s).");
+  });
+});
+
+Deno.test("draft-scan --base: dotfile só vale pelo nome inteiro, não por terminar com a extensão", async () => {
+  await withTempDir(async (dir) => {
+    await git(dir, "init", "-q");
+    await Deno.writeTextFile(`${dir}/base.txt`, "base\n");
+    await git(dir, "add", ".");
+    await git(dir, "commit", "-q", "-m", "base");
+
+    await Deno.writeTextFile(`${dir}/foo.gitignore`, "\u{feff}x\n");
+    await Deno.writeTextFile(`${dir}/.secret`, "\u{feff}x\n");
+
+    // Nenhum dos dois é de texto reconhecido, então não há o que escanear: é falha, nunca limpo
+    const result = await run(["--base", "HEAD"], dir);
+    assertEquals(result.code, 2, result.stdout + result.stderr);
+    assertStringIncludes(result.stderr, "nenhum arquivo de texto para escanear");
+  });
+});
+
 Deno.test("draft-scan --base: alterações limpas saem com zero, inclusive JSDoc reescrito", async () => {
   await withTempDir(async (dir) => {
     await git(dir, "init", "-q");
