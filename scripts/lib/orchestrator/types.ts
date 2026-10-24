@@ -1,8 +1,8 @@
 /**
  * Tipos e interfaces normativos para runtimes orquestradores (issue #482).
  *
- * Define o contrato polimórfico para orquestradores de agentes externos (como Alethe, Orca
- * e servidores MCP genéricos), ampliando a capacidade de delegação além de CLIs síncronos
+ * Define o contrato polimórfico para orquestradores de agentes externos (hoje só o Alethe,
+ * o único com fonte observada), ampliando a capacidade de delegação além de CLIs síncronos
  * efêmeros (issue #247) com suporte a tarefas assíncronas com isolamento de worktree.
  */
 
@@ -20,7 +20,7 @@ export type JobExecutionStatus =
  * Capacidades e limites operacionais declarados pelo orquestrador.
  */
 export interface OrchestratorCapabilities {
-  /** Nome amigável de exibição (ex.: "Alethe Multiplexer", "Orca Agent Swarm") */
+  /** Nome amigável de exibição (ex.: "Alethe Orchestrator") */
   readonly displayName: string;
   /** Teto seguro para timeoutMs em chamadas de polling (ex.: 50_000ms para evitar timeout de transporte MCP) */
   readonly safePollTimeoutMs: number;
@@ -50,7 +50,7 @@ export interface OrchestratorDispatchInput {
  * Identificador opaco retornado após despacho bem-sucedido.
  */
 export interface OrchestratorJobHandle {
-  /** Identificador do orquestrador de origem (ex.: "alethe", "orca") */
+  /** Identificador do orquestrador de origem (ex.: "alethe") */
   readonly orchestratorId: string;
   /** ID único do job retornado pelo orquestrador (ex.: job_id, task_id) */
   readonly jobId: string;
@@ -89,7 +89,10 @@ export type ToolCaller = (
 export interface OrchestratorProbeContext {
   /** Ferramentas MCP ativas na sessão atual (namespace canônico mcp__<server>__<tool>) */
   tools: string[];
-  /** Variáveis de ambiente visíveis ao processo */
+  /**
+   * Variáveis de ambiente visíveis ao processo. O Alethe não usa: nenhuma variável ALETHE* ou
+   * ORCA* foi observada num worker Codex do Alethe em 2026-10-23.
+   */
   env?: Record<string, string | undefined>;
 }
 
@@ -97,14 +100,14 @@ export interface OrchestratorProbeContext {
  * Interface soberana que qualquer adaptador de orquestrador deve implementar.
  */
 export interface OrchestratorAdapter {
-  /** Identificador estável do orquestrador (kebab-case, ex.: "alethe", "orca") */
+  /** Identificador estável do orquestrador (kebab-case, ex.: "alethe") */
   readonly id: string;
   /** Matriz de capacidades declaradas */
   readonly capabilities: OrchestratorCapabilities;
 
   /**
    * Verifica estaticamente se este orquestrador está disponível na sessão:
-   * checagem no namespace de ferramentas MCP ou variáveis de ambiente.
+   * checagem no namespace de ferramentas MCP.
    * Nunca dispara chamadas de rede ou subprocessos "para ver se funciona" (mcp-availability.md).
    */
   isAvailable(context: OrchestratorProbeContext): boolean;
@@ -167,13 +170,4 @@ export interface OrchestratorConfig {
   fallbackToNative?: boolean;
   maxPollTimeoutMs?: number;
   pollIntervalSeconds?: number;
-  custom?: Record<
-    string,
-    {
-      dispatchTool: string;
-      checkTool: string;
-      releaseTool: string;
-      maxTimeoutMs?: number;
-    }
-  >;
 }

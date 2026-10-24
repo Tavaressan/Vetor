@@ -95,7 +95,7 @@ Completar o contrato de delegação externa do Vetor usando o Alethe MCP, corrig
 
 **Acceptance Criteria:**
 
-- [ ] A varredura cobre bytes de controle exceto TAB/LF/CR, BOM, mojibake (`Ã`, `â€`, U+FFFD), acento substituído por `?`, sequência literal `` `n ``, `declare -A` em `.sh` e remoção de bloco JSDoc em `.ts` comparada ao diff/base.
+- [ ] A varredura cobre bytes de controle exceto TAB/LF/CR, BOM, mojibake (U+00C3 seguido de caractere de continuação, U+00E2 U+20AC, U+FFFD), acento substituído por `?`, sequência literal `` `n ``, `declare -A` em `.sh` e remoção de bloco JSDoc em `.ts` comparada ao diff/base.
 - [ ] Cada padrão tem caso positivo e negativo automatizado em `scripts/tests/`.
 - [ ] Achados retornam código não-zero com arquivo e linha; resultado limpo retorna zero.
 - [ ] Falha da ferramenta de locale/regra de busca nunca pode ser interpretada como scan limpo. Foi observado em 2026-10-23 que `LC_ALL=C grep -P` no Git Bash falhou com `supports only unibyte and UTF-8 locales` e, com stderr redirecionado, pareceu limpa.

@@ -341,3 +341,4 @@ scripts/lib/orchestrator/
 | Data | Autor | Mudança |
 |------|-------|---------|
 | 2026-10-22 | /vetor:spec (pair programming) | Criação da Spec inicial para issue #482: abstração e interfaces polimórficas para runtimes orquestradores (Alethe, Orca e MCP). |
+| 2026-10-23 | Claude Code (issue-worker, issue #486) | Orca e o adaptador MCP genérico (`delegation.custom`) foram removidos do código e das referências por falta de fonte oficial; o texto desta Spec fica como registro histórico. Ver `delegacao-orquestrador-contrato.md`. |
