@@ -88,3 +88,30 @@ Deno.test("issue #488: push na posição de comando continua bloqueado", async (
   await assertDenied("  git push origin main --force");
   await assertDenied("git push \\\norigin main --force");
 });
+
+Deno.test("safety-policy: worker gate permite push e PR quando status é PR_STAGED (issue #493)", async () => {
+  const repo = await Deno.makeTempDir({ prefix: "vetor-safety-policy-test-" });
+  try {
+    const statusDir = `${repo}/.claude/vetor/status`;
+    await Deno.mkdir(statusDir, { recursive: true });
+    await Deno.writeTextFile(
+      `${statusDir}/feat-493.md`,
+      "Status: PR_STAGED\nIteration: 1/5\n",
+    );
+
+    const wt = {
+      root: repo,
+      branch: "feat-493",
+      toplevel: repo,
+      isLinked: true,
+    };
+
+    const reason = await evaluateShellCommand(
+      "git push origin feat-493",
+      () => Promise.resolve(wt),
+    );
+    assertEquals(reason, { decision: "allow" });
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
