@@ -7,12 +7,21 @@
 // tentar-e-capturar erro — mesmo princípio de `mcp-availability.md`) e decide a ação sem tocar
 // em disco/rede. Quem chama é responsável por rodar `command -v <bin>` para cada candidato e por
 // ler a preferência configurada em `.claude/vetor/config.json` (`delegation.preferredRuntime`).
+//
+// Runtimes MCP (ex.: o orquestrador Alethe, issue #481) não têm binário no PATH: a skill os informa
+// em `mcpAvailable`, detectados pelo namespace `mcp__<servidor>__*` (`mcp-availability.md`). Eles só
+// são escolhidos quando coincidem com a preferência configurada — nunca contam como candidatos.
 
 export type DelegationAction = "inline" | "delegate" | "ask";
 
 export interface DelegationSelectionInput {
   /** Runtimes candidatos encontrados no PATH nesta sessão (ex.: ["agy", "opencode"]). */
   available: string[];
+  /**
+   * Runtimes MCP detectados pela skill no namespace de ferramentas (ex.: ["alethe"]), sem binário
+   * no PATH. Só são selecionados quando iguais a `preferred`.
+   */
+  mcpAvailable?: string[];
   /** Preferência configurada pelo usuário (`delegation.preferredRuntime`), se houver. */
   preferred?: string | null;
   /** Sessão interativa (há interlocutor capaz de responder a uma pergunta) ou headless. */
@@ -28,9 +37,25 @@ export interface DelegationSelection {
 
 export function selectDelegationRuntime(input: DelegationSelectionInput): DelegationSelection {
   const { available, interactive } = input;
+  const mcpAvailable = input.mcpAvailable ?? [];
   const preferred = input.preferred ?? null;
 
+  if (preferred !== null && mcpAvailable.includes(preferred)) {
+    return {
+      action: "delegate",
+      runtime: preferred,
+      reason: "preferência configurada e disponível via MCP",
+    };
+  }
+
   if (available.length === 0) {
+    if (preferred === null && mcpAvailable.length > 0) {
+      // O runtime MCP existe, mas ninguém consentiu com ele: não é escolhido em silêncio.
+      return {
+        action: "inline",
+        reason: "runtime MCP disponível, mas sem preferência configurada; sem escolha silenciosa",
+      };
+    }
     return { action: "inline", reason: "nenhum runtime de delegação disponível no PATH" };
   }
 

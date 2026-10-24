@@ -37,13 +37,15 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
    de despacho configurado (`defaultDispatchLabel`), a contagem total de issues abertas sem filtro
    (`openIssuesTotal`), a contagem do que o `coordinator` despacharia sem argumento
    (`dispatchableIssues` — issues com `defaultDispatchLabel` se configurado, senão todas as
-   abertas), MCPs declarados em `.mcp.json`, runtimes detectados, status de variáveis de ambiente de
-   orquestradores (`orchestrators`) e `aiMemoryContainerState` (`running`, outro estado, `absent` ou
-   `null` se Docker não responder). Falhas de comandos opcionais não devem interromper o kickoff.
+   abertas), MCPs declarados em `.mcp.json`, runtimes detectados e `aiMemoryContainerState`
+   (`running`, outro estado, `absent` ou `null` se Docker não responder). A detecção de
+   orquestrador no probe não está implementada: não há sinal verificável fora do harness (nenhuma
+   variável de ambiente do orquestrador no worker observado em 2026-10-23), então o orquestrador só
+   é reconhecido no passo 2. Falhas de comandos opcionais não devem interromper o kickoff.
 
 2. Complemente a lista de MCPs declarados com os MCPs ativos na sessão conforme
-   `mcp-availability.md`. Os servidores Context7, Docker, ai-memory e orquestradores (Alethe, Orca
-   ou custom) são relevantes para o sumário.
+   `mcp-availability.md`. Os servidores Context7, Docker, ai-memory e o orquestrador Alethe
+   (`mcp__alethe__*`) são relevantes para o sumário.
    Nunca tente conectar apenas para sondar; a sondagem do container Docker no passo 1 é
    somente-leitura. Considere ai-memory configurado nesta sessão somente se estiver ativo ou
    aparecer entre os MCPs que falharam ao conectar. Se não estiver configurado, não mencione receita
@@ -69,9 +71,9 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
 3. Apresente um sumário executivo conciso: inicialização do projeto (`config.json`), branch/estado
    limpo, worktrees existentes, total de issues abertas e despacháveis (`openIssuesTotal` e
    `dispatchableIssues`), disponibilidade de MCPs e runtimes de delegação CLI, e se há algum
-   orquestrador de agentes detectado (Alethe, Orca ou customizado). Diferencie configuração declarada
-   de ferramenta ativa na sessão; informe o estado do container ai-memory somente se ele estiver
-   configurado nesta sessão.
+   orquestrador de agentes (cite o Alethe quando `mcp__alethe__*` estiver ativo na sessão).
+   Diferencie configuração declarada de ferramenta ativa na sessão; informe o estado do container
+   ai-memory somente se ele estiver configurado nesta sessão.
 
 4. Faça o priming explícito, condicionado a cada ferramenta estar disponível:
    - Se Context7 estiver disponível: **Use Context7 para documentação atualizada de bibliotecas.**
@@ -82,7 +84,11 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
    - Se algum runtime CLI estiver disponível: **Use agy/delegação para tarefas pesadas** conforme
      `../shared/references/delegate-to-runtime.md`; respeite a seleção e anuência descritas na
      referência.
-   - Se algum orquestrador estiver disponível (Alethe, Orca ou customizado): **Use o orquestrador para despacho paralelo de workers e isolamento de worktree** conforme `../shared/references/delegate-to-runtime.md` §6.
+   - Se `mcp__alethe__*` estiver ativo: **Use o orquestrador Alethe para despacho paralelo de workers
+     e isolamento de worktree** conforme `../shared/references/delegate-to-runtime.md` §6. Ele só é
+     selecionado quando `delegation.preferredRuntime` é `alethe` (informe `mcpAvailable: ["alethe"]`
+     ao `selectDelegationRuntime`) e depois do acordo de escopo do §2.1; sem a preferência, não o
+     escolha em silêncio.
    - Se Docker MCP estiver disponível, use-o apenas quando uma tarefa da sessão precisar inspecionar
      containers.
 

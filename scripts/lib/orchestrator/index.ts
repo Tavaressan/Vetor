@@ -4,40 +4,17 @@
 
 import { OrchestratorRegistry } from "./registry.ts";
 import { AletheAdapter } from "./adapters/alethe.ts";
-import { OrcaAdapter } from "./adapters/orca.ts";
-import { GenericMcpAdapter } from "./adapters/generic-mcp.ts";
-import type { OrchestratorConfig } from "./types.ts";
 
 export * from "./types.ts";
 export * from "./registry.ts";
 export * from "./adapters/alethe.ts";
-export * from "./adapters/orca.ts";
-export * from "./adapters/generic-mcp.ts";
 
 /**
- * Cria uma instância padrão do OrchestratorRegistry pré-populada com os adaptadores
- * nativos (Alethe, Orca) e quaisquer adaptadores customizados declarados no config.json.
+ * Cria uma instância padrão do OrchestratorRegistry pré-populada com o adaptador do Alethe,
+ * o único orquestrador com fonte observada (sonda real de 2026-10-23, job-67).
  */
-export function createDefaultOrchestratorRegistry(
-  config?: OrchestratorConfig,
-): OrchestratorRegistry {
+export function createDefaultOrchestratorRegistry(): OrchestratorRegistry {
   const registry = new OrchestratorRegistry();
   registry.register(new AletheAdapter());
-  registry.register(new OrcaAdapter());
-
-  if (config?.custom) {
-    for (const [id, customOpts] of Object.entries(config.custom)) {
-      registry.register(
-        new GenericMcpAdapter({
-          id,
-          dispatchTool: customOpts.dispatchTool,
-          checkTool: customOpts.checkTool,
-          releaseTool: customOpts.releaseTool,
-          maxTimeoutMs: customOpts.maxTimeoutMs,
-        }),
-      );
-    }
-  }
-
   return registry;
 }

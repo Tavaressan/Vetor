@@ -169,13 +169,15 @@ Quando o coordinator delegar o desenvolvimento de um grupo de issues a um runtim
    - Concluído o trabalho (após commit e validação) ou em caso de descarte do rascunho, o worktree temporário do runtime deve ser removido com segurança via `vetor-checks.sh safe-remove-worktree <path>`.
 
 
-### Dispatch para orquestradores de agentes (Alethe, Orca e MCP)
+### Dispatch para o orquestrador MCP (Alethe)
 
-Quando o coordinator despachar sob um orquestrador multiplexador externo (conforme `scripts/lib/orchestrator/` e `delegate-to-runtime.md` §6):
+Quando o coordinator despachar sob o Alethe (contrato com a fonte e a data de cada limite em `delegate-to-runtime.md` §6):
 
 1. **Uma Chamada por Grupo (`one-call-per-group`)**:
-   - Cada grupo despachado utiliza `adapter.dispatch({ prompt, cwd: worktreePath })` apontando para o seu worktree isolado exclusivo. Nunca multiplexe múltiplos worktrees em uma única chamada.
+   - Cada grupo usa uma chamada `mcp__alethe__alethe_delegate` com `cwd` igual ao seu worktree isolado exclusivo. O `cwd` vale para a chamada inteira: nunca multiplexe worktrees e sempre o passe, pois sem ele o Alethe usa o próprio diretório e `isolate: true` falha (§6.3, regra 1).
 2. **Prompt Autocontido**:
-   - O prompt enviado ao worker do orquestrador deve conter a descrição completa da Lead Issue, Acceptance Criteria, comandos de teste mapeados e a proibição expressa de comandos `git` e `gh` no container/worker.
-3. **Liberação Prévia de Recursos (`release-before-cleanup`)**:
-   - Antes de qualquer remoção do worktree com `safe-remove-worktree`, é **obrigatório** invocar `adapter.release(handle)` para fechar handles de arquivo abertos no sistema operacional.
+   - `tasks` contém o texto integral da Lead Issue (corpo e Acceptance Criteria), os comandos de teste mapeados e a proibição expressa de git que escreva, `gh`, rede e edição do status file no worker (§6.3, regras 3 e 4).
+3. **Concorrência**:
+   - Respeite o `concurrencyLimit` devolvido pelo `alethe_delegate` (§6.3, regra 2).
+4. **Liberação Prévia de Recursos (`release-before-cleanup`)**:
+   - Antes de qualquer remoção do worktree com `safe-remove-worktree`, é **obrigatório** chamar `mcp__alethe__alethe_release` com `{ jobIds: [id] }` (§6.3, regra 7).

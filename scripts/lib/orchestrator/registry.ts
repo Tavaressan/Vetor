@@ -1,9 +1,9 @@
 /**
  * Registro e resolução polimórfica de orquestradores (issue #482).
  *
- * Gerencia adaptadores de orquestradores (Alethe, Orca, servidores MCP genéricos),
- * realiza a detecção estática de disponibilidade e resolve a seleção de acordo com
- * as preferências configuradas e o modo de execução (interativo vs headless).
+ * Gerencia adaptadores de orquestradores (hoje só o Alethe), realiza a detecção estática
+ * de disponibilidade e resolve a seleção de acordo com as preferências configuradas e o
+ * modo de execução (interativo vs headless).
  */
 
 import type {
@@ -15,7 +15,7 @@ import type {
 export interface OrchestratorSelectionInput {
   /** Adaptadores de orquestradores detectados como disponíveis nesta sessão */
   available: OrchestratorAdapter[];
-  /** Preferência configurada pelo usuário (ex.: delegation.orchestrator.preferred) */
+  /** Preferência configurada pelo usuário (`delegation.preferredRuntime`) */
   preferred?: string | null;
   /** Se a sessão é interativa (há usuário para responder) ou headless/automática */
   interactive?: boolean;
@@ -48,7 +48,7 @@ export class OrchestratorRegistry {
 
   /**
    * Filtra estaticamente os adaptadores que estão disponíveis na sessão atual,
-   * checando o namespace MCP e variáveis de ambiente (zero subprocessos/rede).
+   * checando o namespace MCP (zero subprocessos/rede).
    */
   detectAvailable(context: OrchestratorProbeContext): OrchestratorAdapter[] {
     return this.list().filter((adapter) => adapter.isAvailable(context));
