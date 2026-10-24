@@ -281,6 +281,47 @@ while (!jobFinished) {
 3. **Liberação Obrigatória de Recursos:** Invoca `mcp__alethe__alethe_release({ job_id: jobId })`;
 4. **Atualização de Status:** Marca `GREEN (ready for ship)` no status file.
 
+#### Errata de 2026-10-23 (issue #486) para §5.2.3 a §5.2.5 e sinais de detecção
+
+Nota aditiva: o texto acima permanece como registro histórico do spike. Onde houver divergência,
+prevalece esta errata. Fontes: sonda real ao Alethe em 2026-10-23 (job-67) e schema das ferramentas
+MCP; observação do ambiente de processo em 2026-10-23.
+
+**1. Schema real das ferramentas (substitui os exemplos de §5.2.3, §5.2.4 e §5.2.5).** Os exemplos
+acima usam `prompt`, `job_id` e `status`; esses nomes eram ilustração/hipótese do spike, não o
+schema observado. O schema observado é:
+
+| Ferramenta | Argumentos | Resposta |
+|---|---|---|
+| `alethe_delegate` | `{ tasks: string[], agent, cwd, isolate, label, askForApproval, timeoutSeconds, webSearch }` | `{ accepted, runId, runningInParallel, concurrencyLimit, isolated, timeoutSeconds, jobs: [{ id, spec, worktree }], next }` |
+| `alethe_check` | `{ wait, timeoutMs, untilAllSettled }` | `{ deliveries: [{ seq, type: 'worker_done', jobId, outcome: 'succeeded', text }], workersStillBusy, note }` |
+| `alethe_release` | `{ jobIds: string[] }` | `{ released: [ids] }` |
+| `alethe_cancel` | `{ jobIds: string[] }` | não observada |
+
+- O id do job vem de `jobs[].id` (não existe `job_id`) e a tarefa vai em `tasks` (não existe `prompt`).
+- `alethe_check` não recebe `job_id`: é global à sessão e entrega cada resultado uma única vez. Quem
+  consome a entrega de um job que não é o seu precisa guardá-la; o estado do job está em
+  `deliveries[].type` e `deliveries[].outcome`, não em `status`.
+- As menções a `alethe_release(job_id)` em §3.3 (item 4) e §4.3 (item 6) leem-se como
+  `alethe_release({ jobIds: [id] })`.
+- Um `outcome: 'succeeded'` com `text` vazio não prova trabalho feito (ver
+  `skills/shared/references/delegate-to-runtime.md` §6).
+
+**2. Variáveis de ambiente eram hipótese, não fato verificado.** `ALETHE_ORCHESTRATOR_ACTIVE`,
+`ALETHE_ORCHESTRATOR`, `ALETHE_SESSION_ID` e `ORCHESTRATOR_TYPE` (§2.1 item 3, a camada secundária de
+§2.3 e §5.1.1, e o item 2 da Issue 2 de §7) nunca tiveram fonte. Em 2026-10-23 não havia nenhuma
+variável de ambiente cujo nome começasse com `ALETHE` ou `ORCA`, nem na sessão líder nem num worker
+Codex do Alethe. A detecção por variáveis foi removida do código pela issue #486; o único sinal
+verificável de presença é o namespace `mcp__alethe__*` no harness.
+
+**3. Orquestrador "Orca" sem fonte oficial.** A Spec da issue #482
+(`docs/specs/delegacao-runtimes-orquestradores.md`) generalizou o desenho deste spike com um
+adaptador para um orquestrador chamado Orca, com ferramentas `task_dispatch`, `task_check` e `task_release` e variáveis
+`ORCA_*`. Em 2026-10-23 nenhuma fonte oficial de servidor MCP e schema foi encontrada para ele; as
+ferramentas e variáveis eram hipótese. O adaptador, seus testes e as menções foram removidos pela
+issue #486. O adaptador genérico configurável (`delegation.custom`) também saiu, por falta de
+consumidor e de schema validado.
+
 ---
 
 ## 6. Recomendação de Desenho Global

@@ -79,9 +79,7 @@ Formalizar no Vetor uma camada de abstração normativa e polimórfica para orqu
   - Sem adaptadores ativos -> ação `native` (fallback para subagentes nativos do harness).
   - Preferência configurada presente nos disponíveis -> ação `orchestrate` com o adapter preferido.
   - Preferência configurada indisponível -> ação `native` (sem substituição silenciosa por outro vendor).
-  - Um único adaptador disponível sem preferência -> ação `orchestrate` direto (sem ambiguidade).
-  - Múltiplos adaptadores sem preferência em sessão interativa -> ação `ask`.
-  - Múltiplos adaptadores sem preferência em sessão headless -> ação `native` (critério de desempate determinístico).
+  - Sem preferência configurada, com um ou mais adaptadores disponíveis, em qualquer modo de sessão -> ação `native`: o orquestrador nunca é escolhido em silêncio (regra alterada na issue #504, alinhada a `selectDelegationRuntime`; a Spec previa `orchestrate` para um único adaptador e `ask` para vários em sessão interativa).
 
 ### RF-03 - Adaptador Concreto para Alethe (`AletheAdapter`)
 
@@ -341,3 +339,5 @@ scripts/lib/orchestrator/
 | Data | Autor | Mudança |
 |------|-------|---------|
 | 2026-10-22 | /vetor:spec (pair programming) | Criação da Spec inicial para issue #482: abstração e interfaces polimórficas para runtimes orquestradores (Alethe, Orca e MCP). |
+| 2026-10-23 | Claude Code (issue-worker, issue #486) | Orca e o adaptador MCP genérico (`delegation.custom`) foram removidos do código e das referências por falta de fonte oficial; o texto desta Spec fica como registro histórico. Ver `delegacao-orquestrador-contrato.md`. |
+| 2026-10-23 | Claude Code (issue-worker, issue #504) | RF-02: `select` sem preferência passa a retornar sempre `native`, alinhando o registro à regra de `selectDelegationRuntime` para runtime MCP. |

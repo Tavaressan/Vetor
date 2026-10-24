@@ -22,13 +22,15 @@ const { version: packageVersion } = require('../../package.json');
 // (`cursor-hooks.js`) e gravado como arquivo único em vez de entrar no loop genérico de
 // `SOURCE_DIRS` abaixo.
 //
-// Redundância conhecida e aceita (YAGNI, achado #4 do code-review da PR #282): quando
-// Claude Code E Cursor estão ambos selecionados, `skills/`/`agents/` são copiados tanto
-// para `.claude/` quanto para `.cursor/`, mesmo a wiki confirmando que o Cursor já lê
-// `.claude/skills/`/`.claude/agents/` nativamente para compatibilidade (ver
-// wiki/Compatibilidade-Cursor.md). Deduplicar exigiria decidir qual engine é a "fonte da
-// verdade" em disco e como reagir a edição de só uma das cópias — complexidade/risco maior
-// que o custo de ter uma cópia extra em disco. Não implementado de propósito.
+// Skills do Cursor em diretório compartilhado (#479, revisa a "redundância aceita" do achado #4
+// do code-review da PR #282): o Cursor lê skills de `.agents/skills/`, `.cursor/skills/` e,
+// por compatibilidade, de `.claude/skills/` e `.codex/skills/` (cursor.com/docs/skills,
+// consultada em 2026-10-23; a página não define precedência entre as raízes). Para não gravar
+// uma terceira cópia, `resolveCursorSkillsRoot` manda as skills do Cursor para `.agents/` quando
+// há Codex ou Antigravity, para `.claude/` quando há Claude Code, e só então para `.cursor/`.
+// `.claude/skills/` continua sendo do Claude Code quando também há Codex/Antigravity. As skills
+// são cópia byte-a-byte, então o dono extra entra na mesma entrada do manifesto
+// (`engines`); agents e hooks do Cursor não mudam de lugar (formato próprio, ver abaixo).
 //
 // Antigravity (#283, revisada na #397): `.antigravity` era uma convenção assumida sem
 // confirmação e foi removida na #283. A documentação oficial (`antigravity.google/docs/subagents`,
@@ -148,6 +150,107 @@ function listFilesRecursive(dir) {
   return result;
 }
 
+function ownersOf(entry) {
+  return entry.engines ?? [entry.engine];
+}
+
+// Arquivo compartilhado por várias engines é tentado uma vez por dono: reporta uma vez só.
+function pushSkipped(skipped, key, reason) {
+  if (!skipped.some((entry) => entry.path === key)) skipped.push({ path: key, reason });
+}
+
+// Raiz (`.agents`, `.claude` ou `.cursor`) onde as skills do Cursor são gravadas, dado o
+// conjunto de engines presentes (seleção atual mais as já registradas no manifesto, para que
+// `install` e `update` cheguem ao mesmo destino).
+function resolveCursorSkillsRoot(engineIds) {
+  if (engineIds.has('codex') || engineIds.has('antigravity')) return '.agents';
+  if (engineIds.has('claude-code')) return '.claude';
+  return '.cursor';
+}
+
+// Remove diretórios vazios de `startDir` até `stopDir` (inclusive), sem subir além dele.
+function removeEmptyDirsUpTo(startDir, stopDir) {
+  let dir = startDir;
+  while (dir === stopDir || dir.startsWith(stopDir + path.sep)) {
+    if (fs.readdirSync(dir).length) return;
+    fs.rmdirSync(dir);
+    dir = path.dirname(dir);
+  }
+}
+
+const SKILLS_KEY_PATTERN = /^(\.cursor|\.agents|\.claude)\/skills\/(.+)$/;
+
+/**
+ * Faz o Cursor convergir para `targetRoot` quando a raiz de skills dele mudou (instalação
+ * anterior à #479 em `.cursor/skills/`, ou conjunto de engines que mudou desde a última vez).
+ * Para cada skill do Cursor em outra raiz de skills:
+ * - com outros donos: o Cursor deixa de constar como dono (a cópia continua para eles); o
+ *   registro do Cursor em `targetRoot` fica a cargo da cópia de skills do Cursor em `installFiles`;
+ * - só dele: o arquivo é migrado, desde que íntegro (hash igual ao do manifesto):
+ *   - editado pelo usuário: preservado, com aviso, e a entrada antiga continua no manifesto;
+ *   - destino já existente que não é gerenciado nem íntegro: nada é sobrescrito, ambos ficam,
+ *     com aviso, e o Cursor não é registrado como dono do destino (dono não verificado);
+ *   - destino gerenciado e íntegro: a cópia antiga é descartada e o Cursor vira dono do destino;
+ *   - destino ausente: o arquivo é movido.
+ * Entrada marcada como `uninstalled` é ignorada. Retorna os pares `{ from, to }` migrados.
+ */
+function migrateCursorSkills({ projectRoot, manifest, targetRoot, warnings, skipped }) {
+  const migrated = [];
+
+  for (const [oldKey, entry] of Object.entries(manifest.files)) {
+    const match = oldKey.match(SKILLS_KEY_PATTERN);
+    if (!match || match[1] === targetRoot || entry.uninstalled) continue;
+    const owners = ownersOf(entry);
+    if (!owners.includes('cursor')) continue;
+    if (match[2].split(/[\\/]/).includes('..')) continue;
+    if (owners.length > 1) {
+      entry.engines = owners.filter((id) => id !== 'cursor');
+      if (entry.engine === 'cursor') entry.engine = entry.engines[0];
+      continue;
+    }
+
+    const newKey = `${targetRoot}/skills/${match[2]}`;
+    const oldFile = path.join(projectRoot, ...oldKey.split('/'));
+    const newFile = path.join(projectRoot, ...newKey.split('/'));
+
+    if (!fs.existsSync(oldFile)) {
+      delete manifest.files[oldKey];
+      continue;
+    }
+    if (hashFile(oldFile) !== entry.sha256) {
+      warnings.push(`${oldKey}: arquivo editado pelo usuário; migração para ${targetRoot}/skills/ ignorada (o Cursor lê as duas cópias).`);
+      skipped.push({ path: oldKey, reason: 'user-modified' });
+      continue;
+    }
+
+    const targetEntry = manifest.files[newKey];
+    if (fs.existsSync(newFile)) {
+      if (!targetEntry || hashFile(newFile) !== targetEntry.sha256) {
+        warnings.push(`${newKey}: destino existente não gerenciado ou editado; migração de ${oldKey} ignorada.`);
+        skipped.push({ path: oldKey, reason: 'migration-blocked' });
+        continue;
+      }
+      fs.rmSync(oldFile);
+      targetEntry.engines = [...new Set([...ownersOf(targetEntry), 'cursor'])];
+    } else {
+      const targetOwners = targetEntry ? ownersOf(targetEntry) : [];
+      fs.mkdirSync(path.dirname(newFile), { recursive: true });
+      fs.renameSync(oldFile, newFile);
+      manifest.files[newKey] = {
+        sha256: entry.sha256,
+        engine: targetOwners[0] ?? 'cursor',
+        engines: [...new Set([...targetOwners, 'cursor'])],
+      };
+    }
+
+    delete manifest.files[oldKey];
+    removeEmptyDirsUpTo(path.dirname(oldFile), path.join(projectRoot, match[1], 'skills'));
+    migrated.push({ from: oldKey, to: newKey });
+  }
+
+  return migrated;
+}
+
 // Copia um único arquivo para o destino aplicando a mesma política de update seguro para
 // todas as engines/origens (SOURCE_DIRS agnósticos ou árvore nativa de uma engine):
 // arquivo ausente copia e manifesta; presente e íntegro (hash bate com o manifesto)
@@ -160,14 +263,14 @@ function copyManagedFile({ sourceFile, destFile, manifestKey, manifest, engineId
     if (!existingEntry) {
       // Arquivo existe no destino mas não consta no manifesto: não foi este
       // instalador que o gerou. Nunca sobrescreve nem deleta.
-      skipped.push({ path: manifestKey, reason: 'unmanaged' });
+      pushSkipped(skipped, manifestKey, 'unmanaged');
       return;
     }
 
     const destHash = hashFile(destFile);
     if (destHash !== existingEntry.sha256) {
       // Editado pelo usuário desde a última instalação: nunca sobrescreve sem sinalizar.
-      skipped.push({ path: manifestKey, reason: 'user-modified' });
+      pushSkipped(skipped, manifestKey, 'user-modified');
       return;
     }
     const owners = existingEntry.engines ?? [existingEntry.engine];
@@ -211,14 +314,14 @@ function writeManaged({ destFile, manifestKey, contentHash, write, engineId, man
     if (!existingEntry) {
       // Arquivo existe no destino mas não consta no manifesto: não foi este
       // instalador que o gerou. Nunca sobrescreve nem deleta.
-      skipped.push({ path: manifestKey, reason: 'unmanaged' });
+      pushSkipped(skipped, manifestKey, 'unmanaged');
       return;
     }
 
     const destHash = hashFile(destFile);
     if (destHash !== existingEntry.sha256) {
       // Editado pelo usuário desde a última instalação: nunca sobrescreve sem sinalizar.
-      skipped.push({ path: manifestKey, reason: 'user-modified' });
+      pushSkipped(skipped, manifestKey, 'user-modified');
       return;
     }
     const owners = existingEntry.engines ?? [existingEntry.engine];
@@ -312,10 +415,11 @@ function installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, c
  * não é silenciosamente ignorada: entra em `enginesSkipped` para o chamador reportar ao
  * usuário.
  *
- * Retorna `{ copied, skipped, warnings, enginesSkipped }` com os paths relativos ao
+ * Retorna `{ copied, skipped, warnings, enginesSkipped, migrated }` com os paths relativos ao
  * projeto-alvo. `warnings` cobre perdas parciais que não impedem a instalação (ex.: evento
  * de hook sem tradução fiel para uma engine, ver `installCursorHooks`) — vazio quando não há
- * nada a avisar.
+ * nada a avisar. `migrated` lista os `{ from, to }` de skills do Cursor movidas para a raiz de
+ * skills compartilhada (ver `migrateCursorSkills`).
  */
 function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() } = {}) {
   if (!projectRoot) {
@@ -329,6 +433,20 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   const warnings = [];
   const enginesSkipped = [];
   const migrationBlockedTargets = new Set();
+  const migrated = [];
+
+  // Engines presentes = seleção desta chamada + as já registradas no manifesto, para que
+  // `install` e `update` (que parte só do manifesto) escolham a mesma raiz de skills do Cursor.
+  // Entrada marcada como `uninstalled` (arquivo editado que sobrou de `uninstall --engines`)
+  // não conta: a engine foi removida.
+  const presentEngineIds = new Set([
+    ...(engines ?? []).map((engine) => engine.id),
+    ...Object.values(manifest.files).filter((entry) => !entry.uninstalled).flatMap(ownersOf),
+  ]);
+  const cursorSkillsRoot = resolveCursorSkillsRoot(presentEngineIds);
+  // Cursor registrado no manifesto mas fora da seleção desta chamada (ex.: `install --engines
+  // claude-code` num projeto que já tem o Cursor): só as skills dele acompanham a mudança de raiz.
+  const cursorSkillsOnly = presentEngineIds.has('cursor') && !(engines ?? []).some((engine) => engine.id === 'cursor');
 
   // Migra somente skills legadas intactas, identificadas pelo hash do manifesto.
   // Se foram alteradas, preserva a cópia antiga e não cria uma duplicata gerenciada.
@@ -382,7 +500,18 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
     }
   }
 
-  for (const engine of engines ?? []) {
+  // Depois da migração do Codex: ambas podem ter `.agents/skills/` como destino.
+  if (presentEngineIds.has('cursor')) {
+    migrated.push(...migrateCursorSkills({
+      projectRoot, manifest, targetRoot: cursorSkillsRoot, warnings, skipped,
+    }));
+  }
+
+  const installEngines = cursorSkillsOnly
+    ? [...(engines ?? []), { id: 'cursor', name: 'Cursor', skillsOnly: true }]
+    : (engines ?? []);
+
+  for (const engine of installEngines) {
     const destRootName = ENGINE_DEST_DIR[engine.id];
     if (!destRootName) {
       enginesSkipped.push({
@@ -422,6 +551,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
 
     for (const sourceDirName of SOURCE_DIRS) {
       if (excludedSourceDirs.includes(sourceDirName)) continue;
+      if (engine.skillsOnly && sourceDirName !== 'skills') continue;
 
       if (engine.id === 'cursor' && sourceDirName === 'hooks') {
         installCursorHooks({ sourceRoot, projectRoot, destRootName, manifest, copied, skipped, warnings });
@@ -441,11 +571,14 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
           destRelativePath = mapped;
         }
 
-        const sourceDestRoot = ENGINE_SOURCE_DIR_DEST[engine.id]?.[sourceDirName] ?? destRootName;
+        const sourceDestRoot = engine.id === 'cursor' && sourceDirName === 'skills'
+          ? cursorSkillsRoot
+          : ENGINE_SOURCE_DIR_DEST[engine.id]?.[sourceDirName] ?? destRootName;
         const destFile = path.join(projectRoot, sourceDestRoot, sourceDirName, destRelativePath);
         const manifestKey = path.relative(projectRoot, destFile).split(path.sep).join('/');
-        if (engine.id === 'codex' && migrationBlockedTargets.has(manifestKey)) {
-          skipped.push({ path: manifestKey, reason: 'migration-blocked' });
+        // Skill legada do Codex editada: nenhuma cópia gerenciada nova no destino, nem a do Cursor.
+        if ((engine.id === 'codex' || engine.id === 'cursor') && migrationBlockedTargets.has(manifestKey)) {
+          pushSkipped(skipped, manifestKey, 'migration-blocked');
           continue;
         }
         if (engine.id === 'cursor' && sourceDirName === 'agents') {
@@ -476,7 +609,7 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   }
 
   writeManifest(projectRoot, manifest);
-  return { copied, skipped, warnings, enginesSkipped };
+  return { copied, skipped, warnings, enginesSkipped, migrated };
 }
 
 module.exports = {

@@ -32,13 +32,14 @@ avalie com o usuário qual worker continua.
 
 ---
 
-**5.d — Monitoramento sob Orquestradores (Alethe, Orca, MCP)**
+**5.d — Monitoramento sob o orquestrador MCP (Alethe)**
 
-Quando um grupo foi despachado via `OrchestratorAdapter` (`scripts/lib/orchestrator/`):
+Quando um grupo foi despachado via `mcp__alethe__alethe_delegate` (contrato com fonte e data em `delegate-to-runtime.md` §6):
 
-1. **Loop de polling seguro**: invoque `adapter.check(handle, { timeoutMs: 50000 })` com intervalo entre iterações. Nunca use `timeoutMs > 50s` para prevenir timeout do transporte MCP.
-2. Ao receber status `completed`:
-   - Execute a sanitização do rascunho com `sanitizeDraftText()` (`scripts/lib/draft-sanitizer.ts`).
+1. **Loop de polling seguro**: chame `mcp__alethe__alethe_check` com `wait: true` e `timeoutMs <= 50000`, repetindo entre iterações; esperas de 90 s ou mais estouraram o timeout MCP (§6.3, regra 6). O `alethe_check` é global à sessão e entrega cada resultado uma única vez: guarde as entregas de outros jobs.
+2. Ao receber `worker_done` de um job:
+   - Com `outcome` diferente de `succeeded`, ou com `text` vazio, trate como falha: o Alethe devolve `succeeded` com `text` vazio quando o Codex atinge o limite de uso (§6.3, regra 9).
+   - Revise o diff e execute a varredura de rascunhos (§6.3, regra 8).
    - Execute a validação soberana da suíte de testes no host principal (`deno task test`, etc.).
-   - Se os testes passarem e a sanitização for válida, atualize o status file para `GREEN`.
-3. **Liberação obrigatória**: chame `adapter.release(handle)` antes de qualquer invocação de `safe-remove-worktree`.
+   - Se os testes passarem e a varredura estiver limpa, atualize o status file para `GREEN`.
+3. **Liberação obrigatória**: chame `mcp__alethe__alethe_release` antes de qualquer invocação de `safe-remove-worktree`.

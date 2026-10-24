@@ -58,7 +58,7 @@ rastreado no git (issue #327), injete os comandos de teste já resolvidos direta
 cada worker despachado, como reforço redundante — a fonte de verdade continua sendo a resolução
 via root em `project-conventions.md`.
 Regras de economia de tokens e delegação a um runtime externo disponível (Gemini/OpenCode/Codex) ou
-orquestrador (Alethe/Orca/MCP): `../shared/references/planning-conventions.md` e
+orquestrador MCP (Alethe): `../shared/references/planning-conventions.md` e
 `../shared/references/delegate-to-runtime.md`.
 Se uma issue referenciar uma Spec previamente gerada por `/vetor:spec` (ver `skills/spec/SKILL.md`
 §6), ela fica em `docs/specs/<slug>.md` por padrão (path previsível, issue #219) — útil como contexto
@@ -380,15 +380,15 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 
 | Onda | Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo / Backend | Ação |
 |------|-------------------------|------------------------|------------------|------|
-| O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet|orca|alethe> | Despachar |
-| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet|orca|alethe> | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
-| O_1  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet|orca|alethe> | Despachar (Spike — modo investigação) |
+| O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet|alethe> | Despachar |
+| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet|alethe> | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
+| O_1  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet|alethe> | Despachar (Spike — modo investigação) |
 | —    | <slug-4>                | #<N5> (Lead)           | —                | SKIPPED (aguardando Spec) |
 | —    | <slug-5>                | #<N6> (Lead)           | —                | SKIPPED (aguardando insumo do usuário) |
 | —    | <slug-6>                | #<N7> (Lead)           | —                | SKIPPED (fora deste repositório) |
 | —    | <slug-7>                | #<N8> (Lead)           | —                | SKIPPED (épico/acompanhamento) |
 | —    | <slug-8>                | #<N9> (Lead)           | —                | SKIPPED (bloqueada por #<B>) |
-| O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet|orca|alethe> | Aguardar O_1 |
+| O_2  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet|alethe> | Aguardar O_1 |
 ```
 
 Se houver mais de uma onda, explique **por que** cada grupo da onda `O_2+` depende de um grupo de
@@ -473,12 +473,12 @@ Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em al
 
 #### Dispatch para runtime externo ou orquestrador (delegação de código)
 
-Caso o coordinator delegue o desenvolvimento de um grupo a um runtime externo de IA (Gemini/OpenCode/Codex) ou a um orquestrador multiplexador (Alethe/Orca/MCP — ver `delegate-to-runtime.md` §6 e `scripts/lib/orchestrator/`), aplique o **contrato mínimo de delegação e orquestração**:
+Caso o coordinator delegue o desenvolvimento de um grupo a um runtime externo de IA (Gemini/OpenCode/Codex) ou a um orquestrador MCP (Alethe — ver `delegate-to-runtime.md` §6 e `scripts/lib/orchestrator/`), aplique o **contrato mínimo de delegação e orquestração**:
 1. **Worktree próprio**: provisione um worktree isolado exclusivo para o runtime ou worker externo via `worktree-create` (nunca opere no root nem em worktree de outro worker).
-2. **Diff tratado como rascunho**: o código gerado pelo runtime externo é rascunho não confiável; nunca faça commit cegamente sem inspeção prévia e sanitização (`DraftSanitizer`).
+2. **Diff tratado como rascunho**: o código gerado pelo runtime externo é rascunho não confiável; nunca faça commit cegamente sem inspeção prévia e varredura de rascunhos (`delegate-to-runtime.md` §6.3, regra 8).
 3. **Validação soberana no host via `module-test-map`**: execute a suíte de testes mapeada para os módulos tocados no host antes de qualquer commit; descarte o rascunho em caso de falha.
 4. **Status file mantido pelo coordinator**: o coordinator é responsável por gerenciar e atualizar o status file (`.claude/vetor/status/<branch>.md`) a cada iteração (`RUNNING`, `Iteration: N/5`, `GREEN`, etc.).
-5. **Polling seguro e liberação obrigatória**: com orquestradores MCP, utilize polling seguro com teto de 50s (`adapter.check`) e execute `adapter.release(handle)` antes de qualquer remoção do worktree (`safe-remove-worktree`).
+5. **Polling seguro e liberação obrigatória**: com o orquestrador MCP (Alethe), chame `alethe_check` com `timeoutMs <= 50000` e `alethe_release` antes de qualquer remoção do worktree (`safe-remove-worktree`); fontes e datas em `delegate-to-runtime.md` §6.3.
 
 Consulte `../shared/references/issue-coordinator-dispatch.md` para o fluxo detalhado desse contrato.
 

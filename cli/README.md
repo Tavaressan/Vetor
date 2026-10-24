@@ -40,6 +40,7 @@ vetor update       # sincroniza a instalação existente com a fonte
 vetor status       # mostra o status da instalação por engine
 vetor doctor       # verifica Deno, gh autenticado, Git worktree, engines e cópias globais do OpenCode
 vetor uninstall    # remove os arquivos instalados pelo Vetor (pede confirmação)
+vetor uninstall --engines cursor   # remove só as engines informadas (IDs separados por vírgula)
 vetor --help       # lista os comandos disponíveis
 ```
 
@@ -49,7 +50,11 @@ vetor --help       # lista os comandos disponíveis
 
 ## Documentação
 
-Skills Codex são instaladas em `.agents/skills/`, que o Codex varre em cada diretório do cwd até a raiz do repositório ([documentação oficial](https://learn.chatgpt.com/docs/build-skills), consultada em 2026-10-21). Agentes e hooks Codex continuam em `.codex/`. Skills, arquitetura, configuração e compatibilidade multi-engine: [wiki do repositório principal](https://github.com/Tavaressan/Vetor/tree/master/wiki).
+Skills Codex são instaladas em `.agents/skills/`, que o Codex varre em cada diretório do cwd até a raiz do repositório ([documentação oficial](https://learn.chatgpt.com/docs/build-skills), consultada em 2026-10-21). Agentes e hooks Codex continuam em `.codex/`.
+
+O Cursor também lê `.agents/skills/`, `.claude/skills/` e `.cursor/skills/` ([documentação oficial](https://cursor.com/docs/skills), consultada em 2026-10-23), então as skills dele não ganham uma cópia própria quando outra engine já as grava num desses diretórios: com Codex ou Antigravity o Cursor usa `.agents/skills/`; com Claude Code (sem Codex nem Antigravity), `.claude/skills/`; sozinho (ou só com OpenCode), `.cursor/skills/`. `.claude/skills/` continua sendo do Claude Code, e agentes e hooks do Cursor seguem em `.cursor/`. O `vetor update` migra para o diretório compartilhado as skills antigas de `.cursor/skills/` que não foram editadas; as editadas ficam onde estão, com aviso. `vetor uninstall --engines <ids>` retira só as engines informadas e mantém no disco o arquivo compartilhado que outra engine ainda usa.
+
+Skills, arquitetura, configuração e compatibilidade multi-engine: [wiki do repositório principal](https://github.com/Tavaressan/Vetor/tree/master/wiki).
 
 ## Licença
 

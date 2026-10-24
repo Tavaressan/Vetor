@@ -20,13 +20,18 @@ export interface WorktreeInfo {
 }
 
 export async function resolveWorktree(cwd: string): Promise<WorktreeInfo | null> {
-  const gitDir = (await run("git", ["rev-parse", "--git-dir"], cwd)).stdout.trim();
-  const commonDir = (await run("git", ["rev-parse", "--git-common-dir"], cwd)).stdout.trim();
+  // Os dois caminhos precisam sair no mesmo formato: sem --path-format, num subdiretório do
+  // checkout principal o git-dir volta absoluto e o git-common-dir relativo (`../.git`), e a
+  // comparação por string tomaria o checkout principal por um worktree linkado.
+  const [gitDir = "", commonDir = ""] = (await run(
+    "git",
+    ["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
+    cwd,
+  )).stdout.trim().split(/\r?\n/);
   if (!gitDir) return null;
 
   const branch = (await run("git", ["branch", "--show-current"], cwd)).stdout.trim();
-  const root = (await run("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd))
-    .stdout.trim().replace(/\/?\.git\/?$/, "");
+  const root = commonDir.replace(/\/?\.git\/?$/, "");
   // O cwd pode ser um subdiretório do worktree; a fronteira é o toplevel.
   const toplevel = (await run("git", ["rev-parse", "--show-toplevel"], cwd)).stdout.trim();
   if (!branch || !root || !toplevel) return null;

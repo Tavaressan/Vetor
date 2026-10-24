@@ -24,6 +24,7 @@ const COMMANDS = {
     fn: uninstall,
     description: 'Remove os arquivos instalados pelo Vetor',
     flags: {
+      engines: { type: 'string', description: 'Desinstala só estas engines (IDs separados por vírgula); padrão: todas' },
       yes: { short: 'y', type: 'boolean', description: 'Confirma a desinstalação sem prompts interativos' },
     },
   },

@@ -10,6 +10,13 @@ const {
   writeManifest: defaultWriteManifest,
   hashFile: defaultHashFile,
 } = require('../installer/manifest.js');
+const { ENGINES } = require('../installer/detector.js');
+
+const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.name]));
+
+function ownersOf(entry) {
+  return entry.engines ?? [entry.engine];
+}
 
 /**
  * Confirmação simples (s/N) antes da remoção. Sessão não-interativa (sem TTY) não tem como
@@ -48,6 +55,15 @@ function confirmUninstall(message, { input = process.stdin, output = process.std
  * um manifesto com `files: {}` — para que `status`/`update` voltem a reportar "não
  * instalado" em vez de uma instalação vazia.
  *
+ * Com `options.engines` (IDs separados por vírgula, ou array), desinstala só essas engines
+ * (#479): cada arquivo perde as engines informadas da lista de donos e só é removido quando
+ * nenhum dono resta — arquivo em diretório compartilhado (ex.: `.agents/skills/` usado por
+ * Codex, Antigravity e Cursor) continua no disco, com os donos restantes no manifesto, enquanto
+ * outra engine o usar. Quando o último dono sai, valem as regras acima (íntegro remove,
+ * editado preserva e continua registrado). Nesse caso a entrada preservada mantém os donos
+ * originais, mas ganha `uninstalled: true`: `update`/`install` não tratam a engine como
+ * instalada por causa dela, e uma nova tentativa de `--engines` a considera sem donos vivos.
+ *
  * `readManifest`/`writeManifest`/`hashFile`/`confirm`/`input`/`output` são injetáveis para
  * testes.
  */
@@ -59,6 +75,18 @@ async function uninstall(cwd = process.cwd(), options = {}) {
   const input = options.input ?? process.stdin;
   const output = options.output ?? process.stdout;
 
+  let selectedIds;
+  if (options.engines !== undefined) {
+    const rawIds = typeof options.engines === 'string' ? options.engines.split(',') : options.engines;
+    selectedIds = new Set(rawIds.map((id) => String(id).trim()));
+    const invalidId = [...selectedIds].find((id) => !ENGINE_NAME_BY_ID.has(id));
+    if (invalidId !== undefined) {
+      console.error(`Engine inválida: ${invalidId}. Engines disponíveis: ${[...ENGINE_NAME_BY_ID.keys()].join(', ')}`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   const manifest = readManifest(cwd);
   const entries = Object.entries(manifest.files);
 
@@ -67,10 +95,21 @@ async function uninstall(cwd = process.cwd(), options = {}) {
     return;
   }
 
-  console.info(`${entries.length} arquivo(s) gerenciado(s) encontrado(s).`);
+  const inScope = selectedIds
+    ? entries.filter(([, entry]) => ownersOf(entry).some((id) => selectedIds.has(id)))
+    : entries;
+  if (inScope.length === 0) {
+    console.info('Nada para desinstalar: nenhum arquivo do manifesto pertence às engines informadas.');
+    return;
+  }
+
+  console.info(`${inScope.length} arquivo(s) gerenciado(s) encontrado(s).`);
+  const confirmMessage = selectedIds
+    ? `Remover os arquivos instalados pelo Vetor para: ${[...selectedIds].map((id) => ENGINE_NAME_BY_ID.get(id)).join(', ')}?`
+    : 'Remover todos os arquivos instalados pelo Vetor?';
   const confirmed = options.yes
     ? true
-    : await confirm('Remover todos os arquivos instalados pelo Vetor?', { input, output });
+    : await confirm(confirmMessage, { input, output });
   if (!confirmed) {
     console.info('Desinstalação cancelada.');
     return;
@@ -78,16 +117,36 @@ async function uninstall(cwd = process.cwd(), options = {}) {
 
   const removed = [];
   const preserved = [];
+  const kept = [];
   const remainingFiles = {};
 
   for (const [key, entry] of entries) {
+    // Entrada que continuará no manifesto quando o arquivo for preservado.
+    let retainedEntry = entry;
+    if (selectedIds) {
+      const owners = ownersOf(entry);
+      const remainingOwners = owners.filter((id) => !selectedIds.has(id));
+      if (remainingOwners.length === owners.length) {
+        remainingFiles[key] = entry;
+        continue;
+      }
+      // Entrada já marcada como desinstalada não tem dono vivo: os donos listados são os que
+      // saíram antes, então esta tentativa a trata como a última.
+      if (remainingOwners.length > 0 && !entry.uninstalled) {
+        remainingFiles[key] = { ...entry, engine: remainingOwners[0], engines: remainingOwners };
+        kept.push(key);
+        continue;
+      }
+      retainedEntry = { ...entry, uninstalled: true };
+    }
+
     const destFile = path.resolve(cwd, ...key.split('/'));
     const relative = path.relative(cwd, destFile);
     const isInsideProject = relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 
     if (!isInsideProject) {
       preserved.push({ path: key, reason: 'outside-project-root' });
-      remainingFiles[key] = entry;
+      remainingFiles[key] = retainedEntry;
       continue;
     }
 
@@ -98,7 +157,7 @@ async function uninstall(cwd = process.cwd(), options = {}) {
 
     if (hashFile(destFile) !== entry.sha256) {
       preserved.push({ path: key, reason: 'user-modified' });
-      remainingFiles[key] = entry;
+      remainingFiles[key] = retainedEntry;
       continue;
     }
 
@@ -107,6 +166,9 @@ async function uninstall(cwd = process.cwd(), options = {}) {
   }
 
   console.info(`${removed.length} arquivo(s) removido(s).`);
+  if (kept.length > 0) {
+    console.info(`${kept.length} arquivo(s) mantido(s) (em uso por outra engine).`);
+  }
   if (preserved.length > 0) {
     console.info(`${preserved.length} arquivo(s) preservado(s) (editado(s) pelo usuário ou já ausente(s)).`);
   }
