@@ -18,6 +18,7 @@ Deno.test("estados terminais x RUNNING x ausente", () => {
   assertEquals(isTerminal("GREEN"), true);
   assertEquals(isTerminal("FAILED_MAX_ITERATIONS"), true);
   assertEquals(isTerminal("BLOCKED_WAITING"), true);
+  assertEquals(isTerminal("PR_STAGED"), true);
   assertEquals(isTerminal("RUNNING"), false);
   assertEquals(isTerminal(null), false);
 });

@@ -16,7 +16,7 @@ uma cópia em `<worktree>/.claude/vetor-status.md`. O coordinator verifica esse 
 ```markdown
 # Agent Status — <branch>
 Updated: <ISO 8601>
-Status: RUNNING | BLOCKED_WAITING | GREEN | FAILED_MAX_ITERATIONS
+Status: RUNNING | BLOCKED_WAITING | GREEN | PR_STAGED | FAILED_MAX_ITERATIONS
 Iteration: <N>/5 (Issue #<M>)
 Last action: <última ação executada>
 Next: <próximo passo planejado>
@@ -42,6 +42,16 @@ em `Blocked on` — ex.: `Blocked on: OPEN_QUESTION crítica — <pergunta>`, `B
 confirmação — <premissa>` ou `Blocked on: Evidence Conflict — <fontes em contradição>`. Isso não cria
 um novo estado ou caminho de escalação: `BLOCKED_WAITING` continua sendo o único mecanismo; o
 vocabulário apenas qualifica o motivo já registrado em `Blocked on`.
+
+**`PR_STAGED`** (gravado pelo `/vetor:ship --prepare` ou `ship-worker` após testes locais, push, PR draft e disparo de CI/revisões):
+
+```markdown
+Status: PR_STAGED
+PR: #<PR-number> (<PR-url>)
+Iteration: <N>/5 (Issue #<M>)
+Last action: Pre-ship concluído (PR #<PR-number> aberto, CI e revisões disparados)
+Next: /vetor:ship --finalize <PR-number>
+```
 
 **`FAILED_MAX_ITERATIONS`**: além de atualizar o status, crie `FAIL_ANALYSIS.md` no root do
 worktree com o handover de falha (ver `fix` §4).

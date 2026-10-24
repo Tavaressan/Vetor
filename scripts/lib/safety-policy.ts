@@ -114,9 +114,9 @@ async function checkWorkerGate(
   let status = readStatus(statusFilePath(wt.root, wt.branch));
   // Issue #323: se o status file no root não estiver GREEN ou não existir,
   // consulta também o fallback local do worktree (<toplevel>/.claude/vetor-status.md)
-  if (status !== "GREEN") {
+  if (status !== "GREEN" && status !== "PR_STAGED") {
     const localStatus = readStatus(`${wt.toplevel}/.claude/vetor-status.md`);
-    if (localStatus === "GREEN") {
+    if (localStatus === "GREEN" || localStatus === "PR_STAGED") {
       status = "GREEN";
     } else if (status === null && localStatus !== null) {
       status = localStatus;
@@ -125,8 +125,8 @@ async function checkWorkerGate(
   // Sem status file, a branch não pertence ao fluxo do coordinator: não interfere.
   if (status === null) return null;
 
-  if (status !== "GREEN") {
-    return `ERROR: worker não-GREEN (Status: ${
+  if (status !== "GREEN" && status !== "PR_STAGED") {
+    return `ERROR: worker não-GREEN nem PR_STAGED (Status: ${
       status || "desconhecido"
     }) — push/PR bloqueado pelo Vetor Safety Hook.\n` +
       `Trecho do comando que casou o gate: "${gateMatch[0].trim()}"\n` +

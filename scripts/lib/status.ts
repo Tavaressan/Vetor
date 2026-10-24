@@ -7,7 +7,7 @@
 import { run } from "./project.ts";
 
 /** Estados em que o worker pode legitimamente encerrar. */
-export const TERMINAL_STATES = ["GREEN", "FAILED_MAX_ITERATIONS", "BLOCKED_WAITING"];
+export const TERMINAL_STATES = ["GREEN", "FAILED_MAX_ITERATIONS", "BLOCKED_WAITING", "PR_STAGED"];
 
 export interface WorktreeInfo {
   /** Raiz do repositório principal (não do worktree). */

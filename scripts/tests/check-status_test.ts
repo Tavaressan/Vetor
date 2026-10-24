@@ -174,3 +174,21 @@ Deno.test("check-status permite worker com Status: GREEN (terminal) — issue #7
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("check-status permite worker com Status: PR_STAGED (terminal) — issue #493", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("fix-staged");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-staged.md`,
+      "Status: PR_STAGED\nIteration: 1/5 (Issue #493)\n",
+    );
+
+    const { code, stdout } = await runHook(worktreePath);
+
+    assertEquals(code, 0);
+    assertEquals(stdout.trim(), "");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
