@@ -107,6 +107,29 @@ Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do pr
 ```
 </details>
 
+## Typecheck a cada edição em projetos Node/TypeScript
+
+O hook `PostToolUse` (`check-edit.ts`) roda `deno check` no arquivo editado em projetos Deno — sem custo perceptível. Em projetos **Node/TypeScript** o `tsc --noEmit` é do projeto inteiro e custou de 2,5 s (Next.js, 51 arquivos) a 14,4 s (592 arquivos) **a cada `Edit`/`Write`** na medição da [spike #394](https://github.com/Tavaressan/Vetor/issues/394), então ele vem **desligado por padrão** (issue #514). O erro de tipo continua sendo pego: o `/vetor:fix` roda o typecheck do projeto antes dos testes.
+
+Para recuperar o diagnóstico imediato a cada edição, ligue o opt-in por uma das vias:
+
+```jsonc
+// .claude/vetor/config.json (na raiz do projeto; em monorepo, a raiz vale para todos os pacotes)
+{
+  "hooks": { "typecheckOnEdit": true }
+}
+```
+
+ou `VETOR_TYPECHECK_ON_EDIT=true` no ambiente (vale para qualquer sessão, mesmo sem `config.json`).
+
+Ligado, o hook roda `tsc --noEmit --incremental --tsBuildInfoFile .claude/vetor/cache/tsc.tsbuildinfo`: a primeira edição paga o custo a frio e as seguintes reaproveitam o cache (um arquivo por pacote em monorepo, `tsc-<pacote>.tsbuildinfo`). O diretório `.claude/vetor/cache/` se auto-ignora (cria um `.gitignore` com `*`) e nunca é versionado. Só age com `tsconfig.json` e `node_modules/.bin/tsc` presentes. A chave é uma só, `hooks.typecheckOnEdit`, no mesmo formato de bloco por tema dos demais (`knowledge`, `delegation`, `specValidate`); o `/vetor:install` preserva o bloco `hooks` ao regerar o `config.json`.
+
+## Cache local (`.claude/vetor/cache/`)
+
+Dois scripts guardam resultados caros de recalcular em `.claude/vetor/cache/`: o `tsc.tsbuildinfo` do typecheck por edição (seção acima, na raiz do worktree em que o agente edita) e o `pr-list-cache.txt` do `vetor-status.sh` (na raiz do repositório principal). O diretório se auto-ignora (contém um `.gitignore` com `*`), então **nada nele é versionado**, mesmo em projetos que não adicionaram a entrada ao `.gitignore`. É seguro apagá-lo: tudo é recriado sob demanda.
+
+O `vetor-status.sh` (tabela de monitoramento do `coordinator`) só chama `gh pr list` se algum status file está `GREEN` ou `PR_STAGED` — durante a fase de código não há PR para anotar — e reaproveita a listagem por **15 s** em `pr-list-cache.txt`. A anotação `GREEN (já mergeado via #N)` pode portanto atrasar até 15 s depois do merge; é só exibição, já que o `vetor-merge.sh` consulta o `gh` direto.
+
 ## Delegação de tarefas a um runtime externo (agnóstica de provedor)
 
 Para economizar tokens, as skills podem delegar tarefas mecânicas de baixo risco a um CLI externo de IA disponível (Gemini/`agy`, OpenCode/`opencode`, Codex/`codex`), seguindo o padrão **o runtime delegado rascunha, Claude valida**. A escolha do runtime é dinâmica: disponibilidade no PATH × preferência configurada em `.claude/vetor/config.json` (`delegation.preferredRuntime`) × anuência explícita do usuário quando houver 2+ candidatos disponíveis e nenhuma preferência registrada.

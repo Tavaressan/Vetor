@@ -18,11 +18,12 @@ async function run(
   };
 }
 
-async function createMockGh(mockPrData: string): Promise<string> {
-  const tmpDir = await Deno.makeTempDir();
+/** `gh` falso; com `callLog`, cada invocação acrescenta uma linha ao arquivo. */
+async function writeMockGh(tmpDir: string, mockPrData: string, callLog?: string): Promise<void> {
   const ghPath = `${tmpDir}/gh`;
+  const record = callLog ? `echo "$@" >> "${callLog.replaceAll("\\", "/")}"\n` : "";
   const scriptContent = `#!/bin/sh
-if [ "$1" = "pr" ] && [ "$2" = "list" ]; then
+${record}if [ "$1" = "pr" ] && [ "$2" = "list" ]; then
   printf '%b\n' "${mockPrData}"
   exit 0
 fi
@@ -30,7 +31,20 @@ exit 1
 `;
   await Deno.writeTextFile(ghPath, scriptContent);
   await Deno.chmod(ghPath, 0o755);
+}
+
+async function createMockGh(mockPrData: string, callLog?: string): Promise<string> {
+  const tmpDir = await Deno.makeTempDir();
+  await writeMockGh(tmpDir, mockPrData, callLog);
   return tmpDir;
+}
+
+async function ghCalls(callLog: string): Promise<number> {
+  try {
+    return (await Deno.readTextFile(callLog)).split("\n").filter(Boolean).length;
+  } catch {
+    return 0;
+  }
 }
 
 async function makeRepo(branch: string): Promise<string> {
@@ -203,6 +217,113 @@ Deno.test("vetor-status.sh anota status PR_STAGED com PR aberta via gh pr list (
     const { stdout } = await run("bash", [SCRIPT], root, { PATH: pathEnv });
 
     assertStringIncludes(stdout, "PR_STAGED (PR #123 aberta)");
+  } finally {
+    await Deno.remove(mockBinDir, { recursive: true });
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+// --- Issue #515: gh só quando algum worker terminou, e listagem de PRs em cache de 15 s ---
+
+async function makeWorkerRepo(statuses: Record<string, string>): Promise<string> {
+  const root = await makeRepo("main");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  for (const [branch, status] of Object.entries(statuses)) {
+    await run(
+      "git",
+      ["worktree", "add", "-b", branch, `${root}/.claude/worktrees/${branch}`],
+      root,
+    );
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/${branch}.md`,
+      `Status: ${status}\nIteration: 1/5 (Issue #1)\n`,
+    );
+  }
+  return root;
+}
+
+Deno.test("vetor-status.sh não chama gh quando nenhum status file está GREEN ou PR_STAGED", async () => {
+  const root = await makeWorkerRepo({ "fix-run": "RUNNING", "fix-blocked": "BLOCKED_WAITING" });
+  const callLog = `${root}/gh-calls.log`;
+  const mockBinDir = await createMockGh("fix-run=1=OPEN", callLog);
+  const pathEnv = `${mockBinDir}:${Deno.env.get("PATH") || ""}`;
+  try {
+    const { stdout } = await run("bash", [SCRIPT], root, { PATH: pathEnv });
+
+    assertStringIncludes(stdout, "| fix-run | RUNNING |");
+    assertStringIncludes(stdout, "| fix-blocked | BLOCKED_WAITING |");
+    assertEquals(await ghCalls(callLog), 0);
+  } finally {
+    await Deno.remove(mockBinDir, { recursive: true });
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh chama gh quando há status file GREEN ou PR_STAGED", async () => {
+  for (const status of ["GREEN", "PR_STAGED"]) {
+    const root = await makeWorkerRepo({ "fix-done": status });
+    const callLog = `${root}/gh-calls.log`;
+    const mockBinDir = await createMockGh("fix-done=7=OPEN", callLog);
+    const pathEnv = `${mockBinDir}:${Deno.env.get("PATH") || ""}`;
+    try {
+      await run("bash", [SCRIPT], root, { PATH: pathEnv });
+      assertEquals(await ghCalls(callLog), 1, status);
+    } finally {
+      await Deno.remove(mockBinDir, { recursive: true });
+      await Deno.remove(root, { recursive: true });
+    }
+  }
+});
+
+Deno.test("vetor-status.sh lê o mtime do cache com stat BSD (-f %m) quando o -c não existe", async () => {
+  const root = await makeWorkerRepo({ "fix-done": "GREEN" });
+  const callLog = `${root}/gh-calls.log`;
+  const mockBinDir = await createMockGh("fix-done=7=OPEN", callLog);
+  // O stat do macOS rejeita -c e só entende -f %m; o falso delega ao stat GNU para obter o mtime.
+  await Deno.writeTextFile(
+    `${mockBinDir}/stat`,
+    `#!/bin/sh
+if [ "$1" = "-f" ] && [ "$2" = "%m" ]; then exec /usr/bin/stat -c %Y "$3"; fi
+exit 1
+`,
+  );
+  await Deno.chmod(`${mockBinDir}/stat`, 0o755);
+  const pathEnv = `${mockBinDir}:${Deno.env.get("PATH") || ""}`;
+  try {
+    await run("bash", [SCRIPT], root, { PATH: pathEnv });
+    const cached = await run("bash", [SCRIPT], root, { PATH: pathEnv });
+
+    assertStringIncludes(cached.stdout, "GREEN (PR #7 aberta)");
+    assertEquals(await ghCalls(callLog), 1);
+  } finally {
+    await Deno.remove(mockBinDir, { recursive: true });
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh reaproveita a listagem de PRs por 15 s, num cache que se auto-ignora", async () => {
+  const root = await makeWorkerRepo({ "fix-done": "GREEN" });
+  const callLog = `${root}/gh-calls.log`;
+  const mockBinDir = await createMockGh("fix-done=7=OPEN", callLog);
+  const pathEnv = `${mockBinDir}:${Deno.env.get("PATH") || ""}`;
+  const cacheDir = `${root}/.claude/vetor/cache`;
+  try {
+    const first = await run("bash", [SCRIPT], root, { PATH: pathEnv });
+    assertStringIncludes(first.stdout, "GREEN (PR #7 aberta)");
+    assertEquals(await Deno.readTextFile(`${cacheDir}/.gitignore`), "*\n");
+
+    // Dentro do TTL: o merge acontece, mas a anotação ainda vem do cache (atraso de até 15 s).
+    await writeMockGh(mockBinDir, "fix-done=7=MERGED", callLog);
+    const cached = await run("bash", [SCRIPT], root, { PATH: pathEnv });
+    assertStringIncludes(cached.stdout, "GREEN (PR #7 aberta)");
+    assertEquals(await ghCalls(callLog), 1);
+
+    // Cache vencido: o merge recente aparece.
+    const old = new Date(Date.now() - 60_000);
+    await Deno.utime(`${cacheDir}/pr-list-cache.txt`, old, old);
+    const refreshed = await run("bash", [SCRIPT], root, { PATH: pathEnv });
+    assertStringIncludes(refreshed.stdout, "GREEN (já mergeado via #7)");
+    assertEquals(await ghCalls(callLog), 2);
   } finally {
     await Deno.remove(mockBinDir, { recursive: true });
     await Deno.remove(root, { recursive: true });
