@@ -5,6 +5,10 @@
 // resultado num esqueleto Markdown dentro de um orçamento de tokens (padrão: 1.500).
 //
 // Decisões de projeto:
+// - Módulos: ESM (`export ...`) e CommonJS (`module.exports = { a, b: fn }`, `module.exports.x =`,
+//   `exports.x =` e `module.exports = x`, com `require("./x")` relativos no grafo de imports; o
+//   módulo cli/ do Vetor é CommonJS). Cada nome é resolvido até a declaração local, para trazer a
+//   assinatura. Métodos e spread dentro do literal de `module.exports` não são catalogados.
 // - Parser: `npm:typescript` fixado em 6.0.3 (JS puro; a linha 7.x é nativa e não serve). Carregado
 //   por import dinâmico só quando algum arquivo precisa ser parseado, então o caminho de cache
 //   morno não paga o custo de carga do compilador.
@@ -35,7 +39,7 @@ import {
 
 export const DEFAULT_MAX_TOKENS = 1500;
 /** Versão do formato/extração do cache; incremente quando a extração mudar. */
-export const CACHE_VERSION = "1.0.0";
+export const CACHE_VERSION = "1.1.0";
 const DEFAULT_CACHE_PATH = ".claude/vetor/cache/repo-map.json";
 const MAX_FILE_BYTES = 500 * 1024;
 const DETAIL_SHARE = 0.6;
@@ -336,11 +340,149 @@ function extractWithTypeScript(ts: TypeScript, path: string, source: string): Ex
     return lines;
   };
 
+  /** Classe com cabeçalho e membros públicos, sem corpos. */
+  const classSignature = (node: TS.ClassDeclaration) => {
+    const members = classMembers(node);
+    const body = members.length
+      ? `{\n${members.map((line) => `  ${line}`).join("\n")}\n}`
+      : "{ ... }";
+    return `${header(node)} ${body}`;
+  };
+
   const isLiteral = (node: TS.Expression) =>
     ts.isStringLiteral(node) || ts.isNumericLiteral(node) ||
     ts.isNoSubstitutionTemplateLiteral(node) || node.kind === ts.SyntaxKind.TrueKeyword ||
     node.kind === ts.SyntaxKind.FalseKeyword || node.kind === ts.SyntaxKind.NullKeyword ||
     (ts.isPrefixUnaryExpression(node) && ts.isNumericLiteral(node.operand));
+
+  /** Valor de um inicializador: função sem corpo, literal curto ou `...`. */
+  const valueText = (init: TS.Expression) => {
+    if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
+      return `${slice(startOf(init), startOf(init.body))} { ... }`;
+    }
+    return isLiteral(init) && init.end - startOf(init) <= 80
+      ? slice(startOf(init), init.end)
+      : "...";
+  };
+
+  // --- CommonJS (issue #507) ---
+  // Declarações locais de primeiro nível, para resolver `module.exports = { a }` até a assinatura.
+  const locals = new Map<string, TS.Node>();
+  for (const st of sf.statements) {
+    if (ts.isFunctionDeclaration(st) && st.name && st.body) {
+      if (!locals.has(st.name.text)) locals.set(st.name.text, st);
+    } else if (ts.isClassDeclaration(st) && st.name) {
+      locals.set(st.name.text, st);
+    } else if (ts.isVariableStatement(st)) {
+      for (const decl of st.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name)) locals.set(decl.name.text, decl);
+      }
+    }
+  }
+
+  const isModuleExports = (node: TS.Node) =>
+    ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) &&
+    node.expression.text === "module" && node.name.text === "exports";
+
+  /** `require("./x")`, com ou sem acesso a propriedade (`require("./x").nome`); só relativos. */
+  const relativeRequire = (node: TS.Node): { source: string; property?: string } | null => {
+    let property: string | undefined;
+    let call = node;
+    if (ts.isPropertyAccessExpression(call)) {
+      property = call.name.text;
+      call = call.expression;
+    }
+    if (
+      !ts.isCallExpression(call) || !ts.isIdentifier(call.expression) ||
+      call.expression.text !== "require" || call.arguments.length !== 1
+    ) return null;
+    const arg = call.arguments[0];
+    const isString = ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg);
+    return isString && arg.text.startsWith(".") ? { source: arg.text, property } : null;
+  };
+
+  const cjsNames = new Set<string>();
+  /**
+   * Registra um export CommonJS. `value` é a expressão exportada; um identificador é resolvido para
+   * a declaração local (função, classe ou constante), como no caminho ESM. Nome repetido vale só
+   * na primeira ocorrência.
+   */
+  const commonJsExport = (name: string, target: string, value: TS.Node, at: TS.Node) => {
+    if (cjsNames.has(name)) return;
+    cjsNames.add(name);
+    const local = ts.isIdentifier(value) ? locals.get(value.text) : undefined;
+    const node = local ?? value;
+    if (ts.isFunctionDeclaration(node)) {
+      push(name, "function", at, `${target} = ${callable(node)};`);
+    } else if (ts.isClassDeclaration(node)) {
+      push(name, "class", at, `${target} = ${classSignature(node)};`);
+    } else {
+      const init = ts.isVariableDeclaration(node) ? node.initializer : node as TS.Expression;
+      const inlineFunction = !local && init !== undefined &&
+        (ts.isArrowFunction(init) || ts.isFunctionExpression(init));
+      push(
+        name,
+        inlineFunction ? "function" : "const",
+        at,
+        init ? `${target} = ${valueText(init)};` : `${target};`,
+      );
+    }
+  };
+
+  const collectRequire = (names: string[], source: string) => {
+    imports.push({ source, importedSymbols: names });
+  };
+
+  const collectCommonJs = (st: TS.ExpressionStatement) => {
+    const expr = st.expression;
+    const bare = relativeRequire(expr);
+    if (bare) return collectRequire([], bare.source);
+    if (!ts.isBinaryExpression(expr) || expr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) {
+      return;
+    }
+    const left = expr.left;
+    if (isModuleExports(left)) {
+      const right = expr.right;
+      if (!ts.isObjectLiteralExpression(right)) {
+        const name = ts.isIdentifier(right) ? right.text : "default";
+        return commonJsExport(name, "module.exports", right, st);
+      }
+      for (const prop of right.properties) {
+        if (ts.isShorthandPropertyAssignment(prop)) {
+          commonJsExport(prop.name.text, `exports.${prop.name.text}`, prop.name, prop);
+        } else if (
+          ts.isPropertyAssignment(prop) &&
+          (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))
+        ) {
+          commonJsExport(prop.name.text, `exports.${prop.name.text}`, prop.initializer, prop);
+        }
+      }
+    } else if (
+      ts.isPropertyAccessExpression(left) &&
+      (isModuleExports(left.expression) ||
+        (ts.isIdentifier(left.expression) && left.expression.text === "exports"))
+    ) {
+      commonJsExport(left.name.text, `exports.${left.name.text}`, expr.right, st);
+    }
+  };
+
+  /** `const { a, b: c } = require("./x")`, `const x = require("./x")` e `...require("./x").a`. */
+  const collectRequireDeclarations = (st: TS.VariableStatement) => {
+    for (const decl of st.declarationList.declarations) {
+      const required = decl.initializer && relativeRequire(decl.initializer);
+      if (!required) continue;
+      const names: string[] = [];
+      if (ts.isObjectBindingPattern(decl.name)) {
+        for (const el of decl.name.elements) {
+          const imported = el.propertyName ?? el.name;
+          if (!el.dotDotDotToken && ts.isIdentifier(imported)) names.push(imported.text);
+        }
+      } else {
+        names.push(required.property ?? "*");
+      }
+      collectRequire(names, required.source);
+    }
+  };
 
   const functions = new Map<string, { symbol: RepoSymbol; overloaded: boolean }>();
 
@@ -373,7 +515,14 @@ function extractWithTypeScript(ts: TypeScript, path: string, source: string): Ex
       continue;
     }
 
-    if (!hasModifier(st, ts.SyntaxKind.ExportKeyword)) continue;
+    if (ts.isExpressionStatement(st)) {
+      collectCommonJs(st);
+      continue;
+    }
+    if (!hasModifier(st, ts.SyntaxKind.ExportKeyword)) {
+      if (ts.isVariableStatement(st)) collectRequireDeclarations(st);
+      continue;
+    }
     const isDefault = hasModifier(st, ts.SyntaxKind.DefaultKeyword);
 
     if (ts.isFunctionDeclaration(st)) {
@@ -398,11 +547,7 @@ function extractWithTypeScript(ts: TypeScript, path: string, source: string): Ex
     } else if (ts.isClassDeclaration(st)) {
       const name = isDefault ? "default" : st.name?.text;
       if (!name) continue;
-      const members = classMembers(st);
-      const body = members.length
-        ? `{\n${members.map((line) => `  ${line}`).join("\n")}\n}`
-        : "{ ... }";
-      push(name, "class", st, `${header(st)} ${body}`);
+      push(name, "class", st, classSignature(st));
     } else if (ts.isInterfaceDeclaration(st)) {
       const members = st.members.map((m) => `  ${slice(startOf(m), m.end).replace(/[;,]$/, "")};`);
       const body = members.length ? `{\n${members.join("\n")}\n}` : "{}";
@@ -422,17 +567,7 @@ function extractWithTypeScript(ts: TypeScript, path: string, source: string): Ex
       for (const decl of list.declarations) {
         if (!ts.isIdentifier(decl.name)) continue;
         const type = decl.type ? `: ${slice(startOf(decl.type), decl.type.end)}` : "";
-        const init = decl.initializer;
-        let value = "";
-        if (init) {
-          if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
-            value = ` = ${slice(startOf(init), startOf(init.body))} { ... }`;
-          } else if (isLiteral(init) && init.end - startOf(init) <= 80) {
-            value = ` = ${slice(startOf(init), init.end)}`;
-          } else {
-            value = " = ...";
-          }
-        }
+        const value = decl.initializer ? ` = ${valueText(decl.initializer)}` : "";
         const signature = `${prefix} ${keyword} ${decl.name.text}${type}${value};`;
         symbols.push({
           name: decl.name.text,
@@ -461,12 +596,59 @@ const LEXICAL_KINDS: Record<string, SymbolKind> = {
   var: "const",
 };
 
-/** Fallback sem AST: captura só as linhas que começam com `export`. */
+const LEXICAL_COMMONJS_PROPERTY = /^(?:module\.)?exports\.([A-Za-z_$][\w$]*)\s*=/;
+const LEXICAL_COMMONJS_OBJECT = /^module\.exports\s*=\s*\{/gm;
+
+/** Chaves de primeiro nível de um literal de objeto, dado o texto logo após a chave de abertura. */
+function lexicalObjectKeys(afterBrace: string): string[] {
+  const text = afterBrace.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const char of text) {
+    if (char === "{" || char === "[" || char === "(") depth++;
+    else if (char === "}" || char === "]" || char === ")") {
+      if (depth === 0) break;
+      depth--;
+    }
+    if (char === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+  return parts
+    .map((part) => /^\s*([A-Za-z_$][\w$]*)\s*(?::|\(|$)/.exec(part)?.[1])
+    .filter((name): name is string => name !== undefined);
+}
+
+/**
+ * Fallback sem AST: captura as linhas que começam com `export` e os exports CommonJS de primeiro
+ * nível (`module.exports = { ... }`, `module.exports.x =` e `exports.x =`), sem assinatura.
+ */
 export function extractSymbolsLexical(source: string): RepoSymbol[] {
   const symbols: RepoSymbol[] = [];
+  const commonJsNames = new Set<string>();
+  const pushCommonJs = (name: string, line: number) => {
+    if (commonJsNames.has(name)) return;
+    commonJsNames.add(name);
+    symbols.push({
+      name,
+      kind: "const",
+      line,
+      signature: `exports.${name} = ...;`,
+      exported: true,
+    });
+  };
   source.split(/\r?\n/).forEach((raw, index) => {
     const match = LEXICAL_EXPORT.exec(raw);
-    if (!match) return;
+    if (!match) {
+      const property = LEXICAL_COMMONJS_PROPERTY.exec(raw);
+      if (property) pushCommonJs(property[1], index + 1);
+      return;
+    }
     const name = match[1] ? "default" : match[3];
     if (!name) return;
     symbols.push({
@@ -477,6 +659,11 @@ export function extractSymbolsLexical(source: string): RepoSymbol[] {
       exported: true,
     });
   });
+  for (const object of source.matchAll(LEXICAL_COMMONJS_OBJECT)) {
+    const line = source.slice(0, object.index).split("\n").length;
+    const afterBrace = source.slice(object.index + object[0].length);
+    for (const name of lexicalObjectKeys(afterBrace)) pushCommonJs(name, line);
+  }
   return symbols;
 }
 
@@ -947,7 +1134,19 @@ export async function buildRepoMap(options: RepoMapOptions = {}): Promise<RepoMa
     }
   }
 
-  const entries = rankFiles(summaries, resolveFocus([...summaries.keys()], options, warnings));
+  const focus = resolveFocus([...summaries.keys()], options, warnings);
+  const entries = rankFiles(summaries, focus);
+  if (focus.size > 0 && !entries.some((entry) => entry.tier === 1)) {
+    // Sem exports reconhecidos o foco some do mapa, que se enche de arquivos sem relação.
+    const sample = [...focus].sort(compare);
+    const listed = sample.slice(0, 3).join(", ");
+    warnings.push(
+      `foco sem símbolos exportados (${listed}${
+        sample.length > 3 ? `, +${sample.length - 3}` : ""
+      }): ` +
+        "o mapa não está escopado",
+    );
+  }
   const stats = { parsed, cached, cacheWritten };
   if (entries.length === 0) {
     return {

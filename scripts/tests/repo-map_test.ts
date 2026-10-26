@@ -7,6 +7,7 @@ import {
 } from "@std/assert";
 import {
   buildRepoMap,
+  CACHE_VERSION,
   DEFAULT_MAX_TOKENS,
   estimateTokens,
   extractSymbols,
@@ -483,7 +484,7 @@ Deno.test("cache incremental reaproveita arquivos inalterados e reparseia os mod
     const first = await buildRepoMap({ root });
     assertEquals(first.stats, { parsed: 6, cached: 0, cacheWritten: true });
     const cache = JSON.parse(await Deno.readTextFile(cachePath));
-    assertEquals(cache.version, "1.0.0");
+    assertEquals(cache.version, CACHE_VERSION);
     assertEquals(Object.keys(cache.files).sort(), Object.keys(manyFiles(6)).sort());
     const entry = cache.files["src/file00.ts"];
     assertEquals(typeof entry.fileHash, "string");
@@ -515,7 +516,7 @@ Deno.test("cache corrompido ou ilegível vira aviso e o mapa é reconstruído", 
     const result = await buildRepoMap({ root });
     assertEquals(result.stats.parsed, 2);
     assert(result.warnings.some((w) => w.includes("cache")));
-    assertEquals(JSON.parse(await Deno.readTextFile(cachePath)).version, "1.0.0");
+    assertEquals(JSON.parse(await Deno.readTextFile(cachePath)).version, CACHE_VERSION);
   });
 });
 
@@ -819,6 +820,271 @@ Deno.test("CLI --module lê o module-test-map padrão do root e falha claro quan
   });
 });
 
+// ---------------------------------------------------------------------------------------------
+// CommonJS (issue #507: o módulo cli/ do Vetor usa module.exports e require)
+// ---------------------------------------------------------------------------------------------
+
+const CJS_SAMPLE = `'use strict';
+
+const fs = require('node:fs');
+const { helper, other: renamed } = require('./util.js');
+const cfg = require('./cfg.js');
+const lazy = require('./lazy.js').pick;
+require('./side.js');
+
+function installFiles(source, options = {}) { return SECRET_BODY_MARKER; }
+async function loadAll(dir) { return SECRET_BODY_MARKER; }
+class Store extends Base {
+  constructor(root) { super(); SECRET_BODY_MARKER; }
+  get(key) { return SECRET_BODY_MARKER; }
+  #secret() {}
+}
+const LIMIT = 10;
+const compute = (a, b) => a + b + SECRET_BODY_MARKER;
+const CONFIG = { deep: { SECRET_BODY_MARKER: 1 } };
+function internal() { return SECRET_BODY_MARKER; }
+
+module.exports = {
+  installFiles,
+  LOAD: loadAll,
+  Store,
+  LIMIT,
+  compute,
+  CONFIG,
+  inline: function (x) { return SECRET_BODY_MARKER; },
+  arrow: (y) => y,
+  version: '1.2.3',
+  missing,
+};
+module.exports.extra = (z) => z + SECRET_BODY_MARKER;
+exports.late = 5;
+exports.alias = installFiles;
+exports.installFiles = 'duplicado deve perder para o primeiro';
+`;
+
+Deno.test("extractSymbols cataloga exports CommonJS (module.exports = {...}, module.exports.x e exports.x)", async () => {
+  const { symbols, imports, warning } = await extractSymbols("lib/sample.js", CJS_SAMPLE);
+  assertEquals(warning, undefined);
+  const byName = new Map(symbols.map((s) => [s.name, s]));
+  const sig = (name: string) => byName.get(name)?.signature;
+
+  assertEquals(
+    sig("installFiles"),
+    "exports.installFiles = function installFiles(source, options = {}) { ... };",
+  );
+  assertEquals(sig("LOAD"), "exports.LOAD = async function loadAll(dir) { ... };");
+  assertEquals(
+    sig("Store"),
+    [
+      "exports.Store = class Store extends Base {",
+      "  constructor(root) { ... }",
+      "  get(key) { ... }",
+      "};",
+    ].join("\n"),
+  );
+  assertEquals(sig("LIMIT"), "exports.LIMIT = 10;");
+  assertEquals(sig("compute"), "exports.compute = (a, b) => { ... };");
+  assertEquals(sig("CONFIG"), "exports.CONFIG = ...;");
+  assertEquals(sig("inline"), "exports.inline = function (x) { ... };");
+  assertEquals(sig("arrow"), "exports.arrow = (y) => { ... };");
+  assertEquals(sig("version"), "exports.version = '1.2.3';");
+  assertEquals(sig("missing"), "exports.missing = ...;");
+  assertEquals(sig("extra"), "exports.extra = (z) => { ... };");
+  assertEquals(sig("late"), "exports.late = 5;");
+  assertEquals(
+    sig("alias"),
+    "exports.alias = function installFiles(source, options = {}) { ... };",
+  );
+
+  const kinds = Object.fromEntries(symbols.map((s) => [s.name, s.kind]));
+  assertEquals(kinds["installFiles"], "function");
+  assertEquals(kinds["Store"], "class");
+  assertEquals(kinds["LIMIT"], "const");
+  assertEquals(kinds["extra"], "function");
+  assertEquals(symbols.filter((s) => s.name === "installFiles").length, 1, "nome duplicado");
+  assertFalse(symbols.some((s) => s.name === "internal"), "função não exportada fica de fora");
+  assertFalse(symbols.some((s) => s.signature.includes("SECRET_BODY_MARKER")), "corpos omitidos");
+  assertFalse(symbols.some((s) => s.signature.includes("duplicado")));
+  assert(symbols.every((s) => s.exported));
+
+  assertEquals(imports, [
+    { source: "./util.js", importedSymbols: ["helper", "other"] },
+    { source: "./cfg.js", importedSymbols: ["*"] },
+    { source: "./lazy.js", importedSymbols: ["pick"] },
+    { source: "./side.js", importedSymbols: [] },
+  ]);
+});
+
+Deno.test("extractSymbols cataloga module.exports = identificador e valor anônimo", async () => {
+  const named = await extractSymbols(
+    "run.js",
+    "function run(argv) { return 1; }\nmodule.exports = run;\n",
+  );
+  assertEquals(named.symbols.map((s) => [s.name, s.signature]), [
+    ["run", "module.exports = function run(argv) { ... };"],
+  ]);
+  const anonymous = await extractSymbols("a.js", "module.exports = (x) => x;\n");
+  assertEquals(anonymous.symbols.map((s) => [s.name, s.signature]), [
+    ["default", "module.exports = (x) => { ... };"],
+  ]);
+});
+
+Deno.test("extractSymbolsLexical captura exports CommonJS (fallback sem AST)", () => {
+  const source = [
+    "'use strict';",
+    "function a() {}",
+    "module.exports = {",
+    "  a,",
+    "  B: other,",
+    "  ...spread,",
+    "  nested: { x: 1, y: 2 },",
+    "  last,",
+    "};",
+    "module.exports.dotted = 1;",
+    "exports.plain = () => {};",
+  ].join("\n");
+  const symbols = extractSymbolsLexical(source);
+  assertEquals(
+    symbols.map((s) => s.name).sort(),
+    ["B", "a", "dotted", "last", "nested", "plain"],
+  );
+  assert(symbols.every((s) => s.kind === "const" && s.exported));
+  assertEquals(symbols.find((s) => s.name === "plain")?.signature, "exports.plain = ...;");
+  assertEquals(symbols.find((s) => s.name === "plain")?.line, 11);
+});
+
+// cjs/ é o módulo-alvo (CommonJS, como cli/ no Vetor); other/user.js o importa por require sem
+// extensão e hub/central.js é o arquivo mais central sem relação com o módulo.
+function cjsFixture(): Record<string, string> {
+  const files: Record<string, string> = {
+    "cjs/lib/writer.js":
+      "'use strict';\nconst { depValue } = require('../../lib/dep.js');\nconst { fmt } = require('./format');\nfunction installFiles(source, options) { return fmt(source) + depValue; }\nmodule.exports = { installFiles };\n",
+    "cjs/lib/format.js":
+      "'use strict';\nfunction fmt(text) { return text; }\nmodule.exports = { fmt };\n",
+    "other/user.js":
+      "'use strict';\nconst { installFiles } = require('../cjs/lib/writer.js');\nfunction runIt() { return installFiles('x'); }\nmodule.exports = { runIt };\n",
+    "lib/dep.js": "'use strict';\nexports.depValue = 1;\n",
+    "hub/central.js":
+      "'use strict';\nfunction hubHelper(h) { return h; }\nmodule.exports = { hubHelper };\n",
+  };
+  for (let i = 1; i <= 6; i++) {
+    files[`hub/c${i}.js`] =
+      `'use strict';\nconst { hubHelper } = require('./central.js');\nfunction use${i}(h) { return hubHelper(h); }\nmodule.exports = { use${i} };\n`;
+  }
+  return files;
+}
+
+const CJS_MODULE_MAP = SCOPE_MODULE_MAP.replaceAll("pkg", "cjs");
+
+Deno.test("--module num módulo CommonJS traz os arquivos do módulo em tier 1 e o grafo de require em tier 2", async () => {
+  await withRepo(cjsFixture(), async (root) => {
+    const unscoped = await buildRepoMap({ root, cachePath: null, maxTokens: 120 });
+    assertEquals(unscoped.files[0].path, "hub/central.js");
+
+    const result = await buildRepoMap({
+      root,
+      cachePath: null,
+      maxTokens: 120,
+      module: "cjs",
+      moduleTestMap: CJS_MODULE_MAP,
+    });
+    assertEquals(result.warnings, []);
+    assertEquals(tiers(result)["cjs/lib/writer.js"], 1);
+    assertEquals(tiers(result)["cjs/lib/format.js"], 1);
+    assertEquals(tiers(result)["other/user.js"], 2, "importador via require");
+    assertEquals(tiers(result)["lib/dep.js"], 2, "dependência via require");
+    assertEquals(result.files[0].tier, 1);
+    assertStringIncludes(result.markdown, "exports.installFiles = function installFiles(");
+    assertStringIncludes(result.markdown, "exports.fmt");
+    assert(result.estimatedTokens <= 120);
+  });
+});
+
+Deno.test("--files num arquivo CommonJS foca nele e nos vizinhos de require", async () => {
+  await withRepo(cjsFixture(), async (root) => {
+    const result = await buildRepoMap({
+      root,
+      cachePath: null,
+      files: ["cjs/lib/writer.js"],
+    });
+    assertEquals(tiers(result)["cjs/lib/writer.js"], 1);
+    assertEquals(tiers(result)["cjs/lib/format.js"], 2, "require sem extensão resolve");
+    assertEquals(tiers(result)["other/user.js"], 2);
+    assertEquals(tiers(result)["hub/central.js"], 3);
+  });
+});
+
+Deno.test("foco sem nenhum símbolo exportado avisa que o mapa não está escopado", async () => {
+  await withRepo(
+    {
+      ...scopeFixture(),
+      "pkg/silent.ts": "const internal = 1;\nconsole.info(internal);\n",
+    },
+    async (root) => {
+      // Só o arquivo sem exports está no foco: o mapa cairia em arquivos sem relação.
+      const result = await buildRepoMap({
+        root,
+        cachePath: null,
+        files: ["pkg/silent.ts"],
+      });
+      assertEquals(new Set(result.files.map((f) => f.tier)), new Set([3]));
+      const warning = result.warnings.find((w) => w.includes("sem símbolos"));
+      assert(warning, result.warnings.join("\n"));
+      assertStringIncludes(warning, "pkg/silent.ts");
+      assertStringIncludes(warning, "não está escopado");
+    },
+  );
+});
+
+Deno.test("foco com símbolos em pelo menos um arquivo não gera o aviso de foco sem símbolos", async () => {
+  await withRepo(
+    { ...scopeFixture(), "pkg/silent.ts": "const internal = 1;\nconsole.info(internal);\n" },
+    async (root) => {
+      const result = await buildRepoMap({
+        root,
+        cachePath: null,
+        module: "pkg",
+        moduleTestMap: SCOPE_MODULE_MAP,
+      });
+      assertFalse(result.warnings.some((w) => w.includes("sem símbolos")));
+      assertEquals(tiers(result)["pkg/core.ts"], 1);
+    },
+  );
+});
+
+Deno.test("CLI mostra no stderr o aviso de foco sem símbolos", async () => {
+  await withRepo(
+    {
+      ...scopeFixture(),
+      "pkg/silent.ts": "const internal = 1;\nconsole.info(internal);\n",
+    },
+    async (root) => {
+      const result = await runCli(root, ["--files", "pkg/silent.ts"]);
+      assertEquals(result.code, 0, result.stderr);
+      assertStringIncludes(result.stderr, "aviso:");
+      assertStringIncludes(result.stderr, "sem símbolos");
+    },
+  );
+});
+
+Deno.test("cache de versão anterior é descartado e os arquivos são reextraídos", async () => {
+  await withRepo(cjsFixture(), async (root) => {
+    const cachePath = `${root}/.claude/vetor/cache/repo-map.json`;
+    const first = await buildRepoMap({ root });
+    assertEquals(first.stats.cached, 0);
+
+    // Simula um cache gravado por um extrator que não conhecia CommonJS.
+    const cache = JSON.parse(await Deno.readTextFile(cachePath));
+    cache.version = "0.0.0";
+    await Deno.writeTextFile(cachePath, JSON.stringify(cache));
+
+    const second = await buildRepoMap({ root });
+    assertEquals(second.stats.cached, 0);
+    assertEquals(second.stats.parsed, first.stats.parsed);
+    assertEquals(JSON.parse(await Deno.readTextFile(cachePath)).version, CACHE_VERSION);
+  });
+});
+
 Deno.test("CLI --cache-path grava o cache no caminho informado em vez do padrão do root", async () => {
   await withRepo(scopeFixture(), async (root) => {
     const shared = await Deno.makeTempDir({ prefix: "repo-map-shared-" });
@@ -826,7 +1092,7 @@ Deno.test("CLI --cache-path grava o cache no caminho informado em vez do padrão
       const cachePath = `${shared}/repo-map.json`;
       const result = await runCli(root, ["--json", "--cache-path", cachePath]);
       assertEquals(result.code, 0, result.stderr);
-      assertEquals(JSON.parse(await Deno.readTextFile(cachePath)).version, "1.0.0");
+      assertEquals(JSON.parse(await Deno.readTextFile(cachePath)).version, CACHE_VERSION);
       assertFalse(
         await Deno.stat(`${root}/.claude/vetor/cache/repo-map.json`).then(() => true, () => false),
       );
