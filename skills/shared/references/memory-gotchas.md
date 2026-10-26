@@ -61,19 +61,27 @@ instruções operacionais não verificadas. Sem descoberta crítica, não grave 
 linha sua para esta branch, não duplique.
 
 `memory_write_page` **substitui a página inteira e seus metadados** e não tem patch. Por isso, a gravação
-é uma leitura seguida de escrita condicional:
+é uma leitura seguida de escrita, condicional quando o servidor permite:
 
-1. `memory_read_page` (mesmo `path` e escopo) e guarde o `page_id` e o corpo atuais.
+1. `memory_read_page` (mesmo `path` e escopo) e guarde o corpo atual e, se a resposta trouxer, o `page_id`.
 2. Monte o corpo novo: `# Aprendizados da sessão (vetor)`, as linhas já existentes **sem alterá-las** e as
    suas ao final. Se passar de 30 linhas, descarte as mais antigas.
-3. Chame `memory_write_page` com `path`, `body`, `workspace`, `project`, `expires_at` e a condição:
-   `expected_page_id` com o `page_id` lido, ou `create_only: true` se a página não existia.
+3. Chame `memory_write_page` com `path`, `body`, `workspace`, `project` e `expires_at`. Se o schema da
+   ferramenta listar `expected_page_id` e `create_only`, acrescente a condição: `expected_page_id` com o
+   `page_id` lido, ou `create_only: true` se a página não existia. Se o schema não os listar, não os envie
+   e grave sem condição logo após a leitura.
 4. Se a gravação falhar com `precondition_failed` (outro worker gravou no meio), repita os passos 1 a 3
    **uma única vez**. Qualquer outra falha, ou a segunda falha, encerra a etapa em silêncio e o Green
    segue.
 
-`expires_at` precisa ir em toda gravação (omitir o campo o apaga): use a data de hoje em UTC mais 1 dia
-(`AAAA-MM-DD`; o servidor expira ao fim desse dia). Esse prazo é uma premissa do Vetor para manter os
-aprendizados efêmeros: a Spec pede aprendizados "da sessão" mas não define o TTL. Fonte das semânticas de
-`expected_page_id`, `create_only` e `expires_at`: `docs/programmatic-memory.md` e `docs/usage.md` do
-ai-memory, consultados em 2026-10-26.
+Sem a condição há uma janela de corrida de poucos segundos em que a linha de outro worker pode ser
+sobrescrita. O custo é um aprendizado perdido, nunca a correção do trabalho, e por isso é aceito.
+`expected_page_id` e `create_only` existem desde o ai-memory 3.0.0 (CHANGELOG `[3.0.0]`, 2026-10-13) e o
+campo `expired` do `memory_read_page` desde o 3.1.1; o servidor local de desenvolvimento do Vetor, na
+versão 2.5.2 conferida em 2026-10-26, não anuncia nenhum dos dois, e só o `expires_at` está nele.
+
+`expires_at` precisa ir em toda gravação (cada gravação substitui os metadados, e omitir o campo pode
+tirar o prazo da página): use a data de hoje em UTC mais 1 dia (`AAAA-MM-DD`; o servidor expira ao fim
+desse dia). Esse prazo é uma premissa do Vetor para manter os aprendizados efêmeros: a Spec pede
+aprendizados "da sessão" mas não define o TTL. Fonte das semânticas de `expected_page_id`, `create_only` e
+`expires_at`: `docs/programmatic-memory.md` e `docs/usage.md` do ai-memory, consultados em 2026-10-26.

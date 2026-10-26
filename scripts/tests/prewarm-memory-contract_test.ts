@@ -146,6 +146,16 @@ Deno.test("issue #502 (RF-08): gravação no Green em até 3 linhas, com escrita
   assertStringIncludes(writing, "`precondition_failed`");
   assertMatch(writing, /\*\*uma única vez\*\*/);
   assertStringIncludes(writing, "encerra a etapa em silêncio");
+  // A condição depende do servidor: o ai-memory 2.5.2 local não anuncia expected_page_id/create_only.
+  assertMatch(writing, /Se o schema\s+da\s+ferramenta listar `expected_page_id` e `create_only`/);
+  assertMatch(
+    writing,
+    /Se o schema não os listar, não os envie\s+e grave sem condição logo após a leitura/,
+  );
+  assertStringIncludes(writing, "janela de corrida");
+  assertMatch(writing, /nunca a correção do trabalho/);
+  assertStringIncludes(writing, "3.0.0");
+  assertStringIncludes(writing, "2.5.2");
   // TTL: efêmero por premissa declarada, reenviado a cada gravação.
   assertStringIncludes(writing, "`expires_at` precisa ir em toda gravação");
   assertMatch(writing, /premissa do Vetor/);
@@ -194,6 +204,7 @@ Deno.test("issue #502 (RF-08): issue-worker, espelho Codex e tabela de MCPs apon
   assertMatch(issueWorker, /nunca bloqueia nem muda o `GREEN`/);
   assertStringIncludes(codexWorker, "Memória cruzada (RF-08)");
   assertStringIncludes(codexWorker, "`vetor/session-learnings`");
-  assertStringIncludes(codexWorker, "`expected_page_id` ou\n   `create_only`");
+  assertMatch(codexWorker, /`expected_page_id` ou\s+`create_only`/);
+  assertMatch(issueWorker, /quando o servidor a oferece, escrita condicional/);
   assertStringIncludes(mcpAvailability, "`vetor/session-learnings`");
 });
