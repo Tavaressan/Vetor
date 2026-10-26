@@ -40,8 +40,11 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
 
 ## O que fazer
 
-1. `cd` para o path do worktree recebido e confirme (`pwd`, `git branch --show-current`). Se a
-   branch não for a do prompt, pare e registre `BLOCKED_WAITING`.
+1. **Todo comando Bash começa com `cd "<path-do-worktree>" &&`.** Você roda sem `isolation`, então
+   o cwd não é o worktree e volta ao inicial a cada chamada de Bash — sem o `cd` até o
+   `vetor-checks.sh in-worktree` do ship aborta. Vale para `git`, `gh`, testes e os heredocs do
+   status file. Na primeira chamada confirme `git branch --show-current`; se a branch não for a
+   do prompt, pare e registre `BLOCKED_WAITING`.
 2. **Não troque o `Status` do status file.** O safety hook só libera `git push` e `gh pr create`
    enquanto o status é `GREEN` ou `PR_STAGED`; reescrever para `RUNNING` bloquearia o seu próprio
    push. Enquanto trabalha, atualize apenas `Updated`, `Last action` e `Next`, mantendo
@@ -76,8 +79,8 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
   o modo monolítico (`/vetor:ship` sem flag). O merge é do coordinator.
 - **Nunca** faça push para a branch default (`$DEFAULT_BRANCH`, `master`, `main`, `production`) nem
   `git push --force`: o único push permitido é o da branch de trabalho do prompt.
-- Não remova o worktree, a branch nem o status file; não use `EnterWorktree`/`ExitWorktree` — seu
-  contexto já é o do worktree correto.
+- Todo comando Bash começa com `cd "<path-do-worktree>" &&`: o cwd não persiste entre chamadas.
+- Não remova o worktree, a branch nem o status file; não use `EnterWorktree`/`ExitWorktree`.
 - Não edite código do produto. Se um passo do ship pedir uma correção de código, registre
   `BLOCKED_WAITING`; o redespacho do `issue-worker` é decisão do coordinator.
 - **Nunca** chame `EnterPlanMode` (issue #121).

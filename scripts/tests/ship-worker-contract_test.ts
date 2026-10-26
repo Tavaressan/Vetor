@@ -44,6 +44,13 @@ Deno.test("ship-worker: prompt conduz /vetor:ship --prepare, grava PR_STAGED e n
   assertMatch(shipWorker, /code-review[\s\S]*coordinator/i);
 });
 
+Deno.test("ship-worker: manda prefixar todo Bash com cd no worktree (cwd não persiste e não há isolation)", () => {
+  const restrictions = shipWorker.slice(shipWorker.indexOf("## Restrições"));
+
+  assertMatch(shipWorker, /Todo comando Bash começa com `cd "<path-do-worktree>" &&`/);
+  assertMatch(restrictions, /Todo comando Bash começa com `cd "<path-do-worktree>" &&`/);
+});
+
 Deno.test("ship-worker: proíbe merge e push para a branch default", () => {
   const restrictions = shipWorker.slice(shipWorker.indexOf("## Restrições"));
   assert(restrictions.length > 0, "ship-worker precisa de uma seção Restrições");
