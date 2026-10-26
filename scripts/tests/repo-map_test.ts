@@ -466,6 +466,16 @@ Deno.test("buildRepoMap é determinístico, inclusive com cache frio e morno", a
   }
 });
 
+Deno.test("cache padrão se auto-ignora no git e cachePath customizado não ganha .gitignore", async () => {
+  await withRepo(manyFiles(2), async (root) => {
+    await buildRepoMap({ root });
+    assertEquals(await Deno.readTextFile(`${root}/.claude/vetor/cache/.gitignore`), "*\n");
+
+    await buildRepoMap({ root, cachePath: `${root}/custom/map.json` });
+    assertFalse(await Deno.stat(`${root}/custom/.gitignore`).then(() => true, () => false));
+  });
+});
+
 Deno.test("cache incremental reaproveita arquivos inalterados e reparseia os modificados", async () => {
   await withRepo(manyFiles(6), async (root) => {
     const cachePath = `${root}/.claude/vetor/cache/repo-map.json`;

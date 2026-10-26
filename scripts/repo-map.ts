@@ -521,7 +521,15 @@ async function loadCache(cachePath: string, warnings: string[]): Promise<RepoMap
 
 async function saveCache(cachePath: string, cache: RepoMapCache): Promise<void> {
   const slash = Math.max(cachePath.lastIndexOf("/"), cachePath.lastIndexOf("\\"));
-  if (slash > 0) await Deno.mkdir(cachePath.slice(0, slash), { recursive: true });
+  if (slash > 0) {
+    const dir = cachePath.slice(0, slash);
+    await Deno.mkdir(dir, { recursive: true });
+    // O cache do Vetor se auto-ignora, como em check-edit.ts e vetor-status.sh: o .gitignore do
+    // projeto-alvo pode não cobrir .claude/vetor/cache/. Um cachePath customizado não é tocado.
+    if (dir.replaceAll("\\", "/").endsWith(".claude/vetor/cache")) {
+      await Deno.writeTextFile(`${dir}/.gitignore`, "*\n", { createNew: true }).catch(() => {});
+    }
+  }
   const temp = `${cachePath}.${crypto.randomUUID()}.tmp`;
   try {
     await Deno.writeTextFile(temp, JSON.stringify(cache));
