@@ -173,7 +173,8 @@ use `--issue-json <arquivo>` no lugar de `--issue`. O CLI falha (exit 1) se o `m
 estiver ausente ou sem comando para o módulo: nesse caso monte o prompt sem o pacote e reporte,
 em vez de inventar um comando de teste.
 
-Cole a saída em um bloco `json` no início do prompt do worker:
+Cole a saída em um bloco `json` no início do prompt do worker (com `--format prompt` a saída já
+traz o bloco e a tag `<repo_map>`: cole-a como está, sem embrulhar em outra cerca):
 
 ```json
 {
