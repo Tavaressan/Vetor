@@ -86,6 +86,20 @@ configurada, segue inline. "Exatamente 1 turno" é uma propriedade do texto da s
 contrato estrutural; o tempo de setup (< 15 s) depende do usuário e não é medido. Os padrões
 `(Recommended)` são os mesmos que o `--headless` já adotava, agora listados item a item.
 
+**Async Decision Inbox e `SUSPENDED` (issue #500).** Com um worker em `BLOCKED_WAITING` o
+coordinator interrogava o usuário e parava: sem ninguém na tela, a fila `QUEUED` não andava e as
+ondas seguintes esperavam. O worker, porém, já encerrou o turno ao registrar o bloqueio, e o teto `N` é
+só contabilidade do coordinator. Por isso o bloqueio vira `SUSPENDED` (estado gravado só pelo
+coordinator, também terminal para o `SubagentStop`), a dúvida vai para
+`.claude/vetor/decision-inbox.json` e a vaga é reaproveitada no mesmo ciclo. O status file continua
+sendo a fonte de verdade: o `SUSPENDED` guarda `Blocked on`/`Options`/`Recommendation`,
+`Suspended at`, `Worktree` e `Timeout`, de onde a inbox é reconstruída se o JSON sumir. A retomada
+usa o worktree existente (subagente padrão com `cd`, nunca `vetor:issue-worker`). O avanço otimista
+de 60 s é opt-in (`optimisticDecisionSeconds`), vale só para decisão técnica — nunca para permissão —,
+exige o checkpoint (tag local `_vetor_checkpoint_*`) antes de aplicar a opção `(Recommended)` e é
+avaliado a cada ciclo de monitoramento, porque `AskUserQuestion` não tem timeout; o prazo real é, por
+isso, de 60 s até o ciclo seguinte. Texto do usuário nunca vai na linha de comando do `resolve`.
+
 **Por que o circuit breaker headless sempre pausa.** Falha recorrente com a mesma assinatura quase
 sempre é infraestrutura (rede, registry, disco), não código: insistir sem humano só multiplica o
 custo pelo número de grupos restantes.

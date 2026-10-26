@@ -14,6 +14,7 @@
 | #51 | ❌ Pre-ship failed | — | testes locais ou push falharam no `--prepare`, worktree preservado |
 | #52 | 🚧 Gate failed | #91 | `--auto-ship`: reviews FAIL (code review com 1 achado(s) blocker); PR aberto para um humano |
 | #44 | ⏸️ Review required | #89 | awaiting human review |
+| #53 | ⏳ SUSPENDED | — | aguardando decisão na Decision Inbox (`dec-issue-53`); vaga liberada, worktree preservado |
 | #50 | 🕒 Enfileirado | #90 | merge queue/auto-merge: PR aberto, GitHub conclui o merge; worktree preservado |
 | #45 | ⏭️ SKIPPED (aguardando Spec) | — | gate de Spec/design, Fase 2 — usuário optou por gerar a Spec antes |
 | #46 | ⏭️ SKIPPED (aguardando insumo do usuário) | — | triagem Fase 1/2 — aguardando decisão/conteúdo do usuário |
@@ -28,11 +29,11 @@ Resumo: <N> merged, <Q> enfileirados, <M> falharam, <K> aguardando review, <J> s
 que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resultados reportados —
 **nenhum grupo do plano aprovado deve ficar sem uma linha de resultado**. Resultados válidos
 dependem do modo:
-- **Interativo**: `Merged`, `Enfileirado`, `Pre-ship failed`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
+- **Interativo**: `Merged`, `Enfileirado`, `Pre-ship failed`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SUSPENDED`,
   `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`, `SKIPPED (fora deste repositório)`,
   `SKIPPED (épico/acompanhamento)`, `SKIPPED (bloqueada por #N)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
   despachado" e pergunte ao usuário via `AskUserQuestion` se deve despachar agora.
-- **`--headless`**: `Merged`, `Enfileirado`, `Pre-ship failed`, `Gate failed`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
+- **`--headless`**: `Merged`, `Enfileirado`, `Pre-ship failed`, `Gate failed`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`, `SUSPENDED`,
   `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`, `SKIPPED (fora deste repositório)`,
   `SKIPPED (épico/acompanhamento)`, `SKIPPED (bloqueada por #N)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
   atingiram verde em modo headless sem `--auto-ship`/`autoShipHeadless` (sem merge nessa fase). Se houver discrepância, apenas reporte o
@@ -49,7 +50,8 @@ dependem do modo:
   com o número do PR, cada gate reprovado (`ci`, `reviews`, `migrations`, `mergeable`) e o detalhe
   que o comando `auto-ship-gates` imprimiu (ou `Review required` / permissão negada, se o `--finalize`
   parou). O PR segue aberto; a sessão termina normalmente.
-- Para cada `BLOCKED_WAITING`: o bloqueio e a recomendação do worker.
+- Para cada `BLOCKED_WAITING` ou `SUSPENDED`: o bloqueio e a recomendação do worker (e o id da
+  pendência na Decision Inbox).
 - Se o circuit breaker disparou: a assinatura de erro comum e os grupos não despachados.
 
 ---

@@ -57,6 +57,9 @@ As regras abaixo prevalecem sobre o texto da skill, que foi escrito para o Claud
 - Sem `SendMessage`: a única forma de saber o estado de um worker é o polling do status file
   (`bash .opencode/scripts/vetor-status.sh`). Uma decisão para um worker bloqueado vira ação sua ou
   um redespacho com o contexto da decisão no prompt (abaixo).
+- A Decision Inbox da Fase 5.b (`SUSPENDED`, `decision-inbox.json`) usa `scripts/decision-inbox.ts`,
+  que o OpenCode não instala em `.opencode/scripts/`: ali ela não se aplica. Um worker em
+  `BLOCKED_WAITING` segue o fluxo do polling do status file, sem estado `SUSPENDED`.
 
 ### Fase 3 — criar o worktree você mesmo
 

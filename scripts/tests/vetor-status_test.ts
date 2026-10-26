@@ -329,3 +329,34 @@ Deno.test("vetor-status.sh reaproveita a listagem de PRs por 15 s, num cache que
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("vetor-status.sh avisa sobre decisões SUSPENDED sem tirar nada da tabela — issue #500", async () => {
+  const root = await makeWorkerRepo({ "fix-run": "RUNNING", "fix-wait": "SUSPENDED" });
+  try {
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-wait.md`,
+      "Status: SUSPENDED\nIteration: 2/5 (Issue #9)\nBlocked on: Ambiguidade no driver\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    // a tabela continua completa, com o worktree do suspenso ainda ativo
+    assertStringIncludes(stdout, "| fix-run | RUNNING |");
+    assertStringIncludes(stdout, "| fix-wait | SUSPENDED |");
+    assertStringIncludes(stdout, "Decision Inbox");
+    assertStringIncludes(stdout, "- fix-wait: Ambiguidade no driver");
+    assertEquals(stdout.includes("- fix-run:"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh não imprime o aviso da Decision Inbox sem workers SUSPENDED — issue #500", async () => {
+  const root = await makeWorkerRepo({ "fix-run": "RUNNING" });
+  try {
+    const { stdout } = await run("bash", [SCRIPT], root);
+    assertEquals(stdout.includes("Decision Inbox"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

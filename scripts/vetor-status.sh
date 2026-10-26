@@ -97,6 +97,8 @@ echo "|---|---|---|---|---|"
 
 # Rastrear branches que já apareceram em status files (compatível com bash 3.2)
 seen_branches=""
+# Decision Inbox (issue #500): workers SUSPENDED, uma linha "- <branch>: <Blocked on>" cada.
+suspended=""
 
 for f in "$STATUS_DIR"/*.md; do
   name=$(basename "$f" .md)
@@ -124,6 +126,12 @@ for f in "$STATUS_DIR"/*.md; do
   seen_branches="${seen_branches}${name}
 "
 
+  if [ "$status" = "SUSPENDED" ]; then
+    blocked_on=$(sed -n 's/^Blocked on: *//p' "$f" | head -1 | tr -d '\r')
+    suspended="${suspended}- ${name}: ${blocked_on:-?}
+"
+  fi
+
   if { [ "$status" = "GREEN" ] || [ "$status" = "PR_STAGED" ]; } && [ -n "$prs" ]; then
     pr_info=$(printf '%s\n' "$prs" | grep "^${name}=" | head -1 || echo "")
     if [ -n "$pr_info" ]; then
@@ -139,6 +147,14 @@ for f in "$STATUS_DIR"/*.md; do
 
   echo "| $name | ${status:-?} | ${iter:--} | ${last:--} | $wt |"
 done
+
+# Notificação não-bloqueante (issue #500): não interrompe o loop de monitoramento do coordinator.
+if [ -n "$suspended" ]; then
+  echo
+  echo "🔔 **Decision Inbox — decisões aguardando (workers SUSPENDED; a vaga no teto N já foi liberada):**"
+  echo
+  printf '%s' "$suspended"
+fi
 
 # Detectar worktrees ativos sem nenhum status file (possível falha anômala — issue #72)
 missing_status=""

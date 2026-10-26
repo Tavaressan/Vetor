@@ -81,7 +81,7 @@ A flag `--headless` substitui os pontos de interação humana por decisões dete
 | 2 — gate de Spec/design | Item 2 da entrevista consolidada: uma pergunta para todas as issues não-triviais sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
 | 2 — teto de workers | Item 1 da entrevista consolidada (omitido se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
 | 2 — aprovação do plano | Item 4 da entrevista consolidada (`ExitPlanMode` em plan mode), **pare** | Não pede aprovação; imprime o plano no relatório |
-| 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
+| 5.b — `BLOCKED_WAITING` | Suspende o grupo (`SUSPENDED`), libera a vaga no teto `N` e notifica sem bloquear | Suspende (`SUSPENDED`) e libera a vaga igualmente; não escala nem decide, só reporta |
 | 5.c — circuit breaker | Pergunta se pausa | Sempre pausa: para de despachar e reporta |
 | 6 — entrega | Pre-Ship paralelo e merge serializado | Pulada. Com `--auto-ship` ou `autoShipHeadless: true`, roda sob os 4 gates da Fase 6.d |
 
@@ -91,8 +91,8 @@ Além disso, em `--headless`:
   `.claude/vetor/config.json`, nunca invoque `ship`, `gh pr ready` ou `gh pr merge`: grupos em `GREEN`
   são reportados como prontos para ship. Com o opt-in, a Fase 6 roda sob os quatro gates da 6.d,
   nunca pergunta e, se um gate falhar, deixa o PR aberto.
-- **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
-  `BLOCKED_WAITING` e aparece no relatório final.
+- **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão é suspenso
+  (`SUSPENDED`, Fase 5.b) sem avanço otimista e aparece no relatório final.
 - **Labels de triagem em `--headless`**: ao pular ou manter bloqueada uma issue, aplica igualmente a
   label de triagem equivalente se já existir no repositório (ver tabela de mapeamento na Fase 1);
   **nunca** cria labels (`gh label create`). Sem equivalente no repo, não aplica e documenta o motivo
@@ -507,8 +507,10 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
 - Despache em paralelo até `N` grupos, **estritamente dentro da onda corrente** (`O_i`). Grupos de
   `O_{i+1}` ou posterior nunca são despachados enquanto houver grupo de `O_i` ainda não mergeado —
   mesmo que haja vagas no teto `N`. Eles ficam `QUEUED (aguardando O_i)` na tabela (Fase 5.a).
-- Dentro da onda corrente: quando um worker ativo atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou for
-  cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
+- Dentro da onda corrente: quando um worker ativo
+  atingir `GREEN`, `FAILED_MAX_ITERATIONS`, for suspenso (`SUSPENDED`, Fase 5.b) ou for cancelado,
+  despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto. Um grupo `SUSPENDED` retomado
+  (Fase 5.b) volta a ocupar uma vaga e passa à frente dos `QUEUED`.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
   Leia `../shared/references/issue-coordinator-dispatch.md` para timeout, transição de ondas e sincronização do root.
 - **Remoção de labels de triagem antes do dispatch:** ao despachar uma issue (Lead ou Sequential),
@@ -548,27 +550,87 @@ Ao ver um ou mais grupos em `GREEN` na tabela, **não espere os demais workers**
 de todos os verdes de uma vez (Fase 6.a). O CI desses PRs e o dos que ainda vão chegar correm em
 paralelo no GitHub, e o acompanhamento é uma consulta agregada (5.e do `issue-coordinator-monitoring.md`).
 
-**5.b — Escalação de bloqueios**
+**5.b — Escalação de bloqueios (Async Decision Inbox, issue #500)**
 
 **A fonte de verdade da escalação é o status file.** Se um worker sinalizar bloqueio apenas por
 chat, **não escale ainda**: instrua-o via `SendMessage` a gravar o `BLOCKED_WAITING` estruturado
 (`Blocked on` / `Options` / `Recommendation`) primeiro, para que o estado sobreviva a um reinício.
 
-**Em `--headless`: não escale.** Registre no relatório final o agente (`<slug>` / Issue `#<N>`), o
-motivo do bloqueio e a recomendação do worker. Se a issue for mantida bloqueada ou retirada da leva,
-aplique a label de bloqueio equivalente se já existir no repositório (`blocked` -> `status/blocked`;
-nunca execute `gh label create` — ver tabela de mapeamento da Fase 1). Não conceda permissão, não
-escolha opção técnica e não redespache. Nunca mate um worker bloqueado para abrir vaga no teto `N`.
+Perguntar ao usuário e esperar a resposta com o worker segurando uma vaga trava a fila inteira
+(bloqueio em cabeça de fila). Um worker em `BLOCKED_WAITING` já encerrou o turno — é um estado
+terminal para o `SubagentStop` —, então o que ocupa o teto `N` é só contabilidade do coordinator.
+No mesmo ciclo de monitoramento em que detectar o bloqueio, siga estes passos, sem perguntar antes:
 
-Fora do headless, leia o bloco `Blocked on` / `Options` / `Recommendation` e escale via
-`AskUserQuestion`, identificando o agente e transmitindo a recomendação. Opções conforme o tipo:
-- **Permissão bloqueada** (`<comando>`): permitir esta vez / permitir para este agente (auto-aprova
-  chamadas similares dele) / negar (registra "skipped", aplicando label de bloqueio existente no repo
-  conforme a Fase 1 sem nunca criar labels) / parar agente.
-- **Decisão técnica**: as opções do bloco `Options`.
+1. **Suspenda.** O comando é local (sem rede) e atualiza duas coisas: a pendência em
+   `<repo-root>/.claude/vetor/decision-inbox.json` (schema na Spec, seção Data) e o status file, que
+   passa a `Status: SUSPENDED` mantendo os blocos `Blocked on` / `Options` / `Recommendation`:
+   ```bash
+   deno run -A "$SKILL_DIR/../../scripts/decision-inbox.ts" suspend \
+     --status-file <status-file-path> --worktree <path-do-worktree> [--timeout <segundos>]
+   ```
+   O `--timeout` só entra no avanço otimista abaixo; sem ele a pendência espera o humano.
+2. **Libere a vaga.** `SUSPENDED` não conta no teto `N`: no mesmo ciclo, despache o próximo `QUEUED`
+   da onda corrente (Fase 4). O worker não é morto nem tocado — o worktree fica intacto.
+3. **Notificação (não bloqueante).** O `vetor-status.sh` (5.a) lista os suspensos com um aviso 🔔 abaixo da
+   tabela. Em sessão interativa, mostre cada pendência como texto junto da tabela e siga o loop:
+   ```
+   🔔 Decisão pendente — #<N> (<slug>): <Blocked on>
+   Opções: 1. <opção> (Recommended) · 2. <opção> · 3. <opção>
+   Responda `#<N> = <número da opção>` (ou texto livre) a qualquer momento.
+   ```
+   Use `AskUserQuestion` para a pendência só quando não houver mais nada a monitorar nem a despachar
+   (nenhum worker ativo e a fila `QUEUED` da onda vazia): aí perguntar não congela ninguém. Para um
+   bloqueio de **permissão** (`<comando>`) as opções são: permitir esta vez / permitir para este
+   agente (auto-aprova chamadas similares dele) / negar (registra "skipped", aplicando label de
+   bloqueio existente no repo conforme a Fase 1, sem nunca criar labels) / parar agente.
+4. **Retome quando a decisão chegar.** Resolva a pendência — o comando remove-a da inbox e deixa o
+   status file em `RUNNING` com a decisão registrada:
+   ```bash
+   deno run -A "$SKILL_DIR/../../scripts/decision-inbox.ts" resolve --id dec-issue-<N> --option <n>
+   ```
+   Nunca interpole texto do usuário na linha de comando: a escolha de uma opção usa `--option <n>`
+   (1 = primeira) e texto livre vai num arquivo gravado com a ferramenta de escrita, passado em
+   `--decision-file <path>`. Depois redespache o grupo **no worktree existente**, pela nota de
+   redispatch da Fase 4: subagente padrão **sem `subagent_type`** (nunca `vetor:issue-worker`, que
+   força worktree novo), com a skill `fix`, um `cd` para o path real do worktree (`git worktree list`),
+   o status file e a decisão no prompt, continuando da `Iteration: N/5` registrada. Se o worker
+   original ainda for endereçável, `SendMessage` com a decisão é um atalho equivalente. O grupo
+   retomado volta a ocupar uma vaga do teto `N` e tem prioridade sobre os `QUEUED` da mesma onda,
+   mas não interrompe workers ativos: se não há vaga, espera a próxima que abrir.
 
-Comunique a decisão ao sub-agente via `SendMessage`. Se a resposta exigir redespachar em worktree
-existente, siga a nota de redispatch da Fase 4.
+**Avanço otimista (opcional, RF-04).** Desligado por padrão. Ligue com
+`"optimisticDecisionSeconds": 60` em `.claude/vetor/config.json` (lido a partir do root). Ligado, e
+**só para bloqueio de decisão técnica — nunca permissão: nenhuma permissão é auto-aprovada, nem pelo
+temporizador** —, suspenda com `--timeout <segundos>` e acrescente à notificação, literalmente:
+"Avançando automaticamente com a opção (Recommended) em 60s na ausência de resposta". A
+`AskUserQuestion` não tem timeout, então o prazo é avaliado a cada ciclo de monitoramento (≤ 45 s, o
+mesmo ritmo da 5.e): rode `decision-inbox.ts list` e, para cada pendência com `expired: true`:
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/decision-inbox.ts" resolve --id dec-issue-<N> --optimistic
+```
+
+O comando cria antes a tag anotada e **local** `_vetor_checkpoint_<branch>_<timestamp>` na ponta da
+branch do worker (ponto de restauração; nada é publicado), grava `[OPTIMISTIC_DECISION]` no status
+file e aplica a opção `(Recommended)` do worker. Se a tag falhar, nada é resolvido e a pendência segue
+aguardando o humano. Registre id, opção e tag na lista de decisões autônomas do relatório (RNF-03).
+Uma resposta humana que chegue antes do prazo tem precedência. Como a avaliação é por ciclo, o avanço
+ocorre entre 60 s e o ciclo seguinte, não exatamente aos 60 s.
+
+**Se o `decision-inbox.json` for apagado ou corrompido**, `list` e `resolve` o recriam a partir dos
+status files `SUSPENDED` (que guardam `Blocked on`, `Options`, `Suspended at`, `Worktree` e `Timeout`).
+
+**Em `--headless`: não escale e não decida.** Suspenda (`SUSPENDED`, sem `--timeout`) e libere a vaga
+igualmente.
+Registre no relatório final o agente (`<slug>` / Issue `#<N>`), o motivo do bloqueio e a recomendação
+do worker; a pendência fica na inbox para um humano. Se a issue for mantida bloqueada ou retirada da
+leva, aplique a label de bloqueio equivalente se já existir no repositório (`blocked` ->
+`status/blocked`; nunca execute `gh label create` — ver tabela de mapeamento da Fase 1). Não conceda
+permissão, não escolha opção técnica e não redespache. Liberar a vaga não mata nem toca o worker: ele
+já encerrou o turno e o worktree fica intacto.
+
+Um grupo `SUSPENDED` sem resolução **não conta como concluído** para a transição de onda
+(`../shared/references/issue-coordinator-dispatch.md`): trate-o como pendência a reportar.
 
 **5.c — Circuit Breaker**
 

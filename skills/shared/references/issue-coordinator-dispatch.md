@@ -33,8 +33,8 @@ pela branch) ou pelo retorno do `Agent()`.
   autorizados realizem ship normalmente.
 - **Transição de onda.** Só inicie o dispatch de `O_{i+1}` depois que:
   1. Todos os grupos de `O_i` **que foram efetivamente despachados** tiverem chegado a `GREEN` e
-     passado pela Fase 6 (merge) — um grupo de `O_i` em `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING`
-     sem resolução bloqueia a transição; trate como pendência a reportar, não avance a onda para não
+     passado pela Fase 6 (merge) — um grupo de `O_i` em `FAILED_MAX_ITERATIONS`, `BLOCKED_WAITING` ou `SUSPENDED`
+     (aguardando decisão na Decision Inbox, Fase 5.b) sem resolução bloqueia a transição; trate como pendência a reportar, não avance a onda para não
      repetir o branch skew que motivou esta seção. Um grupo `SKIPPED (aguardando Spec)` (gate de
      Spec/design, Fase 2) **nunca** conta como pendência aqui — nunca foi despachado, então não há
      branch/merge dele para a próxima onda esperar.
@@ -64,7 +64,7 @@ pela branch) ou pelo retorno do `Agent()`.
 ⚠️ **Checagem de duplicidade (antes de cada dispatch).** Rode
 `bash "$SKILL_DIR/../../scripts/vetor-status.sh"` e cruze as issues do grupo candidato contra as
 já reportadas como em andamento (`Iteration: N/5 (Issue #<M>)`) em status files ativos (`RUNNING`,
-`BLOCKED_WAITING`, ou `GREEN` ainda não mergeado). Se qualquer issue do grupo já aparecer em um
+`BLOCKED_WAITING`, `SUSPENDED` ou `GREEN` ainda não mergeado). Se qualquer issue do grupo já aparecer em um
 worktree ativo: alerte (`⚠️ Issue #<M> já está em andamento no worktree/branch <outra-branch> —
 pulando dispatch duplicado`) e **pule** o dispatch desse grupo.
 
@@ -90,7 +90,8 @@ se houver `feat`, `refactor` ou mais de 2 issues complementares. Se esgotar iter
 uma vez com `sonnet`.
 
 ⚠️ **`isolation: "worktree"` é só para dispatch inicial (worktree ainda não existe).** Se o worktree
-já existe — retomada de sessão, redespacho após `BLOCKED_WAITING` ou após `FAILED_MAX_ITERATIONS`, ou
+já existe — retomada de sessão, redespacho após `BLOCKED_WAITING`, retomada de um grupo `SUSPENDED`
+(Decision Inbox, Fase 5.b) ou redespacho após `FAILED_MAX_ITERATIONS`, ou
 recuperação de um worker travado em plan mode (sintoma: status parado em `RUNNING`, sem iteração nova
 nem commit — descarte a sessão travada) — **NÃO use `vetor:issue-worker`**: ele força worktree novo
 via frontmatter. Despache um subagente padrão sem `subagent_type`, instruindo-o com a skill
