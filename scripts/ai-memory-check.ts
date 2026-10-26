@@ -37,12 +37,27 @@ export async function checkAiMemory(
     return message?.result;
   }
 
+  // Notificação JSON-RPC não carrega `id`; o servidor responde 202/204 sem corpo (ambos são 2xx).
+  async function notify(method: string, params: Record<string, unknown> = {}) {
+    const response = await fetcher(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        ...(sessionId ? { "Mcp-Session-Id": sessionId } : {}),
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", method, params }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await response.body?.cancel();
+  }
+
   await rpc("initialize", {
     protocolVersion: "2024-11-05",
     capabilities: {},
     clientInfo: { name: "vetor-ai-memory-check", version: "1.0.0" },
   });
-  await rpc("notifications/initialized");
+  await notify("notifications/initialized");
   const listed = await rpc("tools/list") as { tools?: Array<{ name: string }> };
   if (!listed?.tools?.some((tool) => tool.name === "memory_status")) {
     throw new Error("A ferramenta memory_status não foi anunciada.");

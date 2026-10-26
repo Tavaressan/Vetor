@@ -66,6 +66,11 @@ function writeManifest(projectRoot, manifest) {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 }
 
+/** Engines donas de uma entrada: `engines` (arquivo compartilhado, #479) ou só `engine` (formato antigo). */
+function ownersOf(entry) {
+  return entry.engines ?? [entry.engine];
+}
+
 module.exports = {
   MANIFEST_RELATIVE_PATH,
   manifestPathFor,
@@ -73,4 +78,5 @@ module.exports = {
   hashContent,
   readManifest,
   writeManifest,
+  ownersOf,
 };

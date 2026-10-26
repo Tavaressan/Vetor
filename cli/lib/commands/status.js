@@ -3,11 +3,13 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { ENGINES } = require('../installer/detector.js');
-const { readManifest: defaultReadManifest, hashFile: defaultHashFile } = require('../installer/manifest.js');
+const { ENGINE_NAME_BY_ID } = require('../installer/detector.js');
+const {
+  readManifest: defaultReadManifest,
+  hashFile: defaultHashFile,
+  ownersOf,
+} = require('../installer/manifest.js');
 const { version: cliVersion } = require('../../package.json');
-
-const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.name]));
 
 const STATE_LABEL = {
   ok: '[ok]',
@@ -48,7 +50,7 @@ function status(cwd = process.cwd(), options = {}) {
   for (const [key, entry] of entries) {
     const state = classify(cwd, key, entry, hashFile);
     if (state === 'missing') hasMissing = true;
-    for (const engineId of entry.engines ?? [entry.engine]) {
+    for (const engineId of ownersOf(entry)) {
       const engineName = ENGINE_NAME_BY_ID.get(engineId) ?? engineId;
       if (!byEngine.has(engineName)) byEngine.set(engineName, []);
       byEngine.get(engineName).push({ key, state });

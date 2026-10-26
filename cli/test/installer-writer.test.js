@@ -1011,13 +1011,13 @@ function skillExists(projectRoot, root) {
 
 // Grava uma skill como se um `install` anterior a tivesse gerenciado: arquivo em disco mais a
 // entrada no manifesto. `manifestContent` diferente de `content` simula edição do usuário.
-function writeManagedSkill(projectRoot, root, content, owners, { manifestContent = content } = {}) {
+function writeManagedSkill(projectRoot, root, content, owners, { manifestContent = content, name = 'demo' } = {}) {
   const { writeManifest } = require('../lib/installer/manifest.js');
-  const file = path.join(projectRoot, root, 'skills', 'demo', 'SKILL.md');
+  const file = path.join(projectRoot, root, 'skills', name, 'SKILL.md');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content);
   const manifest = readManifest(projectRoot);
-  manifest.files[`${root}/skills/demo/SKILL.md`] = { sha256: sha256(manifestContent), engine: owners[0], engines: owners };
+  manifest.files[`${root}/skills/${name}/SKILL.md`] = { sha256: sha256(manifestContent), engine: owners[0], engines: owners };
   writeManifest(projectRoot, manifest);
   return file;
 }
@@ -1348,6 +1348,232 @@ test('installFiles: engine desinstalada com arquivo editado preservado não fixa
       assert.equal(skillExists(projectRoot, '.claude'), false);
       assert.equal(fs.readFileSync(edited, 'utf8'), 'editado\n');
       assert.equal(readManifest(projectRoot).files['.claude/agents/demo.md'].uninstalled, true);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+// Issue #505: migração atômica. O invariante é o do manifesto gravado em disco, lido depois da
+// exceção: nenhum arquivo de skill existe no projeto sem uma entrada correspondente.
+function unmanagedSkillFiles(projectRoot) {
+  const { files } = readManifest(projectRoot);
+  const found = [];
+  for (const root of ['.codex', '.cursor', '.claude', '.agents']) {
+    const skillsDir = path.join(projectRoot, root, 'skills');
+    if (!fs.existsSync(skillsDir)) continue;
+    for (const relative of fs.readdirSync(skillsDir, { recursive: true })) {
+      const absolute = path.join(skillsDir, relative);
+      if (!fs.statSync(absolute).isFile()) continue;
+      const key = `${root}/skills/${relative.split(path.sep).join('/')}`;
+      if (!files[key]) found.push(key);
+    }
+  }
+  return found;
+}
+
+function fakeFsError(code, message) {
+  return Object.assign(new Error(`${code}: ${message}`), { code });
+}
+
+// Grava a versão do pacote no manifesto semeado para provar que uma migração interrompida não
+// declara a atualização como concluída.
+function seedPackageVersion(projectRoot, packageVersion) {
+  const { writeManifest } = require('../lib/installer/manifest.js');
+  const manifest = readManifest(projectRoot);
+  manifest.packageVersion = packageVersion;
+  writeManifest(projectRoot, manifest);
+}
+
+test('installFiles: falha ao mover o segundo arquivo do Cursor mantém o primeiro no manifesto e o segundo no lugar antigo', (t) => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      writeManagedSkill(projectRoot, '.cursor', 'a\n', ['cursor'], { name: 'a' });
+      writeManagedSkill(projectRoot, '.cursor', 'b\n', ['cursor'], { name: 'b' });
+      seedPackageVersion(projectRoot, '0.0.1');
+      const realRename = fs.renameSync;
+      let calls = 0;
+      t.mock.method(fs, 'renameSync', (from, to) => {
+        calls += 1;
+        if (calls === 2) throw fakeFsError('EPERM', 'operation not permitted, rename');
+        return realRename(from, to);
+      });
+
+      assert.throws(
+        () => installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE, ANTIGRAVITY_ENGINE] }),
+        { code: 'EPERM' },
+      );
+
+      const { files, packageVersion } = readManifest(projectRoot);
+      assert.equal(fs.readFileSync(path.join(projectRoot, '.agents', 'skills', 'a', 'SKILL.md'), 'utf8'), 'a\n');
+      assert.deepEqual(files['.agents/skills/a/SKILL.md'].engines, ['cursor']);
+      assert.equal(files['.cursor/skills/a/SKILL.md'], undefined);
+      // O arquivo que não pôde ser movido continua no lugar antigo, ainda registrado, sem destino fantasma.
+      assert.equal(fs.readFileSync(path.join(projectRoot, '.cursor', 'skills', 'b', 'SKILL.md'), 'utf8'), 'b\n');
+      assert.ok(files['.cursor/skills/b/SKILL.md']);
+      assert.equal(files['.agents/skills/b/SKILL.md'], undefined);
+      assert.deepEqual(unmanagedSkillFiles(projectRoot), []);
+      assert.equal(packageVersion, '0.0.1');
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+// Registro antecipado: se o processo morrer entre o rename e a gravação seguinte, o destino já consta.
+test('installFiles: o manifesto em disco já registra o destino (e ainda a origem) quando o rename acontece', (t) => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      writeManagedSkill(projectRoot, '.cursor', 'a\n', ['cursor'], { name: 'a' });
+      const realRename = fs.renameSync;
+      let filesDuringRename;
+      t.mock.method(fs, 'renameSync', (from, to) => {
+        filesDuringRename = readManifest(projectRoot).files;
+        return realRename(from, to);
+      });
+
+      installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE, ANTIGRAVITY_ENGINE] });
+
+      assert.deepEqual(filesDuringRename['.agents/skills/a/SKILL.md'].engines, ['cursor']);
+      assert.ok(filesDuringRename['.cursor/skills/a/SKILL.md']);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: falha depois do rename (limpeza de diretório vazio) não deixa o arquivo movido fora do manifesto', (t) => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      writeManagedSkill(projectRoot, '.cursor', 'a\n', ['cursor'], { name: 'a' });
+      const rmdirMock = t.mock.method(fs, 'rmdirSync', () => { throw fakeFsError('EBUSY', 'resource busy or locked, rmdir'); });
+
+      try {
+        assert.throws(
+          () => installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE, ANTIGRAVITY_ENGINE] }),
+          { code: 'EBUSY' },
+        );
+      } finally {
+        // No Linux o rmSync recursivo da limpeza dos temporários passa por rmdirSync.
+        rmdirMock.mock.restore();
+      }
+
+      const { files } = readManifest(projectRoot);
+      assert.ok(fs.existsSync(path.join(projectRoot, '.agents', 'skills', 'a', 'SKILL.md')));
+      assert.deepEqual(files['.agents/skills/a/SKILL.md'].engines, ['cursor']);
+      assert.equal(files['.cursor/skills/a/SKILL.md'], undefined);
+      assert.deepEqual(unmanagedSkillFiles(projectRoot), []);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: chave do manifesto que aponta para um diretório (EISDIR) não faz perder o que já foi migrado', () => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      writeManagedSkill(projectRoot, '.cursor', 'a\n', ['cursor'], { name: 'a' });
+      const { writeManifest } = require('../lib/installer/manifest.js');
+      fs.mkdirSync(path.join(projectRoot, '.cursor', 'skills', 'dir'), { recursive: true });
+      const manifest = readManifest(projectRoot);
+      manifest.files['.cursor/skills/dir'] = { sha256: sha256('x'), engine: 'cursor', engines: ['cursor'] };
+      writeManifest(projectRoot, manifest);
+
+      assert.throws(
+        () => installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE, ANTIGRAVITY_ENGINE] }),
+        { code: 'EISDIR' },
+      );
+
+      const { files } = readManifest(projectRoot);
+      assert.ok(fs.existsSync(path.join(projectRoot, '.agents', 'skills', 'a', 'SKILL.md')));
+      assert.deepEqual(files['.agents/skills/a/SKILL.md'].engines, ['cursor']);
+      assert.equal(files['.cursor/skills/a/SKILL.md'], undefined);
+      assert.deepEqual(unmanagedSkillFiles(projectRoot), []);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: falha ao mover o segundo arquivo legado do Codex mantém o primeiro no manifesto', (t) => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      writeManagedSkill(projectRoot, '.codex', 'a\n', ['codex'], { name: 'a' });
+      writeManagedSkill(projectRoot, '.codex', 'b\n', ['codex'], { name: 'b' });
+      const realRename = fs.renameSync;
+      let calls = 0;
+      t.mock.method(fs, 'renameSync', (from, to) => {
+        calls += 1;
+        if (calls === 2) throw fakeFsError('EPERM', 'operation not permitted, rename');
+        return realRename(from, to);
+      });
+
+      assert.throws(() => installFiles({ projectRoot, sourceRoot, engines: [CODEX_ENGINE] }), { code: 'EPERM' });
+
+      const { files } = readManifest(projectRoot);
+      assert.equal(fs.readFileSync(path.join(projectRoot, '.agents', 'skills', 'a', 'SKILL.md'), 'utf8'), 'a\n');
+      assert.ok(files['.agents/skills/a/SKILL.md']);
+      assert.equal(files['.codex/skills/a/SKILL.md'], undefined);
+      assert.equal(fs.readFileSync(path.join(projectRoot, '.codex', 'skills', 'b', 'SKILL.md'), 'utf8'), 'b\n');
+      assert.ok(files['.codex/skills/b/SKILL.md']);
+      assert.equal(files['.agents/skills/b/SKILL.md'], undefined);
+      assert.deepEqual(unmanagedSkillFiles(projectRoot), []);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+test('installFiles: nova tentativa depois de uma migração interrompida termina o que faltou', (t) => {
+  withTempDir((projectRoot) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      writeManagedSkill(projectRoot, '.cursor', 'a\n', ['cursor'], { name: 'a' });
+      writeManagedSkill(projectRoot, '.cursor', 'b\n', ['cursor'], { name: 'b' });
+      const realRename = fs.renameSync;
+      let calls = 0;
+      const mock = t.mock.method(fs, 'renameSync', (from, to) => {
+        calls += 1;
+        if (calls === 2) throw fakeFsError('EBUSY', 'resource busy or locked, rename');
+        return realRename(from, to);
+      });
+      const engines = [CURSOR_ENGINE, ANTIGRAVITY_ENGINE];
+      assert.throws(() => installFiles({ projectRoot, sourceRoot, engines }), { code: 'EBUSY' });
+      mock.mock.restore();
+
+      const { migrated } = installFiles({ projectRoot, sourceRoot, engines });
+
+      assert.deepEqual(migrated, [{ from: '.cursor/skills/b/SKILL.md', to: '.agents/skills/b/SKILL.md' }]);
+      assert.equal(fs.existsSync(path.join(projectRoot, '.cursor', 'skills')), false);
+      assert.deepEqual(unmanagedSkillFiles(projectRoot), []);
+      assert.equal(readManifest(projectRoot).files['.cursor/skills/b/SKILL.md'], undefined);
+    } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
+  });
+});
+
+// Chaves com ".." nunca são migradas: nem o arquivo fora do projeto é tocado, nem a entrada some do
+// manifesto (a guarda vem antes do `existsSync`, que de outra forma descartaria a entrada).
+test('installFiles: chaves de migração do Cursor e do Codex com ".." são ignoradas e permanecem no manifesto', () => {
+  withTempDir((dir) => {
+    const sourceRoot = makeFakeSourceRoot();
+    try {
+      const projectRoot = path.join(dir, 'project');
+      fs.mkdirSync(projectRoot);
+      const victim = path.join(dir, 'outside', 'SKILL.md');
+      fs.mkdirSync(path.dirname(victim));
+      fs.writeFileSync(victim, 'fora do projeto\n');
+      const { writeManifest } = require('../lib/installer/manifest.js');
+      const traversalKeys = [
+        '.cursor/skills/../../../outside/SKILL.md',
+        '.cursor/skills/../../../ausente/SKILL.md',
+        '.codex/skills/../../../outside/SKILL.md',
+        '.codex/skills/../../../ausente/SKILL.md',
+      ];
+      writeManifest(projectRoot, { version: 1, files: Object.fromEntries(traversalKeys.map((key) => [
+        key, { sha256: sha256('fora do projeto\n'), engine: key.startsWith('.cursor') ? 'cursor' : 'codex' },
+      ])) });
+
+      const { migrated, warnings } = installFiles({ projectRoot, sourceRoot, engines: [CODEX_ENGINE, CURSOR_ENGINE] });
+
+      assert.equal(fs.readFileSync(victim, 'utf8'), 'fora do projeto\n');
+      assert.equal(fs.existsSync(path.join(dir, 'ausente')), false);
+      assert.deepEqual(migrated, []);
+      assert.deepEqual(warnings, []);
+      const { files } = readManifest(projectRoot);
+      for (const key of traversalKeys) assert.ok(files[key], `${key} deve continuar no manifesto`);
     } finally { fs.rmSync(sourceRoot, { recursive: true, force: true }); }
   });
 });
