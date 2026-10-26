@@ -8,30 +8,69 @@
 #        Worktree correspondente removido manualmente -> "cancelled (worktree removed)".
 #        Worktree recém-despachado -> "aguardando worktree" (issue #347).
 #        Worktree sem status file -> ⚠️ WARNING (possível falha anômala, issue #72).
+#
+# Latência (issue #515):
+#  - Todo git roda com --no-optional-locks, para não disputar o index.lock com workers em paralelo.
+#  - O gh só é chamado se algum status file está GREEN ou PR_STAGED, e a listagem fica em cache de
+#    PR_CACHE_TTL segundos em <root>/.claude/vetor/cache/pr-list-cache.txt (nunca versionado: o
+#    diretório se auto-ignora). Consequência: a anotação "(já mergeado via #N)" pode atrasar até
+#    PR_CACHE_TTL segundos depois do merge; é só exibição — vetor-merge.sh consulta o gh direto.
 
 set -uo pipefail
 
+# TTL do cache da listagem de PRs, em segundos.
+PR_CACHE_TTL=15
+
 # Resolve o root do repositório principal (suporta execução de dentro de worktrees — issue #339)
-REPO_ROOT=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //')
+# Usa --no-optional-locks para evitar atritos de index.lock com subagentes paralelos
+REPO_ROOT=$(git --no-optional-locks worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //')
 if [ -z "$REPO_ROOT" ]; then
-  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+  REPO_ROOT=$(git --no-optional-locks rev-parse --show-toplevel 2>/dev/null || echo ".")
 fi
 
 STATUS_DIR="${REPO_ROOT}/.claude/vetor/status"
 
 # Branch principal (main worktree) — excluída da lista de workers ativos.
-default_branch=$(git worktree list --porcelain 2>/dev/null | sed -n '3s#^branch refs/heads/##p')
+default_branch=$(git --no-optional-locks worktree list --porcelain 2>/dev/null | sed -n '3s#^branch refs/heads/##p')
 if [ -z "$default_branch" ]; then
-  default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || git symbolic-ref --short HEAD 2>/dev/null || echo "")
+  default_branch=$(git --no-optional-locks symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || git --no-optional-locks symbolic-ref --short HEAD 2>/dev/null || echo "")
 fi
 
 # Branches com worktree ativo (workers), sanitizadas com a mesma convenção dos status files (/ -> -).
 # Exclui a branch principal do repositório.
-active=$(git worktree list --porcelain | sed -n 's#^branch refs/heads/##p' | tr '/' '-' | grep -v "^${default_branch}$")
+active=$(git --no-optional-locks worktree list --porcelain 2>/dev/null | sed -n 's#^branch refs/heads/##p' | tr '/' '-' | grep -v "^${default_branch}$")
 
-# Busca a lista de PRs abertos ou mergeados via gh CLI (uma única chamada para otimizar).
-# Mapeia headRefName (sanitizado / -> -) para number e state.
-prs=$(gh pr list --state all --json headRefName,number,state -q '.[] | "\(.headRefName | gsub("/"; "-"))=\(.number)=\(.state)"' 2>/dev/null || echo "")
+# Lista de PRs (headRefName=número=estado) via gh CLI. Só serve para anotar status file
+# GREEN/PR_STAGED, então sem nenhum deles o gh nem é chamado (issue #515: durante a fase de código
+# a chamada de rede era latência pura).
+prs=""
+if [ -d "$STATUS_DIR" ] && grep -Eq '^Status: *(GREEN|PR_STAGED)' "$STATUS_DIR"/*.md 2>/dev/null; then
+  cache_dir="${REPO_ROOT}/.claude/vetor/cache"
+  cache_file="${cache_dir}/pr-list-cache.txt"
+  now_epoch=$(date +%s 2>/dev/null || echo 0)
+  use_cache=0
+
+  if [ -f "$cache_file" ]; then
+    # GNU stat (Linux, Git Bash) aceita -c %Y; o stat BSD (macOS) só -f %m.
+    cache_mtime=$(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null || echo 0)
+    case "$cache_mtime" in '' | *[!0-9]*) cache_mtime=0 ;; esac
+    cache_age=$((now_epoch - cache_mtime))
+    if [ "$cache_age" -ge 0 ] && [ "$cache_age" -lt "$PR_CACHE_TTL" ]; then
+      use_cache=1
+    fi
+  fi
+
+  if [ "$use_cache" -eq 1 ]; then
+    prs=$(cat "$cache_file" 2>/dev/null || echo "")
+  else
+    prs=$(gh pr list --state all --json headRefName,number,state -q '.[] | "\(.headRefName | gsub("/"; "-"))=\(.number)=\(.state)"' 2>/dev/null || echo "")
+    if [ -n "$prs" ] && mkdir -p "$cache_dir" 2>/dev/null; then
+      # Diretório que se auto-ignora: o .gitignore do projeto-alvo pode não cobrir .claude/vetor/cache/.
+      [ -f "$cache_dir/.gitignore" ] || printf '*\n' > "$cache_dir/.gitignore" 2>/dev/null || true
+      printf '%s\n' "$prs" > "$cache_file" 2>/dev/null || true
+    fi
+  fi
+fi
 
 echo "## Status — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo
