@@ -51,8 +51,17 @@ gh pr view <PR> --json mergeable -q .mergeable
   `UNKNOWN`, siga o passo 3.
 - `CONFLICTING`: passo 3.
 
-b. Elegível e `MERGEABLE`: execute o merge **sem re-sincronizar nem re-testar a suíte**, de dentro
-do worktree do grupo (`git worktree list` para o path real):
+b. Elegível e `MERGEABLE`: entre no worktree do grupo (`git worktree list` para o path real) e confira
+as migrations contra a default antes de mergear — arquivos diferentes podem trazer a mesma versão
+(`V14__a.sql`, `V14__b.sql`), uma colisão que nem o git nem a disjunção de arquivos enxergam:
+
+```bash
+git fetch origin "$DEFAULT_BRANCH"
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" migrations --against "origin/$DEFAULT_BRANCH"
+```
+
+Saída diferente de 0: siga o passo 3 (renumere a migration do PR). Com 0, execute o merge **sem
+re-sincronizar nem re-testar a suíte**:
 
 ```
 /vetor:ship --finalize <PR>

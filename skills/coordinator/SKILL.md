@@ -20,6 +20,7 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 /vetor:coordinator
 /vetor:coordinator --resume
 /vetor:coordinator [label] --headless
+/vetor:coordinator [label] --headless --auto-ship
 ```
 
 - `[label]`: label das issues a despachar (sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado)
@@ -28,6 +29,9 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
   worktrees/status files existentes (Fase 0).
 - `--headless`: execução **não-interativa**, para rotinas agendadas e CI. Combinável com qualquer
   um dos anteriores.
+- `--auto-ship`: só tem efeito com `--headless`. Habilita a Fase 6 (entrega) sem humano, sob quatro
+  gates determinísticos (Fase 6.d). Equivale a `"autoShipHeadless": true` em
+  `.claude/vetor/config.json`; sem nenhum dos dois, `--headless` continua sem entregar.
 
 ---
 
@@ -78,11 +82,14 @@ A flag `--headless` substitui os quatro pontos de interação humana por decisõ
 | 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
 | 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
 | 5.c — circuit breaker | Pergunta se pausa | Sempre pausa: para de despachar e reporta |
+| 6 — entrega | Pre-Ship paralelo e merge serializado | Pulada. Com `--auto-ship` ou `autoShipHeadless: true`, roda sob os 4 gates da Fase 6.d |
 
 Além disso, em `--headless`:
 
-- **A Fase 6 (merge) não roda.** Nunca invoque `ship`, `gh pr ready` ou `gh pr merge`.
-  Grupos em `GREEN` são reportados como prontos para ship.
+- **A Fase 6 (entrega) só roda com opt-in.** Sem `--auto-ship` nem `autoShipHeadless: true` em
+  `.claude/vetor/config.json`, nunca invoque `ship`, `gh pr ready` ou `gh pr merge`: grupos em `GREEN`
+  são reportados como prontos para ship. Com o opt-in, a Fase 6 roda sob os quatro gates da 6.d,
+  nunca pergunta e, se um gate falhar, deixa o PR aberto.
 - **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
   `BLOCKED_WAITING` e aparece no relatório final.
 - **Labels de triagem em `--headless`**: ao pular ou manter bloqueada uma issue, aplica igualmente a
@@ -108,7 +115,8 @@ Além disso, em `--headless`:
      ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>), que está GREEN?"). Se
      já estiver mergeado, apenas informe. Prossiga a partir da Fase 5/6.
      Em `--headless`: não pergunte o teto (use `N_rec`) e não ofereça ship — apenas reporte os
-     grupos `GREEN` como prontos.
+     grupos `GREEN` como prontos, salvo com `--auto-ship`/`autoShipHeadless: true`, caso em que
+     os `GREEN` seguem a Fase 6.d.
   3. Se **não houver** worktree ativo com status file: caia no fluxo padrão (Fase 1), descobrindo
      dinamicamente labels ou usando `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado.
 - **Lista de números** ou **label explícito**: siga o fluxo padrão a partir da Fase 1.
@@ -524,8 +532,8 @@ terminarem e vá para o relatório destacando a assinatura de erro comum.
 
 ### 6 — Fase de entrega (Pre-Ship paralelo, merge serializado)
 
-⚠️ **Em `--headless` esta fase inteira é pulada**: liste os grupos `GREEN` no relatório final com
-branch e path do worktree, e encerre.
+⚠️ **Em `--headless` esta fase só roda com `--auto-ship` ou `autoShipHeadless: true`** (6.d). Sem eles
+é pulada: liste os grupos `GREEN` no relatório final com branch e path do worktree, e encerre.
 
 A entrega tem dois estágios (Spec `docs/specs/pipeline-ship-e-delegacao-eficiente.md`, RF-01 e
 RF-02). O **Pre-Ship** (`/vetor:ship --prepare`: testes locais, push, PR draft, CI e revisões em
@@ -581,6 +589,28 @@ cada PR segue para o merge assim que fecha verde, a espera total converge para m
 
 Se o `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
 
+**6.d — Entrega autônoma em `--headless` (issue #497).** Só com `--auto-ship` ou
+`autoShipHeadless: true` em `.claude/vetor/config.json` (lido a partir do root do repositório). Segue
+6.a–6.c, com duas diferenças: nunca há pergunta ao usuário, e **nenhum PR é mergeado sem passar nos
+quatro gates**. Leia `../shared/references/auto-ship-gates.md` (definição de cada gate, o que é PASS,
+FAIL e PENDING, e as escolhas de segurança). Para cada PR `PR_STAGED`, antes do 6.c:
+
+```bash
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" auto-ship-gates <PR> <path-do-worktree-do-grupo>
+```
+
+Os gates são: CI 100% `SUCCESS`; 0 apontamentos impeditivos (`blocker`) nas revisões consultivas;
+0 colisões em `vetor-checks.sh migrations`; `mergeable == MERGEABLE`. Pelo exit do comando:
+
+- **0 (`VERDICT: PASS`)**: siga o 6.c (Fast Merge Gate e `/vetor:ship --finalize <PR>`).
+- **3 (`PENDING`)**: reavalie no ciclo da consulta agregada de CI (5.e), até 20 minutos depois do
+  `PR_STAGED`; passado esse prazo, trate como falha de gate por timeout.
+- **1 (`FAIL`)** ou timeout: **o PR fica aberto**. Registre no relatório (`Gate failed`, com os gates
+  reprovados e o detalhe de cada um) e siga para o próximo grupo. Não aborte a sessão, não feche o PR,
+  não force o merge e não tente consertar.
+- Se o `--finalize` parar por review humano (ship §9) ou por permissão negada (ship §10), o resultado
+  é o mesmo: PR aberto e registrado, sem `AskUserQuestion`.
+
 ### 7 — Relatório final
 
 **Antes do relatório, volte ao root e sincronize.** A Fase 6 faz `cd` para dentro do worktree de
@@ -630,7 +660,8 @@ O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido 
 - Se interrompido, reconstrói estado com `vetor-status.sh` + `gh pr list` — não depende de memória
 - Ao fim de toda sessão (Fase 7), o root fica na branch principal e sincronizado — nunca preso numa
   branch de worktree de grupo
-- Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship, nunca
+- Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship (exceto sob
+  `--auto-ship`/`autoShipHeadless`, e só com os quatro gates da Fase 6.d em `PASS`), nunca
   auto-aprova permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
   relatório e pare — não improvise
 - O gate de Spec/design (Fase 2) nunca bloqueia o dispatch em `--headless` — vira sinalização

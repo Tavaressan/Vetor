@@ -367,9 +367,13 @@ Caso o ponteiro esteja válido:
 Invoque a skill nativa `security-review` sem argumento de diff — ela lê a branch atual.
 ```
 
-Ao receber a resposta final (o relatório em markdown), publique-o:
+Ao receber a resposta final (o relatório em markdown), publique-o, com a primeira linha
+`## Security Review (Vetor)` (é o cabeçalho que o gate `reviews` da entrega autônoma em `--headless`
+procura, issue #497):
 ```bash
-gh pr comment <PR-number> --body "<relatório de security-review recebido>"
+gh pr comment <PR-number> --body "## Security Review (Vetor)
+
+<relatório de security-review recebido>"
 ```
 
 ### 8.7 — Registro de PR_STAGED e encerramento do Pre-Ship
@@ -465,6 +469,8 @@ explicitamente (issue #325):
 **Se o comando for negado pela camada de permissões do Claude Code** (classificador de auto-mode,
 motivo tipo "merge sem review") — barreira independente do `reviewDecision` do passo 9: **pare, peça
 aprovação explícita via `AskUserQuestion`** e só repita após o "sim". **Nunca** contorne a negação.
+Quando invocado pela entrega autônoma do coordinator em `--headless` (Fase 6.d) não há a quem
+perguntar: **não use `AskUserQuestion`**, registre a negação no retorno e deixe o PR aberto.
 
 ### 11 — Sincronizar root
 
