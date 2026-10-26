@@ -910,7 +910,7 @@ async function main(): Promise<void> {
     return;
   }
   for (const warning of result.warnings) console.error(`aviso: ${warning}`);
-  if (result.markdown) console.log(result.markdown.trimEnd());
+  if (result.markdown) console.info(result.markdown.trimEnd());
 }
 
 if (import.meta.main) await main();
