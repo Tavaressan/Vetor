@@ -1443,12 +1443,17 @@ test('installFiles: falha depois do rename (limpeza de diretório vazio) não de
     const sourceRoot = makeFakeSourceRoot();
     try {
       writeManagedSkill(projectRoot, '.cursor', 'a\n', ['cursor'], { name: 'a' });
-      t.mock.method(fs, 'rmdirSync', () => { throw fakeFsError('EBUSY', 'resource busy or locked, rmdir'); });
+      const rmdirMock = t.mock.method(fs, 'rmdirSync', () => { throw fakeFsError('EBUSY', 'resource busy or locked, rmdir'); });
 
-      assert.throws(
-        () => installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE, ANTIGRAVITY_ENGINE] }),
-        { code: 'EBUSY' },
-      );
+      try {
+        assert.throws(
+          () => installFiles({ projectRoot, sourceRoot, engines: [CURSOR_ENGINE, ANTIGRAVITY_ENGINE] }),
+          { code: 'EBUSY' },
+        );
+      } finally {
+        // No Linux o rmSync recursivo da limpeza dos temporários passa por rmdirSync.
+        rmdirMock.mock.restore();
+      }
 
       const { files } = readManifest(projectRoot);
       assert.ok(fs.existsSync(path.join(projectRoot, '.agents', 'skills', 'a', 'SKILL.md')));
