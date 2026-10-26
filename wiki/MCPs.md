@@ -67,7 +67,7 @@ workspace = "meu-workspace"
 project = "meu-projeto"
 ```
 
-Versione o arquivo para que todo checkout e worktree resolva o mesmo escopo. Os nomes não podem ser vazios nem conter `/`, `\`, espaços ou caracteres de controle. Fonte: [docs/marker-file.md](https://github.com/akitaonrails/ai-memory/blob/main/docs/marker-file.md) do ai-memory, consultada em 2026-10-26.
+Versione o arquivo para que todo checkout e worktree resolva o mesmo escopo. Os nomes não podem conter `/`, `\`, espaços ou caracteres de controle; o Vetor também recusa nome vazio. Fonte: [docs/marker-file.md](https://github.com/akitaonrails/ai-memory/blob/main/docs/marker-file.md) do ai-memory, consultada em 2026-10-26.
 
 Fontes oficiais do ai-memory consultadas em 2026-10-15: [README — Docker](https://github.com/akitaonrails/ai-memory#docker) (imagem `akitaonrails/ai-memory:latest`, porta `49374` em loopback, dados em `/data`) e [docs/llm-providers.md — OpenRouter](https://github.com/akitaonrails/ai-memory/blob/main/docs/llm-providers.md#openrouter) (`openai-compat` + `AI_MEMORY_LLM_BASE_URL` + `LLM_API_KEY`; não existe provider `openrouter`).
 

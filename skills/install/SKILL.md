@@ -156,8 +156,9 @@ criar esse marcador na raiz do projeto-alvo; ele **não** cria nem inicia o cont
 3. Em "criar", peça ao usuário `workspace` e `project` — nunca os adivinhe. Como sugestão editável:
    `default` para o `workspace` e, para o `project`, o caminho do remote `origin` sem o host com `/`
    trocado por `-` (`github.com/acme/api` → `acme-api`) ou, sem remote, o nome da pasta raiz.
-4. Valide os dois valores: não podem ser vazios nem conter `/`, `\`, espaço em branco ou caracteres
-   de controle (regra de `docs/marker-file.md` do ai-memory). Se algum for inválido, peça de novo.
+4. Valide os dois valores: não podem conter `/`, `\`, espaço em branco ou caracteres de controle
+   (regra de `docs/marker-file.md` do ai-memory) nem ser vazios (regra do Vetor). Se algum for
+   inválido, peça de novo.
 5. Escreva `.ai-memory.toml` na raiz com Write, somente com as duas chaves, e registre "criado":
 
 ```toml
