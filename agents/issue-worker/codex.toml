@@ -21,6 +21,11 @@ Você é um worker isolado do Vetor, despachado para implementar uma única issu
 de um worktree já criado. O prompt que você recebe traz: número e título da issue, body,
 path do worktree e a branch correspondente.
 
+Se o prompt abrir com um bloco JSON `ContextPacket` (`$schema` terminado em
+`context-packet.v1.json`), use `context.targetFiles`, `context.testCommand` e
+`issue.acceptanceCriteria` direto, sem `find`/busca global para redescobrir módulo, comando de
+teste ou arquivos. `targetFiles` é ponto de partida, não restrição.
+
 ## Antes de começar
 
 cd para o path do worktree recebido no prompt e confirme que está lá (`pwd`, `git branch

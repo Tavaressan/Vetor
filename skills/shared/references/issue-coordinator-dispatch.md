@@ -149,6 +149,98 @@ worker precisar de MCP adicional.
    - Entregável obrigatório: produzir `docs/investigations/<slug>.md` estruturado com Pergunta, Evidências (comandos/fontes reproduzíveis), Opções avaliadas e Recomendação.
    - Critério de `GREEN`: o arquivo de relatório existe e `git diff --check` passa sem erros.
    - O ship segue o caminho de PR só de docs (#427); a decisão continua humana e issues de follow-up não são criadas automaticamente.
+8. **ContextPacket (issue #496):** abra o prompt com o JSON gerado conforme a seção "ContextPacket"
+   abaixo, para o worker começar pelo teste em vez de explorar o repositório.
+
+### ContextPacket — contexto estruturado no prompt do worker
+
+O coordinator já determinou nas Fases 1 e 2 o que o worker gastaria 3 a 6 tool calls
+redescobrindo: critérios de aceite, módulo, comando de teste e arquivos prováveis. Gere o pacote
+por issue Lead com o CLI (tipo e montagem em `scripts/lib/orchestrator/context-packet.ts`; o
+`$REPO_ROOT` vem de `vetor-checks.sh repo-root`, nunca do `cwd` — `project-conventions.md`):
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/context-packet.ts" \
+  --issue <N> --slug <slug> --branch <branch> --base "$DEFAULT_BRANCH" \
+  --module-test-map "$REPO_ROOT/.claude/vetor/module-test-map.md"
+```
+
+Opcionais: `--worktree <path>`, `--conventions <texto>` e `--target-files <a,b>` (substitui os
+arquivos inferidos do título e do body quando a análise da Fase 1 os conhece melhor). Sem rede,
+use `--issue-json <arquivo>` no lugar de `--issue`. O CLI falha (exit 1) se o `module-test-map`
+estiver ausente ou sem comando para o módulo: nesse caso monte o prompt sem o pacote e reporte,
+em vez de inventar um comando de teste.
+
+Cole a saída em um bloco `json` no início do prompt do worker:
+
+```json
+{
+  "$schema": "https://vetor.dev/schemas/context-packet.v1.json",
+  "issue": {
+    "number": 485,
+    "title": "feat(cli): adicionar comando de status em lote",
+    "slug": "status-em-lote",
+    "acceptanceCriteria": [
+      "Retornar JSON com lista de status ativos",
+      "Executar em menos de 500ms no P95"
+    ]
+  },
+  "worktree": {
+    "path": "C:/Projetos/Vetor/.claude/worktrees/status-em-lote",
+    "branch": "feat/485-status-em-lote",
+    "baseBranch": "main"
+  },
+  "context": {
+    "module": "cli",
+    "testCommand": "cd cli && npm test",
+    "targetFiles": ["cli/status.ts", "cli/tests/status_test.ts"],
+    "conventions": "Seguir as convenções do módulo; tratar exit codes explicitamente."
+  }
+}
+```
+
+- `worktree.path` é opcional: no primeiro dispatch com `isolation: "worktree"` o harness cria o
+  worktree depois do `Agent()` e o coordinator ainda não conhece o path, então omita `--worktree`
+  e o worker usa o próprio cwd. Em redispatch num worktree existente, passe o path de
+  `git worktree list`. `conventions` também é opcional.
+- `targetFiles` são dicas de por onde começar (paths citados entre crases no título e no body),
+  não uma restrição: o worker pode tocar outros arquivos quando o teste exigir.
+- `context.testCommand` é o comando headless do `module-test-map`, resolvido pelo root; ele já
+  cobre o reforço do item 6 acima quando o mapa está untracked ou ignorado. Para o módulo
+  `sem suíte de testes`, o valor é essa frase e o worker segue a regra de pular o módulo.
+- O mesmo JSON serve nos outros transportes: no Alethe vai dentro de `tasks`, e no OpenCode dentro
+  do prompt de `opencode run`.
+
+**Como medir a redução de tool calls (critério de RF-07, não verificado):** para uma mesma issue,
+conte as tool calls do worker antes do primeiro teste escrito (primeiro `Write`/`Edit` em arquivo
+de teste), uma vez sem o pacote (baseline) e outra com ele; a meta da Spec é reduzir essa
+contagem em pelo menos 50%. Nenhum baseline foi coletado ainda, então a meta permanece não
+verificada.
+
+### Dispatch do ship-worker (Pre-Ship) — contrato
+
+O `vetor:ship-worker` (`agents/ship-worker.md`) roda o `/vetor:ship --prepare` de um worktree
+`GREEN`, grava `PR_STAGED` e encerra. Ele opera no worktree que já existe, então o dispatch **não**
+usa `isolation: "worktree"` (o mesmo cuidado do redispatch acima). O modelo barato é escolhido
+aqui, no `Agent()`, porque o frontmatter do agente é `model: inherit` (issues #337/#397):
+
+```javascript
+Agent({
+  description: "Pre-Ship #<N>: <título>",
+  prompt: "Path do worktree: <path>. Branch: <branch>. Issue: #<N>. Branch default: <default>. Status file: <status-file-path>.",
+  subagent_type: "vetor:ship-worker",
+  model: "haiku",
+  run_in_background: true
+})
+```
+
+O path vem de `git worktree list` (nunca do slug). Quando o `ship-worker` encerrar em `PR_STAGED`,
+o `Next:` informa que as revisões consultivas (`code-review`, `security-review`) não foram
+disparadas — ele não tem a tool `Agent` — e cabe ao coordinator despachá-las. Quando devolver
+`BLOCKED_WAITING`, trate como qualquer bloqueio de worker (Fase 5.b). O subagente só existe em
+Claude Code, Cursor e Antigravity (`agents/*.md`); em Codex e OpenCode rode o `--prepare` em uma
+instância isolada do próprio runtime. Quando disparar o `ship-worker` dentro das Fases 5 e 6 é
+decisão da issue #495; esta seção define apenas o contrato do despacho.
 
 ### Dispatch para runtime externo (contrato mínimo de delegação)
 
