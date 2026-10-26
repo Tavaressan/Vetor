@@ -63,3 +63,61 @@ dependem do modo:
 
 ---
 
+## Goal Convergence Report
+
+Fechamento do modo `--goal` (issue #498): substitui o título do relatório e embute o Coordinator Report
+acima como a tabela de resultados por issue. Monte-o a partir de
+`<repo-root>/.claude/vetor/goal-audit.json`, não da memória da sessão. A meta aparece como texto
+literal, nunca como comando.
+
+```
+## Goal Convergence Report
+
+Meta: <meta literal>
+Resultado: CONVERGIU | PARCIAL (<motivo: teto de <T> min | circuit breaker | ondas aguardando merge | ...>)
+Início: <ISO 8601> · Fim: <ISO 8601> · Duração: <N> min (teto <T> min)
+
+### Concluídas
+| Issue | Resultado | PR | Detalhes |
+|-------|-----------|-----|----------|
+| #482 | GREEN (pronto para ship) | — | branch `fix/482-x`, worktree `<path>` |
+| #485 | ✅ Merged | #91 | `--auto-ship`: 4 gates em PASS |
+
+### PRs preparados
+| PR | Issue | Estado |
+|----|-------|--------|
+| #91 | #485 | Merged · ou PR_STAGED aberto (`Gate failed`: <gates reprovados>) |
+_Sem `--auto-ship`/`autoShipHeadless`: "nenhum — entrega desabilitada" (os `GREEN` acima estão prontos para ship)._
+
+### Ejetadas
+| Issue | Gatilho | Label `needs-human` | Comentário | Branch | Worktree |
+|-------|---------|---------------------|------------|--------|----------|
+| #488 | 5 iterações sem verde | aplicada · ou "inexistente no repo" | publicado | `feat/488-x` (só local) | limpo |
+
+### Não convergiram
+| Issue | Motivo |
+|-------|--------|
+| #490 | `QUEUED (aguardando O_1)`: sem entrega não há merge, e a onda seguinte depende dele |
+| #491 | `SKIPPED (bloqueada por #488)`: dependente direto de issue ejetada |
+
+### Decisões autônomas
+| # | Decisão | Opção adotada (Recommended) | Referência (commit ou checkpoint) |
+|---|---------|-----------------------------|-----------------------------------|
+| 1 | Teto de workers | N=3 | — |
+| 2 | Bloqueio #488 (avanço otimista, se ligado) | opção 1 | tag `_vetor_checkpoint_feat-488-x_20261026T174100Z` |
+| 3 | Ejeção #488 | `needs-human` + comentário | commit `7f8b9c0` |
+
+Resumo: <N> concluídas, <P> PRs preparados, <E> ejetadas, <C> não convergiram, <A> decisões autônomas.
+```
+
+- **`CONVERGIU`** quando toda issue do escopo está concluída, ejetada ou `SKIPPED` pela triagem;
+  **`PARCIAL`** em qualquer outro caso, com o motivo no cabeçalho. Sem o opt-in de entrega, uma meta de
+  mais de uma onda é sempre `PARCIAL` (ondas posteriores aguardam um merge que não acontece).
+- Cada decisão autônoma (RNF-03) aparece individualmente, com a opção adotada e a referência que a
+  torna reversível: o hash do commit de preservação de uma ejeção, ou a tag `_vetor_checkpoint_*` de
+  um avanço otimista. Decisão sem referência vai com "—".
+- Todos os resultados válidos do Checkpoint de fechamento de onda acima valem na tabela de
+  concluídas/ejetadas/não convergiram; nenhum grupo do plano fica sem linha.
+
+---
+

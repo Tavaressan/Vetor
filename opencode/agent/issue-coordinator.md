@@ -60,8 +60,9 @@ As regras abaixo prevalecem sobre o texto da skill, que foi escrito para o Claud
 - A Decision Inbox da Fase 5.b (`SUSPENDED`, `decision-inbox.json`) usa `scripts/decision-inbox.ts`,
   que o OpenCode não instala em `.opencode/scripts/`: ali ela não se aplica. Um worker em
   `BLOCKED_WAITING` segue o fluxo do polling do status file, sem estado `SUSPENDED`. Pelo mesmo
-  motivo a ejeção graciosa da Fase 5.f (`eject-comment.ts`) e a micro-spec JIT (`--micro-spec`)
-  também não se aplicam no OpenCode: um grupo que esgota as tentativas é só reportado.
+  motivo a ejeção graciosa da Fase 5.f (`eject-comment.ts`), a micro-spec JIT (`--micro-spec`) e o
+  modo `--goal` (que depende deles e do Pre-Ship) também não se aplicam no OpenCode: um grupo que
+  esgota as tentativas é só reportado.
 
 ### Fase 3 — criar o worktree você mesmo
 

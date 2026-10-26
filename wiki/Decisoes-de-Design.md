@@ -115,6 +115,20 @@ non-goals) antes de entrar no `ContextPacket`. O coordinator a escreve fora do r
 worker quem cria `docs/specs/micro/<issue#>-<slug>.md` no próprio worktree, para não sujar o checkout
 principal. O prazo de 10 s é meta de desenho, sem medição.
 
+**Modo de meta contínua `--goal` (issue #498).** Os harnesses modernos delegam metas longas pelo
+`/goal`, e um coordinator que para para perguntar não cabe nesse desenho. `--goal "<meta>"` aplica a
+coluna *Headless* da matriz de decisões (nunca pergunta, adota o `(Recommended)` de cada item) e
+acrescenta um loop de convergência até o escopo estar resolvido ou ejetado, com teto de 120 minutos
+(RNF-04 da Spec) e o Goal Convergence Report no fim. **`--goal` não habilita o merge autônomo**: o
+mesmo opt-in da #497 (`--auto-ship` ou `autoShipHeadless`) e os quatro gates da Fase 6.d continuam
+sendo a única porta para entregar sem humano, e sem ele o relatório diz "nenhum PR preparado" em vez
+de fingir entrega. A consequência assumida é que uma meta de várias ondas só converge por completo com
+o opt-in, porque a transição de onda exige o merge da anterior. Em `--goal`, uma dúvida de worker
+vira `SUSPENDED` e, sem ninguém para responder, ejeção; o avanço otimista fica fora, porque decidir
+tecnicamente pelo worker sem checagem humana não é o que a Spec define para o goal. A meta é tratada
+como texto literal (só vai ao relatório e ao `goal-audit.json`, gravado com a ferramenta de escrita),
+porque ela vem do operador e um `$(...)` numa meta não pode virar execução.
+
 **Por que o circuit breaker headless sempre pausa.** Falha recorrente com a mesma assinatura quase
 sempre é infraestrutura (rede, registry, disco), não código: insistir sem humano só multiplica o
 custo pelo número de grupos restantes.

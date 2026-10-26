@@ -1,6 +1,6 @@
 ---
 name: coordinator
-description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /vetor:coordinator [label]. Aceita --headless para execução não-interativa (rotinas/CI).
+description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /vetor:coordinator [label]. Aceita --headless para execução não-interativa (rotinas/CI) e --goal "<meta>" para convergência contínua sem perguntas.
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -21,6 +21,8 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 /vetor:coordinator --resume
 /vetor:coordinator [label] --headless
 /vetor:coordinator [label] --headless --auto-ship
+/vetor:coordinator [label] --goal "<meta>"
+/vetor:coordinator [label] --goal "<meta>" --auto-ship
 ```
 
 - `[label]`: label das issues a despachar (sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado)
@@ -29,9 +31,15 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
   worktrees/status files existentes (Fase 0).
 - `--headless`: execução **não-interativa**, para rotinas agendadas e CI. Combinável com qualquer
   um dos anteriores.
-- `--auto-ship`: só tem efeito com `--headless`. Habilita a Fase 6 (entrega) sem humano, sob quatro
-  gates determinísticos (Fase 6.d). Equivale a `"autoShipHeadless": true` em
-  `.claude/vetor/config.json`; sem nenhum dos dois, `--headless` continua sem entregar.
+- `--goal "<meta>"`: modo de **meta contínua** (issue #498), no estilo do `/goal` dos harnesses. Roda
+  sem nenhuma pergunta ao usuário até todas as issues do escopo estarem resolvidas ou ejetadas e
+  fecha com o Goal Convergence Report. A meta é uma descrição entre aspas, **obrigatória** (`--goal`
+  sem valor não inicia: responda com uma linha de erro) e só descritiva — não filtra issues.
+  Sem `[label]` nem lista de números, segue a Fase 0 como o comando sem argumento. Relação com
+  `--headless` e `--auto-ship`: seção "Modo goal".
+- `--auto-ship`: só tem efeito com `--headless` ou `--goal`. Habilita a Fase 6 (entrega) sem humano,
+  sob quatro gates determinísticos (Fase 6.d). Equivale a `"autoShipHeadless": true` em
+  `.claude/vetor/config.json`; sem nenhum dos dois, `--headless` e `--goal` continuam sem entregar.
 
 ---
 
@@ -102,6 +110,101 @@ Além disso, em `--headless`:
 
 ---
 
+## Modo goal
+
+`--goal "<meta>"` (issue #498, RF-01 da Spec
+`docs/specs/autonomia-continua-e-desacoplamento-interativo.md`) alinha o coordinator ao `/goal` de
+longa duração dos harnesses: o operador delega a meta e volta quando ela termina. O fluxo é o das
+Fases 0–7, mas o coordinator **converge sozinho**: despacha onda após onda até que toda issue do
+escopo esteja resolvida ou ejetada. Nenhuma `AskUserQuestion` nem `ExitPlanMode`, em momento algum.
+A meta é descritiva: não filtra issues (o escopo vem de `[label]`, da lista de números ou da
+descoberta da Fase 1).
+
+### Relação com `--headless` e `--auto-ship`
+
+`--goal` aplica a coluna **Headless** da matriz acima em todos os pontos de decisão. O que o distingue
+do `--headless` puro é a duração (um loop de convergência até o fim do escopo ou do teto) e o
+fechamento (o Goal Convergence Report). A entrega continua sendo um opt-in separado:
+
+| Invocação | Perguntas | Fase 6 (entrega) | Fecha com |
+|---|---|---|---|
+| `--headless` | nenhuma | pulada; roda sob a 6.d só com o opt-in | Coordinator Report |
+| `--goal` | nenhuma | pulada: os grupos `GREEN` ficam prontos para ship | Goal Convergence Report |
+| `--goal --auto-ship` | nenhuma | 6.d, sob os quatro gates | Goal Convergence Report |
+
+O opt-in de entrega é o mesmo `--auto-ship` ou `"autoShipHeadless": true` da Fase 6.d.
+`--goal` não habilita o merge autônomo implicitamente: **`--goal` sozinho nunca** invoca `ship`,
+`gh pr ready` nem `gh pr merge`. Sem o opt-in, a seção "PRs preparados" do Goal Convergence Report fica vazia e os
+grupos `GREEN` são listados como prontos para ship. Com o opt-in, cada PR só é mergeado se passar nos
+quatro gates da Fase 6.d; gate reprovado deixa o PR aberto e registrado, como no `--headless`.
+
+### Decisões determinísticas
+
+Em `--goal` não há entrevista nem aprovação: toda decisão adota a opção `(Recommended)` da Fase 2, e
+a lista do que foi adotado vai ao relatório (RNF-03).
+
+| Decisão | O que o `--goal` adota |
+|---|---|
+| Triagem de despachabilidade | As mesmas regras de `SKIPPED` da Fase 1; label de triagem só se já existir no repositório, e o coordinator nunca cria labels |
+| Specs (gate da Fase 2) | `(Recommended)`: despachar com micro-spec JIT, com a marca `⚠️ sem Spec associada` |
+| Teto de workers | `N_rec`, sem perguntar |
+| Modelos | O `(Recommended)` da coluna "Modelo / Backend" do plano (`haiku`/`sonnet` pela regra de `issue-coordinator-dispatch.md`); delegação a runtime externo só com `delegation.preferredRuntime`, senão inline |
+| Aprovação do plano | Nenhuma; o plano vai ao relatório |
+| Entrega | Só com o opt-in da seção anterior |
+| Bloqueio de worker (5.b) | `SUSPENDED`, que libera a vaga; sem humano para responder, a pendência vira ejeção (5.f) quando não resta mais nada a despachar ou monitorar. Sem avanço otimista, e nenhuma permissão é auto-aprovada |
+| Iterações esgotadas | Um redespacho com `sonnet` (`issue-coordinator-dispatch.md`) e então a ejeção (5.f) |
+| Circuit breaker (5.c) | Pausa e reporta, como no `--headless`: a meta não converge |
+
+### Convergência e término
+
+- **Resolvida** é a issue que terminou `GREEN` (pronta para ship), `PR_STAGED` ou mergeada (com o
+  opt-in), `EJECTED` ou `SKIPPED` pela triagem. A meta converge quando toda issue do escopo está
+  resolvida ou ejetada; o resultado é `CONVERGIU`, senão `PARCIAL`, com o motivo.
+- **Teto de sessão:** min(`maxSessionMinutes` — 120 se ausente —, 120) minutos. A Spec limita a
+  execução autônoma a 120 minutos (RNF-04), então um `maxSessionMinutes` maior não o ultrapassa em
+  `--goal`. Ao atingi-lo valem as regras de sempre (nenhum novo grupo nem nova onda, os ativos
+  concluem a iteração corrente), e as pendências `SUSPENDED` são ejetadas (5.f).
+- **Ondas e entrega:** sem o opt-in de entrega nada é mergeado, e a transição de onda exige o merge de
+  `O_i`. Os grupos de `O_2` em diante ficam `QUEUED` (aguardando `O_i`) até o fim da sessão e entram
+  no Goal Convergence Report como "não convergiram". Sem `--auto-ship`, a meta só converge por
+  completo se o escopo cabe numa única onda.
+- **Circuit breaker:** disparado, o coordinator para de despachar e a meta não converge; os grupos
+  não despachados e a assinatura de erro comum vão ao relatório.
+
+### A meta é texto literal
+
+A meta é dado, não comando: nunca a interpole num comando de shell (nem em `echo`, argumentos de
+`git` ou `gh`, mensagens de commit ou comentários de issue). Ela só aparece no Goal Convergence Report
+e em `<repo-root>/.claude/vetor/goal-audit.json`, que se grava com a ferramenta de escrita, a meta como
+string JSON (escape de `"`, `\` e quebras de linha). Uma meta com `$(...)`, crases ou `;` é texto
+literal, não execução.
+
+O `goal-audit.json` é o registro durável de RNF-03 e a fonte do relatório, porque o contexto de uma
+sessão de 120 minutos pode ser compactado. Reescreva-o a cada decisão ou ejeção, no schema da Spec
+(`goal`, `startedAt`, `completedAt`, `concludedIssues`, `ejectedIssues`, `autoDecisionsApplied`) mais a
+lista `autoDecisions`, que traz cada decisão autônoma com a opção adotada e a referência (hash do
+commit de preservação da ejeção, ou a tag `_vetor_checkpoint_*` de um avanço otimista):
+
+```json
+{
+  "goal": "Entregar correções de bugs da release",
+  "startedAt": "2026-10-26T17:30:00Z",
+  "completedAt": null,
+  "concludedIssues": [482, 485],
+  "ejectedIssues": [{ "issueNumber": 488, "reason": "Esgotou 5 iterações", "labelApplied": "needs-human", "checkpointCommit": "7f8b9c0" }],
+  "autoDecisionsApplied": 2,
+  "autoDecisions": [{ "decision": "Teto de workers", "adopted": "N=3 (Recommended)", "ref": null }]
+}
+```
+
+### O que `--goal` não relaxa
+
+Os hooks de segurança (`safety-check.ts`) continuam bloqueando comandos destrutivos, nenhuma
+permissão é auto-aprovada, o coordinator nunca cria labels (`gh label create`) e o fix-loop mantém o
+orçamento de 5 iterações por issue.
+
+---
+
 ## Comportamento
 
 ### 0 — Detecção de modo
@@ -117,9 +220,10 @@ Além disso, em `--headless`:
      `multiSelect` — "Fazer ship dos grupos `GREEN`?" — listando cada grupo `<slug>` (Issue #<N>)
      com todos marcados `(Recommended)`. Depois monte a tabela de status (Fase 5.a). Se já estiver
      mergeado, apenas informe. Prossiga a partir da Fase 5/6.
-     Em `--headless`: não pergunte o teto (use `N_rec`) e não ofereça ship — apenas reporte os
-     grupos `GREEN` como prontos, salvo com `--auto-ship`/`autoShipHeadless: true`, caso em que
-     os `GREEN` seguem a Fase 6.d.
+     Em `--headless` (e em `--goal`, que o acompanha): não pergunte o teto (use `N_rec`) e não
+     ofereça ship — apenas reporte os grupos `GREEN` como prontos, salvo com
+     `--auto-ship`/`autoShipHeadless: true`, caso em que os `GREEN` seguem a Fase 6.d. Em `--goal` a
+     retomada continua o `goal-audit.json` existente em vez de criar outro.
   3. Se **não houver** worktree ativo com status file: caia no fluxo padrão (Fase 1), descobrindo
      dinamicamente labels ou usando `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado.
 - **Lista de números** ou **label explícito**: siga o fluxo padrão a partir da Fase 1.
@@ -776,8 +880,8 @@ cada PR segue para o merge assim que fecha verde, a espera total converge para m
 Se o `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
 
 **6.d — Entrega autônoma em `--headless` (issue #497).** Só com `--auto-ship` ou
-`autoShipHeadless: true` em `.claude/vetor/config.json` (lido a partir do root do repositório). Segue
-6.a–6.c, com duas diferenças: nunca há pergunta ao usuário, e **nenhum PR é mergeado sem passar nos
+`autoShipHeadless: true` em `.claude/vetor/config.json` (lido a partir do root do repositório), em
+`--headless` ou em `--goal`. Segue 6.a–6.c, com duas diferenças: nunca há pergunta ao usuário, e **nenhum PR é mergeado sem passar nos
 quatro gates**. Leia `../shared/references/auto-ship-gates.md` (definição de cada gate, o que é PASS,
 FAIL e PENDING, e as escolhas de segurança). Para cada PR `PR_STAGED`, antes do 6.c:
 
@@ -811,6 +915,11 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 `sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se
 imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de descartar trabalho.
 
+**Em `--goal`**, o relatório é o `## Goal Convergence Report` de
+`../shared/references/issue-coordinator-report.md` (o Coordinator Report entra como tabela dele).
+Grave `completedAt` no `goal-audit.json`, monte o relatório a partir dele e liste cada decisão
+autônoma com a opção adotada e a referência (RNF-03).
+
 Após todos os agentes terminarem (ou atingido o timeout de 90 minutos / `maxSessionMinutes`):
 
 ```
@@ -828,7 +937,8 @@ Use `../shared/references/issue-coordinator-report.md` ao montar o Coordinator R
   nenhuma nova onda é iniciada. Porém, grupos ativos podem concluir sua iteração corrente e ships de
   grupos já em `GREEN` (ou já autorizados pelo usuário) podem prosseguir até a conclusão (issue #343).
   Para a contagem do timeout, considere apenas o tempo ativo de coordenação, excluindo períodos de
-  espera por decisões humanas (`AskUserQuestion` ou aprovação de plano).
+  espera por decisões humanas (`AskUserQuestion` ou aprovação de plano). Em `--goal` o teto nunca
+  passa de 120 minutos (seção "Modo goal").
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
 - `vetor-status.sh` destaca com `⚠️` na tabela qualquer `Iteration: N/5` com `N` acima do orçamento —
   sinal de que o agente não escalou como deveria; trate como candidato a redispatch/intervenção.
@@ -846,7 +956,7 @@ O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido 
 - Se interrompido, reconstrói estado com `vetor-status.sh` + `gh pr list` — não depende de memória
 - Ao fim de toda sessão (Fase 7), o root fica na branch principal e sincronizado — nunca preso numa
   branch de worktree de grupo
-- Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship (exceto sob
+- Em `--headless` ou `--goal`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship (exceto sob
   `--auto-ship`/`autoShipHeadless`, e só com os quatro gates da Fase 6.d em `PASS`), nunca
   auto-aprova permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
   relatório e pare — não improvise

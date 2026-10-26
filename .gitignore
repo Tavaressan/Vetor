@@ -3,6 +3,7 @@ AGENT_STATUS.md
 .claude/vetor/carry/
 .claude/vetor/cache/
 .claude/vetor/decision-inbox.json
+.claude/vetor/goal-audit.json
 .claude/vetor-status.md
 node_modules/
 .env
