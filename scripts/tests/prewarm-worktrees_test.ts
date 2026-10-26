@@ -9,6 +9,7 @@ import {
   claimPrewarm,
   discardPrewarm,
   manifestPath,
+  pendingPath,
   readManifest,
   startPrewarm,
   validateGroups,
@@ -204,6 +205,26 @@ Deno.test("startPrewarm mantém ready e sinaliza depsFailed quando a instalaçã
     assertEquals(entry.state, "ready");
     assertEquals(entry.depsFailed, true);
     await Deno.stat(prepareFailedMarkerPath(entry.path));
+  } finally {
+    await cleanup();
+  }
+});
+
+Deno.test("o sidecar de pendentes lista só os worktrees sem dono, para o vetor-status.sh não alarmar", async () => {
+  const { root, cleanup } = await makeRepo(false);
+  try {
+    const pending = async () =>
+      (await Deno.readTextFile(pendingPath(root))).split("\n").filter(Boolean);
+
+    await startPrewarm({ root, base: "main", groups: GROUPS });
+    // Mesma convenção dos status files: "/" da branch trocada por "-".
+    assertEquals(await pending(), ["feat-1-alpha", "fix-2-beta"]);
+
+    await claimPrewarm(root, "alpha");
+    assertEquals(await pending(), ["fix-2-beta"]);
+
+    await discardPrewarm({ root });
+    assertEquals(await pending(), []);
   } finally {
     await cleanup();
   }

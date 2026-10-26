@@ -106,12 +106,30 @@ export async function readManifest(root: string): Promise<PrewarmManifest | null
   }
 }
 
+/**
+ * Sidecar de linhas simples lido pelo `vetor-status.sh` (bash, sem parser de JSON): as branches dos
+ * worktrees pré-aquecidos ainda sem dono. Elas não têm status file até o dispatch, e isso não é a
+ * falha anômala da issue #72.
+ */
+export function pendingPath(root: string): string {
+  return `${root}/.claude/vetor/prewarm-pending.txt`;
+}
+
+async function writeAtomic(target: string, content: string): Promise<void> {
+  await Deno.writeTextFile(`${target}.tmp`, content);
+  await Deno.rename(`${target}.tmp`, target);
+}
+
 /** Escrita atômica (tmp + rename): o coordinator lê o manifest enquanto o `start` ainda roda. */
 async function writeManifest(root: string, manifest: PrewarmManifest): Promise<void> {
-  const target = manifestPath(root);
   await Deno.mkdir(`${root}/.claude/vetor`, { recursive: true });
-  await Deno.writeTextFile(`${target}.tmp`, JSON.stringify(manifest, null, 2));
-  await Deno.rename(`${target}.tmp`, target);
+  // Mesma convenção dos status files: "/" da branch trocada por "-".
+  const pending = manifest.entries
+    .filter((e) => e.state === "warming" || e.state === "ready")
+    .map((e) => `${e.branch.replaceAll("/", "-")}\n`)
+    .join("");
+  await writeAtomic(pendingPath(root), pending);
+  await writeAtomic(manifestPath(root), JSON.stringify(manifest, null, 2));
 }
 
 async function pathExists(path: string): Promise<boolean> {
