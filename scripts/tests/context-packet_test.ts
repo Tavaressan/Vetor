@@ -2,14 +2,16 @@
 // o pacote JSON que o coordinator injeta no prompt inaugural do issue-worker para ele não gastar
 // tool calls redescobrindo módulo, comando de teste e arquivos-alvo.
 
-import { assertEquals, assertMatch, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertMatch, assertThrows } from "@std/assert";
 import {
   buildContextPacket,
+  catchAllModule,
   CONTEXT_PACKET_SCHEMA,
   type ContextPacket,
   extractAcceptanceCriteria,
   extractTargetFiles,
   parseModuleTestMap,
+  renderContextPacketPrompt,
   resolveModule,
 } from "../lib/orchestrator/context-packet.ts";
 
@@ -153,6 +155,7 @@ Deno.test("buildContextPacket omite worktree.path e conventions quando não info
 
   assertEquals("path" in packet.worktree, false);
   assertEquals("conventions" in packet.context, false);
+  assertEquals("repoMap" in packet.context, false);
   assertEquals(packet.context.module, "root");
   assertEquals(packet.context.testCommand, "deno task test");
   assertEquals(packet.context.targetFiles, []);
@@ -199,6 +202,70 @@ Deno.test("buildContextPacket falha claro quando o módulo resolvido não tem co
     Error,
     'módulo "cli-installer"',
   );
+});
+
+Deno.test("catchAllModule devolve o módulo de './' ou, sem ele, o primeiro da tabela de comandos", () => {
+  assertEquals(catchAllModule(parseModuleTestMap(MODULE_TEST_MAP)), "root");
+  const semCatchAll = parseModuleTestMap(
+    "| Módulo | Comando |\n|---|---|\n| `a` | `x` |\n| `b` | `y` |\n",
+  );
+  assertEquals(catchAllModule(semCatchAll), "a");
+  assertEquals(catchAllModule(parseModuleTestMap("# vazio")), undefined);
+});
+
+// Repo Map escopado (issue #507, RF-04 de docs/specs/repo-map-ast-context-packet.md): o mapa é
+// uma string Markdown em `context.repoMap` e, no prompt do worker, vai dentro de <repo_map>.
+const REPO_MAP = "### cli/status.ts\n```ts\nexport function status(): string { ... }\n```\n";
+
+Deno.test("buildContextPacket inclui context.repoMap e ele sobrevive à serialização do payload", () => {
+  const packet = buildContextPacket({
+    issue: { number: 507, title: "feat: x", body: "Alterar `cli/status.ts`." },
+    slug: "x",
+    worktree: { branch: "feat/507-x", baseBranch: "master" },
+    moduleTestMap: MODULE_TEST_MAP,
+    repoMap: REPO_MAP,
+  });
+
+  assertEquals(packet.context.repoMap, REPO_MAP);
+  const roundTrip = JSON.parse(JSON.stringify(packet)) as ContextPacket;
+  assertEquals(roundTrip.context.repoMap, REPO_MAP);
+  assertEquals(roundTrip, packet);
+});
+
+Deno.test("renderContextPacketPrompt põe o mapa na tag <repo_map> fora do JSON, depois do bloco json", () => {
+  const packet = buildContextPacket({
+    issue: { number: 507, title: "feat: x", body: "Alterar `cli/status.ts`.\n- [ ] Criar x" },
+    slug: "x",
+    worktree: { branch: "feat/507-x", baseBranch: "master" },
+    moduleTestMap: MODULE_TEST_MAP,
+    repoMap: REPO_MAP,
+  });
+  const prompt = renderContextPacketPrompt(packet);
+
+  assert(prompt.startsWith("```json\n"), "o bloco json abre o prompt");
+  const json = prompt.match(/^```json\n([\s\S]*?)\n```/);
+  assert(json, "bloco json presente");
+  const { repoMap: _omitted, ...contextWithoutMap } = packet.context;
+  assertEquals(JSON.parse(json[1]), { ...packet, context: contextWithoutMap });
+  assertEquals(Object.keys(JSON.parse(json[1]).context).includes("repoMap"), false);
+
+  assertMatch(prompt, /\n\n<repo_map>\n### cli\/status\.ts\n/);
+  assert(prompt.endsWith("```\n</repo_map>"), "a tag fecha o prompt do pacote");
+  assert(prompt.indexOf("</repo_map>") > prompt.indexOf("```json"));
+  assertEquals(prompt.split("<repo_map>").length, 2, "uma única tag de abertura");
+});
+
+Deno.test("renderContextPacketPrompt sem repoMap emite só o bloco json, sem tag", () => {
+  const packet = buildContextPacket({
+    issue: { number: 7, title: "chore: ajuste", body: "" },
+    slug: "ajuste",
+    worktree: { branch: "chore/7-ajuste", baseBranch: "master" },
+    moduleTestMap: MODULE_TEST_MAP,
+  });
+  const prompt = renderContextPacketPrompt(packet);
+
+  assertEquals(prompt.includes("<repo_map>"), false);
+  assertEquals(prompt, "```json\n" + JSON.stringify(packet, null, 2) + "\n```");
 });
 
 // CLI exposto para o coordinator (skills são prosa e não importam TypeScript — mesmo padrão de
@@ -301,6 +368,134 @@ Deno.test("CLI context-packet sem --worktree omite o path e --target-files subst
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+// Repositório de verdade para o CLI gerar o Repo Map: cli/ é o módulo-alvo, scripts/ é o catch-all.
+const REPO_FILES: Record<string, string> = {
+  "cli/status.ts":
+    'import { fmt } from "./format.ts";\nexport function status(): string { return fmt("ok"); }\n',
+  "cli/format.ts": "export function fmt(text: string): string { return text; }\n",
+  "scripts/other.ts": "export const OTHER = 1;\n",
+};
+
+async function withIssueFixture(
+  fn: (paths: { dir: string; repo: string; issuePath: string; mapPath: string }) => Promise<void>,
+): Promise<void> {
+  const dir = await Deno.makeTempDir();
+  try {
+    const repo = `${dir}/repo`;
+    for (const [path, content] of Object.entries(REPO_FILES)) {
+      await Deno.mkdir(`${repo}/${path.slice(0, path.lastIndexOf("/"))}`, { recursive: true });
+      await Deno.writeTextFile(`${repo}/${path}`, content);
+    }
+    const issuePath = `${dir}/issue.json`;
+    const mapPath = `${dir}/module-test-map.md`;
+    await Deno.writeTextFile(
+      issuePath,
+      JSON.stringify({
+        number: 507,
+        title: "feat(cli): status",
+        body: "Alterar `cli/status.ts`.\n- [ ] Retornar JSON",
+      }),
+    );
+    await Deno.writeTextFile(mapPath, MODULE_TEST_MAP);
+    await fn({ dir, repo, issuePath, mapPath });
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+}
+
+function packetArgs(issuePath: string, mapPath: string): string[] {
+  return [
+    "--issue-json",
+    issuePath,
+    "--module-test-map",
+    mapPath,
+    "--slug",
+    "status",
+    "--branch",
+    "feat/507-status",
+    "--base",
+    "master",
+  ];
+}
+
+Deno.test("CLI context-packet --repo-root anexa o Repo Map escopado em context.repoMap", async () => {
+  await withIssueFixture(async ({ repo, issuePath, mapPath }) => {
+    const { code, stdout, stderr } = await runCli([
+      ...packetArgs(issuePath, mapPath),
+      "--repo-root",
+      repo,
+    ]);
+
+    assertEquals(code, 0, stderr);
+    const packet = JSON.parse(stdout) as ContextPacket;
+    const repoMap = packet.context.repoMap;
+    assert(repoMap, "context.repoMap presente no payload serializado");
+    assertMatch(repoMap, /### cli\/status\.ts/);
+    assertMatch(repoMap, /export function status\(\): string \{ \.\.\. \}/);
+    assertEquals(repoMap.includes("return fmt"), false, "corpos de função ficam de fora");
+    assert(
+      repoMap.indexOf("### cli/status.ts") < repoMap.indexOf("### scripts/other.ts"),
+      "o arquivo-alvo vem antes do que está fora do módulo",
+    );
+  });
+});
+
+Deno.test("CLI context-packet sem --repo-root não gera nem anexa o mapa", async () => {
+  await withIssueFixture(async ({ issuePath, mapPath }) => {
+    const { code, stdout, stderr } = await runCli(packetArgs(issuePath, mapPath));
+
+    assertEquals(code, 0, stderr);
+    assertEquals("repoMap" in (JSON.parse(stdout) as ContextPacket).context, false);
+  });
+});
+
+Deno.test("CLI context-packet --format prompt emite o bloco json e a tag <repo_map>", async () => {
+  await withIssueFixture(async ({ repo, issuePath, mapPath }) => {
+    const { code, stdout, stderr } = await runCli([
+      ...packetArgs(issuePath, mapPath),
+      "--repo-root",
+      repo,
+      "--format",
+      "prompt",
+    ]);
+
+    assertEquals(code, 0, stderr);
+    assert(stdout.startsWith("```json\n"), stdout);
+    // O módulo (cli/) vem primeiro; scripts/other.ts, de fora dele, só depois.
+    assertMatch(
+      stdout,
+      /\n<repo_map>\n### cli\/[\s\S]*### cli\/status\.ts[\s\S]*### scripts\/other\.ts/,
+    );
+    assert(stdout.trimEnd().endsWith("</repo_map>"), stdout);
+    const json = stdout.match(/^```json\n([\s\S]*?)\n```/);
+    assert(json, "bloco json presente");
+    assertEquals("repoMap" in JSON.parse(json[1]).context, false);
+  });
+});
+
+Deno.test("CLI context-packet segue sem o mapa e avisa quando o --repo-root é inutilizável", async () => {
+  await withIssueFixture(async ({ dir, issuePath, mapPath }) => {
+    const { code, stdout, stderr } = await runCli([
+      ...packetArgs(issuePath, mapPath),
+      "--repo-root",
+      `${dir}/nao-existe`,
+    ]);
+
+    assertEquals(code, 0, stderr);
+    assertEquals("repoMap" in (JSON.parse(stdout) as ContextPacket).context, false);
+    assertMatch(stderr, /repo-map/);
+  });
+});
+
+Deno.test("CLI context-packet rejeita --format desconhecido", async () => {
+  await withIssueFixture(async ({ issuePath, mapPath }) => {
+    const { code, stderr } = await runCli([...packetArgs(issuePath, mapPath), "--format", "xml"]);
+
+    assertEquals(code, 1);
+    assertMatch(stderr, /--format/);
+  });
 });
 
 Deno.test("CLI context-packet recusa número de issue com caracteres de shell", async () => {

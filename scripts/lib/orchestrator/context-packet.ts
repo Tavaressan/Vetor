@@ -3,8 +3,8 @@
  *
  * Pacote JSON que o coordinator injeta no prompt inaugural do issue-worker com o que ele já
  * determinou no planejamento — critérios de aceite, módulo, comando de teste e arquivos-alvo —
- * para o worker não gastar as primeiras tool calls redescobrindo isso. Extensões futuras entram
- * como campos opcionais em `ContextPacketContext` (ex.: o repo map da Spec repo-map-ast).
+ * para o worker não gastar as primeiras tool calls redescobrindo isso. Extensões entram como
+ * campos opcionais em `ContextPacketContext` (ex.: `repoMap`, da Spec repo-map-ast).
  */
 
 /** Identificador/versão do formato, gravado em `$schema` de todo pacote. */
@@ -36,6 +36,11 @@ export interface ContextPacketContext {
   /** Arquivos com probabilidade de alteração: dica para começar, não restrição. */
   targetFiles: string[];
   conventions?: string;
+  /**
+   * Repo Map escopado (Markdown, `scripts/repo-map.ts`) com as assinaturas do módulo e dos vizinhos
+   * imediatos. No prompt do worker ele vai na tag `<repo_map>` (ver `renderContextPacketPrompt`).
+   */
+  repoMap?: string;
 }
 
 export interface ContextPacket {
@@ -61,6 +66,8 @@ export interface BuildContextPacketInput {
   conventions?: string;
   /** Sobrescreve a inferência de arquivos-alvo a partir do título e do body. */
   targetFiles?: string[];
+  /** Repo Map já gerado para o módulo/arquivos-alvo; é gravado em `context.repoMap`. */
+  repoMap?: string;
 }
 
 const CHECKLIST_ITEM_RE = /^[ \t]*[-*][ \t]+\[[ xX]\][ \t]+(.+?)[ \t]*$/gm;
@@ -160,7 +167,7 @@ export function resolveModule(files: string[], map: ModuleTestMap): string {
 }
 
 export function buildContextPacket(input: BuildContextPacketInput): ContextPacket {
-  const { issue, slug, worktree, moduleTestMap, conventions } = input;
+  const { issue, slug, worktree, moduleTestMap, conventions, repoMap } = input;
   const targetFiles = input.targetFiles ?? extractTargetFiles(`${issue.title}\n${issue.body}`);
 
   const map = parseModuleTestMap(moduleTestMap);
@@ -188,6 +195,21 @@ export function buildContextPacket(input: BuildContextPacketInput): ContextPacke
       testCommand,
       targetFiles,
       ...(conventions !== undefined && { conventions }),
+      ...(repoMap !== undefined && { repoMap }),
     },
   };
+}
+
+/**
+ * Texto que abre o prompt do worker: o pacote em um bloco `json` e, se houver, o Repo Map na tag
+ * `<repo_map>`. O mapa é Markdown com cercas de código; escapado dentro de uma string JSON viraria
+ * uma linha ilegível, então ele sai do JSON e vai logo depois, em texto corrido.
+ */
+export function renderContextPacketPrompt(packet: ContextPacket): string {
+  const { repoMap, ...context } = packet.context;
+  const json = JSON.stringify({ ...packet, context }, null, 2);
+  const block = "```json\n" + json + "\n```";
+  return repoMap === undefined
+    ? block
+    : `${block}\n\n<repo_map>\n${repoMap.trimEnd()}\n</repo_map>`;
 }
