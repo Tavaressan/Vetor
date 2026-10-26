@@ -102,6 +102,28 @@ Deno.test("writeConfig preserva knowledge.enabled: false; FilesystemKnowledgePro
   }
 });
 
+// --- Issue #514: o opt-in do typecheck por edição mora em `hooks` e não pode sumir ao regerar ---
+
+Deno.test("writeConfig preserva o bloco hooks.typecheckOnEdit", () => {
+  const directory = Deno.makeTempDirSync();
+  const originalCwd = Deno.cwd();
+  try {
+    Deno.mkdirSync(`${directory}/.claude/vetor`, { recursive: true });
+    Deno.writeTextFileSync(
+      `${directory}/.claude/vetor/config.json`,
+      JSON.stringify({ hooks: { typecheckOnEdit: true } }),
+    );
+
+    Deno.chdir(directory);
+    const config = writeConfig(detectProject("."));
+
+    assertEquals(config.hooks, { typecheckOnEdit: true });
+  } finally {
+    Deno.chdir(originalCwd);
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
 Deno.test("writeConfig sem config.json prévio: knowledge ausente -> Filesystem", () => {
   const directory = Deno.makeTempDirSync();
   const originalCwd = Deno.cwd();

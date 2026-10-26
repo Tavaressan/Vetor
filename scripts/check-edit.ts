@@ -9,7 +9,7 @@
 // ao lado do resultado da tool. Hooks disparam dentro de subagentes, então isto alcança o
 // worker. Sem erro → silêncio absoluto: ruído a cada edição custaria mais do que resolve.
 
-import { detectProject } from "./lib/project.ts";
+import { detectProject, readJson } from "./lib/project.ts";
 import { isWithin } from "./lib/guard.ts";
 
 const CHECKABLE = /\.(ts|tsx|mts|cts)$/;
@@ -124,6 +124,69 @@ function usesNext(dir: string): boolean {
   }
 }
 
+/**
+ * Raiz do projeto: o ancestral mais próximo com `.git` (diretório, ou arquivo em worktree
+ * linkado). Num monorepo o `dir` do tsc é o subpacote, mas config e cache do Vetor vivem na raiz.
+ */
+function findProjectRoot(dir: string): string {
+  const start = dir.replaceAll("\\", "/");
+  let current = start;
+
+  while (current) {
+    if (exists(`${current}/.git`)) return current;
+    const parent = current.split("/").slice(0, -1).join("/");
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return start;
+}
+
+/**
+ * Typecheck de Node/TypeScript no PostToolUse é opt-in (issue #514, spike #394): em projetos
+ * médios o `tsc` síncrono adiciona de 2,5s a 15s a cada Edit/Write. Ative com
+ * `hooks.typecheckOnEdit: true` em `.claude/vetor/config.json` (na raiz do projeto) ou com
+ * `VETOR_TYPECHECK_ON_EDIT=true`. O caminho Deno (`deno check`) não passa por aqui.
+ */
+export function shouldCheckNode(dir: string): boolean {
+  if (Deno.env.get("VETOR_TYPECHECK_ON_EDIT") === "true") return true;
+
+  const configPath = `${findProjectRoot(dir)}/.claude/vetor/config.json`;
+  if (!exists(configPath)) return false;
+
+  try {
+    const config = readJson(configPath) as { hooks?: { typecheckOnEdit?: unknown } } | null;
+    return config?.hooks?.typecheckOnEdit === true;
+  } catch {
+    // config inválido: mantém o opt-out padrão em vez de quebrar o hook
+    return false;
+  }
+}
+
+/**
+ * Garante o cache do Vetor e devolve o `--tsBuildInfoFile` do `dir`. Um buildinfo por pacote
+ * evita que dois pacotes do monorepo descartem o cache um do outro a cada edição.
+ */
+export function prepareTsCache(dir: string): string {
+  const root = findProjectRoot(dir);
+  const cacheDir = `${root}/.claude/vetor/cache`;
+
+  try {
+    Deno.mkdirSync(cacheDir, { recursive: true });
+    // Auto-ignorado: a entrada `.claude/vetor/cache/` no .gitignore da raiz não cobriria um
+    // cache em subpacote, e projetos já instalados nem teriam a entrada.
+    if (!exists(`${cacheDir}/.gitignore`)) {
+      Deno.writeTextFileSync(`${cacheDir}/.gitignore`, "*\n");
+    }
+  } catch {
+    // Sem cache gravável o tsc só perde o ganho incremental.
+  }
+
+  const relative = dir.replaceAll("\\", "/").slice(root.length).replace(/^\//, "");
+  const name = relative ? `tsc-${relative.replaceAll("/", "_")}.tsbuildinfo` : "tsc.tsbuildinfo";
+  return `${cacheDir}/${name}`;
+}
+
 async function main() {
   const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
 
@@ -150,13 +213,22 @@ async function main() {
   }
 
   if (runtime === "node") {
+    // Issue #514: o tsc síncrono por edição é opt-in; o typecheck do projeto roda no
+    // checkpoint do /vetor:fix, antes dos testes.
+    if (!shouldCheckNode(dir)) quiet();
+
     // Sem tsconfig o tsc não sabe as opções do projeto; um check com defaults produziria
     // erros que não são erros do projeto.
     if (!exists(`${dir}/tsconfig.json`)) quiet();
     const tsc = localTsc(dir);
     if (!tsc) quiet();
 
-    const result = await runWithTimeout(tsc, ["--noEmit"], dir);
+    const result = await runWithTimeout(tsc, [
+      "--noEmit",
+      "--incremental",
+      "--tsBuildInfoFile",
+      prepareTsCache(dir),
+    ], dir);
     if (result && result.code !== 0 && result.output) {
       const diagnostics = filterNextTypegenDiagnostics(result.output, usesNext(dir));
       if (diagnostics) emit(diagnostics);
