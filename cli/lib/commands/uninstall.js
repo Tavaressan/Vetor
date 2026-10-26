@@ -9,14 +9,9 @@ const {
   readManifest: defaultReadManifest,
   writeManifest: defaultWriteManifest,
   hashFile: defaultHashFile,
+  ownersOf,
 } = require('../installer/manifest.js');
-const { ENGINES } = require('../installer/detector.js');
-
-const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.name]));
-
-function ownersOf(entry) {
-  return entry.engines ?? [entry.engine];
-}
+const { ENGINE_NAME_BY_ID } = require('../installer/detector.js');
 
 /**
  * Confirmação simples (s/N) antes da remoção. Sessão não-interativa (sem TTY) não tem como

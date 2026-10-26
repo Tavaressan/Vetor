@@ -1,11 +1,9 @@
 'use strict';
 
-const { ENGINES } = require('../installer/detector.js');
+const { ENGINE_NAME_BY_ID } = require('../installer/detector.js');
 const { installFiles: defaultInstallFiles } = require('../installer/writer.js');
-const { readManifest: defaultReadManifest } = require('../installer/manifest.js');
+const { readManifest: defaultReadManifest, ownersOf } = require('../installer/manifest.js');
 const { version: cliVersion } = require('../../package.json');
-
-const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.name]));
 
 /**
  * Comando `update`: sincroniza a instalação existente sem repetir a detecção/seleção de
@@ -40,7 +38,7 @@ function update(cwd = process.cwd(), options = {}) {
 
   // Entrada `uninstalled` (arquivo editado que sobrou de `uninstall --engines`) não reativa a engine.
   const activeEntries = Object.values(manifestBefore.files).filter((entry) => !entry.uninstalled);
-  const engineIds = [...new Set(activeEntries.flatMap((entry) => entry.engines ?? [entry.engine]))];
+  const engineIds = [...new Set(activeEntries.flatMap(ownersOf))];
   const engines = engineIds.map((id) => ({ id, name: ENGINE_NAME_BY_ID.get(id) ?? id }));
 
   if (engines.length === 0) {
