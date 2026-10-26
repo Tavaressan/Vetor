@@ -161,14 +161,19 @@ async function gitFiles(root: string): Promise<string[] | null> {
 
 async function walkFiles(root: string, dir = ""): Promise<string[]> {
   const found: string[] = [];
-  for await (const entry of Deno.readDir(dir ? `${root}/${dir}` : root)) {
-    const relative = dir ? `${dir}/${entry.name}` : entry.name;
-    if (entry.isDirectory) {
-      if (EXCLUDED_DIRS.has(entry.name) || relative === ".claude/worktrees") continue;
-      found.push(...await walkFiles(root, relative));
-    } else if (entry.isFile) {
-      found.push(relative);
+  try {
+    for await (const entry of Deno.readDir(dir ? `${root}/${dir}` : root)) {
+      const relative = dir ? `${dir}/${entry.name}` : entry.name;
+      if (entry.isDirectory) {
+        if (EXCLUDED_DIRS.has(entry.name) || relative === ".claude/worktrees") continue;
+        found.push(...await walkFiles(root, relative));
+      } else if (entry.isFile) {
+        found.push(relative);
+      }
     }
+  } catch (error) {
+    // Subdiretório ilegível (permissão, corrida com remoção): segue com o que já foi listado.
+    if (!dir) throw error;
   }
   return found;
 }
