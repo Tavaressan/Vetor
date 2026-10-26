@@ -122,7 +122,6 @@ async function generateRepoMap(
     return undefined;
   }
 }
-}
 
 if (import.meta.main) {
   const args = Deno.args;
