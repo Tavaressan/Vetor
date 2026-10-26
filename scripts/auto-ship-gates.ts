@@ -70,8 +70,8 @@ if (import.meta.main) {
   }
 
   const results = await evaluateAutoShipGates({ pr, worktree, defaultBranch }, realDeps);
-  for (const r of results) console.log(`GATE ${r.gate}: ${r.status} ${r.detail}`);
+  for (const r of results) console.info(`GATE ${r.gate}: ${r.status} ${r.detail}`);
   const verdict = combineGates(results);
-  console.log(`VERDICT: ${verdict}`);
+  console.info(`VERDICT: ${verdict}`);
   Deno.exit(EXIT_BY_VERDICT[verdict]);
 }

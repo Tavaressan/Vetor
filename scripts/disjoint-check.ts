@@ -65,7 +65,7 @@ if (import.meta.main) {
   );
 
   if (disjoint) {
-    console.log("DISJOINT");
+    console.info("DISJOINT");
     Deno.exit(0);
   }
 
@@ -77,7 +77,7 @@ if (import.meta.main) {
     if (o.overlappingFiles.length > 0) {
       parts.push(`files=[${o.overlappingFiles.join(", ")}]`);
     }
-    console.log(`OVERLAP: ${o.branch} ${parts.join(" ")}`);
+    console.info(`OVERLAP: ${o.branch} ${parts.join(" ")}`);
   }
   Deno.exit(1);
 }
