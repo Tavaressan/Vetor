@@ -37,6 +37,8 @@ Você é a skill de inicialização e configuração do Vetor. Sua missão é pr
   preciso explicar ou depurar comportamento do próprio Claude Code (hooks, slash commands,
   configuração de MCP, permissões, SDK de agentes), o MCP `claude-code-docs` é **obrigatório quando
   disponível** (ver "Documentação do próprio Claude Code (`claude-code-docs`)").
+- `../shared/references/memory-gotchas.md` — regra de escopo do ai-memory (`.ai-memory.toml` com
+  `workspace` e `project`) que o passo 2.c oferece scaffoldar.
 
 ---
 
@@ -140,6 +142,32 @@ título curto, lista das skills/agentes com o comando de invocação e, entre pa
 agente/skill correspondente. Se novas skills forem adicionadas ao plugin, atualize a constante — não
 gere a lista ad hoc na hora de rodar `/vetor:install`.
 
+### 2.c — Oferecer o escopo do ai-memory (`.ai-memory.toml`, opcional)
+
+O ai-memory é opcional e não vem embarcado no plugin. Quando ele está ativo, as skills (`/vetor:now`,
+`/vetor:fix`, workers) só consultam e registram memória se o `.ai-memory.toml` mais próximo declarar
+**ambos** `workspace` e `project` — ver `../shared/references/memory-gotchas.md`. Este passo oferece
+criar esse marcador na raiz do projeto-alvo; ele **não** cria nem inicia o container do servidor.
+
+1. Se `.ai-memory.toml` já existir na raiz, não toque nele — nem com `--force`: o escopo declarado
+   pertence ao usuário. Registre "já existia" e siga para o passo 3.
+2. Caso contrário, faça uma única pergunta via `AskUserQuestion` (criar / pular). Pular é seguro: sem
+   o marcador, as skills simplesmente não consultam o ai-memory. Registre "recusado" e siga.
+3. Em "criar", peça ao usuário `workspace` e `project` — nunca os adivinhe. Como sugestão editável:
+   `default` para o `workspace` e, para o `project`, o caminho do remote `origin` sem o host com `/`
+   trocado por `-` (`github.com/acme/api` → `acme-api`) ou, sem remote, o nome da pasta raiz.
+4. Valide os dois valores: não podem ser vazios nem conter `/`, `\`, espaço em branco ou caracteres
+   de controle (regra de `docs/marker-file.md` do ai-memory). Se algum for inválido, peça de novo.
+5. Escreva `.ai-memory.toml` na raiz com Write, somente com as duas chaves, e registre "criado":
+
+```toml
+workspace = "<workspace>"
+project = "<project>"
+```
+
+O ai-memory recomenda versionar o arquivo para que todo checkout e worktree resolva o mesmo escopo;
+o passo 2 dos próximos passos (§3) já cobre o commit.
+
 ### 3 — Exibir Sumário de Configuração e Próximos Passos
 
 Após a criação/validação dos arquivos, exiba uma mensagem informativa clara e amigável para o desenvolvedor:
@@ -158,15 +186,19 @@ Arquivos configurados:
 - [x] .claude/rules/vetor/<runtime>.md (convenções do projeto, carregadas sob demanda)
 - [<x ou ->] CLAUDE.md — bloco de capacidades <inserido | atualizado | ignorado (importa @AGENTS.md) | não encontrado (arquivo ausente)>
 - [<x ou ->] AGENTS.md — bloco de capacidades <inserido | atualizado | não encontrado (arquivo ausente)>
+- [<x ou ->] .ai-memory.toml — escopo do ai-memory <criado | já existia | recusado>
 
 Próximos passos recomendados:
 1. Abra e revise o arquivo `.claude/vetor/module-test-map.md` para garantir que os comandos de teste headless e os mapeamentos de pasta de seu projeto estejam 100% corretos.
-2. Revise e **commite** os arquivos de configuração e regras (`.claude/vetor/config.json`, `.claude/vetor/module-test-map.md` e `.claude/rules/vetor/`). Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — arquivos untracked não chegam até eles e deixam os workers sem mapa de testes nem regras (issue #327).
+2. Revise e **commite** os arquivos de configuração e regras (`.claude/vetor/config.json`, `.claude/vetor/module-test-map.md`, `.claude/rules/vetor/` e, se criado no passo 2.c, `.ai-memory.toml`). Os issue-workers rodam em worktrees, que só contêm arquivos rastreados pelo git — arquivos untracked não chegam até eles e deixam os workers sem mapa de testes nem regras (issue #327).
    **Importante (evitar divergência no squash do ship — issue #409):** se os arquivos forem commitados na branch default local sem push, os worktrees do coordinator nascerão desse commit local. Quando o `ship` realizar squash merge no GitHub, a default remota avançará com um hash diferente e a default local deixará de ser ancestral de `origin/<default>`, falhando no `sync-root` (passo 11 do ship). Use uma das duas opções suportadas:
    - **(a) Commit + push direto na branch default:** comite os arquivos de config na default local e faça `git push origin <default>` antes de despachar o coordinator; ou
    - **(b) PR dedicada para a configuração:** crie uma branch/PR com a configuração do Vetor e faça merge na branch default antes do primeiro dispatch do coordinator.
 3. (Opcional) Crie a pasta `.claude/vetor/docs/` e adicione guias de arquitetura, padrões do projeto e gaps em markdown. O comando `/vetor:backlog` lerá automaticamente estes arquivos para propor issues altamente contextualizadas.
 4. (Opcional) Rode `/vetor:stack-practices` para gerar regras de melhores práticas da stack detectada (via Context7).
+5. (Opcional) Configurar o `ai-memory` — memória local persistida para a consulta preventiva de gotchas/decisões em fixes (`/vetor:fix`) e o registro de aprendizados. Ele não vem embarcado no plugin e o `/vetor:install` não sobe o container:
+   - Suba o servidor com a receita `templates/docker-compose.ai-memory.yml` (no diretório do plugin) seguindo `wiki/MCPs.md`: `.env` com o backend de LLM (opcional) e o `.mcp.json` apontando para `http://127.0.0.1:49374/mcp`. O `.env` e as chaves nunca são versionados.
+   - Sem o `.ai-memory.toml` do passo 2.c (com `workspace` e `project`), as skills não consultam nem registram memória, mesmo com o servidor ativo.
 ```
 
 Se o script pulou algum arquivo por já existir, diga qual — e que só `--force` o sobrescreve. Reporte
@@ -178,5 +210,7 @@ também o resultado do passo 2.b: se o bloco de capacidades foi inserido, atuali
 ## Restrições
 
 - Nunca execute ações destrutivas em arquivos de configuração existentes sem a flag `--force`
-- Nunca altere códigos de negócio ou arquivos fora de `.claude/vetor/` e `.claude/rules/vetor/`
+- Nunca altere códigos de negócio ou arquivos fora de `.claude/vetor/` e `.claude/rules/vetor/` — as
+  únicas exceções são o bloco de capacidades em `CLAUDE.md`/`AGENTS.md` (passo 2.b) e o
+  `.ai-memory.toml` (passo 2.c), criado só com anuência do usuário e nunca sobrescrito
 - Nunca escreva em `.claude/rules/` fora do subdiretório `vetor/` — esse espaço é do usuário
