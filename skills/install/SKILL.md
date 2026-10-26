@@ -85,7 +85,9 @@ O script grava:
 - `.claude/vetor/module-test-map.md` — comandos de teste por módulo e mapeamento por prefixo de path. Quando a raiz possui runtime detectado, ela é sempre incluída como módulo (`./`). Subdiretórios ignorados pelo `.gitignore` (verificados via `git check-ignore`) nunca viram módulos falsos positivos. Em projetos Node sem script `test` no `package.json`, o comando é composto a partir dos scripts de validação presentes (ex.: `npm run lint && npm run build`) com anotação no mapa de ausência de suíte de testes dedicada; caso nenhum script sirva, grava `AJUSTE:` explícito em vez de um comando inválido;
 - `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados (incluindo o comando composto ou `AJUSTE:` em projetos Node sem script de teste), preservando
   o `maxConcurrentWorkers` (default 5), o bloco `knowledge` (`enabled`/`provider`) e o bloco opcional
-  `delegation` (`preferredRuntime` — ver `delegate-to-runtime.md`), se já existirem. O
+  `delegation` (`preferredRuntime` — ver `delegate-to-runtime.md`) e o bloco opcional `hooks`
+  (`typecheckOnEdit: true` liga o `tsc` a cada edição em projetos Node/TS — ver `wiki/Configuracao.md`),
+  se já existirem. O
   `prepare-worktree.ts` lê isso para saber como preparar cada worktree;
 - `.claude/rules/vetor/<runtime>.md` — convenções do projeto (comando de teste, formatador, lint,
   estilo de import), com frontmatter `paths` para entrarem em contexto **apenas** quando o agente lê

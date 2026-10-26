@@ -142,6 +142,15 @@ Para cada iteração `i` de 1 a 5:
 Execute o comando headless do módulo detectado. Se for `sem suíte de testes`, pule o módulo sem
 consumir uma iteração.
 
+**Typecheck antes dos testes (módulos Node/TypeScript):** se o módulo tem `runtime: node` em
+`config.json` e um `tsconfig.json`, rode o typecheck do projeto **antes** de cada execução de testes
+— o hook `check-edit.ts` não o faz mais a cada `Edit`/`Write` em Node (opt-in via
+`hooks.typecheckOnEdit`, issue #514), então este é o ponto em que erro de tipo e import quebrado
+aparecem sem queimar uma rodada de testes. Use o script `typecheck` do `package.json`
+(`<packageManager> run typecheck`) se existir; senão, `node_modules/.bin/tsc --noEmit` dentro do
+módulo. Falha de typecheck é vermelho da iteração: vá para o §3.b com a saída do typecheck como o
+erro lido, sem rodar os testes.
+
 **Docker:** tente o path docker apenas na **primeira** tentativa, se aplicável. Se bloqueado, troque
 para headless **permanentemente** nesta execução e nunca retente docker.
 

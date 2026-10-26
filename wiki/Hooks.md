@@ -8,7 +8,7 @@ mecanismo que aplica uma política de fato — instrução em prompt o agente po
 | Evento | Matcher | Script | O que faz |
 |--------|---------|--------|-----------|
 | `PreToolUse` | `Bash\|Edit\|Write` | `safety-check.ts` / `safety-check-antigravity.ts` | Barra push para branch protegida; barra push/PR de worker não-GREEN; restringe escrita fora do worktree ao `issue-worker` (exceto status file e caminhos fora do repositório); em `Edit`/`Write`, correlaciona `agent_id` com o worktree resolvido para detectar cwd contaminado entre workers em paralelo (issue #63) |
-| `PostToolUse` | `Edit\|Write` | `check-edit.ts` | Roda o typecheck no arquivo editado e injeta o erro no contexto do agente |
+| `PostToolUse` | `Edit\|Write` | `check-edit.ts` | Em projetos Deno, roda `deno check` no arquivo editado e injeta o erro no contexto do agente; em Node/TypeScript o `tsc` é opt-in (`hooks.typecheckOnEdit`, ver [Configuração](Configuracao.md)) |
 | `SubagentStop` | `vetor:issue-worker` | `check-status.ts` | Impede o worker de encerrar sem status file em estado terminal |
 | `SessionStart` | — | `session-check.ts` | Avisa se o projeto ainda não rodou `/vetor:install` |
 | `WorktreeCreate` | — | `prepare-worktree.ts` | Cria o worktree e prepara as dependências |
@@ -31,6 +31,12 @@ O `check-edit.ts` existe para poupar iterações do fix-loop: sem ele, um erro d
 só apareceria ao **rodar o teste**, e cada descoberta dessas queima uma das 5 iterações do worker.
 Com ele, o erro volta junto com o resultado do próprio `Edit`. Só age em `.ts`/`.tsx`, tem timeout de
 20s e **fica em silêncio quando não há erro**.
+
+Em projetos Node/TypeScript o `tsc --noEmit` (projeto inteiro, 2,5 s a 14,4 s por edição na spike
+#394) **não roda por padrão**: o typecheck vira etapa do `/vetor:fix`, antes dos testes. Quem quiser o
+diagnóstico a cada edição liga `hooks.typecheckOnEdit` em `.claude/vetor/config.json` (ou
+`VETOR_TYPECHECK_ON_EDIT=true`), e o hook passa a usar `--incremental` com `--tsBuildInfoFile` em
+`.claude/vetor/cache/`. O caminho Deno não mudou.
 
 ## Reutilizando a detecção de worktree em hooks externos ao plugin
 
