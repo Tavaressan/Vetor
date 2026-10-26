@@ -308,6 +308,9 @@ conciliação manual depois. Para evitar isso, organize os grupos em **ondas top
    dispatch paralelo atual, sem mudança de comportamento observável.
 6. O usuário pode **corrigir manualmente** o agrupamento em ondas no plano da Fase 2 antes de aprovar
    — dependências nativas e heurísticas são pontos de partida, cabendo ao usuário a validação final.
+7. **Pre-warming (RF-06):** com as ondas definidas, dispare em background o pre-warming dos worktrees
+   de `O_1` (no máximo `N_rec` grupos) enquanto a Fase 2 conduz a entrevista. Comandos, limites e a regra de
+   sincronia em `../shared/references/worktree-prewarm.md`.
 
 ### 2 — Apresentar plano de dispatch e obter aprovação
 
@@ -452,6 +455,8 @@ driver de custo agregado do coordinator.
 
 Leia `../shared/references/issue-coordinator-dispatch.md` para derivar slug/branch/status file e localizar o worktree real.
 Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao preparar dispatch de issue dependente.
+Se o pre-warming da Fase 1 rodou, aguarde o `start` terminar e reconcilie-o com o plano aprovado
+(`discard --keep`) antes de qualquer `Agent()`, conforme `../shared/references/worktree-prewarm.md`.
 
 ### 4 — Fase de desenvolvimento (paralela, com teto de concorrência e ondas)
 
@@ -463,6 +468,9 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
   cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
   Leia `../shared/references/issue-coordinator-dispatch.md` para timeout, transição de ondas e sincronização do root.
+- **Grupo pré-aquecido (RF-06):** antes de cada `Agent()`, rode `scripts/prewarm-worktrees.ts claim <slug>`.
+  Exit 0: despache em worktree pré-aquecido (subagente padrão com `cd`, sem `subagent_type` nem
+  `isolation`; template em `../shared/references/worktree-prewarm.md`). Exit 1: dispatch clássico.
 - **Remoção de labels de triagem antes do dispatch:** ao despachar uma issue (Lead ou Sequential),
   verifique se ela possui alguma label de triagem (`needs-spec`, `spec-needed`,
   `triage/needs-information`, `blocked`, `status/blocked`). Se possuir, remova-a com

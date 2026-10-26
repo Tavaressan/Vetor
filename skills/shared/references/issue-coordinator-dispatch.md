@@ -23,7 +23,8 @@ complemento opcional identificado por issue/branch e aceito somente pelo ID exat
 ⚠️ **O slug é só nominal — não é o path do worktree.** Ele serve apenas para compor o nome da branch
 e o do arquivo de status. **Nunca** infira que o worktree está em `.claude/worktrees/<slug>/` ou
 qualquer convenção derivada do slug: obtenha o path real via `git worktree list` (correlacionando
-pela branch) ou pelo retorno do `Agent()`.
+pela branch) ou pelo retorno do `Agent()`. Num grupo pré-aquecido (`worktree-prewarm.md`, RF-06) o
+path vem do JSON do `claim`, que lê o manifest do pre-warming.
 
 - **Checagem de timeout da sessão.** Antes de despachar um novo grupo `QUEUED` ou iniciar uma nova
   onda (`O_{i+1}`), verifique se o timeout global (default 90 minutos, ou `maxSessionMinutes` em
