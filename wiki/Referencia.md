@@ -47,8 +47,9 @@ agents/
 ├── issue-worker/
 │   └── codex.toml           # subagente nativo (Codex) — `vetor install` traduz para .codex/agents/<nome>.toml (issue #283)
 ├── code-review.md           # subagente nativo (Claude Code, Cursor e Antigravity, model: inherit — #397) — revisão consultiva despachada pelo ship
-└── code-review/
-    └── codex.toml           # subagente nativo (Codex) — `vetor install` traduz para .codex/agents/<nome>.toml (issue #283)
+├── code-review/
+│   └── codex.toml           # subagente nativo (Codex) — `vetor install` traduz para .codex/agents/<nome>.toml (issue #283)
+└── ship-worker.md           # subagente nativo (Claude Code, Cursor e Antigravity, model: inherit; modelo barato vem do dispatch) — Pre-Ship (`/vetor:ship --prepare`) até PR_STAGED, sem merge (#496)
 skills/
 ├── shared/references/
 │   ├── module-test-map.template.md
