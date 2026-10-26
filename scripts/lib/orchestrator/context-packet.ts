@@ -3,8 +3,8 @@
  *
  * Pacote JSON que o coordinator injeta no prompt inaugural do issue-worker com o que ele já
  * determinou no planejamento — critérios de aceite, módulo, comando de teste e arquivos-alvo —
- * para o worker não gastar as primeiras tool calls redescobrindo isso. Extensões futuras entram
- * como campos opcionais em `ContextPacketContext` (ex.: o repo map da Spec repo-map-ast).
+ * para o worker não gastar as primeiras tool calls redescobrindo isso. Extensões entram como
+ * campos opcionais em `ContextPacketContext` (ex.: `repoMap`, da Spec repo-map-ast).
  */
 
 import { microSpecPath } from "./micro-spec.ts";
@@ -43,6 +43,11 @@ export interface ContextPacketContext {
    */
   microSpec?: ContextPacketMicroSpec;
   conventions?: string;
+  /**
+   * Repo Map escopado (Markdown, `scripts/repo-map.ts`) com as assinaturas do módulo e dos vizinhos
+   * imediatos. No prompt do worker ele vai na tag `<repo_map>` (ver `renderContextPacketPrompt`).
+   */
+  repoMap?: string;
 }
 
 export interface ContextPacketMicroSpec {
@@ -76,6 +81,8 @@ export interface BuildContextPacketInput {
   conventions?: string;
   /** Sobrescreve a inferência de arquivos-alvo a partir do título e do body. */
   targetFiles?: string[];
+  /** Repo Map já gerado para o módulo/arquivos-alvo; é gravado em `context.repoMap`. */
+  repoMap?: string;
 }
 
 const CHECKLIST_ITEM_RE = /^[ \t]*[-*][ \t]+\[[ xX]\][ \t]+(.+?)[ \t]*$/gm;
@@ -137,14 +144,19 @@ export function parseModuleTestMap(markdown: string): ModuleTestMap {
   return map;
 }
 
+/** Módulo que recebe os arquivos sem prefixo: o do `./` do mapa, ou o primeiro da tabela de comandos. */
+export function catchAllModule(map: ModuleTestMap): string | undefined {
+  return map.prefixes.find((entry) => entry.prefix === "./")?.module ??
+    Object.keys(map.commands)[0];
+}
+
 /**
  * Módulo da issue a partir dos arquivos-alvo: cada arquivo vai para o módulo do prefixo mais
  * longo; vence o módulo com mais arquivos (empate: o primeiro a aparecer). Arquivo sem prefixo,
  * ou lista vazia, cai no módulo `./` do mapa (ou no primeiro da tabela de comandos).
  */
 export function resolveModule(files: string[], map: ModuleTestMap): string {
-  const fallback = map.prefixes.find((entry) => entry.prefix === "./")?.module ??
-    Object.keys(map.commands)[0];
+  const fallback = catchAllModule(map);
   if (!fallback) throw new Error("module-test-map sem módulos: rode /vetor:install.");
 
   const counts = new Map<string, number>();
@@ -170,7 +182,7 @@ export function resolveModule(files: string[], map: ModuleTestMap): string {
 }
 
 export function buildContextPacket(input: BuildContextPacketInput): ContextPacket {
-  const { issue, slug, worktree, moduleTestMap, conventions } = input;
+  const { issue, slug, worktree, moduleTestMap, conventions, repoMap } = input;
   const targetFiles = input.targetFiles ?? extractTargetFiles(`${issue.title}\n${issue.body}`);
 
   const map = parseModuleTestMap(moduleTestMap);
@@ -201,6 +213,21 @@ export function buildContextPacket(input: BuildContextPacketInput): ContextPacke
         microSpec: { path: microSpecPath(issue.number, slug), content: input.microSpec },
       }),
       ...(conventions !== undefined && { conventions }),
+      ...(repoMap !== undefined && { repoMap }),
     },
   };
+}
+
+/**
+ * Texto que abre o prompt do worker: o pacote em um bloco `json` e, se houver, o Repo Map na tag
+ * `<repo_map>`. O mapa é Markdown com cercas de código; escapado dentro de uma string JSON viraria
+ * uma linha ilegível, então ele sai do JSON e vai logo depois, em texto corrido.
+ */
+export function renderContextPacketPrompt(packet: ContextPacket): string {
+  const { repoMap, ...context } = packet.context;
+  const json = JSON.stringify({ ...packet, context }, null, 2);
+  const block = "```json\n" + json + "\n```";
+  return repoMap === undefined
+    ? block
+    : `${block}\n\n<repo_map>\n${repoMap.trimEnd()}\n</repo_map>`;
 }

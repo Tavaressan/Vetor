@@ -648,6 +648,8 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
   Ao preparar o worker, leia `../shared/references/issue-coordinator-dispatch.md` para convenções e o template completo do prompt.
   Abra o prompt de cada Lead Issue com o `ContextPacket` (critérios de aceite, módulo, comando de
   teste e arquivos-alvo), gerado por `scripts/context-packet.ts` conforme essa mesma referência.
+  Passe `--repo-root "$REPO_ROOT" --format prompt` para anexar o Repo Map escopado do módulo na tag
+  `<repo_map>` logo depois do JSON (seção "Repo Map escopado" da referência).
   No encerramento de cada iteração com pendências ou escalação, siga `../shared/references/memory-handoffs.md` para registrar handoff opcional; status file permanece primário.
 
 Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em alguma, para e marca

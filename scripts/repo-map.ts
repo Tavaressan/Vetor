@@ -5,6 +5,10 @@
 // resultado num esqueleto Markdown dentro de um orçamento de tokens (padrão: 1.500).
 //
 // Decisões de projeto:
+// - Módulos: ESM (`export ...`) e CommonJS (`module.exports = { a, b: fn }`, `module.exports.x =`,
+//   `exports.x =` e `module.exports = x`, com `require("./x")` relativos no grafo de imports; o
+//   módulo cli/ do Vetor é CommonJS). Cada nome é resolvido até a declaração local, para trazer a
+//   assinatura. Métodos e spread dentro do literal de `module.exports` não são catalogados.
 // - Parser: `npm:typescript` fixado em 6.0.3 (JS puro; a linha 7.x é nativa e não serve). Carregado
 //   por import dinâmico só quando algum arquivo precisa ser parseado, então o caminho de cache
 //   morno não paga o custo de carga do compilador.
@@ -19,14 +23,23 @@
 //   rodapé "arquivos omitidos".
 // - Cache: `.claude/vetor/cache/repo-map.json`, indexado pelo SHA-1 de blob do git de cada arquivo
 //   (o mesmo de `git hash-object`), com gravação atômica (arquivo temporário + rename).
+// - Escopo (issue #507, RF-03): `module`/`files` definem um foco. Os arquivos do foco são tier 1, os
+//   vizinhos imediatos (quem eles importam e quem os importa) são tier 2 e o resto é tier 3. O tier
+//   vem antes do score em toda ordenação, então o foco é detalhado primeiro e é o último a ser
+//   omitido. Sem foco, todo arquivo é tier 3 e a ordem continua só por centralidade.
 // O specifier fica inline (e não no import map do deno.json) porque scripts do Vetor podem rodar a
 // partir de cópias sem o deno.json da raiz, como as que o instalador do OpenCode gera no projeto.
 // deno-lint-ignore no-import-prefix
 import type * as TS from "npm:typescript@6.0.3";
+import {
+  catchAllModule,
+  parseModuleTestMap,
+  resolveModule,
+} from "./lib/orchestrator/context-packet.ts";
 
 export const DEFAULT_MAX_TOKENS = 1500;
 /** Versão do formato/extração do cache; incremente quando a extração mudar. */
-export const CACHE_VERSION = "1.0.0";
+export const CACHE_VERSION = "1.1.0";
 const DEFAULT_CACHE_PATH = ".claude/vetor/cache/repo-map.json";
 const MAX_FILE_BYTES = 500 * 1024;
 const DETAIL_SHARE = 0.6;
@@ -91,10 +104,22 @@ export interface RepoMapOptions {
   maxTokens?: number;
   /** Caminho do cache; `null` desativa o cache (padrão: `<root>/.claude/vetor/cache/repo-map.json`). */
   cachePath?: string | null;
+  /** Módulo do `module-test-map` cujos arquivos formam o foco (exige `moduleTestMap`). */
+  module?: string;
+  /** Conteúdo do `module-test-map.md`, de onde saem os prefixos de `module`. */
+  moduleTestMap?: string;
+  /**
+   * Arquivos-alvo, relativos ao root. Só os que são fontes mapeados entram no foco. O módulo
+   * catch-all (`./`) só entra no foco quando nenhum arquivo resolve: ele cobre quase o repositório
+   * inteiro e tornaria o escopo inócuo.
+   */
+  files?: string[];
 }
 
 export interface RepoMapFile {
   path: string;
+  /** 1 = foco, 2 = vizinho imediato do foco, 3 = demais (todos, quando não há foco). */
+  tier: 1 | 2 | 3;
   score: number;
   /** Símbolos exibidos com assinatura completa, na ordem de renderização. */
   symbols: RepoSymbol[];
@@ -315,11 +340,149 @@ function extractWithTypeScript(ts: TypeScript, path: string, source: string): Ex
     return lines;
   };
 
+  /** Classe com cabeçalho e membros públicos, sem corpos. */
+  const classSignature = (node: TS.ClassDeclaration) => {
+    const members = classMembers(node);
+    const body = members.length
+      ? `{\n${members.map((line) => `  ${line}`).join("\n")}\n}`
+      : "{ ... }";
+    return `${header(node)} ${body}`;
+  };
+
   const isLiteral = (node: TS.Expression) =>
     ts.isStringLiteral(node) || ts.isNumericLiteral(node) ||
     ts.isNoSubstitutionTemplateLiteral(node) || node.kind === ts.SyntaxKind.TrueKeyword ||
     node.kind === ts.SyntaxKind.FalseKeyword || node.kind === ts.SyntaxKind.NullKeyword ||
     (ts.isPrefixUnaryExpression(node) && ts.isNumericLiteral(node.operand));
+
+  /** Valor de um inicializador: função sem corpo, literal curto ou `...`. */
+  const valueText = (init: TS.Expression) => {
+    if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
+      return `${slice(startOf(init), startOf(init.body))} { ... }`;
+    }
+    return isLiteral(init) && init.end - startOf(init) <= 80
+      ? slice(startOf(init), init.end)
+      : "...";
+  };
+
+  // --- CommonJS (issue #507) ---
+  // Declarações locais de primeiro nível, para resolver `module.exports = { a }` até a assinatura.
+  const locals = new Map<string, TS.Node>();
+  for (const st of sf.statements) {
+    if (ts.isFunctionDeclaration(st) && st.name && st.body) {
+      if (!locals.has(st.name.text)) locals.set(st.name.text, st);
+    } else if (ts.isClassDeclaration(st) && st.name) {
+      locals.set(st.name.text, st);
+    } else if (ts.isVariableStatement(st)) {
+      for (const decl of st.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name)) locals.set(decl.name.text, decl);
+      }
+    }
+  }
+
+  const isModuleExports = (node: TS.Node) =>
+    ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) &&
+    node.expression.text === "module" && node.name.text === "exports";
+
+  /** `require("./x")`, com ou sem acesso a propriedade (`require("./x").nome`); só relativos. */
+  const relativeRequire = (node: TS.Node): { source: string; property?: string } | null => {
+    let property: string | undefined;
+    let call = node;
+    if (ts.isPropertyAccessExpression(call)) {
+      property = call.name.text;
+      call = call.expression;
+    }
+    if (
+      !ts.isCallExpression(call) || !ts.isIdentifier(call.expression) ||
+      call.expression.text !== "require" || call.arguments.length !== 1
+    ) return null;
+    const arg = call.arguments[0];
+    const isString = ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg);
+    return isString && arg.text.startsWith(".") ? { source: arg.text, property } : null;
+  };
+
+  const cjsNames = new Set<string>();
+  /**
+   * Registra um export CommonJS. `value` é a expressão exportada; um identificador é resolvido para
+   * a declaração local (função, classe ou constante), como no caminho ESM. Nome repetido vale só
+   * na primeira ocorrência.
+   */
+  const commonJsExport = (name: string, target: string, value: TS.Node, at: TS.Node) => {
+    if (cjsNames.has(name)) return;
+    cjsNames.add(name);
+    const local = ts.isIdentifier(value) ? locals.get(value.text) : undefined;
+    const node = local ?? value;
+    if (ts.isFunctionDeclaration(node)) {
+      push(name, "function", at, `${target} = ${callable(node)};`);
+    } else if (ts.isClassDeclaration(node)) {
+      push(name, "class", at, `${target} = ${classSignature(node)};`);
+    } else {
+      const init = ts.isVariableDeclaration(node) ? node.initializer : node as TS.Expression;
+      const inlineFunction = !local && init !== undefined &&
+        (ts.isArrowFunction(init) || ts.isFunctionExpression(init));
+      push(
+        name,
+        inlineFunction ? "function" : "const",
+        at,
+        init ? `${target} = ${valueText(init)};` : `${target};`,
+      );
+    }
+  };
+
+  const collectRequire = (names: string[], source: string) => {
+    imports.push({ source, importedSymbols: names });
+  };
+
+  const collectCommonJs = (st: TS.ExpressionStatement) => {
+    const expr = st.expression;
+    const bare = relativeRequire(expr);
+    if (bare) return collectRequire([], bare.source);
+    if (!ts.isBinaryExpression(expr) || expr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) {
+      return;
+    }
+    const left = expr.left;
+    if (isModuleExports(left)) {
+      const right = expr.right;
+      if (!ts.isObjectLiteralExpression(right)) {
+        const name = ts.isIdentifier(right) ? right.text : "default";
+        return commonJsExport(name, "module.exports", right, st);
+      }
+      for (const prop of right.properties) {
+        if (ts.isShorthandPropertyAssignment(prop)) {
+          commonJsExport(prop.name.text, `exports.${prop.name.text}`, prop.name, prop);
+        } else if (
+          ts.isPropertyAssignment(prop) &&
+          (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))
+        ) {
+          commonJsExport(prop.name.text, `exports.${prop.name.text}`, prop.initializer, prop);
+        }
+      }
+    } else if (
+      ts.isPropertyAccessExpression(left) &&
+      (isModuleExports(left.expression) ||
+        (ts.isIdentifier(left.expression) && left.expression.text === "exports"))
+    ) {
+      commonJsExport(left.name.text, `exports.${left.name.text}`, expr.right, st);
+    }
+  };
+
+  /** `const { a, b: c } = require("./x")`, `const x = require("./x")` e `...require("./x").a`. */
+  const collectRequireDeclarations = (st: TS.VariableStatement) => {
+    for (const decl of st.declarationList.declarations) {
+      const required = decl.initializer && relativeRequire(decl.initializer);
+      if (!required) continue;
+      const names: string[] = [];
+      if (ts.isObjectBindingPattern(decl.name)) {
+        for (const el of decl.name.elements) {
+          const imported = el.propertyName ?? el.name;
+          if (!el.dotDotDotToken && ts.isIdentifier(imported)) names.push(imported.text);
+        }
+      } else {
+        names.push(required.property ?? "*");
+      }
+      collectRequire(names, required.source);
+    }
+  };
 
   const functions = new Map<string, { symbol: RepoSymbol; overloaded: boolean }>();
 
@@ -352,7 +515,14 @@ function extractWithTypeScript(ts: TypeScript, path: string, source: string): Ex
       continue;
     }
 
-    if (!hasModifier(st, ts.SyntaxKind.ExportKeyword)) continue;
+    if (ts.isExpressionStatement(st)) {
+      collectCommonJs(st);
+      continue;
+    }
+    if (!hasModifier(st, ts.SyntaxKind.ExportKeyword)) {
+      if (ts.isVariableStatement(st)) collectRequireDeclarations(st);
+      continue;
+    }
     const isDefault = hasModifier(st, ts.SyntaxKind.DefaultKeyword);
 
     if (ts.isFunctionDeclaration(st)) {
@@ -377,11 +547,7 @@ function extractWithTypeScript(ts: TypeScript, path: string, source: string): Ex
     } else if (ts.isClassDeclaration(st)) {
       const name = isDefault ? "default" : st.name?.text;
       if (!name) continue;
-      const members = classMembers(st);
-      const body = members.length
-        ? `{\n${members.map((line) => `  ${line}`).join("\n")}\n}`
-        : "{ ... }";
-      push(name, "class", st, `${header(st)} ${body}`);
+      push(name, "class", st, classSignature(st));
     } else if (ts.isInterfaceDeclaration(st)) {
       const members = st.members.map((m) => `  ${slice(startOf(m), m.end).replace(/[;,]$/, "")};`);
       const body = members.length ? `{\n${members.join("\n")}\n}` : "{}";
@@ -401,17 +567,7 @@ function extractWithTypeScript(ts: TypeScript, path: string, source: string): Ex
       for (const decl of list.declarations) {
         if (!ts.isIdentifier(decl.name)) continue;
         const type = decl.type ? `: ${slice(startOf(decl.type), decl.type.end)}` : "";
-        const init = decl.initializer;
-        let value = "";
-        if (init) {
-          if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
-            value = ` = ${slice(startOf(init), startOf(init.body))} { ... }`;
-          } else if (isLiteral(init) && init.end - startOf(init) <= 80) {
-            value = ` = ${slice(startOf(init), init.end)}`;
-          } else {
-            value = " = ...";
-          }
-        }
+        const value = decl.initializer ? ` = ${valueText(decl.initializer)}` : "";
         const signature = `${prefix} ${keyword} ${decl.name.text}${type}${value};`;
         symbols.push({
           name: decl.name.text,
@@ -440,12 +596,59 @@ const LEXICAL_KINDS: Record<string, SymbolKind> = {
   var: "const",
 };
 
-/** Fallback sem AST: captura só as linhas que começam com `export`. */
+const LEXICAL_COMMONJS_PROPERTY = /^(?:module\.)?exports\.([A-Za-z_$][\w$]*)\s*=/;
+const LEXICAL_COMMONJS_OBJECT = /^module\.exports\s*=\s*\{/gm;
+
+/** Chaves de primeiro nível de um literal de objeto, dado o texto logo após a chave de abertura. */
+function lexicalObjectKeys(afterBrace: string): string[] {
+  const text = afterBrace.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const char of text) {
+    if (char === "{" || char === "[" || char === "(") depth++;
+    else if (char === "}" || char === "]" || char === ")") {
+      if (depth === 0) break;
+      depth--;
+    }
+    if (char === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+  return parts
+    .map((part) => /^\s*([A-Za-z_$][\w$]*)\s*(?::|\(|$)/.exec(part)?.[1])
+    .filter((name): name is string => name !== undefined);
+}
+
+/**
+ * Fallback sem AST: captura as linhas que começam com `export` e os exports CommonJS de primeiro
+ * nível (`module.exports = { ... }`, `module.exports.x =` e `exports.x =`), sem assinatura.
+ */
 export function extractSymbolsLexical(source: string): RepoSymbol[] {
   const symbols: RepoSymbol[] = [];
+  const commonJsNames = new Set<string>();
+  const pushCommonJs = (name: string, line: number) => {
+    if (commonJsNames.has(name)) return;
+    commonJsNames.add(name);
+    symbols.push({
+      name,
+      kind: "const",
+      line,
+      signature: `exports.${name} = ...;`,
+      exported: true,
+    });
+  };
   source.split(/\r?\n/).forEach((raw, index) => {
     const match = LEXICAL_EXPORT.exec(raw);
-    if (!match) return;
+    if (!match) {
+      const property = LEXICAL_COMMONJS_PROPERTY.exec(raw);
+      if (property) pushCommonJs(property[1], index + 1);
+      return;
+    }
     const name = match[1] ? "default" : match[3];
     if (!name) return;
     symbols.push({
@@ -456,6 +659,11 @@ export function extractSymbolsLexical(source: string): RepoSymbol[] {
       exported: true,
     });
   });
+  for (const object of source.matchAll(LEXICAL_COMMONJS_OBJECT)) {
+    const line = source.slice(0, object.index).split("\n").length;
+    const afterBrace = source.slice(object.index + object[0].length);
+    for (const name of lexicalObjectKeys(afterBrace)) pushCommonJs(name, line);
+  }
   return symbols;
 }
 
@@ -609,6 +817,7 @@ interface RankedSymbol {
 interface FileEntry {
   path: string;
   lang: string;
+  tier: 1 | 2 | 3;
   score: number;
   importers: number;
   ranked: RankedSymbol[];
@@ -638,9 +847,13 @@ const LANGUAGES: Record<string, string> = {
   ".jsx": "jsx",
 };
 
-function rankFiles(summaries: Map<string, FileSymbolSummary>): FileEntry[] {
+function rankFiles(
+  summaries: Map<string, FileSymbolSummary>,
+  focus: ReadonlySet<string>,
+): FileEntry[] {
   const known = new Set(summaries.keys());
   const importers = new Map<string, Set<string>>();
+  const dependencies = new Map<string, Set<string>>();
   const references = new Map<string, Map<string, Set<string>>>();
   for (const [from, summary] of summaries) {
     for (const ref of summary.imports) {
@@ -648,6 +861,8 @@ function rankFiles(summaries: Map<string, FileSymbolSummary>): FileEntry[] {
       if (!target || target === from) continue;
       if (!importers.has(target)) importers.set(target, new Set());
       importers.get(target)!.add(from);
+      if (!dependencies.has(from)) dependencies.set(from, new Set());
+      dependencies.get(from)!.add(target);
       for (const name of ref.importedSymbols) {
         if (name === "*") continue;
         if (!references.has(target)) references.set(target, new Map());
@@ -656,6 +871,13 @@ function rankFiles(summaries: Map<string, FileSymbolSummary>): FileEntry[] {
         byName.get(name)!.add(from);
       }
     }
+  }
+
+  // Vizinhos imediatos do foco, nos dois sentidos: o que o foco importa e quem importa o foco.
+  const neighbors = new Set<string>();
+  for (const path of focus) {
+    for (const other of importers.get(path) ?? []) neighbors.add(other);
+    for (const other of dependencies.get(path) ?? []) neighbors.add(other);
   }
 
   const entries: FileEntry[] = [];
@@ -678,12 +900,13 @@ function rankFiles(summaries: Map<string, FileSymbolSummary>): FileEntry[] {
     entries.push({
       path,
       lang: LANGUAGES[extensionOf(path)] ?? "js",
+      tier: focus.has(path) ? 1 : neighbors.has(path) ? 2 : 3,
       score: IMPORTER_WEIGHT * importerCount + typed,
       importers: importerCount,
       ranked,
     });
   }
-  return entries.sort((a, b) => b.score - a.score || compare(a.path, b.path));
+  return entries.sort((a, b) => a.tier - b.tier || b.score - a.score || compare(a.path, b.path));
 }
 
 function partition(entry: FileEntry, detailed: ReadonlySet<number>) {
@@ -738,7 +961,8 @@ function selectWithinBudget(entries: FileEntry[], maxTokens: number) {
       }))
     )
     .sort((a, b) =>
-      b.score - a.score || compare(entries[a.fileIndex].path, entries[b.fileIndex].path) ||
+      entries[a.fileIndex].tier - entries[b.fileIndex].tier || b.score - a.score ||
+      compare(entries[a.fileIndex].path, entries[b.fileIndex].path) ||
       a.symbolIndex - b.symbolIndex
     );
 
@@ -785,6 +1009,69 @@ function selectWithinBudget(entries: FileEntry[], maxTokens: number) {
     return { markdown: "", shown: [], omitted: entries.map((entry) => entry.path) };
   }
   return { markdown, shown, omitted };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Escopo (foco)
+// ---------------------------------------------------------------------------------------------
+
+function normalizePath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+/**
+ * Arquivos do foco: os `files` que são fontes mapeados mais os arquivos do `module` (união), exceto
+ * que o módulo catch-all só entra quando nenhum arquivo resolve. Sem `module` nem `files`, devolve
+ * um conjunto vazio (mapa sem escopo). Registra em `warnings` os casos em que o escopo é fraco.
+ */
+function resolveFocus(
+  known: string[],
+  options: RepoMapOptions,
+  warnings: string[],
+): Set<string> {
+  const requested = (options.files ?? []).map(normalizePath).filter(Boolean);
+  const mapped = new Set(known);
+  const resolved = requested.filter((path) => mapped.has(path));
+  const focus = new Set(resolved);
+
+  if (options.module !== undefined) {
+    if (options.moduleTestMap === undefined) {
+      throw new Error(
+        `module "${options.module}" exige moduleTestMap (conteúdo do module-test-map)`,
+      );
+    }
+    const map = parseModuleTestMap(options.moduleTestMap);
+    const available = [
+      ...new Set([...Object.keys(map.commands), ...map.prefixes.map((entry) => entry.module)]),
+    ];
+    if (!available.includes(options.module)) {
+      throw new Error(
+        `módulo "${options.module}" não existe no module-test-map (disponíveis: ${
+          available.join(", ")
+        })`,
+      );
+    }
+    const isCatchAll = options.module === catchAllModule(map);
+    if (isCatchAll && resolved.length === 0) {
+      warnings.push(
+        `módulo "${options.module}" é o catch-all (./) e cobre os arquivos sem prefixo: o escopo ` +
+          "pouco restringe; informe os arquivos-alvo",
+      );
+    }
+    if (!isCatchAll || resolved.length === 0) {
+      for (const path of known) {
+        if (resolveModule([path], map) === options.module) focus.add(path);
+      }
+    }
+  }
+
+  if (requested.length > 0 && resolved.length === 0) {
+    warnings.push(`nenhum dos arquivos informados é fonte mapeado: ${requested.join(", ")}`);
+  }
+  if (focus.size === 0 && (requested.length > 0 || options.module !== undefined)) {
+    warnings.push("foco vazio: mapa sem escopo");
+  }
+  return focus;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -847,7 +1134,19 @@ export async function buildRepoMap(options: RepoMapOptions = {}): Promise<RepoMa
     }
   }
 
-  const entries = rankFiles(summaries);
+  const focus = resolveFocus([...summaries.keys()], options, warnings);
+  const entries = rankFiles(summaries, focus);
+  if (focus.size > 0 && !entries.some((entry) => entry.tier === 1)) {
+    // Sem exports reconhecidos o foco some do mapa, que se enche de arquivos sem relação.
+    const sample = [...focus].sort(compare);
+    const listed = sample.slice(0, 3).join(", ");
+    warnings.push(
+      `foco sem símbolos exportados (${listed}${
+        sample.length > 3 ? `, +${sample.length - 3}` : ""
+      }): ` +
+        "o mapa não está escopado",
+    );
+  }
   const stats = { parsed, cached, cacheWritten };
   if (entries.length === 0) {
     return {
@@ -871,7 +1170,7 @@ export async function buildRepoMap(options: RepoMapOptions = {}): Promise<RepoMa
     markdown: selection.markdown,
     files: selection.shown.map(({ entry, detailed }) => {
       const { full, listed } = partition(entry, detailed);
-      return { path: entry.path, score: entry.score, symbols: full, listed };
+      return { path: entry.path, tier: entry.tier, score: entry.score, symbols: full, listed };
     }),
     omitted: selection.omitted,
     skipped,
@@ -884,26 +1183,55 @@ export async function buildRepoMap(options: RepoMapOptions = {}): Promise<RepoMa
 // CLI
 // ---------------------------------------------------------------------------------------------
 
-const USAGE = "uso: deno run -A scripts/repo-map.ts [--max-tokens <N>] [--json]";
+const USAGE = "uso: deno run -A scripts/repo-map.ts [--max-tokens <N>] [--json] " +
+  "[--module <nome> [--module-test-map <path>]] [--files <a,b>] [--cache-path <path>]";
 
-function parseCliArgs(args: string[]): { maxTokens: number; json: boolean } | { error: string } {
-  let maxTokens = DEFAULT_MAX_TOKENS;
+const VALUE_FLAGS = ["--max-tokens", "--module", "--module-test-map", "--files", "--cache-path"];
+
+interface CliArgs {
+  maxTokens: number;
+  json: boolean;
+  module?: string;
+  moduleTestMap?: string;
+  files?: string[];
+  cachePath?: string;
+}
+
+function parseCliArgs(args: string[]): CliArgs | { error: string } {
+  const values = new Map<string, string>();
   let json = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--json") {
       json = true;
-    } else if (arg === "--max-tokens" || arg.startsWith("--max-tokens=")) {
-      const value = arg === "--max-tokens" ? args[++i] : arg.slice("--max-tokens=".length);
-      if (!/^\d+$/.test(value ?? "") || Number(value) < 1) {
-        return { error: `--max-tokens exige um inteiro positivo (recebido: ${value ?? "nada"})` };
-      }
-      maxTokens = Number(value);
-    } else {
-      return { error: `argumento desconhecido: ${arg}` };
+      continue;
     }
+    const flag = VALUE_FLAGS.find((name) => arg === name || arg.startsWith(`${name}=`));
+    if (!flag) return { error: `argumento desconhecido: ${arg}` };
+    values.set(flag, arg === flag ? args[++i] ?? "" : arg.slice(flag.length + 1));
   }
-  return { maxTokens, json };
+
+  const rawTokens = values.get("--max-tokens");
+  if (rawTokens !== undefined && (!/^\d+$/.test(rawTokens) || Number(rawTokens) < 1)) {
+    return { error: `--max-tokens exige um inteiro positivo (recebido: ${rawTokens || "nada"})` };
+  }
+  for (const flag of VALUE_FLAGS) {
+    if (values.get(flag) === "") return { error: `${flag} exige um valor` };
+  }
+  const files = values.get("--files")?.split(",").map((file) => file.trim()).filter(Boolean);
+  return {
+    maxTokens: rawTokens === undefined ? DEFAULT_MAX_TOKENS : Number(rawTokens),
+    json,
+    module: values.get("--module"),
+    moduleTestMap: values.get("--module-test-map"),
+    files,
+    cachePath: values.get("--cache-path"),
+  };
+}
+
+function failCli(message: string): never {
+  console.error(`repo-map: ${message}`);
+  Deno.exit(1);
 }
 
 async function main(): Promise<void> {
@@ -912,7 +1240,25 @@ async function main(): Promise<void> {
     console.error(`${parsed.error}\n${USAGE}`);
     Deno.exit(2);
   }
-  const result = await buildRepoMap({ root: Deno.cwd(), maxTokens: parsed.maxTokens });
+  const root = Deno.cwd();
+  let moduleTestMap: string | undefined;
+  if (parsed.module !== undefined) {
+    const mapPath = parsed.moduleTestMap ?? `${root}/.claude/vetor/module-test-map.md`;
+    moduleTestMap = await Deno.readTextFile(mapPath).catch(() =>
+      failCli(
+        `não consegui ler o module-test-map em ${mapPath}; informe --module-test-map <path> ` +
+          "(no worktree, use o do root do repositório)",
+      )
+    );
+  }
+  const result = await buildRepoMap({
+    root,
+    maxTokens: parsed.maxTokens,
+    cachePath: parsed.cachePath,
+    module: parsed.module,
+    moduleTestMap,
+    files: parsed.files,
+  }).catch((error) => failCli(error instanceof Error ? error.message : String(error)));
   if (parsed.json) {
     console.log(JSON.stringify(result));
     return;
