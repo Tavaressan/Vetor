@@ -80,7 +80,7 @@ Na issue #283, a convenção assumida `.antigravity/` foi removida por não ser 
 - `ENGINE_DEST_DIR.antigravity = '.agents'`.
 - Selecionar Antigravity em `vetor install` copia:
   - `skills/` para `.agents/skills/<nome>/SKILL.md`
-  - `agents/*.md` (`issue-worker.md` e `code-review.md`, com `model: inherit`) para `.agents/agents/<nome>.md` (via `ENGINE_AGENT_FILE_MAP.antigravity`, excluindo `agents/*/codex.toml`).
+  - `agents/*.md` (`issue-worker.md`, `code-review.md` e `ship-worker.md`, com `model: inherit`) para `.agents/agents/<nome>.md` (via `ENGINE_AGENT_FILE_MAP.antigravity`, excluindo `agents/*/codex.toml`).
 - `hooks/` permanece em `ENGINE_EXCLUDED_SOURCE_DIRS.antigravity`: `hooks/hooks.json` usa schema e eventos do Claude Code (`${CLAUDE_PLUGIN_ROOT}`), enquanto o Antigravity espera `.agents/hooks.json` (arquivo único na raiz de `.agents/`, mesmo formato do `hooks.json` da raiz do plugin).
 
 ---

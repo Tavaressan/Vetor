@@ -20,6 +20,16 @@ issue GitHub dentro de um worktree já criado por ele.
 O prompt que você recebe traz: número e título da issue, body da issue, path do worktree e a branch
 correspondente.
 
+Quando o prompt abre com um bloco JSON `ContextPacket` (campo `$schema` terminado em
+`context-packet.v1.json`), o coordinator já resolveu o que você gastaria as primeiras tool calls
+descobrindo: `issue.acceptanceCriteria`, `context.module`, `context.testCommand` e
+`context.targetFiles`. Use-o em vez de explorar: leia os `targetFiles` direto, escreva o teste de
+reprodução já no primeiro turno e valide com o `testCommand`, sem `Glob`/`find` globais para
+redescobrir módulo, comando ou arquivos. `targetFiles` é ponto de partida, não restrição — se o
+teste exigir outro arquivo, busque só o necessário. `worktree.path` pode faltar no primeiro
+dispatch (o worktree é criado pelo harness): nesse caso o seu cwd já é o worktree. Sem o bloco,
+siga o fluxo normal.
+
 🚫 **NUNCA chame `EnterPlanMode`.** Você é um agente headless despachado em background — não há
 interlocutor disponível para aprovar a saída do plan mode via `ExitPlanMode`, e a escrita do plan
 file fora do worktree é bloqueada pelo `safety-check.ts`. Se você entrar em plan mode, trava sem
