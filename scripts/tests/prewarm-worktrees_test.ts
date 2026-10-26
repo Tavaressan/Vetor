@@ -326,3 +326,71 @@ Deno.test("discardPrewarm não força remoção de worktree com mudanças não c
     await cleanup();
   }
 });
+
+async function runCli(
+  args: string[],
+  cwd: string,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const script = new URL("../prewarm-worktrees.ts", import.meta.url);
+  const out = await new Deno.Command("deno", {
+    args: ["run", "-A", script.href, ...args],
+    cwd,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return {
+    code: out.code,
+    stdout: new TextDecoder().decode(out.stdout).trim(),
+    stderr: new TextDecoder().decode(out.stderr),
+  };
+}
+
+Deno.test("CLI: start/status/claim/discard emitem JSON e respeitam o root do repositório", async () => {
+  const { root, cleanup } = await makeRepo(false);
+  try {
+    const start = await runCli(
+      ["start", "--base", "main", "--groups", JSON.stringify(GROUPS)],
+      root,
+    );
+    assertEquals(start.code, 0, start.stderr);
+    assertEquals(JSON.parse(start.stdout).entries.length, 2);
+
+    const status = await runCli(["status"], root);
+    assertEquals(JSON.parse(status.stdout).entries[0].state, "ready");
+
+    const claim = await runCli(["claim", "alpha"], root);
+    assertEquals(claim.code, 0, claim.stderr);
+    assertEquals(JSON.parse(claim.stdout).state, "claimed");
+
+    const again = await runCli(["claim", "alpha"], root);
+    assertEquals(again.code, 1);
+    assertStringIncludes(again.stderr, "não está ready");
+
+    const discard = await runCli(["discard"], root);
+    assertEquals(discard.code, 0, discard.stderr);
+    assertEquals(
+      JSON.parse(discard.stdout).removed.map((e: { slug: string }) => e.slug),
+      ["beta"],
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+Deno.test("CLI: entrada inválida sai com código 1 sem criar nada", async () => {
+  const { root, cleanup } = await makeRepo(false);
+  try {
+    const bad = await runCli(
+      ["start", "--base", "main", "--groups", '[{"slug":"ok","branch":"--force"}]'],
+      root,
+    );
+    assertEquals(bad.code, 1);
+    assertStringIncludes(bad.stderr, "branch inválida");
+    assertEquals(await readManifest(root), null);
+
+    const unknown = await runCli(["bogus"], root);
+    assertEquals(unknown.code, 1);
+  } finally {
+    await cleanup();
+  }
+});
