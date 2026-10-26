@@ -76,6 +76,16 @@ aberto e é registrada no relatório, sem abortar a sessão nem fazer pergunta. 
 foram publicadas pelo mesmo usuário do `gh`, porque o merge é irreversível e um comentário forjado
 não pode liberar um PR. Sem o opt-in nada muda.
 
+**Entrevista consolidada na largada, em turno único (issue #499).** A Fase 2 chegava a quatro
+rodadas interativas seguidas (Spec por issue, teto de workers, runtime de delegação, aprovação do
+plano), cada uma com espera síncrona por decisões quase sempre previsíveis. Agora as decisões
+(teto, Specs, entrega, aprovação) viram uma única apresentação, cada uma com uma opção
+`(Recommended)` pré-marcada, de modo que aceitar o pacote custa uma confirmação. O runtime de
+delegação saiu da conversa porque o agrupamento roda antes de o plano existir: sem preferência
+configurada, segue inline. "Exatamente 1 turno" é uma propriedade do texto da skill, verificada por
+contrato estrutural; o tempo de setup (< 15 s) depende do usuário e não é medido. Os padrões
+`(Recommended)` são os mesmos que o `--headless` já adotava, agora listados item a item.
+
 **Por que o circuit breaker headless sempre pausa.** Falha recorrente com a mesma assinatura quase
 sempre é infraestrutura (rede, registry, disco), não código: insistir sem humano só multiplica o
 custo pelo número de grupos restantes.

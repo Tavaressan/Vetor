@@ -51,8 +51,9 @@ As regras abaixo prevalecem sobre o texto da skill, que foi escrito para o Claud
 
 ### Sem `Agent()`, `SendMessage`, `AskUserQuestion` e `ExitPlanMode`
 
-- Perguntas e aprovação do plano são texto no chat: exiba o plano e aguarde resposta afirmativa
-  explícita. Em `--headless`, nunca pergunte nem aguarde.
+- Perguntas e aprovação do plano são texto no chat: a entrevista consolidada da Fase 2 é uma única
+  mensagem com o plano e as decisões numeradas, cada uma com `(Recommended)`; `sim` aceita o pacote
+  inteiro. Em `--headless`, nunca pergunte nem aguarde.
 - Sem `SendMessage`: a única forma de saber o estado de um worker é o polling do status file
   (`bash .opencode/scripts/vetor-status.sh`). Uma decisão para um worker bloqueado vira ação sua ou
   um redespacho com o contexto da decisão no prompt (abaixo).

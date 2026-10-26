@@ -97,7 +97,10 @@ Com `available` (lista detectada) e `preferred` (config, pode ser `null`):
    - **Sessão interativa** (há interlocutor, ex.: `coordinator` fora de `--headless`):
      pergunte ao usuário qual runtime usar (mecanismo de seleção interativa da skill, quando
      disponível). Ofereça salvar a escolha em `delegation.preferredRuntime` para não perguntar de
-     novo.
+     novo. **Exceção:** no `coordinator`, a escolha de runtime não gera pergunta própria — o
+     agrupamento da Fase 1 roda antes de o plano existir e a entrevista consolidada da Fase 2 (issue
+     #499) é o único turno interativo antes do dispatch; sem `preferred` e com 2+ candidatos, siga
+     inline e sugira salvar `delegation.preferredRuntime` no relatório.
    - **Sessão headless** (`fix`, `issue-worker`, `guardian`, `backlog` sem
      interlocutor): **critério de desempate documentado é sempre inline** — nunca escolha
      silenciosamente entre candidatos não consentidos. Isso é intencional mesmo que sacrifique

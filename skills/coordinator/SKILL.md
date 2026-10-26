@@ -72,14 +72,15 @@ adicional ao ler a issue no passo 1; esta skill não consome nem gera código a 
 
 ## Modo headless
 
-A flag `--headless` substitui os quatro pontos de interação humana por decisões determinísticas:
+A flag `--headless` substitui os pontos de interação humana por decisões determinísticas:
 
 | Fase | Interativo | Headless |
 |------|-----------|----------|
 | 1/2 — labels de triagem | Aplica label de triagem existente no repo ao pular issue (nunca cria) | Aplica igualmente se a label existir no repositório; nunca cria (`gh label create`) |
-| 2 — gate de Spec/design | `AskUserQuestion` por issue não-trivial sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
-| 2 — teto de workers | `AskUserQuestion` (pula se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
-| 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
+| 2 — entrevista consolidada | Um único turno: plano e as 4 decisões da largada (teto, Specs, entrega, aprovação), cada uma com `(Recommended)` | Não existe; adota o `(Recommended)` de cada item, sem perguntar |
+| 2 — gate de Spec/design | Item 2 da entrevista consolidada: uma pergunta para todas as issues não-triviais sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
+| 2 — teto de workers | Item 1 da entrevista consolidada (omitido se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
+| 2 — aprovação do plano | Item 4 da entrevista consolidada (`ExitPlanMode` em plan mode), **pare** | Não pede aprovação; imprime o plano no relatório |
 | 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
 | 5.c — circuit breaker | Pergunta se pausa | Sempre pausa: para de despachar e reporta |
 | 6 — entrega | Pre-Ship paralelo e merge serializado | Pulada. Com `--auto-ship` ou `autoShipHeadless: true`, roda sob os 4 gates da Fase 6.d |
@@ -109,11 +110,13 @@ Além disso, em `--headless`:
   1. Rode `bash "$SKILL_DIR/../../scripts/vetor-status.sh"` para listar os worktrees ativos com
      status file. O script cruza os status files com `gh pr list` e anota `GREEN (PR #N aberta)` ou
      `GREEN (já mergeado via #N)`.
-  2. Se houver ao menos um status file ativo: **pule as Fases 1–3** e faça a pergunta de workers
-     (Fase 2; pulada quando `N_rec = 1`) — o estado em memória de `N` não sobrevive a um reinício da sessão. Depois monte a
-     tabela de status (Fase 5.a) e, para cada grupo em `GREEN` sem PR aberta ou merge, ofereça o
-     ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>), que está GREEN?"). Se
-     já estiver mergeado, apenas informe. Prossiga a partir da Fase 5/6.
+  2. Se houver ao menos um status file ativo: **pule as Fases 1–3** e pergunte tudo em
+     **uma única chamada de `AskUserQuestion`** (issue #499): o teto de workers (item 1 da entrevista consolidada
+     da Fase 2; omitido quando `N_rec = 1`, pois o estado em memória de `N` não sobrevive a um
+     reinício da sessão) e, se houver grupos em `GREEN` sem PR aberta ou merge, uma segunda pergunta
+     `multiSelect` — "Fazer ship dos grupos `GREEN`?" — listando cada grupo `<slug>` (Issue #<N>)
+     com todos marcados `(Recommended)`. Depois monte a tabela de status (Fase 5.a). Se já estiver
+     mergeado, apenas informe. Prossiga a partir da Fase 5/6.
      Em `--headless`: não pergunte o teto (use `N_rec`) e não ofereça ship — apenas reporte os
      grupos `GREEN` como prontos, salvo com `--auto-ship`/`autoShipHeadless: true`, caso em que
      os `GREEN` seguem a Fase 6.d.
@@ -251,9 +254,11 @@ Issues do tipo `spike` ("Investigação/exploração — resultado informa decis
 
 Com as candidatas válidas em mãos, se houver mais de 3 issues, você pode delegar a proposta de
 agrupamento a um runtime externo disponível — detecção e algoritmo de seleção em
-`delegate-to-runtime.md` §1-2 (com 2+ candidatos e nenhuma preferência configurada, em sessão
-interativa pergunte qual usar; em `--headless`, siga inline). Você valida e corrige a proposta; a
-distribuição final é sua.
+`delegate-to-runtime.md` §1-2. Aqui a escolha de runtime é **sem pergunta própria** (issue #499): o
+agrupamento acontece antes de o plano existir, então não cabe na entrevista consolidada da Fase 2.
+Com `delegation.preferredRuntime` ou um único candidato siga o algoritmo; com 2+ candidatos e nenhuma
+preferência configurada, siga inline (o mesmo desempate de `--headless`) e sugira no relatório salvar
+`delegation.preferredRuntime`. Você valida e corrige a proposta; a distribuição final é sua.
 
 Inline (ou com 3 ou menos issues):
 - Agrupe issues **complementares ou correlatas** (mesmo módulo, ou um `fix` que complementa
@@ -338,24 +343,26 @@ aplicado aqui à decisão "despachar como está, ou sinalizar a falta de uma Spe
    (um bugfix que já chega com escopo claro não é bloqueado cegamente) nem issues `não-trivial` que já
    têm Spec, e nunca issues `spike` (investigações exploratórias dispensam Spec, ver "Detecção de issues spike").
 
-**Fora de `--headless`:** para cada issue sinalizada, pergunte via `AskUserQuestion` (uma pergunta por
-issue, ou agrupada se houver mais de uma — `planning-conventions.md` §3 "Regra das 3 perguntas"),
-**antes de montar a tabela do plano**:
+**Fora de `--headless`:** não pergunte nada neste ponto (issue #499). As issues sinalizadas viram o
+**item 2 da entrevista consolidada** (abaixo): uma única pergunta para todas elas, e não uma por
+issue (`planning-conventions.md` §3 "Regra das 3 perguntas"). O gate classifica e o plano reflete a
+opção `(Recommended)`; a resposta do usuário, no turno único da largada, ajusta o que for preciso.
+Texto-base da pergunta do item 2:
 
 ```
-Issue #<N> parece não-trivial (<razão: múltiplos módulos | sem Escopo do trabalho/Critério de
-Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem Spec associada. Como prosseguir?
+Issue(s) #<N>[, #<M>...] parece(m) não-trivial(is) (<razão: múltiplos módulos | sem Escopo do
+trabalho/Critério de Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem(têm) Spec
+associada. Como prosseguir?
 
-1. Despachar mesmo assim — escopo confirmado nesta conversa
-2. Gerar Spec antes (/vetor:spec) — esta issue sai desta leva de dispatch
-3. Confirmar rapidamente 2-3 pontos agora (problema, resultado esperado, não-escopo) e seguir sem
-   Spec completa
+1. Despachar mesmo assim — escopo confirmado nesta conversa (Recommended)
+2. Gerar Spec antes (/vetor:spec) — a(s) issue(s) sai(em) desta leva de dispatch
 ```
 
-- **Opções 1 ou 3**: a issue segue no plano normalmente; marque na coluna "Ação" da tabela (abaixo)
-  `Despachar (⚠️ sem Spec — confirmado pelo usuário)`. Na opção 3, inclua os 2-3 pontos confirmados
-  no prompt do worker da Fase 4, como contexto adicional (não substitui uma Spec — é só o mínimo de
-  escopo confirmado para o worker não inventar critério de aceite sozinho).
+- **Opção 1**: a issue segue no plano normalmente; marque na coluna "Ação" da tabela (abaixo)
+  `Despachar (⚠️ sem Spec — confirmado pelo usuário)`. Se o usuário informou pontos de escopo
+  (problema, resultado esperado, não-escopo) no campo livre da mesma resposta, inclua-os no prompt
+  do worker da Fase 4, como contexto adicional (não substitui uma Spec — é só o mínimo de escopo
+  confirmado para o worker não inventar critério de aceite sozinho).
 - **Opção 2**: remova a issue desta leva de dispatch — ela não aparece como `Despachar`, e sim com
   Ação `SKIPPED (aguardando Spec)` e coluna "Onda" `—` (nunca foi despachada, não pertence a onda
   nenhuma). Se a issue sinalizada é a **Lead** do grupo, o grupo inteiro sai da leva (as Sequential
@@ -426,27 +433,68 @@ driver de custo agregado do coordinator.
    uma interação vazia (issue #414).
 3. **Em `--headless`:** adote `N = N_rec` sem perguntar e registre no relatório qual valor foi usado
    e como foi calculado.
-4. **Fora de `--headless` (com `N_rec > 1`):** pergunte via `AskUserQuestion` (uma única vez por sessão):
-   - `"<N_rec> (Recomendado)"` — justifique em 1 linha (largura da onda, custo por worker, alerta se > 8)
+4. **Fora de `--headless` (com `N_rec > 1`):** o teto é o **item 1 da entrevista consolidada**
+   (abaixo), sem pergunta própria. Opções do item:
+   - `"<N_rec> (Recommended)"` — justifique em 1 linha (largura da onda, custo por worker, alerta se > 8)
    - `"1 — serializado"` — mais lento, mais previsível, menor custo
    - `"<maxConcurrentWorkers de config.json>"` — só se existir e for diferente de `N_rec`
    - O usuário pode responder valor customizado ("Other"), **inclusive acima de 8** — respeite-o.
 5. **Armazene como `N`** para a Fase 4; vale para toda a sessão de dispatch, incluindo redespachos.
-   Em modo de retomada, repita a pergunta antes de despachar qualquer `QUEUED` apenas se `N_rec > 1`.
+   Em modo de retomada, o teto entra na pergunta única da Fase 0 apenas se `N_rec > 1`.
    O valor **não persiste** em `.claude/vetor/config.json`.
+
+#### Entrevista consolidada de setup (ahead-of-time batching)
+
+Fora de `--headless`, as decisões da largada saem de **uma única apresentação**, com
+**exatamente 1 turno** de diálogo antes do primeiro dispatch de worker (RF-02 da Spec
+`docs/specs/autonomia-continua-e-desacoplamento-interativo.md`, issue #499). Nada é perguntado antes
+dela: a classificação do gate de Spec, o DAG de ondas, o `N_rec` e o plano já foram calculados sem
+interação. Cada item traz uma opção pré-marcada `(Recommended)`; aceitar o pacote inteiro é uma única
+confirmação.
+
+| # | Item | Opções | Padrão |
+|---|------|--------|--------|
+| 1 | Teto de workers | `<N_rec> (Recommended)` · `1 — serializado` · `<maxConcurrentWorkers>` | `N_rec`; o item some quando `N_rec = 1` |
+| 2 | Sinalização de Specs | `Despachar mesmo assim — ⚠️ sem Spec (Recommended)` · `Gerar Spec antes (/vetor:spec) — sai da leva` | Despachar; o item some quando nenhuma issue foi sinalizada |
+| 3 | Estratégia de entrega | `Pre-Ship paralelo + merge serializado (Recommended)` · `Parar em GREEN — sem entrega nesta sessão` | Fase 6 como descrita abaixo |
+| 4 | Aprovação do plano | `Aprovar o plano com as decisões acima (Recommended)` · `Ajustar` | Aprovar |
+
+O item 3 só decide se a Fase 6 roda: `Parar em GREEN` pula a Fase 6 (mesmo efeito do `--headless` sem
+opt-in: os grupos `GREEN` entram no relatório como prontos para ship, com branch e path do worktree).
+
+Apresente o pacote conforme o ecossistema:
+
+- **Claude Code, fora de plan mode:** imprima o plano (tabela de ações) e a tabela de decisões acima
+  na mesma mensagem e chame **um único `AskUserQuestion`** com uma pergunta por item que se aplique,
+  `(Recommended)` sempre como primeira opção. São no máximo 4 perguntas, que cabem numa só chamada da
+  ferramenta; itens omitidos só encurtam a chamada. Não chame `EnterPlanMode` apenas para isso.
+- **Claude Code, em plan mode:** o plano ganha a seção `## Decisões da largada` com as 4 linhas e o
+  padrão `(Recommended)` marcado em cada uma; um único `ExitPlanMode` aprova o pacote. Para mudar
+  um item o usuário rejeita o plano com a mudança no comentário.
+- **Antigravity/Gemini:** o mesmo plano, com a seção `## Decisões da largada`, em
+  `implementation_plan.md` com `request_feedback: true` e `user_facing: true`; aguarde
+  `request_feedback: false` ou "Proceed".
+- **Sem nenhum dos dois:** exiba o plano e as decisões numeradas no chat e termine com "responda `sim`
+  para aceitar todas as opções `(Recommended)`, ou diga quais itens mudar".
+
+Regras do pacote:
+
+- **Item 2 com várias issues:** é uma pergunta só, e a resposta vale para todas as sinalizadas.
+  Exceções por issue e pontos de escopo (problema, resultado esperado, não-escopo) vão no
+  campo livre (`Other`) da mesma resposta — nunca num segundo turno.
+- **Caminho feliz = 1 turno.** Se o usuário mudar algo que altere o plano (ex.: tirar uma issue da
+  leva), reapresente o plano ajustado; essa rodada extra é consequência da mudança, não do setup.
+- **Em `--headless`: não há entrevista.** Adota-se o `(Recommended)` de cada item sem perguntar:
+  item 1 = `N_rec`; item 2 = despachar com `⚠️ sem Spec associada`; item 3 = a regra do headless (só
+  há entrega com `--auto-ship`/`autoShipHeadless`, Fase 6.d); item 4 = sem aprovação, o plano vai ao
+  relatório.
 
 #### Obtenção de aprovação
 
 **Em `--headless`: pule esta seção** — inclua o plano no relatório final (Fase 7) e siga para a Fase 3.
 
-- **No Claude Code:** se a sessão já estiver em plan mode, apresente o plano e conclua com
-  `ExitPlanMode`. Se a sessão **não** estiver em plan mode, aprove via `AskUserQuestion` (ou chame
-  `EnterPlanMode` antes).
-- **No Antigravity/Gemini:** gere/atualize `implementation_plan.md` com `request_feedback: true` e
-  `user_facing: true`, e aguarde `request_feedback: false` ou "Proceed".
-- Sem nenhum dos dois: exiba o plano no chat e aguarde resposta afirmativa explícita.
-
-**Pare** até a aprovação. Respeite trocas manuais de modelo ou de teto no dispatch da Fase 4.
+A aprovação é o item 4 da entrevista consolidada: não há um segundo pedido de aprovação depois dela.
+**Pare** até a resposta única. Respeite trocas manuais de modelo ou de teto no dispatch da Fase 4.
 
 ### 3 — Fase de criação (nativa e serializada)
 
@@ -535,7 +583,9 @@ terminarem e vá para o relatório destacando a assinatura de erro comum.
 ### 6 — Fase de entrega (Pre-Ship paralelo, merge serializado)
 
 ⚠️ **Em `--headless` esta fase só roda com `--auto-ship` ou `autoShipHeadless: true`** (6.d). Sem eles
-é pulada: liste os grupos `GREEN` no relatório final com branch e path do worktree, e encerre.
+é pulada: liste os grupos `GREEN` no relatório final com branch e path do worktree, e encerre. O mesmo
+vale na sessão interativa em que o usuário escolheu `Parar em GREEN` no item 3 da entrevista
+consolidada da Fase 2.
 
 A entrega tem dois estágios (Spec `docs/specs/pipeline-ship-e-delegacao-eficiente.md`, RF-01 e
 RF-02). O **Pre-Ship** (`/vetor:ship --prepare`: testes locais, push, PR draft, CI e revisões em
