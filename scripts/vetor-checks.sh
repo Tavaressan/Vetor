@@ -13,6 +13,10 @@
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
 #   validate-ship-args [args]  valida e parseia flags do /vetor:ship (--prepare, --finalize, legado)
+#   check-disjoint <candidata> <outra>...  compara a branch candidata com cada uma das outras da onda
+#                               (cache de arquivos tocados, ou git diff se ausente): DISJOINT exit 0 |
+#                               uma linha OVERLAP por branch que sobrepõe, exit 1 | exit 2 = dados
+#                               indisponíveis (#495)
 #   carry-changes <worktree-path> <branch>  transporta as mudanças rastreadas do root para o
 #                               worktree recém-criado e limpa o root (#428). exit 3 = falhou antes
 #                               do backup (root intacto, worktree devolvido a HEAD, pode remover);
@@ -105,6 +109,20 @@ case "$cmd" in
       echo "$hits" >&2
       exit 1
     fi
+    ;;
+
+  check-disjoint)
+    shift
+    if [ "$#" -lt 2 ]; then
+      echo "uso: vetor-checks.sh check-disjoint <candidata> <outra> [<outra>...]" >&2
+      exit 2
+    fi
+    root=$("$0" repo-root 2>/dev/null || echo ".")
+    default_branch=$("$0" default-branch 2>/dev/null || echo "")
+    script_dir=$(cd "$(dirname "$0")" && pwd -P)
+    deno run -A "$script_dir/disjoint-check.ts" "$root" ${default_branch:+"--default-branch=$default_branch"} "$@"
+    # O exit da CLI (0 disjunto, 1 sobreposição, 2 dados indisponíveis) é o resultado do check.
+    exit $?
     ;;
 
   validate-ship-args)
@@ -583,7 +601,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|carry-changes <worktree-path> <branch>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]>" >&2
+    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|carry-changes <worktree-path> <branch>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]|check-disjoint <candidata> <outra>...>" >&2
     exit 2
     ;;
 esac

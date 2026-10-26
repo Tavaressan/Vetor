@@ -730,3 +730,50 @@ Deno.test("delete-merged-branch preserva branch com commit próprio", async () =
     }
   }
 });
+
+// #495: check-disjoint resolve o repo-root e lê o cache de arquivos tocados de cada branch.
+async function writeTouchedCache(repo: string, branch: string, modules: Record<string, string[]>) {
+  const dir = `${repo}/.claude/vetor/status`;
+  await Deno.mkdir(dir, { recursive: true });
+  await Deno.writeTextFile(
+    `${dir}/${branch.replaceAll("/", "-")}-touched-files.json`,
+    JSON.stringify({ branch, files: Object.values(modules).flat(), modules }),
+  );
+}
+
+Deno.test("check-disjoint imprime DISJOINT (exit 0) para branches sem interseção — issue #495", async () => {
+  const repo = await makeRepo();
+  try {
+    await writeTouchedCache(repo, "feat/a", { cli: ["cli/a.js"] });
+    await writeTouchedCache(repo, "feat/b", { scripts: ["scripts/b.ts"] });
+    const result = await runVetorChecks(repo, "check-disjoint", "feat/b", "feat/a");
+    assertEquals(result.code, 0, result.stderr);
+    assertStringIncludes(result.stderr, "DISJOINT");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("check-disjoint imprime OVERLAP (exit 1) para branches que sobrepõem — issue #495", async () => {
+  const repo = await makeRepo();
+  try {
+    await writeTouchedCache(repo, "feat/a", { scripts: ["scripts/common.ts"] });
+    await writeTouchedCache(repo, "feat/b", { scripts: ["scripts/common.ts"] });
+    const result = await runVetorChecks(repo, "check-disjoint", "feat/b", "feat/a");
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, "OVERLAP: feat/a");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("check-disjoint sem argumentos suficientes sai com erro de uso — issue #495", async () => {
+  const repo = await makeRepo();
+  try {
+    const result = await runVetorChecks(repo, "check-disjoint", "feat/b");
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, "uso: vetor-checks.sh check-disjoint");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});

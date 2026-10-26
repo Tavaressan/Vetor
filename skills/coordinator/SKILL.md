@@ -536,7 +536,18 @@ Quando um agente atingir `GREEN`:
    ```
    /vetor:ship <issue#>
    ```
-3. Após merge bem-sucedido, atualize a tabela. Para grupos de spike/investigação, o `/vetor:ship` segue o caminho de PR só de docs (#427). A decisão decorrente do spike continua humana — issues de follow-up não são criadas automaticamente.
+   Para um grupo cujo PR já foi preparado (`PR_STAGED`, via `/vetor:ship --prepare`), **antes** de
+   invocar o ship aplique o **Fast Merge Gate** (issue #495): leia
+   `../shared/references/fast-merge-gate.md`. Ele compara os arquivos tocados e os módulos do PR
+   (cache `<branch>-touched-files.json`) com as outras branches da onda — mapa de sobreposições feito
+   antes do primeiro merge, porque o ship apaga o cache de cada PR no cleanup. Nenhum PR sobreposto
+   já integrado e `mergeable == MERGEABLE`: `/vetor:ship --finalize <PR>` direto, sem re-sincronizar
+   nem re-testar. Sobreposição com PR já integrado: merge da default no worktree e só a suíte do
+   módulo coincidente antes do `--finalize`. Com merge queue ativa o `vetor-merge.sh` enfileira
+   (exit 4).
+3. Após merge bem-sucedido, atualize a tabela. Um PR **enfileirado** (merge queue/auto-merge, exit 4 do
+   `vetor-merge.sh`) não é merge: registre `Enfileirado`, não rode sync-root nem cleanup e siga para o
+   próximo grupo sem esperar a fila. Para grupos de spike/investigação, o `/vetor:ship` segue o caminho de PR só de docs (#427). A decisão decorrente do spike continua humana — issues de follow-up não são criadas automaticamente.
 
 Se `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
 
