@@ -142,6 +142,25 @@ Para cada iteração `i` de 1 a 5:
 Execute o comando headless do módulo detectado. Se for `sem suíte de testes`, pule o módulo sem
 consumir uma iteração.
 
+**Typecheck antes dos testes (módulos Node/TypeScript):** se o diretório do módulo tem
+`package.json` e `tsconfig.json` e não tem `deno.json`/`deno.jsonc` (o `runtime` do `config.json`
+vale só para a raiz, não para um submódulo), rode o typecheck do projeto **antes** de cada execução
+de testes — o hook `check-edit.ts` não o faz mais a cada `Edit`/`Write` em Node (opt-in via
+`hooks.typecheckOnEdit`, issue #514), então este é o ponto em que erro de tipo e import quebrado
+aparecem sem queimar uma rodada de testes. Use o script `typecheck` do `package.json`
+(`<packageManager> run typecheck`) se existir; senão, `node_modules/.bin/tsc --noEmit` dentro do
+módulo. Falha de typecheck é vermelho da iteração: vá para o §3.b com a saída do typecheck como o
+erro lido, sem rodar os testes.
+
+**Test scoping (issue #515):** se há um teste de reprodução criado no passo 4 do §3.b, ou um
+arquivo de teste apontado no diagnóstico ou no prompt, rode **só esse teste** nas iterações 1 a 4
+(ex.: `deno test -A <arquivo>`, `npx vitest run <arquivo>`) — o feedback leva segundos, em vez de
+subir a suíte fria do módulo a cada tentativa. A ordem é typecheck → teste escopado → suíte
+completa. O teste escopado serve só para iterar e **nunca autoriza `GREEN`**: quando ele passar,
+rode na mesma iteração o comando headless completo do módulo, e só o resultado dessa suíte decide o
+§3.b. Na iteração 5 rode sempre a suíte completa. Sem teste específico identificável, a suíte do
+módulo é o teste.
+
 **Docker:** tente o path docker apenas na **primeira** tentativa, se aplicável. Se bloqueado, troque
 para headless **permanentemente** nesta execução e nunca retente docker.
 
@@ -169,7 +188,8 @@ de instalação for necessário aqui, reporte isso no `BLOCKED_WAITING` — não
 
 **3.b — Avaliar resultado**
 
-Se **verde** (todos os testes passaram):
+Se **verde** (a suíte completa do módulo passou; um teste escopado verde, sozinho, nunca basta —
+ver "Test scoping" no §3.a):
 ```json
 {"status": "green", "iterations": <i>, "module": "<módulo>"}
 ```

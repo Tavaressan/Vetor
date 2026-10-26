@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { hashFile, hashContent, readManifest, writeManifest } = require('./manifest.js');
+const { hashFile, hashContent, readManifest, writeManifest, ownersOf } = require('./manifest.js');
 const { translateHooksForCursor } = require('./cursor-hooks.js');
 const { resolveOpencodeScripts, rewriteNativeScriptImports } = require('./opencode-scripts.js');
 const { resolveOpencodeSkillFiles } = require('./opencode-skills.js');
@@ -157,10 +157,6 @@ function listFilesRecursive(dir) {
   return result;
 }
 
-function ownersOf(entry) {
-  return entry.engines ?? [entry.engine];
-}
-
 // Arquivo compartilhado por várias engines é tentado uma vez por dono: reporta uma vez só.
 function pushSkipped(skipped, key, reason) {
   if (!skipped.some((entry) => entry.path === key)) skipped.push({ path: key, reason });
@@ -197,6 +193,77 @@ function removeEmptyDirsUpTo(startDir, stopDir) {
 }
 
 const SKILLS_KEY_PATTERN = /^(\.cursor|\.agents|\.claude)\/skills\/(.+)$/;
+const LEGACY_CODEX_SKILLS_PREFIX = '.codex/skills/';
+
+// Chave de manifesto com segmento `..` sairia da raiz de skills (manifesto adulterado): as
+// migrações a ignoram sem tocar no arquivo nem descartar a entrada.
+function hasParentSegment(relativePath) {
+  return relativePath.split(/[\\/]/).includes('..');
+}
+
+/**
+ * Passo comum às migrações de skills legadas (Codex e Cursor): leva `oldKey` para `newKey`.
+ * Desfechos retornados, para o chamador montar os avisos que lhe cabem:
+ * - `missing`: o arquivo antigo não existe mais; a entrada antiga é descartada;
+ * - `user-modified`: o arquivo antigo foi editado (hash diferente do manifesto); nada muda;
+ * - `blocked`: o destino já existe e não é gerenciado nem íntegro; nada é sobrescrito;
+ * - `merged`: destino gerenciado e íntegro; a cópia antiga é descartada e `ownerId` vira dono do destino;
+ * - `moved`: destino ausente; o arquivo é movido e o destino ganha `movedEntry`.
+ *
+ * Atomicidade (#505): o manifesto é gravado em disco a cada arquivo migrado, de modo que uma
+ * exceção no meio (EISDIR, EPERM/EBUSY no Windows) nunca deixa um arquivo movido sem entrada.
+ * - Mover: o destino é registrado e gravado ANTES do `renameSync`, mantendo a entrada antiga; só
+ *   depois do move a entrada antiga sai (e é gravada de novo). Se o rename falhar, o registro do
+ *   destino é desfeito. Se o processo morrer entre os dois passos, o manifesto fica com as duas
+ *   chaves e a próxima execução termina o serviço (origem ausente: a entrada antiga é descartada;
+ *   origem presente: o move é refeito).
+ * - Descartar a cópia antiga: o `rmSync` vem antes da gravação; o pior caso é uma entrada antiga
+ *   sem arquivo, que a próxima execução descarta.
+ * A limpeza de diretórios vazios vem por último, já com o manifesto gravado, para que uma falha dela
+ * não deixe o manifesto atrás do disco.
+ */
+function migrateManagedFile({ projectRoot, manifest, oldKey, newKey, ownerId, legacySkillsRoot, movedEntry }) {
+  const entry = manifest.files[oldKey];
+  const oldFile = path.join(projectRoot, ...oldKey.split('/'));
+  const newFile = path.join(projectRoot, ...newKey.split('/'));
+
+  if (!fs.existsSync(oldFile)) {
+    delete manifest.files[oldKey];
+    return 'missing';
+  }
+  if (hashFile(oldFile) !== entry.sha256) return 'user-modified';
+
+  const targetEntry = manifest.files[newKey];
+  if (fs.existsSync(newFile)) {
+    if (!targetEntry || hashFile(newFile) !== targetEntry.sha256) return 'blocked';
+    fs.rmSync(oldFile);
+    targetEntry.engines = [...new Set([...ownersOf(targetEntry), ownerId])];
+    delete manifest.files[oldKey];
+    writeManifest(projectRoot, manifest);
+    removeEmptyDirsUpTo(path.dirname(oldFile), legacySkillsRoot);
+    return 'merged';
+  }
+
+  fs.mkdirSync(path.dirname(newFile), { recursive: true });
+  manifest.files[newKey] = movedEntry;
+  writeManifest(projectRoot, manifest);
+  try {
+    fs.renameSync(oldFile, newFile);
+  } catch (error) {
+    if (targetEntry) manifest.files[newKey] = targetEntry;
+    else delete manifest.files[newKey];
+    try {
+      writeManifest(projectRoot, manifest);
+    } catch {
+      // O erro relevante é o do rename; um destino registrado sem arquivo é curado na próxima execução.
+    }
+    throw error;
+  }
+  delete manifest.files[oldKey];
+  writeManifest(projectRoot, manifest);
+  removeEmptyDirsUpTo(path.dirname(oldFile), legacySkillsRoot);
+  return 'moved';
+}
 
 /**
  * Faz o Cursor convergir para `targetRoot` quando a raiz de skills dele mudou (instalação
@@ -204,7 +271,7 @@ const SKILLS_KEY_PATTERN = /^(\.cursor|\.agents|\.claude)\/skills\/(.+)$/;
  * Para cada skill do Cursor em outra raiz de skills:
  * - com outros donos: o Cursor deixa de constar como dono (a cópia continua para eles); o
  *   registro do Cursor em `targetRoot` fica a cargo da cópia de skills do Cursor em `installFiles`;
- * - só dele: o arquivo é migrado, desde que íntegro (hash igual ao do manifesto):
+ * - só dele: o arquivo é migrado (`migrateManagedFile`), desde que íntegro (hash igual ao do manifesto):
  *   - editado pelo usuário: preservado, com aviso, e a entrada antiga continua no manifesto;
  *   - destino já existente que não é gerenciado nem íntegro: nada é sobrescrito, ambos ficam,
  *     com aviso, e o Cursor não é registrado como dono do destino (dono não verificado);
@@ -220,7 +287,7 @@ function migrateCursorSkills({ projectRoot, manifest, targetRoot, warnings, skip
     if (!match || match[1] === targetRoot || entry.uninstalled) continue;
     const owners = ownersOf(entry);
     if (!owners.includes('cursor')) continue;
-    if (match[2].split(/[\\/]/).includes('..')) continue;
+    if (hasParentSegment(match[2])) continue;
     if (owners.length > 1) {
       entry.engines = owners.filter((id) => id !== 'cursor');
       if (entry.engine === 'cursor') entry.engine = entry.engines[0];
@@ -228,45 +295,66 @@ function migrateCursorSkills({ projectRoot, manifest, targetRoot, warnings, skip
     }
 
     const newKey = `${targetRoot}/skills/${match[2]}`;
-    const oldFile = path.join(projectRoot, ...oldKey.split('/'));
-    const newFile = path.join(projectRoot, ...newKey.split('/'));
-
-    if (!fs.existsSync(oldFile)) {
-      delete manifest.files[oldKey];
-      continue;
-    }
-    if (hashFile(oldFile) !== entry.sha256) {
-      warnings.push(`${oldKey}: arquivo editado pelo usuário; migração para ${targetRoot}/skills/ ignorada (o Cursor lê as duas cópias).`);
-      skipped.push({ path: oldKey, reason: 'user-modified' });
-      continue;
-    }
-
-    const targetEntry = manifest.files[newKey];
-    if (fs.existsSync(newFile)) {
-      if (!targetEntry || hashFile(newFile) !== targetEntry.sha256) {
-        warnings.push(`${newKey}: destino existente não gerenciado ou editado; migração de ${oldKey} ignorada.`);
-        skipped.push({ path: oldKey, reason: 'migration-blocked' });
-        continue;
-      }
-      fs.rmSync(oldFile);
-      targetEntry.engines = [...new Set([...ownersOf(targetEntry), 'cursor'])];
-    } else {
-      const targetOwners = targetEntry ? ownersOf(targetEntry) : [];
-      fs.mkdirSync(path.dirname(newFile), { recursive: true });
-      fs.renameSync(oldFile, newFile);
-      manifest.files[newKey] = {
+    const targetOwners = manifest.files[newKey] ? ownersOf(manifest.files[newKey]) : [];
+    const outcome = migrateManagedFile({
+      projectRoot,
+      manifest,
+      oldKey,
+      newKey,
+      ownerId: 'cursor',
+      legacySkillsRoot: path.join(projectRoot, match[1], 'skills'),
+      movedEntry: {
         sha256: entry.sha256,
         engine: targetOwners[0] ?? 'cursor',
         engines: [...new Set([...targetOwners, 'cursor'])],
-      };
-    }
+      },
+    });
 
-    delete manifest.files[oldKey];
-    removeEmptyDirsUpTo(path.dirname(oldFile), path.join(projectRoot, match[1], 'skills'));
-    migrated.push({ from: oldKey, to: newKey });
+    if (outcome === 'user-modified') {
+      warnings.push(`${oldKey}: arquivo editado pelo usuário; migração para ${targetRoot}/skills/ ignorada (o Cursor lê as duas cópias).`);
+      skipped.push({ path: oldKey, reason: 'user-modified' });
+    } else if (outcome === 'blocked') {
+      warnings.push(`${newKey}: destino existente não gerenciado ou editado; migração de ${oldKey} ignorada.`);
+      skipped.push({ path: oldKey, reason: 'migration-blocked' });
+    } else if (outcome === 'merged' || outcome === 'moved') {
+      migrated.push({ from: oldKey, to: newKey });
+    }
   }
 
   return migrated;
+}
+
+/**
+ * Migra as skills legadas do Codex de `.codex/skills/` para `.agents/skills/` (mesma política de
+ * `migrateManagedFile`; o Codex mantém a entrada como estava ao mover). `blockedTargets` recebe os
+ * destinos em `.agents/skills/` que não podem ganhar uma cópia gerenciada nova nesta rodada: skill
+ * editada pelo usuário ou destino existente não gerenciado.
+ */
+function migrateCodexSkills({ projectRoot, manifest, warnings, blockedTargets }) {
+  for (const [oldKey, entry] of Object.entries(manifest.files)) {
+    if (!oldKey.startsWith(LEGACY_CODEX_SKILLS_PREFIX)) continue;
+    const relativeOld = oldKey.slice(LEGACY_CODEX_SKILLS_PREFIX.length);
+    if (hasParentSegment(relativeOld)) continue;
+
+    const newKey = `.agents/skills/${relativeOld}`;
+    const outcome = migrateManagedFile({
+      projectRoot,
+      manifest,
+      oldKey,
+      newKey,
+      ownerId: 'codex',
+      legacySkillsRoot: path.join(projectRoot, '.codex', 'skills'),
+      movedEntry: entry,
+    });
+
+    if (outcome === 'user-modified') {
+      warnings.push(`${oldKey}: arquivo editado pelo usuário; migração para .agents/skills/ ignorada.`);
+      blockedTargets.add(newKey);
+    } else if (outcome === 'blocked') {
+      warnings.push(`${newKey}: destino existente; migração de ${oldKey} ignorada.`);
+      blockedTargets.add(newKey);
+    }
+  }
 }
 
 // Copia um único arquivo para o destino aplicando a mesma política de update seguro para
@@ -291,7 +379,7 @@ function copyManagedFile({ sourceFile, destFile, manifestKey, manifest, engineId
       pushSkipped(skipped, manifestKey, 'user-modified');
       return;
     }
-    const owners = existingEntry.engines ?? [existingEntry.engine];
+    const owners = ownersOf(existingEntry);
     if (destHash === hashFile(sourceFile) && !owners.includes(engineId)) {
       existingEntry.engines = [...new Set([...owners, engineId])];
       return;
@@ -342,7 +430,7 @@ function writeManaged({ destFile, manifestKey, contentHash, write, engineId, man
       pushSkipped(skipped, manifestKey, 'user-modified');
       return;
     }
-    const owners = existingEntry.engines ?? [existingEntry.engine];
+    const owners = ownersOf(existingEntry);
     if (destHash === contentHash && !owners.includes(engineId)) {
       existingEntry.engines = [...new Set([...owners, engineId])];
       return;
@@ -445,7 +533,6 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
   }
 
   const manifest = readManifest(projectRoot);
-  manifest.packageVersion = packageVersion;
   const copied = [];
   const skipped = [];
   const warnings = [];
@@ -468,54 +555,8 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
 
   // Migra somente skills legadas intactas, identificadas pelo hash do manifesto.
   // Se foram alteradas, preserva a cópia antiga e não cria uma duplicata gerenciada.
-  const codexSelected = (engines ?? []).some((engine) => engine.id === 'codex');
-  if (codexSelected) {
-    for (const [oldKey, entry] of Object.entries(manifest.files)) {
-      if (!oldKey.startsWith('.codex/skills/')) continue;
-      const relativeOld = oldKey.slice('.codex/skills/'.length);
-      if (path.posix.isAbsolute(oldKey) || relativeOld.split(/[\\/]/).includes('..')) continue;
-      const oldFile = path.join(projectRoot, ...oldKey.split('/'));
-      if (!fs.existsSync(oldFile)) { delete manifest.files[oldKey]; continue; }
-      if (hashFile(oldFile) !== entry.sha256) {
-        warnings.push(`${oldKey}: arquivo editado pelo usuário; migração para .agents/skills/ ignorada.`);
-        migrationBlockedTargets.add(oldKey.replace(/^\.codex\/skills\//, '.agents/skills/'));
-        continue;
-      }
-      const newKey = oldKey.replace(/^\.codex\/skills\//, '.agents/skills/');
-      const newFile = path.join(projectRoot, ...newKey.split('/'));
-      if (fs.existsSync(newFile)) {
-        const targetEntry = manifest.files[newKey];
-        if (targetEntry && hashFile(newFile) === targetEntry.sha256 && hashFile(oldFile) === entry.sha256) {
-          fs.rmSync(oldFile);
-          targetEntry.engines = [...new Set([...(targetEntry.engines ?? [targetEntry.engine]), 'codex'])];
-          delete manifest.files[oldKey];
-          let oldDir = path.dirname(oldFile);
-          const oldSkillsRoot = path.join(projectRoot, '.codex', 'skills');
-          while (oldDir.startsWith(oldSkillsRoot)) {
-            if (fs.readdirSync(oldDir).length) break;
-            fs.rmdirSync(oldDir);
-            if (oldDir === oldSkillsRoot) break;
-            oldDir = path.dirname(oldDir);
-          }
-        } else {
-          warnings.push(`${newKey}: destino existente; migração de ${oldKey} ignorada.`);
-          migrationBlockedTargets.add(newKey);
-        }
-        continue;
-      }
-      fs.mkdirSync(path.dirname(newFile), { recursive: true });
-      fs.renameSync(oldFile, newFile);
-      manifest.files[newKey] = entry;
-      delete manifest.files[oldKey];
-      let oldDir = path.dirname(oldFile);
-      const oldSkillsRoot = path.join(projectRoot, '.codex', 'skills');
-      while (oldDir.startsWith(oldSkillsRoot)) {
-        if (fs.readdirSync(oldDir).length) break;
-        fs.rmdirSync(oldDir);
-        if (oldDir === oldSkillsRoot) break;
-        oldDir = path.dirname(oldDir);
-      }
-    }
+  if ((engines ?? []).some((engine) => engine.id === 'codex')) {
+    migrateCodexSkills({ projectRoot, manifest, warnings, blockedTargets: migrationBlockedTargets });
   }
 
   // Depois da migração do Codex: ambas podem ter `.agents/skills/` como destino.
@@ -667,6 +708,9 @@ function installFiles({ projectRoot, engines, sourceRoot = defaultSourceRoot() }
     }
   }
 
+  // A versão só é gravada na conclusão: as gravações parciais da migração (ver
+  // `migrateManagedFile`) não declaram a atualização como concluída.
+  manifest.packageVersion = packageVersion;
   writeManifest(projectRoot, manifest);
   return { copied, skipped, warnings, enginesSkipped, migrated };
 }
