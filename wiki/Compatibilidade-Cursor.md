@@ -72,7 +72,9 @@ as engines que o usam em `engines`.
   Cursor): o Cursor sai da raiz antiga (as skills só dele são movidas; nas compartilhadas ele deixa
   de constar como dono) e passa a constar na nova, sem esperar um `update`. A skill legada do Codex
   editada (`.codex/skills/`) continua bloqueando a cópia gerenciada em `.agents/skills/`, inclusive
-  a do Cursor.
+  a do Cursor. A migração (a do Cursor e a legada do Codex) grava o manifesto a cada arquivo movido
+  e registra o destino antes de mover: uma falha no meio (ex.: `EPERM`/`EBUSY` no Windows) não deixa
+  arquivo fora do manifesto, e o `update` seguinte termina o que faltou.
 - **`.cursor/skills/` fora do manifesto** (skills do próprio usuário) é preservado, e o Vetor não grava
   novas skills ali enquanto houver raiz compartilhada.
 - **`vetor uninstall --engines <ids>`:** retira só as engines informadas; um arquivo compartilhado

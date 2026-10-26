@@ -65,6 +65,8 @@ const ENGINES = [
   },
 ];
 
+const ENGINE_NAME_BY_ID = new Map(ENGINES.map((engine) => [engine.id, engine.name]));
+
 /**
  * Detecta engines suportadas no projeto-alvo: arquivo/diretório-âncora já existente,
  * ou comando disponível no PATH. Nunca lança erro — ausência total de sinal apenas
@@ -76,4 +78,4 @@ function detectEngines(root = process.cwd(), env = process.env) {
   return ENGINES.map(({ id, name, detect }) => ({ id, name, detected: detect(root, env) }));
 }
 
-module.exports = { detectEngines, ENGINES };
+module.exports = { detectEngines, ENGINES, ENGINE_NAME_BY_ID };
