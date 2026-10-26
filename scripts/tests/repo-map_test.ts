@@ -591,3 +591,247 @@ Deno.test("CLI rejeita --max-tokens inválido e flags desconhecidas", async () =
     assertStringIncludes(unknown.stderr, "--nada");
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Escopo por módulo e por arquivos (issue #507, RF-03 da Spec)
+// ---------------------------------------------------------------------------------------------
+
+const SCOPE_MODULE_MAP = `# Module Test Map
+
+## Comandos por módulo
+
+| Módulo | Comando headless | Notas |
+|--------|------------------|-------|
+| \`root\` | \`deno task test\` | Módulo raiz |
+| \`pkg\` | \`deno test pkg/\` | Subpacote |
+
+## Detecção de módulo por arquivos alterados
+
+| Prefixo do path | Módulo |
+|-----------------|--------|
+| \`pkg/\` | \`pkg\` |
+| \`./\` | \`root\` |
+`;
+
+// pkg/core.ts é o módulo-alvo; dep/base.ts é dependência dele, user/caller.ts é importador e
+// hub/central.ts é o arquivo mais central do repositório, mas sem ligação com o módulo.
+function scopeFixture(): Record<string, string> {
+  const files: Record<string, string> = {
+    "pkg/core.ts":
+      'import { baseValue } from "../dep/base.ts";\nexport interface Core { id: string }\nexport function makeCore(): Core { return { id: baseValue() }; }\n',
+    "dep/base.ts": 'export function baseValue(): string { return "b"; }\n',
+    "user/caller.ts":
+      'import { makeCore } from "../pkg/core.ts";\nexport function callIt(): string { return makeCore().id; }\n',
+    "hub/central.ts":
+      "export interface Hub { id: string }\nexport function hubHelper(h: Hub): string { return h.id; }\n",
+  };
+  for (let i = 1; i <= 6; i++) {
+    files[`hub/c${i}.ts`] =
+      `import type { Hub } from "./central.ts";\nexport function use${i}(h: Hub): string { return h.id; }\n`;
+  }
+  return files;
+}
+
+function tiers(result: RepoMapResult): Record<string, number> {
+  return Object.fromEntries(result.files.map((f) => [f.path, f.tier]));
+}
+
+Deno.test("sem escopo todos os arquivos ficam no mesmo tier e a ordem é só por centralidade", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const result = await buildRepoMap({ root, cachePath: null });
+    assertEquals(new Set(result.files.map((f) => f.tier)), new Set([3]));
+    assertEquals(result.files[0].path, "hub/central.ts");
+  });
+});
+
+Deno.test("--module dá tier 1 aos arquivos do módulo, tier 2 aos vizinhos e passa na frente do mais central", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const base = { root, cachePath: null, maxTokens: 1500 };
+    const scoped = await buildRepoMap({ ...base, module: "pkg", moduleTestMap: SCOPE_MODULE_MAP });
+    assertEquals(tiers(scoped)["pkg/core.ts"], 1);
+    assertEquals(tiers(scoped)["dep/base.ts"], 2, "dependência do módulo");
+    assertEquals(tiers(scoped)["user/caller.ts"], 2, "importador do módulo");
+    assertEquals(tiers(scoped)["hub/central.ts"], 3);
+    assertEquals(scoped.warnings, []);
+
+    const order = scoped.files.map((f) => f.path);
+    assertEquals(order[0], "pkg/core.ts");
+    assert(order.indexOf("dep/base.ts") < order.indexOf("hub/central.ts"));
+    assert(order.indexOf("user/caller.ts") < order.indexOf("hub/central.ts"));
+    assertEquals(
+      scoped.files.map((f) => f.tier),
+      [...scoped.files.map((f) => f.tier)].sort((a, b) => a - b),
+    );
+  });
+});
+
+Deno.test("sob orçamento curto o escopo detalha o módulo antes do arquivo mais central", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const unscoped = await buildRepoMap({ root, cachePath: null, maxTokens: 70 });
+    assertEquals(unscoped.files[0].path, "hub/central.ts");
+
+    const scoped = await buildRepoMap({
+      root,
+      cachePath: null,
+      maxTokens: 70,
+      module: "pkg",
+      moduleTestMap: SCOPE_MODULE_MAP,
+    });
+    assert(scoped.estimatedTokens <= 70);
+    assertEquals(scoped.files[0].path, "pkg/core.ts");
+    const core = scoped.files[0];
+    assert(core.symbols.some((s) => s.name === "Core"), "interface do módulo detalhada");
+    assert(core.symbols.some((s) => s.name === "makeCore"), "função do módulo detalhada");
+    assertStringIncludes(scoped.markdown, "export interface Core {");
+    // O que for omitido sai da periferia, nunca do foco.
+    for (const path of ["pkg/core.ts", "dep/base.ts", "user/caller.ts"]) {
+      assertFalse(scoped.omitted.includes(path), `${path} não pode ser omitido antes da periferia`);
+    }
+  });
+});
+
+Deno.test("--files foca nos arquivos informados, aceita './' e barras invertidas e ignora o módulo catch-all", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const result = await buildRepoMap({
+      root,
+      cachePath: null,
+      files: ["./user\\caller.ts"],
+      module: "root",
+      moduleTestMap: SCOPE_MODULE_MAP,
+    });
+    assertEquals(tiers(result)["user/caller.ts"], 1);
+    assertEquals(tiers(result)["pkg/core.ts"], 2);
+    assertEquals(tiers(result)["dep/base.ts"], 3, "dois saltos de distância não é vizinho");
+    assertEquals(tiers(result)["hub/central.ts"], 3);
+    assertEquals(result.warnings, []);
+  });
+});
+
+Deno.test("módulo catch-all ('./') sem arquivos-alvo vira foco amplo, avisa e rebaixa os outros módulos", async () => {
+  await withRepo(
+    { ...scopeFixture(), "docs/leia.md": "# só markdown\n" },
+    async (root) => {
+      const result = await buildRepoMap({
+        root,
+        cachePath: null,
+        // Arquivo existente no disco, mas que não é fonte mapeado: não conta como alvo resolvido.
+        files: ["docs/leia.md"],
+        module: "root",
+        moduleTestMap: SCOPE_MODULE_MAP,
+      });
+      assertEquals(tiers(result)["hub/central.ts"], 1);
+      assertEquals(tiers(result)["dep/base.ts"], 1);
+      assertEquals(tiers(result)["pkg/core.ts"], 2, "fora do módulo, mas vizinho do foco");
+      assert(result.warnings.some((w) => w.includes("catch-all")), result.warnings.join("\n"));
+      assert(result.warnings.some((w) => w.includes("docs/leia.md")), result.warnings.join("\n"));
+    },
+  );
+});
+
+Deno.test("--files sem nenhum alvo mapeado e sem módulo avisa e devolve o mapa sem escopo", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const result = await buildRepoMap({ root, cachePath: null, files: ["nao/existe.ts"] });
+    assertEquals(new Set(result.files.map((f) => f.tier)), new Set([3]));
+    assert(result.warnings.some((w) => w.includes("sem escopo")), result.warnings.join("\n"));
+  });
+});
+
+Deno.test("módulo desconhecido ou sem module-test-map falha com mensagem acionável", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const unknown = await assertRejects(
+      () =>
+        buildRepoMap({ root, cachePath: null, module: "nada", moduleTestMap: SCOPE_MODULE_MAP }),
+      Error,
+      '"nada"',
+    );
+    assertStringIncludes(unknown.message, "pkg");
+    assertStringIncludes(unknown.message, "root");
+
+    await assertRejects(
+      () => buildRepoMap({ root, cachePath: null, module: "pkg" }),
+      Error,
+      "moduleTestMap",
+    );
+  });
+});
+
+Deno.test("o mapa escopado é determinístico", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const options = {
+      root,
+      cachePath: null,
+      maxTokens: 90,
+      module: "pkg",
+      moduleTestMap: SCOPE_MODULE_MAP,
+    };
+    const first = await buildRepoMap(options);
+    const second = await buildRepoMap(options);
+    assertEquals(second.markdown, first.markdown);
+    assertEquals(second.files, first.files);
+  });
+});
+
+Deno.test("CLI --module e --module-test-map escopam o mapa; --files foca nos alvos", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const mapPath = `${root}/module-test-map.md`;
+    await Deno.writeTextFile(mapPath, SCOPE_MODULE_MAP);
+
+    const byModule = await runCli(root, [
+      "--json",
+      "--module",
+      "pkg",
+      "--module-test-map",
+      mapPath,
+    ]);
+    assertEquals(byModule.code, 0, byModule.stderr);
+    const moduleResult = JSON.parse(byModule.stdout) as RepoMapResult;
+    assertEquals(moduleResult.files[0].path, "pkg/core.ts");
+    assertEquals(moduleResult.files[0].tier, 1);
+
+    const byFiles = await runCli(root, ["--json", "--files", "user/caller.ts,hub/central.ts"]);
+    assertEquals(byFiles.code, 0, byFiles.stderr);
+    const filesResult = JSON.parse(byFiles.stdout) as RepoMapResult;
+    assertEquals(
+      filesResult.files.filter((f) => f.tier === 1).map((f) => f.path).sort(),
+      ["hub/central.ts", "user/caller.ts"],
+    );
+  });
+});
+
+Deno.test("CLI --module lê o module-test-map padrão do root e falha claro quando falta ou o módulo não existe", async () => {
+  await withRepo(
+    { ...scopeFixture(), ".claude/vetor/module-test-map.md": SCOPE_MODULE_MAP },
+    async (root) => {
+      const ok = await runCli(root, ["--module", "pkg"]);
+      assertEquals(ok.code, 0, ok.stderr);
+      assert(ok.stdout.startsWith("### pkg/core.ts"), ok.stdout);
+
+      const unknown = await runCli(root, ["--module", "nada"]);
+      assertEquals(unknown.code, 1);
+      assertStringIncludes(unknown.stderr, '"nada"');
+    },
+  );
+  await withRepo(scopeFixture(), async (root) => {
+    const missing = await runCli(root, ["--module", "pkg"]);
+    assertEquals(missing.code, 1);
+    assertStringIncludes(missing.stderr, "module-test-map");
+    assertStringIncludes(missing.stderr, "--module-test-map");
+  });
+});
+
+Deno.test("CLI --cache-path grava o cache no caminho informado em vez do padrão do root", async () => {
+  await withRepo(scopeFixture(), async (root) => {
+    const shared = await Deno.makeTempDir({ prefix: "repo-map-shared-" });
+    try {
+      const cachePath = `${shared}/repo-map.json`;
+      const result = await runCli(root, ["--json", "--cache-path", cachePath]);
+      assertEquals(result.code, 0, result.stderr);
+      assertEquals(JSON.parse(await Deno.readTextFile(cachePath)).version, "1.0.0");
+      assertFalse(
+        await Deno.stat(`${root}/.claude/vetor/cache/repo-map.json`).then(() => true, () => false),
+      );
+    } finally {
+      await Deno.remove(shared, { recursive: true }).catch(() => {});
+    }
+  });
+});

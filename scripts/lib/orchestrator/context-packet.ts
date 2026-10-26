@@ -122,14 +122,19 @@ export function parseModuleTestMap(markdown: string): ModuleTestMap {
   return map;
 }
 
+/** Módulo que recebe os arquivos sem prefixo: o do `./` do mapa, ou o primeiro da tabela de comandos. */
+export function catchAllModule(map: ModuleTestMap): string | undefined {
+  return map.prefixes.find((entry) => entry.prefix === "./")?.module ??
+    Object.keys(map.commands)[0];
+}
+
 /**
  * Módulo da issue a partir dos arquivos-alvo: cada arquivo vai para o módulo do prefixo mais
  * longo; vence o módulo com mais arquivos (empate: o primeiro a aparecer). Arquivo sem prefixo,
  * ou lista vazia, cai no módulo `./` do mapa (ou no primeiro da tabela de comandos).
  */
 export function resolveModule(files: string[], map: ModuleTestMap): string {
-  const fallback = map.prefixes.find((entry) => entry.prefix === "./")?.module ??
-    Object.keys(map.commands)[0];
+  const fallback = catchAllModule(map);
   if (!fallback) throw new Error("module-test-map sem módulos: rode /vetor:install.");
 
   const counts = new Map<string, number>();

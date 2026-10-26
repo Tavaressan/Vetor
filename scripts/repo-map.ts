@@ -19,10 +19,19 @@
 //   rodapé "arquivos omitidos".
 // - Cache: `.claude/vetor/cache/repo-map.json`, indexado pelo SHA-1 de blob do git de cada arquivo
 //   (o mesmo de `git hash-object`), com gravação atômica (arquivo temporário + rename).
+// - Escopo (issue #507, RF-03): `module`/`files` definem um foco. Os arquivos do foco são tier 1, os
+//   vizinhos imediatos (quem eles importam e quem os importa) são tier 2 e o resto é tier 3. O tier
+//   vem antes do score em toda ordenação, então o foco é detalhado primeiro e é o último a ser
+//   omitido. Sem foco, todo arquivo é tier 3 e a ordem continua só por centralidade.
 // O specifier fica inline (e não no import map do deno.json) porque scripts do Vetor podem rodar a
 // partir de cópias sem o deno.json da raiz, como as que o instalador do OpenCode gera no projeto.
 // deno-lint-ignore no-import-prefix
 import type * as TS from "npm:typescript@6.0.3";
+import {
+  catchAllModule,
+  parseModuleTestMap,
+  resolveModule,
+} from "./lib/orchestrator/context-packet.ts";
 
 export const DEFAULT_MAX_TOKENS = 1500;
 /** Versão do formato/extração do cache; incremente quando a extração mudar. */
@@ -91,10 +100,22 @@ export interface RepoMapOptions {
   maxTokens?: number;
   /** Caminho do cache; `null` desativa o cache (padrão: `<root>/.claude/vetor/cache/repo-map.json`). */
   cachePath?: string | null;
+  /** Módulo do `module-test-map` cujos arquivos formam o foco (exige `moduleTestMap`). */
+  module?: string;
+  /** Conteúdo do `module-test-map.md`, de onde saem os prefixos de `module`. */
+  moduleTestMap?: string;
+  /**
+   * Arquivos-alvo, relativos ao root. Só os que são fontes mapeados entram no foco. O módulo
+   * catch-all (`./`) só entra no foco quando nenhum arquivo resolve: ele cobre quase o repositório
+   * inteiro e tornaria o escopo inócuo.
+   */
+  files?: string[];
 }
 
 export interface RepoMapFile {
   path: string;
+  /** 1 = foco, 2 = vizinho imediato do foco, 3 = demais (todos, quando não há foco). */
+  tier: 1 | 2 | 3;
   score: number;
   /** Símbolos exibidos com assinatura completa, na ordem de renderização. */
   symbols: RepoSymbol[];
@@ -609,6 +630,7 @@ interface RankedSymbol {
 interface FileEntry {
   path: string;
   lang: string;
+  tier: 1 | 2 | 3;
   score: number;
   importers: number;
   ranked: RankedSymbol[];
@@ -638,9 +660,13 @@ const LANGUAGES: Record<string, string> = {
   ".jsx": "jsx",
 };
 
-function rankFiles(summaries: Map<string, FileSymbolSummary>): FileEntry[] {
+function rankFiles(
+  summaries: Map<string, FileSymbolSummary>,
+  focus: ReadonlySet<string>,
+): FileEntry[] {
   const known = new Set(summaries.keys());
   const importers = new Map<string, Set<string>>();
+  const dependencies = new Map<string, Set<string>>();
   const references = new Map<string, Map<string, Set<string>>>();
   for (const [from, summary] of summaries) {
     for (const ref of summary.imports) {
@@ -648,6 +674,8 @@ function rankFiles(summaries: Map<string, FileSymbolSummary>): FileEntry[] {
       if (!target || target === from) continue;
       if (!importers.has(target)) importers.set(target, new Set());
       importers.get(target)!.add(from);
+      if (!dependencies.has(from)) dependencies.set(from, new Set());
+      dependencies.get(from)!.add(target);
       for (const name of ref.importedSymbols) {
         if (name === "*") continue;
         if (!references.has(target)) references.set(target, new Map());
@@ -656,6 +684,13 @@ function rankFiles(summaries: Map<string, FileSymbolSummary>): FileEntry[] {
         byName.get(name)!.add(from);
       }
     }
+  }
+
+  // Vizinhos imediatos do foco, nos dois sentidos: o que o foco importa e quem importa o foco.
+  const neighbors = new Set<string>();
+  for (const path of focus) {
+    for (const other of importers.get(path) ?? []) neighbors.add(other);
+    for (const other of dependencies.get(path) ?? []) neighbors.add(other);
   }
 
   const entries: FileEntry[] = [];
@@ -678,12 +713,13 @@ function rankFiles(summaries: Map<string, FileSymbolSummary>): FileEntry[] {
     entries.push({
       path,
       lang: LANGUAGES[extensionOf(path)] ?? "js",
+      tier: focus.has(path) ? 1 : neighbors.has(path) ? 2 : 3,
       score: IMPORTER_WEIGHT * importerCount + typed,
       importers: importerCount,
       ranked,
     });
   }
-  return entries.sort((a, b) => b.score - a.score || compare(a.path, b.path));
+  return entries.sort((a, b) => a.tier - b.tier || b.score - a.score || compare(a.path, b.path));
 }
 
 function partition(entry: FileEntry, detailed: ReadonlySet<number>) {
@@ -738,7 +774,8 @@ function selectWithinBudget(entries: FileEntry[], maxTokens: number) {
       }))
     )
     .sort((a, b) =>
-      b.score - a.score || compare(entries[a.fileIndex].path, entries[b.fileIndex].path) ||
+      entries[a.fileIndex].tier - entries[b.fileIndex].tier || b.score - a.score ||
+      compare(entries[a.fileIndex].path, entries[b.fileIndex].path) ||
       a.symbolIndex - b.symbolIndex
     );
 
@@ -785,6 +822,69 @@ function selectWithinBudget(entries: FileEntry[], maxTokens: number) {
     return { markdown: "", shown: [], omitted: entries.map((entry) => entry.path) };
   }
   return { markdown, shown, omitted };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Escopo (foco)
+// ---------------------------------------------------------------------------------------------
+
+function normalizePath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+/**
+ * Arquivos do foco: os `files` que são fontes mapeados mais os arquivos do `module` (união), exceto
+ * que o módulo catch-all só entra quando nenhum arquivo resolve. Sem `module` nem `files`, devolve
+ * um conjunto vazio (mapa sem escopo). Registra em `warnings` os casos em que o escopo é fraco.
+ */
+function resolveFocus(
+  known: string[],
+  options: RepoMapOptions,
+  warnings: string[],
+): Set<string> {
+  const requested = (options.files ?? []).map(normalizePath).filter(Boolean);
+  const mapped = new Set(known);
+  const resolved = requested.filter((path) => mapped.has(path));
+  const focus = new Set(resolved);
+
+  if (options.module !== undefined) {
+    if (options.moduleTestMap === undefined) {
+      throw new Error(
+        `module "${options.module}" exige moduleTestMap (conteúdo do module-test-map)`,
+      );
+    }
+    const map = parseModuleTestMap(options.moduleTestMap);
+    const available = [
+      ...new Set([...Object.keys(map.commands), ...map.prefixes.map((entry) => entry.module)]),
+    ];
+    if (!available.includes(options.module)) {
+      throw new Error(
+        `módulo "${options.module}" não existe no module-test-map (disponíveis: ${
+          available.join(", ")
+        })`,
+      );
+    }
+    const isCatchAll = options.module === catchAllModule(map);
+    if (isCatchAll && resolved.length === 0) {
+      warnings.push(
+        `módulo "${options.module}" é o catch-all (./) e cobre os arquivos sem prefixo: o escopo ` +
+          "pouco restringe; informe os arquivos-alvo",
+      );
+    }
+    if (!isCatchAll || resolved.length === 0) {
+      for (const path of known) {
+        if (resolveModule([path], map) === options.module) focus.add(path);
+      }
+    }
+  }
+
+  if (requested.length > 0 && resolved.length === 0) {
+    warnings.push(`nenhum dos arquivos informados é fonte mapeado: ${requested.join(", ")}`);
+  }
+  if (focus.size === 0 && (requested.length > 0 || options.module !== undefined)) {
+    warnings.push("foco vazio: mapa sem escopo");
+  }
+  return focus;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -847,7 +947,7 @@ export async function buildRepoMap(options: RepoMapOptions = {}): Promise<RepoMa
     }
   }
 
-  const entries = rankFiles(summaries);
+  const entries = rankFiles(summaries, resolveFocus([...summaries.keys()], options, warnings));
   const stats = { parsed, cached, cacheWritten };
   if (entries.length === 0) {
     return {
@@ -871,7 +971,7 @@ export async function buildRepoMap(options: RepoMapOptions = {}): Promise<RepoMa
     markdown: selection.markdown,
     files: selection.shown.map(({ entry, detailed }) => {
       const { full, listed } = partition(entry, detailed);
-      return { path: entry.path, score: entry.score, symbols: full, listed };
+      return { path: entry.path, tier: entry.tier, score: entry.score, symbols: full, listed };
     }),
     omitted: selection.omitted,
     skipped,
@@ -884,26 +984,55 @@ export async function buildRepoMap(options: RepoMapOptions = {}): Promise<RepoMa
 // CLI
 // ---------------------------------------------------------------------------------------------
 
-const USAGE = "uso: deno run -A scripts/repo-map.ts [--max-tokens <N>] [--json]";
+const USAGE = "uso: deno run -A scripts/repo-map.ts [--max-tokens <N>] [--json] " +
+  "[--module <nome> [--module-test-map <path>]] [--files <a,b>] [--cache-path <path>]";
 
-function parseCliArgs(args: string[]): { maxTokens: number; json: boolean } | { error: string } {
-  let maxTokens = DEFAULT_MAX_TOKENS;
+const VALUE_FLAGS = ["--max-tokens", "--module", "--module-test-map", "--files", "--cache-path"];
+
+interface CliArgs {
+  maxTokens: number;
+  json: boolean;
+  module?: string;
+  moduleTestMap?: string;
+  files?: string[];
+  cachePath?: string;
+}
+
+function parseCliArgs(args: string[]): CliArgs | { error: string } {
+  const values = new Map<string, string>();
   let json = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--json") {
       json = true;
-    } else if (arg === "--max-tokens" || arg.startsWith("--max-tokens=")) {
-      const value = arg === "--max-tokens" ? args[++i] : arg.slice("--max-tokens=".length);
-      if (!/^\d+$/.test(value ?? "") || Number(value) < 1) {
-        return { error: `--max-tokens exige um inteiro positivo (recebido: ${value ?? "nada"})` };
-      }
-      maxTokens = Number(value);
-    } else {
-      return { error: `argumento desconhecido: ${arg}` };
+      continue;
     }
+    const flag = VALUE_FLAGS.find((name) => arg === name || arg.startsWith(`${name}=`));
+    if (!flag) return { error: `argumento desconhecido: ${arg}` };
+    values.set(flag, arg === flag ? args[++i] ?? "" : arg.slice(flag.length + 1));
   }
-  return { maxTokens, json };
+
+  const rawTokens = values.get("--max-tokens");
+  if (rawTokens !== undefined && (!/^\d+$/.test(rawTokens) || Number(rawTokens) < 1)) {
+    return { error: `--max-tokens exige um inteiro positivo (recebido: ${rawTokens || "nada"})` };
+  }
+  for (const flag of VALUE_FLAGS) {
+    if (values.get(flag) === "") return { error: `${flag} exige um valor` };
+  }
+  const files = values.get("--files")?.split(",").map((file) => file.trim()).filter(Boolean);
+  return {
+    maxTokens: rawTokens === undefined ? DEFAULT_MAX_TOKENS : Number(rawTokens),
+    json,
+    module: values.get("--module"),
+    moduleTestMap: values.get("--module-test-map"),
+    files,
+    cachePath: values.get("--cache-path"),
+  };
+}
+
+function failCli(message: string): never {
+  console.error(`repo-map: ${message}`);
+  Deno.exit(1);
 }
 
 async function main(): Promise<void> {
@@ -912,7 +1041,25 @@ async function main(): Promise<void> {
     console.error(`${parsed.error}\n${USAGE}`);
     Deno.exit(2);
   }
-  const result = await buildRepoMap({ root: Deno.cwd(), maxTokens: parsed.maxTokens });
+  const root = Deno.cwd();
+  let moduleTestMap: string | undefined;
+  if (parsed.module !== undefined) {
+    const mapPath = parsed.moduleTestMap ?? `${root}/.claude/vetor/module-test-map.md`;
+    moduleTestMap = await Deno.readTextFile(mapPath).catch(() =>
+      failCli(
+        `não consegui ler o module-test-map em ${mapPath}; informe --module-test-map <path> ` +
+          "(no worktree, use o do root do repositório)",
+      )
+    );
+  }
+  const result = await buildRepoMap({
+    root,
+    maxTokens: parsed.maxTokens,
+    cachePath: parsed.cachePath,
+    module: parsed.module,
+    moduleTestMap,
+    files: parsed.files,
+  }).catch((error) => failCli(error instanceof Error ? error.message : String(error)));
   if (parsed.json) {
     console.log(JSON.stringify(result));
     return;
