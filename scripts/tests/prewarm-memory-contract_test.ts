@@ -32,8 +32,29 @@ Deno.test("issue #502 (RF-06): o coordinator dispara, reconcilia e consome o pre
   assertMatch(coordinator, /pre-warming da Fase 1 rodou, aguarde o `start` terminar/);
   assertStringIncludes(coordinator, "scripts/prewarm-worktrees.ts claim <slug>");
   assertMatch(coordinator, /sem `subagent_type` nem\s+`isolation`/);
-  // Fases 1, 3 e 4 apontam para a referência; o procedimento fica fora do SKILL.md (limite de 24 KB).
-  assert(coordinator.split("worktree-prewarm.md").length - 1 >= 3);
+  // Fases 0, 1, 3, 4 e 7 apontam para a referência; o procedimento fica fora do SKILL.md (limite de 24 KB).
+  assert(coordinator.split("worktree-prewarm.md").length - 1 >= 5);
+});
+
+Deno.test("issue #502 (RF-06): retomada e fim de sessão também descartam worktrees pré-aquecidos sem dono", () => {
+  // Fase 0 (--resume pula as Fases 1-3, onde o discard inicial ficaria) e Fase 7 (timeout, circuit breaker).
+  assertMatch(coordinator, /Antes de prosseguir, rode `scripts\/prewarm-worktrees.ts discard`/);
+  assertMatch(
+    coordinator,
+    /Descarte também os worktrees pré-aquecidos que ninguém assumiu \(timeout, circuit breaker/,
+  );
+  assertMatch(coordinator, /liste no relatório o que vier em `failed` ou\s+`branchesKept`/);
+  assertMatch(prewarm, /Fase 0 \(retomada\)[\s\S]*Fase 7 \(limpeza final\)/);
+});
+
+Deno.test("issue #502 (RF-06): worktree pronto sem status file é esperado e uma sessão de coordinator por vez", () => {
+  const trigger = section(prewarm, "## Gatilho (fim da Fase 1, antes da Fase 2)");
+  assertStringIncludes(trigger, "**Sem status file é esperado.**");
+  assertStringIncludes(trigger, "prewarm-pending.txt");
+  assertStringIncludes(trigger, "issue #72");
+  assertMatch(trigger, /Crie o status file \*\*depois\*\* do\s+`claim`, nunca antes/);
+  assertStringIncludes(trigger, "**Uma sessão de coordinator por vez.**");
+  assertMatch(trigger, /cai no dispatch clássico\. Nenhum trabalho se perde/);
 });
 
 Deno.test("issue #502 (RF-06): o pre-warming vale só para a onda corrente, limitado a N_rec", () => {

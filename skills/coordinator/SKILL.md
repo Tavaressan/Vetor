@@ -117,6 +117,8 @@ Além disso, em `--headless`:
      Em `--headless`: não pergunte o teto (use `N_rec`) e não ofereça ship — apenas reporte os
      grupos `GREEN` como prontos, salvo com `--auto-ship`/`autoShipHeadless: true`, caso em que
      os `GREEN` seguem a Fase 6.d.
+     Antes de prosseguir, rode `scripts/prewarm-worktrees.ts discard` para limpar sobras de
+     pre-warming (idempotente; ver `../shared/references/worktree-prewarm.md`).
   3. Se **não houver** worktree ativo com status file: caia no fluxo padrão (Fase 1), descobrindo
      dinamicamente labels ou usando `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado.
 - **Lista de números** ou **label explícito**: siga o fluxo padrão a partir da Fase 1.
@@ -634,6 +636,10 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 
 `sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se
 imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de descartar trabalho.
+
+Descarte também os worktrees pré-aquecidos que ninguém assumiu (timeout, circuit breaker, onda
+interrompida) com `scripts/prewarm-worktrees.ts discard`, e liste no relatório o que vier em `failed` ou
+`branchesKept` (`../shared/references/worktree-prewarm.md`).
 
 Após todos os agentes terminarem (ou atingido o timeout de 90 minutos / `maxSessionMinutes`):
 

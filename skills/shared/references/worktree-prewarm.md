@@ -1,6 +1,7 @@
 # Pre-warming de worktrees (RF-06)
 
-> Lido pelo `coordinator` na Fase 1 (gatilho), Fase 3 (reconciliação) e Fase 4 (dispatch). Spec:
+> Lido pelo `coordinator` na Fase 0 (retomada), Fase 1 (gatilho), Fase 3 (reconciliação), Fase 4
+> (dispatch) e Fase 7 (limpeza final). Spec:
 > `docs/specs/autonomia-continua-e-desacoplamento-interativo.md`, RF-06. Paths relativos e
 > `$SKILL_DIR` resolvem a partir do diretório da skill `coordinator`.
 
@@ -41,6 +42,17 @@ gravado de forma atômica (arquivo temporário + rename): cada grupo está `warm
 `failed` ou `discarded`, com `worktreeMs` e `depsMs`. Path ou branch já existentes viram `failed` e
 nunca são tocados.
 
+Dois efeitos colaterais conhecidos:
+
+- **Sem status file é esperado.** Um worktree `ready` ainda não tem status file (o coordinator o cria
+  só no dispatch), e isso não é a falha anômala da issue #72. O `start`, o `claim` e o `discard`
+  mantêm `<repo-root>/.claude/vetor/prewarm-pending.txt` (uma branch por linha, com `/` trocada por `-`)
+  e o `vetor-status.sh` não alerta para as branches listadas ali. Crie o status file **depois** do
+  `claim`, nunca antes.
+- **Uma sessão de coordinator por vez.** O manifest é único por repositório. Um segundo coordinator que
+  rode `discard` e `start` apaga os grupos ainda não assumidos do primeiro; o próximo `claim` do
+  primeiro falha e esse grupo cai no dispatch clássico. Nenhum trabalho se perde, só o pre-warming.
+
 ## Regra de sincronia (bloqueante)
 
 **Nenhum `Agent()` e nenhum `discard` antes de o `start` terminar** (`finishedAt` presente no
@@ -66,8 +78,9 @@ sem consultar o GitHub. Branch que avançou fica registrada em `branchesKept`.
 Para cada grupo, antes do `Agent()`, rode `deno run -A "$SKILL_DIR/../../scripts/prewarm-worktrees.ts"
 claim <slug>`:
 
-- **exit 0**: imprime o JSON do grupo (`path`, `branch`) e o marca `claimed`. Gere o ContextPacket com
-  `--worktree <path>` e despache como abaixo.
+- **exit 0**: imprime o JSON do grupo (`path`, `branch`) e o marca `claimed`. Crie o status file
+  `RUNNING` (Fase 3 de `issue-coordinator-dispatch.md`), gere o ContextPacket com `--worktree <path>` e
+  despache como abaixo.
 - **exit 1** (`failed`, ausente, `warming` esquecido): dispatch clássico, com `vetor:issue-worker` e
   `isolation: "worktree"`. Registre o motivo no relatório. Nunca bloqueie o dispatch por causa do
   pre-warming (Spec, "Error Handling").
