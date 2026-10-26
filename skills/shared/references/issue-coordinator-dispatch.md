@@ -149,8 +149,10 @@ worker precisar de MCP adicional.
    - Entregável obrigatório: produzir `docs/investigations/<slug>.md` estruturado com Pergunta, Evidências (comandos/fontes reproduzíveis), Opções avaliadas e Recomendação.
    - Critério de `GREEN`: o arquivo de relatório existe e `git diff --check` passa sem erros.
    - O ship segue o caminho de PR só de docs (#427); a decisão continua humana e issues de follow-up não são criadas automaticamente.
-8. **ContextPacket (issue #496):** abra o prompt com o JSON gerado conforme a seção "ContextPacket"
-   abaixo, para o worker começar pelo teste em vez de explorar o repositório.
+8. **ContextPacket (issue #496) e Repo Map (issue #507):** abra o prompt com o JSON gerado conforme
+   a seção "ContextPacket" abaixo, para o worker começar pelo teste em vez de explorar o
+   repositório. Com `--repo-root` e `--format prompt` o mesmo comando acrescenta o Repo Map
+   escopado do módulo na tag `<repo_map>`, logo depois do JSON (seção "Repo Map escopado").
 
 ### ContextPacket — contexto estruturado no prompt do worker
 
@@ -171,7 +173,8 @@ use `--issue-json <arquivo>` no lugar de `--issue`. O CLI falha (exit 1) se o `m
 estiver ausente ou sem comando para o módulo: nesse caso monte o prompt sem o pacote e reporte,
 em vez de inventar um comando de teste.
 
-Cole a saída em um bloco `json` no início do prompt do worker:
+Cole a saída em um bloco `json` no início do prompt do worker (com `--format prompt` a saída já
+traz o bloco e a tag `<repo_map>`: cole-a como está, sem embrulhar em outra cerca):
 
 ```json
 {
@@ -216,6 +219,46 @@ conte as tool calls do worker antes do primeiro teste escrito (primeiro `Write`/
 de teste), uma vez sem o pacote (baseline) e outra com ele; a meta da Spec é reduzir essa
 contagem em pelo menos 50%. Nenhum baseline foi coletado ainda, então a meta permanece não
 verificada.
+
+### Repo Map escopado — tag `<repo_map>` no prompt do worker
+
+O pacote diz ao worker o que mudar; o Repo Map diz onde estão as assinaturas e os tipos do módulo
+que ele vai editar (`scripts/repo-map.ts`, RF-03/RF-04 de
+`docs/specs/repo-map-ast-context-packet.md`, issue #507). É um esqueleto Markdown de até 1.500
+tokens, sem corpos de função, que poupa os `grep`/`find`/`Read` com que o worker abriria a sessão.
+Peça-o ao mesmo CLI do pacote, passando o root do repositório principal (`$REPO_ROOT`, de
+`vetor-checks.sh repo-root`, nunca o `cwd`):
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/context-packet.ts" \
+  --issue <N> --slug <slug> --branch <branch> --base "$DEFAULT_BRANCH" \
+  --module-test-map "$REPO_ROOT/.claude/vetor/module-test-map.md" \
+  --repo-root "$REPO_ROOT" --format prompt
+```
+
+Cole a saída verbatim no início do prompt do worker: um bloco `json` com o pacote (sem o mapa) e,
+depois dele, o mapa dentro de `<repo_map>...</repo_map>`. O Markdown do mapa tem cercas de código e,
+escapado numa string JSON, ficaria ilegível; por isso `--format prompt` o tira do JSON. Sem
+`--format prompt` o CLI emite só o JSON e o mapa fica em `context.repoMap`.
+
+- **Escopo:** o mapa usa o módulo e os `targetFiles` que o próprio pacote resolveu. Os arquivos do
+  foco são detalhados primeiro, depois os vizinhos imediatos (o que eles importam e quem os
+  importa), depois o resto por centralidade. Se o módulo é o catch-all (`root`, a linha `./` do
+  `module-test-map`) e nenhum `targetFile` é fonte mapeado, o foco fica largo e o CLI avisa em
+  stderr: passe `--target-files` com o que a Fase 1 já sabe.
+- **Cache:** fica em `$REPO_ROOT/.claude/vetor/cache/repo-map.json` e é reaproveitado entre os
+  dispatches; o worktree não paga o mapa a frio.
+- **Falha não bloqueia:** se o mapa não puder ser gerado (root inválido, erro de leitura), o CLI
+  avisa em stderr e emite o pacote sem o campo e sem a tag. Monte o prompt assim mesmo.
+- **Defasagem:** o mapa vem do working tree do root no momento do dispatch, que em `O_{i+1}` pode
+  estar atrás de `origin/$DEFAULT_BRANCH` (item 5). Ele é uma dica de por onde começar: o worker
+  confere com `Read` o arquivo que vai editar, e o mapa não substitui essa leitura.
+
+**Como medir a redução de tool calls (meta da Spec, não verificada):** para uma mesma issue, conte
+nos 5 primeiros turnos do worker as tool calls de exploração (`Grep`, `Glob`, `Read` de arquivo que
+não será editado e `find`/`grep` via `Bash`), uma vez sem a tag `<repo_map>` (baseline) e outra com
+ela. A meta é reduzir essa contagem em pelo menos 40%. Nenhum baseline foi coletado, então a meta
+permanece não verificada.
 
 ### Dispatch do ship-worker (Pre-Ship) — contrato
 

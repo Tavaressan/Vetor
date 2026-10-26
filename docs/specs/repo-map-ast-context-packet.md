@@ -307,6 +307,8 @@ export function main(): void;
 - **D-01 (Parsing em Deno Puro):** Adotar motor de parsing executável sob Deno padrão sem dependência de ferramentas de compilação C/C++ locais ou binários de terceiros.
 - **D-02 (Coexistência com Graphify na Fase 1):** O Repo Map foca na micro-sintaxe para consumo de workers; o Graphify permanece intocado como fonte macro de cartografia de Specs até a Fase 2.
 - **D-03 (Token Budget Padrão de 1.500 tokens):** Equilíbrio ideal entre densidade de informação e preservação de contexto nos subagentes.
+- **D-04 (Ponto de integração do `ContextPacket`, issue #507):** o Repo Map é gerado por `scripts/context-packet.ts` (`--repo-root`, `--format prompt`) no dispatch, e não por `prepare-worktree.ts`. O pacote é montado antes de o worktree existir e o `prepare-worktree.ts` (hook `WorktreeCreate`) só cria o worktree e prepara dependências, sem acesso ao pacote nem ao prompt do worker. Gerar a partir do root do repositório principal também mantém o cache (`.claude/vetor/cache/repo-map.json`) compartilhado entre os workers. O `ContextPacket` guarda o mapa em `context.repoMap`; no prompt ele vai na tag `<repo_map>`, fora do JSON.
+- **D-05 (Prioridade do escopo, issue #507):** o foco (RF-03) é a união dos `--files` que são fontes mapeados com os arquivos de `--module`; o módulo catch-all (`./`) só entra quando nenhum arquivo resolve. Tier 1 = foco, tier 2 = vizinhos imediatos (importadores e dependências), tier 3 = demais. O tier precede o score em toda ordenação. O texto da issue #507 põe os importadores no mesmo nível do módulo; esta Spec (RF-03) os põe na prioridade 2, e a implementação segue a Spec.
 
 ## References
 
@@ -321,3 +323,4 @@ export function main(): void;
 | Data | Autor | Mudança |
 |---|---|---|
 | 2026-10-23 | Vetor Architecture Team | Criação da especificação inicial (Fase 1: Repo Map AST e ContextPacket). |
+| 2026-10-26 | Issue #507 | Decisões D-04 (ponto de integração no `context-packet.ts`) e D-05 (tiers do escopo). |

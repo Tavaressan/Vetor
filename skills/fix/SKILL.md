@@ -107,6 +107,30 @@ Mapeie ao módulo usando a tabela do module-test-map, resolvido a partir do root
 `sem suíte de testes` não entram no loop: registre `skipped (no test suite)` e não os trate como
 falha.
 
+**Repo Map do módulo (diagnóstico preventivo, RF-04 de `docs/specs/repo-map-ast-context-packet.md`,
+issue #507).** Antes de abrir arquivos inteiros ou rodar `grep`/`find` para descobrir onde moram os
+tipos e as assinaturas, peça o mapa sintático do módulo onde a falha apareceu:
+
+```bash
+REPO_ROOT="$(bash "$SKILL_DIR/../../scripts/vetor-checks.sh" repo-root)"
+deno run -A "$SKILL_DIR/../../scripts/repo-map.ts" --module <módulo> \
+  --module-test-map "$REPO_ROOT/.claude/vetor/module-test-map.md" \
+  --cache-path "$REPO_ROOT/.claude/vetor/cache/repo-map.json" \
+  --files <arquivo1,arquivo2>
+```
+
+- O comando roda no worktree, então o mapa reflete o código da branch; o `module-test-map` e o cache
+  vêm do root (o worktree pode não ter o primeiro, issue #160, e o cache do root poupa o mapa a
+  frio). Se a gravação do cache for recusada, o aviso não bloqueia o loop.
+- `--files` é opcional: liste os arquivos que o erro cita (stack trace, import quebrado) e os do
+  `git diff` acima. Para o módulo catch-all (`root`) ele é o que dá foco ao mapa; sem ele o CLI
+  avisa que o escopo é largo.
+- O mapa traz só as assinaturas exportadas (sem corpos): use-o para decidir quais arquivos abrir e
+  que imports usar, e `Read` o trecho real antes de editar.
+- Se o prompt do coordinator já trouxe um bloco `<repo_map>` para o mesmo módulo, reutilize-o em
+  vez de gerar outro; gere um novo quando a falha estiver em outro módulo ou em outros arquivos.
+- Script ausente ou erro na geração não interrompe o diagnóstico: siga sem o mapa.
+
 Depois de resolver os módulos, grave o cache de arquivos tocados conforme
 `touched-files-cache.md` — ele é consumido pelo `code-review` na mesma branch.
 
