@@ -37,7 +37,11 @@ registre `BLOCKED_WAITING`** no status file — não prossiga adivinhando o dire
 
 ## O que fazer
 
-1. Leia a issue e entenda o escopo (número, título e body vêm no prompt).
+1. Leia a issue e entenda o escopo (número, título e body vêm no prompt). Se o prompt abrir com um
+   bloco JSON `ContextPacket` (`$schema` terminado em `context-packet.v1.json`), use
+   `context.targetFiles`, `context.testCommand` e `issue.acceptanceCriteria` direto, sem busca
+   global para redescobrir módulo, comando de teste ou arquivos; `targetFiles` é ponto de partida,
+   não restrição.
 2. TDD: escreva um teste de reprodução simples que falhe (vermelho) antes de alterar código de
    produto. KISS/YAGNI: implemente só o necessário para o teste passar — sem refatoração fora do
    escopo da issue.
