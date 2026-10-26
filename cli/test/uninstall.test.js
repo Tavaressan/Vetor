@@ -277,6 +277,50 @@ test('uninstall --engines: engine sem arquivos no manifesto não altera nada', a
   });
 });
 
+// Issue #505: chave com ".." que resolve para fora do projeto nunca apaga o arquivo de fora, com ou
+// sem `--engines`; a entrada fica no manifesto (marcada como desinstalada quando há seleção de engines).
+function seedOutsideKeys(dir) {
+  const projectRoot = path.join(dir, 'project');
+  fs.mkdirSync(projectRoot);
+  const victim = path.join(dir, 'outside.txt');
+  fs.writeFileSync(victim, 'não é do Vetor\n');
+  const sha256 = hashContent(Buffer.from('não é do Vetor\n'));
+  const keys = ['.agents/skills/../../../outside.txt', '../outside.txt'];
+  writeManifest(projectRoot, {
+    version: 1,
+    files: Object.fromEntries(keys.map((key) => [key, { sha256, engine: 'cursor', engines: ['cursor'] }])),
+  });
+  return { projectRoot, victim, keys };
+}
+
+test('uninstall --engines: chave do manifesto com ".." que escapa do projeto é preservada e o arquivo de fora não é apagado', async () => {
+  await withTempDir(async (dir) => {
+    const { projectRoot, victim, keys } = seedOutsideKeys(dir);
+
+    const output = await captureInfo(() => uninstall(projectRoot, { yes: true, engines: 'cursor' }));
+
+    assert.match(output, /0 arquivo\(s\) removido\(s\)/);
+    assert.match(output, /2 arquivo\(s\) preservado\(s\)/);
+    assert.equal(fs.readFileSync(victim, 'utf8'), 'não é do Vetor\n');
+    const { files } = readManifest(projectRoot);
+    assert.deepEqual(Object.keys(files), keys);
+    for (const key of keys) assert.equal(files[key].uninstalled, true);
+  });
+});
+
+test('uninstall sem --engines: chave do manifesto com ".." que escapa do projeto é preservada e o arquivo de fora não é apagado', async () => {
+  await withTempDir(async (dir) => {
+    const { projectRoot, victim, keys } = seedOutsideKeys(dir);
+
+    const output = await captureInfo(() => uninstall(projectRoot, { yes: true }));
+
+    assert.match(output, /0 arquivo\(s\) removido\(s\)/);
+    assert.match(output, /2 arquivo\(s\) preservado\(s\)/);
+    assert.equal(fs.readFileSync(victim, 'utf8'), 'não é do Vetor\n');
+    assert.deepEqual(Object.keys(readManifest(projectRoot).files), keys);
+  });
+});
+
 test('uninstall --engines: ID de engine inválido falha sem remover nada', async () => {
   await withTempDir(async (dir) => {
     const { skill } = seedSharedFiles(dir);
