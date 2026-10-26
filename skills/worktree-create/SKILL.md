@@ -149,9 +149,9 @@ normalmente — o worker instala o que faltar.
 
 > No fluxo do `coordinator`, o worktree é criado pelo harness (`isolation: "worktree"`) e a
 > preparação roda sozinha via hook `WorktreeCreate`. Esta chamada só é necessária aqui, no uso
-> standalone do skill. A exceção é o pre-warming (RF-06): o coordinator cria e prepara os worktrees da
-> primeira onda antecipadamente com `scripts/prewarm-worktrees.ts`
-> (`../shared/references/worktree-prewarm.md`).
+> standalone do skill. A exceção é o pre-warming (RF-06), opt-in com `prewarmWorktrees: true` em
+> `.claude/vetor/config.json`: aí o coordinator cria e prepara os worktrees da primeira onda
+> antecipadamente com `scripts/prewarm-worktrees.ts` (`../shared/references/worktree-prewarm.md`).
 
 ### 5 — Entrar no worktree
 

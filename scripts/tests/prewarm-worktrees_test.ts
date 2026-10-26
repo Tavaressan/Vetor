@@ -330,6 +330,23 @@ Deno.test("discardPrewarm nunca destrói trabalho: branch com commit é preserva
   }
 });
 
+Deno.test("discardPrewarm sem manifest não faz nada (sessão com o opt-in desligado)", async () => {
+  const { root, cleanup } = await makeRepo(false);
+  try {
+    const report = await discardPrewarm({ root });
+
+    assertEquals(
+      [report.removed, report.skipped, report.failed, report.branchesKept],
+      [[], [], [], []],
+    );
+    // Não cria manifest nem sidecar: o discard das Fases 0 e 7 é inofensivo sem pre-warming.
+    assertEquals(await readManifest(root), null);
+    await assertRejects(() => Deno.stat(pendingPath(root)));
+  } finally {
+    await cleanup();
+  }
+});
+
 Deno.test("discardPrewarm não força remoção de worktree com mudanças não commitadas", async () => {
   const { root, cleanup } = await makeRepo(false);
   try {

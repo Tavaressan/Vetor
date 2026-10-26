@@ -5,6 +5,27 @@
 > `docs/specs/autonomia-continua-e-desacoplamento-interativo.md`, RF-06. Paths relativos e
 > `$SKILL_DIR` resolvem a partir do diretório da skill `coordinator`.
 
+## Ativação (opt-in, desligado por padrão)
+
+O pre-warming só roda com **`"prewarmWorktrees": true`** em `.claude/vetor/config.json`, lido a partir
+do root do repositório (`vetor-checks.sh repo-root`, nunca do `cwd`), no mesmo padrão do
+`autoShipHeadless` (#497) e do `hooks.typecheckOnEdit` (#514). Tudo abaixo, do Gatilho ao Dispatch, vale
+**somente** com o opt-in ligado. Sem a chave, ou com `false`:
+
+- a Fase 1 não dispara o `start`;
+- a Fase 3 não reconcilia nada;
+- a Fase 4 não faz `claim`, e o dispatch é sempre o clássico, com `vetor:issue-worker` e
+  `isolation: "worktree"`.
+
+O `discard` das Fases 0 e 7 continua mesmo sem o opt-in: é idempotente, sem manifest não faz nada e limpa
+as sobras de uma sessão anterior que tenha rodado com o opt-in.
+
+**Por que é opt-in.** O worker pré-aquecido é um subagente padrão: perde a allowlist de `tools`, o preload
+da skill `fix` e as guardas por `agent_type` do `safety-check.ts` (escrita fora do worktree, por
+exemplo), que só valem para `vetor:issue-worker`. O prompt do template repete essas guardas, mas por
+instrução, e não por mecanismo da plataforma. Em troca há um ganho que **ninguém mediu**. Meça antes de
+ligar (seção "Como medir os critérios de tempo") e só ligue se a largada melhorar no seu projeto.
+
 ## Por que não é um hook nem um pool
 
 No dispatch clássico o harness cria o worktree em `Agent({ isolation: "worktree" })`, a partir do HEAD
@@ -128,9 +149,12 @@ Esse agente perde a allowlist de `tools`, o preload da skill `fix` e as guardas 
 
 ## Como medir os critérios de tempo (não verificados)
 
-Nenhum dos tempos abaixo foi medido: não há baseline coletado e **nenhum ganho é afirmado**. Neste
-repositório (Deno puro) o `prepareDeps` é um no-op, então o que o pre-warming antecipa aqui é o
+Nenhum dos tempos abaixo foi medido: não há baseline coletado e **nenhum ganho é afirmado**. Em
+projetos Deno puro o `prepareDeps` é um no-op, então o que o pre-warming antecipa é o
 `git worktree add`; a latência de iniciar o próprio subagente não muda e pode dominar os 5 s.
+
+Para comparar os dois modos, rode a mesma issue de teste duas vezes: com `prewarmWorktrees` ausente (dispatch
+clássico, o baseline) e com `"prewarmWorktrees": true`. Desligue de novo se o ganho não aparecer.
 
 - **Largada do worker (< 5 s).** Anote `date -u +%Y-%m-%dT%H:%M:%S.%3NZ` imediatamente antes do
   `Agent()`. O coordinator já criou o status file `RUNNING`; a primeira alteração depois dessa marca é a

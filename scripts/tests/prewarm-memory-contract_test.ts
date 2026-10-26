@@ -17,6 +17,8 @@ const memory = await read("skills/shared/references/memory-gotchas.md");
 const issueWorker = await read("agents/issue-worker.md");
 const codexWorker = await read("agents/issue-worker/codex.toml");
 const mcpAvailability = await read("skills/shared/references/mcp-availability.md");
+const configWiki = await read("wiki/Configuracao.md");
+const installSkill = await read("skills/install/SKILL.md");
 
 function section(document: string, heading: string): string {
   const start = document.indexOf(heading);
@@ -27,13 +29,108 @@ function section(document: string, heading: string): string {
 }
 
 Deno.test("issue #502 (RF-06): o coordinator dispara, reconcilia e consome o pre-warming nas Fases 1, 3 e 4", () => {
-  assertStringIncludes(coordinator, "**Pre-warming (RF-06):**");
+  assertStringIncludes(coordinator, "**Pre-warming (RF-06), opt-in:**");
   assertStringIncludes(coordinator, "enquanto a Fase 2 conduz a entrevista");
   assertMatch(coordinator, /pre-warming da Fase 1 rodou, aguarde o `start` terminar/);
   assertStringIncludes(coordinator, "scripts/prewarm-worktrees.ts claim <slug>");
   assertMatch(coordinator, /sem `subagent_type` nem\s+`isolation`/);
   // Fases 0, 1, 3, 4 e 7 apontam para a referência; o procedimento fica fora do SKILL.md (limite de 24 KB).
   assert(coordinator.split("worktree-prewarm.md").length - 1 >= 5);
+});
+
+Deno.test("issue #502 (RF-06): o pre-warming é opt-in e as Fases 1, 3 e 4 só agem com prewarmWorktrees: true", () => {
+  // Fase 1: sem a chave não há `start`.
+  assertMatch(
+    coordinator,
+    /\*\*Pre-warming \(RF-06\), opt-in:\*\* só com `"prewarmWorktrees": true` em `\.claude\/vetor\/config\.json`/,
+  );
+  assertMatch(coordinator, /\(lido\s+a partir do root, `vetor-checks\.sh repo-root`\)/);
+  assertMatch(
+    coordinator,
+    /Sem a chave, ou com `false`, pule este item: nenhum\s+`start` e dispatch clássico/,
+  );
+  // Fase 3: sem o opt-in não há o que reconciliar.
+  assertMatch(coordinator, /Só com o opt-in `prewarmWorktrees` e se o pre-warming da Fase 1 rodou/);
+  assertStringIncludes(coordinator, "Sem o opt-in, não há o que reconciliar.");
+  // Fase 4: sem o opt-in não há `claim` e o dispatch é sempre o clássico.
+  assertMatch(
+    coordinator,
+    /\*\*Grupo pré-aquecido \(RF-06, só com `prewarmWorktrees: true`\):\*\*/,
+  );
+  assertMatch(coordinator, /\*\*Sem o opt-in, não rode\s+`claim`:\*\*/);
+  assertMatch(
+    coordinator,
+    /dispatch é sempre o clássico, com `vetor:issue-worker` e `isolation: "worktree"`/,
+  );
+  // Nenhuma menção operacional ao `claim` fica fora de uma frase condicionada ao opt-in.
+  for (const match of coordinator.matchAll(/prewarm-worktrees\.ts claim <slug>/g)) {
+    const before = coordinator.slice(Math.max(0, match.index - 200), match.index);
+    assertStringIncludes(before, "prewarmWorktrees");
+  }
+});
+
+Deno.test("issue #502 (RF-06): a referência declara o opt-in antes de qualquer passo e explica a troca de guardas", () => {
+  const activation = section(prewarm, "## Ativação (opt-in, desligado por padrão)");
+  assertStringIncludes(activation, '**`"prewarmWorktrees": true`**');
+  assertStringIncludes(activation, "`vetor-checks.sh repo-root`, nunca do `cwd`");
+  assertStringIncludes(activation, "`autoShipHeadless` (#497)");
+  assertStringIncludes(activation, "`hooks.typecheckOnEdit` (#514)");
+  assertStringIncludes(activation, "- a Fase 1 não dispara o `start`;");
+  assertStringIncludes(activation, "- a Fase 3 não reconcilia nada;");
+  assertMatch(
+    activation,
+    /a Fase 4 não faz `claim`, e o dispatch é sempre o clássico, com `vetor:issue-worker` e\s+`isolation: "worktree"`/,
+  );
+  // O discard das Fases 0 e 7 continua porque é idempotente.
+  assertMatch(
+    activation,
+    /`discard` das Fases 0 e 7 continua mesmo sem o opt-in: é idempotente, sem manifest não faz\s+nada/,
+  );
+  // A troca de guardas que motivou o opt-in e a regra de medir antes de ligar.
+  assertMatch(
+    activation,
+    /perde a allowlist de `tools`, o preload\s+da skill `fix` e as guardas por `agent_type` do `safety-check\.ts`/,
+  );
+  assertMatch(activation, /ganho que \*\*ninguém mediu\*\*\. Meça antes de\s+ligar/);
+
+  // A seção de ativação vem antes do escopo, do gatilho e do dispatch que ela condiciona.
+  const at = (heading: string) => prewarm.indexOf(heading);
+  assert(at("## Ativação") !== -1 && at("## Ativação") < at("## Escopo"));
+  assert(at("## Ativação") < at("## Gatilho"));
+  assert(at("## Ativação") < at("## Dispatch (Fase 4)"));
+  assertStringIncludes(
+    prewarm,
+    "Tudo abaixo, do Gatilho ao Dispatch, vale\n**somente** com o opt-in ligado.",
+  );
+});
+
+Deno.test("issue #502 (RF-06): sem opt-in o dispatch padrão continua vetor:issue-worker com isolation worktree", () => {
+  const classic = dispatchRef.match(
+    /Agent\(\{\n {2}description: "Grupo Lead #<N>: <título>",[\s\S]*?\}\)/,
+  );
+  assert(classic, "dispatch clássico precisa do bloco Agent() original");
+  assertStringIncludes(classic[0], 'subagent_type: "vetor:issue-worker"');
+  assertStringIncludes(classic[0], 'isolation: "worktree"');
+  // O pre-warming nunca aparece nesse bloco nem no frontmatter do agente.
+  assert(!/prewarm/i.test(classic[0]));
+  assert(!/prewarm/i.test(issueWorker));
+  // O pre-warming só entra pelo template próprio da referência, sem vetor:issue-worker.
+  const template = section(prewarm, "### Template do `Agent()` em worktree pré-aquecido");
+  assert(!/subagent_type/.test(template.match(/```javascript\n([\s\S]*?)```/)![1]));
+});
+
+Deno.test("issue #502 (RF-06): o opt-in está documentado na configuração e preservado pelo /vetor:install", () => {
+  const wiki = section(configWiki, "## Pre-warming de worktrees do coordinator (opt-in)");
+  assertStringIncludes(wiki, "**desligado por padrão**");
+  assertStringIncludes(wiki, '"prewarmWorktrees": true');
+  assertMatch(wiki, /allowlist de `tools`, o preload da skill `fix` e as guardas por `agent_type`/);
+  assertMatch(wiki, /ainda não foi medido/);
+  assertMatch(
+    wiki,
+    /Sem a chave, ou com `false`, o `coordinator` não dispara o pre-warming, não reconcilia e não faz `claim`/,
+  );
+  assertStringIncludes(wiki, "o `/vetor:install` a preserva ao regerar o `config.json`");
+  assertMatch(installSkill, /chave opcional `prewarmWorktrees`/);
 });
 
 Deno.test("issue #502 (RF-06): retomada e fim de sessão também descartam worktrees pré-aquecidos sem dono", () => {
@@ -134,7 +231,8 @@ Deno.test("issue #502 (RF-06): o Agent() pré-aquecido é subagente padrão e ca
 Deno.test("issue #502 (RF-06): critérios de tempo documentam o método e ficam como não verificados", () => {
   const measure = section(prewarm, "## Como medir os critérios de tempo (não verificados)");
   assertStringIncludes(measure, "**nenhum ganho é afirmado**");
-  assertMatch(measure, /Deno puro\) o `prepareDeps` é um no-op/);
+  assertMatch(measure, /projetos Deno puro o `prepareDeps` é um no-op/);
+  assertMatch(measure, /Desligue de novo se o ganho não aparecer/);
   assertStringIncludes(measure, "stat -c %y <status-file>");
   assertMatch(measure, /3\s+vezes por modo/);
   assertStringIncludes(measure, "`worktreeMs` e `depsMs`");
