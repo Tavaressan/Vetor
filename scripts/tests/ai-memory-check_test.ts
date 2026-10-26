@@ -1,4 +1,50 @@
-import { assert } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
+import { checkAiMemory } from "../ai-memory-check.ts";
+
+type RpcBody = { id?: number; method: string; params?: unknown };
+
+// Fetcher que imita um servidor MCP: notificação com `id` é rejeitada (400), sem `id` responde
+// `notificationStatus` sem corpo (202/204), e os requests recebem JSON-RPC normal.
+function mcpFetcher(notificationStatus: number) {
+  const calls: Array<{ body: RpcBody; headers: Headers }> = [];
+  const fetcher = ((_url: string | URL | Request, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as RpcBody;
+    calls.push({ body, headers: new Headers(init?.headers) });
+    if (body.method === "notifications/initialized") {
+      return Promise.resolve(
+        new Response(null, { status: "id" in body ? 400 : notificationStatus }),
+      );
+    }
+    let result: unknown = {};
+    if (body.method === "tools/list") result = { tools: [{ name: "memory_status" }] };
+    if (body.method === "tools/call") result = { content: [{ type: "text", text: "{}" }] };
+    return Promise.resolve(
+      Response.json({ jsonrpc: "2.0", id: body.id, result }, {
+        headers: { "Mcp-Session-Id": "test-session" },
+      }),
+    );
+  }) as typeof fetch;
+  return { fetcher, calls };
+}
+
+for (const status of [202, 204]) {
+  Deno.test(`ai-memory-check envia notifications/initialized sem id e aceita ${status} sem corpo`, async () => {
+    const { fetcher, calls } = mcpFetcher(status);
+    const result = await checkAiMemory("http://127.0.0.1:0/mcp", fetcher);
+
+    assertEquals(result.tools, ["memory_status"]);
+    const notification = calls.find((call) => call.body.method === "notifications/initialized");
+    assert(notification, "a notificação initialized não foi enviada");
+    assert(!("id" in notification.body), "notificação JSON-RPC não pode carregar id");
+    assertEquals(notification.headers.get("Mcp-Session-Id"), "test-session");
+  });
+}
+
+Deno.test("ai-memory-check falha quando a notificação initialized recebe status de erro", async () => {
+  const { fetcher, calls } = mcpFetcher(500);
+  await assertRejects(() => checkAiMemory("http://127.0.0.1:0/mcp", fetcher), Error, "HTTP 500");
+  assertEquals(calls.map((call) => call.body.method), ["initialize", "notifications/initialized"]);
+});
 
 Deno.test("ai-memory-check valida initialize, tools/list e memory_status via SSE", async () => {
   const requests: Array<{ method: string; id?: number }> = [];
