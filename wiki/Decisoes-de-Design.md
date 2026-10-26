@@ -58,12 +58,23 @@ de complexidade equivalente, mas interna à própria geração da Spec (decide q
 *depois* que o usuário já pediu uma Spec); as duas são deliberadamente independentes — nenhuma aciona
 a outra automaticamente, para não acoplar duas skills com ciclos de vida distintos.
 
-**Por que `--headless` nunca faz merge.** Entregar código à branch default sem revisão humana é
+**Por que `--headless` não faz merge por padrão.** Entregar código à branch default sem revisão humana é
 precisamente o que um modo não supervisionado não deve decidir sozinho — ainda mais em repositórios
 sem required status check, onde não há barreira nenhuma depois do merge. Em headless, todo gate de
 aprovação (`AskUserQuestion`, `ExitPlanMode`) viraria deadlock silencioso por falta de interlocutor,
 o mesmo modo de falha do worker preso em plan mode (issue #121); a Fase 6 é pulada e os grupos
 `GREEN` são apenas reportados como prontos para ship.
+
+**Entrega autônoma em `--headless` como opt-in (issue #497).** Rotinas agendadas e CI nunca fechavam o
+ciclo, mesmo com 100% dos testes verdes. A Fase 6 passou a rodar em `--headless` quando o operador
+pede com `--auto-ship` ou `"autoShipHeadless": true` em `.claude/vetor/config.json`, e o motivo do
+parágrafo anterior continua valendo, só que a "revisão humana" é trocada por quatro gates
+**determinísticos**, calculados por script (`vetor-checks.sh auto-ship-gates`) e não pelo julgamento
+do agente: CI 100% `SUCCESS`, zero `blocker` nas revisões consultivas, zero colisões em `migrations`
+(contra a default) e `mergeable == MERGEABLE`. Falha de qualquer gate (ou dado ausente) mantém o PR
+aberto e é registrada no relatório, sem abortar a sessão nem fazer pergunta. As revisões só valem se
+foram publicadas pelo mesmo usuário do `gh`, porque o merge é irreversível e um comentário forjado
+não pode liberar um PR. Sem o opt-in nada muda.
 
 **Por que o circuit breaker headless sempre pausa.** Falha recorrente com a mesma assinatura quase
 sempre é infraestrutura (rede, registry, disco), não código: insistir sem humano só multiplica o

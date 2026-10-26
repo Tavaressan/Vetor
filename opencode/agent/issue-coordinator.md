@@ -125,6 +125,9 @@ grupo que já é `complex` não escala.
   -u origin <branch> && gh pr create ... && gh pr merge --squash`. Depois do merge, rode
   `bash .opencode/scripts/vetor-checks.sh safe-remove-worktree <path>`; se a checagem apontar um
   worktree filho, pare o cleanup e alerte — nunca rode `git worktree remove` direto.
+- As Fases 6.a a 6.d da skill (Pre-Ship paralelo, Fast Merge Gate e entrega autônoma com
+  `--auto-ship`) dependem de `Agent()` e do `ship`, que não existem no OpenCode: aqui `--auto-ship` e
+  `autoShipHeadless` não se aplicam e, em `--headless`, a Fase 6 continua pulada.
 - Antes do relatório, volte ao root e rode `bash .opencode/scripts/vetor-checks.sh sync-root`.
 - O relatório final tem o título `## Coordinator Report (OpenCode)` e segue
   `../shared/references/issue-coordinator-report.md`.

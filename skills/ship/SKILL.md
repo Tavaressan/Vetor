@@ -367,9 +367,13 @@ Caso o ponteiro esteja válido:
 Invoque a skill nativa `security-review` sem argumento de diff — ela lê a branch atual.
 ```
 
-Ao receber a resposta final (o relatório em markdown), publique-o:
+Ao receber a resposta final (o relatório em markdown), publique-o, com a primeira linha
+`## Security Review (Vetor)` (é o cabeçalho que o gate `reviews` da entrega autônoma em `--headless`
+procura, issue #497):
 ```bash
-gh pr comment <PR-number> --body "<relatório de security-review recebido>"
+gh pr comment <PR-number> --body "## Security Review (Vetor)
+
+<relatório de security-review recebido>"
 ```
 
 ### 8.7 — Registro de PR_STAGED e encerramento do Pre-Ship
@@ -445,9 +449,19 @@ bash "$SKILL_DIR/../../scripts/vetor-merge.sh" <PR-number>
 
 O script faz `gh pr ready` + `gh pr merge --squash --delete-branch`, passando `--subject` e
 `--body` do PR (garantindo que o corpo do PR seja a única fonte autoritativa de fechamento de issues
-no squash, issue #338). Verifica o estado real do PR quando o `gh` sai não-zero e, em caso de merge no
-remoto com falha apenas no cleanup local, apaga a branch remota explicitamente (issue #325):
-- **exit 0** — PR mergeado e branch remota verificada/removida. Siga para o passo 11.
+no squash, issue #338). Se a branch base do PR tem **merge queue** ativa (detectada pela API do
+GitHub, issue #495), usa `--auto` em vez de `--delete-branch` (o `gh` recusa essa combinação);
+`vetor-merge.sh --auto <PR>` força o auto-merge. Em todos os casos confirma o **estado real do PR**
+depois do `gh` (o exit do `gh` sozinho não prova merge: `--auto` e a merge queue saem com 0 ao
+*enfileirar*) e, em caso de merge no remoto com falha apenas no cleanup local, apaga a branch remota
+explicitamente (issue #325):
+- **exit 0** — PR **mergeado** e branch remota verificada/removida. Siga para o passo 11.
+- **exit 4** — PR **enfileirado** (auto-merge/merge queue): o PR continua OPEN e o GitHub conclui o
+  squash merge quando os requisitos liberarem. **Não é merge concluído**: não rode o passo 11 nem o
+  12 (a branch ainda não foi integrada; `delete-merged-branch` e `safe-remove-worktree` apagariam
+  trabalho que o GitHub ainda vai integrar). Grave `Last action: PR #<N> enfileirado` no status file,
+  preserve worktree, branch e status, reporte o PR como `Enfileirado` e encerre sem polling. O cleanup
+  ocorre numa próxima sessão, quando `vetor-status.sh` mostrar `GREEN (já mergeado via #<N>)`.
 - **exit 3** — merge não aconteceu. Rode `git merge "$DEFAULT_BRANCH"` localmente no worktree e siga
   `../shared/references/conflict-resolution.md`. Resolvido e verde, volte ao
   passo 7.
@@ -455,10 +469,12 @@ remoto com falha apenas no cleanup local, apaga a branch remota explicitamente (
 **Se o comando for negado pela camada de permissões do Claude Code** (classificador de auto-mode,
 motivo tipo "merge sem review") — barreira independente do `reviewDecision` do passo 9: **pare, peça
 aprovação explícita via `AskUserQuestion`** e só repita após o "sim". **Nunca** contorne a negação.
+Quando invocado pela entrega autônoma do coordinator em `--headless` (Fase 6.d) não há a quem
+perguntar: **não use `AskUserQuestion`**, registre a negação no retorno e deixe o PR aberto.
 
 ### 11 — Sincronizar root
 
-*(Executado em `full` e `--finalize`).*
+*(Executado em `full` e `--finalize`, exceto quando o §10 saiu com exit 4 — PR apenas enfileirado).*
 
 ```bash
 bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
@@ -477,7 +493,7 @@ git reset --hard "origin/$DEFAULT_BRANCH"
 
 ### 12 — Cleanup
 
-*(Executado em `full` e `--finalize`).*
+*(Executado em `full` e `--finalize`, exceto quando o §10 saiu com exit 4 — PR apenas enfileirado).*
 
 Descubra o path real do worktree via `git worktree list` (não assuma convenção de path — a
 localização é do harness). No Windows, manter o cwd da sessão dentro do worktree bloqueia a exclusão
@@ -525,3 +541,4 @@ branch, status file e cache de arquivos tocados). Lembre-se de mudar para o root
 - O circuit breaker de infraestrutura (§8.a) pausa sem consumir iterações de fix
 - O submodo `--prepare` encerra no passo 8.7 com status `PR_STAGED` e nunca tenta merge
 - O submodo `--finalize` exige `<PR-number>` válido e executa os passos 7 a 12
+- `vetor-merge.sh` com exit 4 (PR enfileirado) não é merge concluído: pula os passos 11 e 12

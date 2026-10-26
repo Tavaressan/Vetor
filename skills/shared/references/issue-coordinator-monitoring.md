@@ -43,3 +43,34 @@ Quando um grupo foi despachado via `mcp__alethe__alethe_delegate` (contrato com 
    - Execute a validação soberana da suíte de testes no host principal (`deno task test`, etc.).
    - Se os testes passarem e a varredura estiver limpa, atualize o status file para `GREEN`.
 3. **Liberação obrigatória**: chame `mcp__alethe__alethe_release` antes de qualquer invocação de `safe-remove-worktree`.
+
+---
+
+**5.e — CI agregado dos PRs preparados (issue #494)**
+
+Depois do Pre-Ship paralelo (Fase 6.a), acompanhe o CI de **todos** os PRs preparados com **uma única
+consulta**, nunca com um `gh pr checks <PR> --watch` por PR (cada um bloqueia e o total vira N × T_ci):
+
+```bash
+gh pr list --state open --json number,headRefName,isDraft,mergeable,statusCheckRollup
+```
+
+Cruze `headRefName` com a branch dos grupos em `PR_STAGED` (status file / `vetor-status.sh`) e
+classifique cada PR pelo `statusCheckRollup`:
+
+| Condição no `statusCheckRollup` | Estado do PR | Ação |
+|---|---|---|
+| lista vazia, ou algum `CheckRun` com `status` diferente de `COMPLETED` (ou `StatusContext` com `state` `PENDING`/`EXPECTED`) | pendente | aguarde a próxima consulta |
+| todos os itens concluídos com `conclusion` em `SUCCESS`, `NEUTRAL` ou `SKIPPED` (ou `StatusContext` `SUCCESS`) | verde | elegível ao merge (Fase 6.c) |
+| algum item com `conclusion` em `FAILURE`, `CANCELLED`, `TIMED_OUT`, `ACTION_REQUIRED` ou `STARTUP_FAILURE` (ou `StatusContext` `FAILURE`/`ERROR`) | vermelho | trate no `--finalize` do PR (loop de fix do ship §8, máximo 3) ou, havendo falha de infraestrutura, no circuit breaker do ship §8.a |
+
+- **Intervalo entre consultas:** no máximo 45 s por espera (teto de polling de 50 s, RNF-04 da Spec).
+  Entre uma consulta e a seguinte, atualize a tabela de status e processe os PRs que já ficaram verdes —
+  não pare tudo para esperar o último CI.
+- **Uma consulta por ciclo, não por PR.** O custo da espera é o do CI mais lento mais o intervalo de
+  consulta: converge para max(T_ci) + 60 s em vez de somar os CIs.
+- **`mergeable`** vem na mesma resposta, mas é o valor de agora: o Fast Merge Gate o consulta de novo
+  imediatamente antes de cada merge (`fast-merge-gate.md`), porque ele muda a cada merge da onda.
+- Se o `gh` falhar (rede, HTTP 5xx), repita a consulta com backoff de 2 s, 4 s e 8 s (até 3 vezes,
+  edge case de dependência indisponível da Spec) antes de classificar como falha transitória de
+  infraestrutura; nesse caso não consuma tentativas de fix.

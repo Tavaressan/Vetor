@@ -20,6 +20,7 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 /vetor:coordinator
 /vetor:coordinator --resume
 /vetor:coordinator [label] --headless
+/vetor:coordinator [label] --headless --auto-ship
 ```
 
 - `[label]`: label das issues a despachar (sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado)
@@ -28,6 +29,9 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
   worktrees/status files existentes (Fase 0).
 - `--headless`: execução **não-interativa**, para rotinas agendadas e CI. Combinável com qualquer
   um dos anteriores.
+- `--auto-ship`: só tem efeito com `--headless`. Habilita a Fase 6 (entrega) sem humano, sob quatro
+  gates determinísticos (Fase 6.d). Equivale a `"autoShipHeadless": true` em
+  `.claude/vetor/config.json`; sem nenhum dos dois, `--headless` continua sem entregar.
 
 ---
 
@@ -78,11 +82,14 @@ A flag `--headless` substitui os quatro pontos de interação humana por decisõ
 | 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
 | 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
 | 5.c — circuit breaker | Pergunta se pausa | Sempre pausa: para de despachar e reporta |
+| 6 — entrega | Pre-Ship paralelo e merge serializado | Pulada. Com `--auto-ship` ou `autoShipHeadless: true`, roda sob os 4 gates da Fase 6.d |
 
 Além disso, em `--headless`:
 
-- **A Fase 6 (merge) não roda.** Nunca invoque `ship`, `gh pr ready` ou `gh pr merge`.
-  Grupos em `GREEN` são reportados como prontos para ship.
+- **A Fase 6 (entrega) só roda com opt-in.** Sem `--auto-ship` nem `autoShipHeadless: true` em
+  `.claude/vetor/config.json`, nunca invoque `ship`, `gh pr ready` ou `gh pr merge`: grupos em `GREEN`
+  são reportados como prontos para ship. Com o opt-in, a Fase 6 roda sob os quatro gates da 6.d,
+  nunca pergunta e, se um gate falhar, deixa o PR aberto.
 - **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
   `BLOCKED_WAITING` e aparece no relatório final.
 - **Labels de triagem em `--headless`**: ao pular ou manter bloqueada uma issue, aplica igualmente a
@@ -108,7 +115,8 @@ Além disso, em `--headless`:
      ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>), que está GREEN?"). Se
      já estiver mergeado, apenas informe. Prossiga a partir da Fase 5/6.
      Em `--headless`: não pergunte o teto (use `N_rec`) e não ofereça ship — apenas reporte os
-     grupos `GREEN` como prontos.
+     grupos `GREEN` como prontos, salvo com `--auto-ship`/`autoShipHeadless: true`, caso em que
+     os `GREEN` seguem a Fase 6.d.
   3. Se **não houver** worktree ativo com status file: caia no fluxo padrão (Fase 1), descobrindo
      dinamicamente labels ou usando `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado.
 - **Lista de números** ou **label explícito**: siga o fluxo padrão a partir da Fase 1.
@@ -488,6 +496,10 @@ Consulte `../shared/references/issue-coordinator-dispatch.md` para o fluxo detal
 
 Leia `../shared/references/issue-coordinator-monitoring.md` ao montar/atualizar a tabela de status, incluindo fallback e duplicidade.
 
+Ao ver um ou mais grupos em `GREEN` na tabela, **não espere os demais workers**: acione o Pre-Ship
+de todos os verdes de uma vez (Fase 6.a). O CI desses PRs e o dos que ainda vão chegar correm em
+paralelo no GitHub, e o acompanhamento é uma consulta agregada (5.e do `issue-coordinator-monitoring.md`).
+
 **5.b — Escalação de bloqueios**
 
 **A fonte de verdade da escalação é o status file.** Se um worker sinalizar bloqueio apenas por
@@ -520,27 +532,86 @@ pause os subagentes ativos e pergunte:
 **Em `--headless`: não pergunte — sempre pause.** Pare de despachar `QUEUED`, deixe os ativos
 terminarem e vá para o relatório destacando a assinatura de erro comum.
 
-### 6 — Fase de merge (serializada)
+### 6 — Fase de entrega (Pre-Ship paralelo, merge serializado)
 
-⚠️ **Serializada** — um merge por vez. ⚠️ **Em `--headless` esta fase inteira é pulada**: liste os
-grupos `GREEN` no relatório final com branch e path do worktree, e encerre.
+⚠️ **Em `--headless` esta fase só roda com `--auto-ship` ou `autoShipHeadless: true`** (6.d). Sem eles
+é pulada: liste os grupos `GREEN` no relatório final com branch e path do worktree, e encerre.
 
-Quando um agente atingir `GREEN`:
+A entrega tem dois estágios (Spec `docs/specs/pipeline-ship-e-delegacao-eficiente.md`, RF-01 e
+RF-02). O **Pre-Ship** (`/vetor:ship --prepare`: testes locais, push, PR draft, CI e revisões em
+background) roda **em paralelo** para todos os grupos verdes. O **merge** (`/vetor:ship --finalize`)
+é **serializado** — um por vez.
 
-1. Verifique que o worker está de fato verde (leia o status file).
-2. `/vetor:ship` aborta se o `cwd` não for um worktree, e o contexto do coordinator é o root
-   do repo. Entre no worktree antes de invocar:
-   ```bash
-   git worktree list   # localize a linha cuja branch é a do grupo (Fase 3)
-   cd <path-do-worktree-do-grupo>
+**6.a — Pre-Ship paralelo (issue #494).** Quando um agente atingir `GREEN` (confirme lendo o status
+file), dispare o Pre-Ship de **todos os grupos verdes ainda não preparados**, sem esperar os demais
+workers nem o CI de nenhum:
+
+1. Para cada grupo, obtenha o path real do worktree (`git worktree list`, correlacionando pela
+   branch da Fase 3). O `/vetor:ship` aborta se o `cwd` não for um worktree.
+2. Despache **todos na mesma mensagem**, um `Agent()` por worktree, em background. O worktree já
+   existe, então use um subagente padrão sem `subagent_type` (mesma regra do redespacho da Fase 4), com o
+   `model` da regra de dispatch (`../shared/references/issue-coordinator-dispatch.md`):
+   ```javascript
+   Agent({
+     description: "Pre-Ship #<N>: <título>",
+     prompt: "Entre em <path-do-worktree> e execute /vetor:ship --prepare <issue#>. Não faça merge. " +
+       "Ao terminar, o status file <status-file-path> deve estar PR_STAGED. Se os testes locais ou o push " +
+       "falharem, deixe o worktree intacto e reporte o motivo.",
+     model: "<haiku|sonnet>",
+     run_in_background: true
+   })
    ```
-   Só então:
-   ```
-   /vetor:ship <issue#>
-   ```
-3. Após merge bem-sucedido, atualize a tabela. Para grupos de spike/investigação, o `/vetor:ship` segue o caminho de PR só de docs (#427). A decisão decorrente do spike continua humana — issues de follow-up não são criadas automaticamente.
+3. O Pre-Ship não ocupa vaga do teto `N` (o worker já liberou a sua ao atingir `GREEN`); o limite é o
+   número de grupos verdes da onda.
+4. O resultado vem do status file: `PR_STAGED` (com `PR: #<N>`) é sucesso. Se o `--prepare` falhar,
+   marque o grupo na tabela como falha de pre-ship, preserve o worktree e siga com os demais.
 
-Se `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
+**6.b — Aguardar o CI sem somar esperas (issue #494).** Não use `gh pr checks --watch` por PR (cada
+espera bloqueia e o total vira N × T_ci). Acompanhe todos os PRs preparados com **uma** consulta
+agregada, repetida a cada ≤ 45 s enquanto houver PR pendente (`5.e` de
+`../shared/references/issue-coordinator-monitoring.md`). Como os CIs correm ao mesmo tempo no GitHub e
+cada PR segue para o merge assim que fecha verde, a espera total converge para max(T_ci) + 60 s.
+
+**6.c — Merge serializado.** Um PR por vez, assim que o CI fechar verde:
+
+1. Para cada PR `PR_STAGED`, aplique o **Fast Merge Gate** (issue #495): leia
+   `../shared/references/fast-merge-gate.md`. Ele compara os arquivos tocados e os módulos do PR
+   (cache `<branch>-touched-files.json`) com as outras branches da onda — mapa de sobreposições feito
+   antes do primeiro merge, porque o ship apaga o cache de cada PR no cleanup. Nenhum PR sobreposto
+   já integrado e `mergeable == MERGEABLE`: `/vetor:ship --finalize <PR>` direto, sem re-sincronizar
+   nem re-testar. Sobreposição com PR já integrado: merge da default no worktree e só a suíte do
+   módulo coincidente antes do `--finalize`. Com merge queue ativa o `vetor-merge.sh` enfileira
+   (exit 4).
+2. Entre no worktree do grupo (`git worktree list`; `/vetor:ship` aborta fora de um worktree) e
+   invoque `/vetor:ship --finalize <PR>`. Se o grupo não tem PR preparado (Pre-Ship indisponível), use o
+   ciclo completo `/vetor:ship <issue#>`, que já re-sincroniza e re-testa.
+3. Após merge bem-sucedido, atualize a tabela. Um PR **enfileirado** (merge queue/auto-merge, exit 4 do
+   `vetor-merge.sh`) não é merge: registre `Enfileirado`, não rode sync-root nem cleanup e siga para o
+   próximo grupo sem esperar a fila. Para grupos de spike/investigação, o `/vetor:ship` segue o caminho de PR só de docs (#427). A decisão decorrente do spike continua humana — issues de follow-up não são criadas automaticamente.
+
+Se o `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
+
+**6.d — Entrega autônoma em `--headless` (issue #497).** Só com `--auto-ship` ou
+`autoShipHeadless: true` em `.claude/vetor/config.json` (lido a partir do root do repositório). Segue
+6.a–6.c, com duas diferenças: nunca há pergunta ao usuário, e **nenhum PR é mergeado sem passar nos
+quatro gates**. Leia `../shared/references/auto-ship-gates.md` (definição de cada gate, o que é PASS,
+FAIL e PENDING, e as escolhas de segurança). Para cada PR `PR_STAGED`, antes do 6.c:
+
+```bash
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" auto-ship-gates <PR> <path-do-worktree-do-grupo>
+```
+
+Os gates são: CI 100% `SUCCESS`; 0 apontamentos impeditivos (`blocker`) nas revisões consultivas;
+0 colisões em `vetor-checks.sh migrations`; `mergeable == MERGEABLE`. Pelo exit do comando:
+
+- **0 (`VERDICT: PASS`)**: siga o 6.c (Fast Merge Gate e `/vetor:ship --finalize <PR>`).
+- **3 (`PENDING`)**: reavalie no ciclo da consulta agregada de CI (5.e), até 20 minutos depois do
+  `PR_STAGED`; passado esse prazo, trate como falha de gate por timeout.
+- **1 (`FAIL`)** ou timeout: **o PR fica aberto**. Registre no relatório (`Gate failed`, com os gates
+  reprovados e o detalhe de cada um) e siga para o próximo grupo. Não aborte a sessão, não feche o PR,
+  não force o merge e não tente consertar.
+- Se o `--finalize` parar por review humano (ship §9) ou por permissão negada (ship §10), o resultado
+  é o mesmo: PR aberto e registrado, sem `AskUserQuestion`.
 
 ### 7 — Relatório final
 
@@ -591,7 +662,8 @@ O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido 
 - Se interrompido, reconstrói estado com `vetor-status.sh` + `gh pr list` — não depende de memória
 - Ao fim de toda sessão (Fase 7), o root fica na branch principal e sincronizado — nunca preso numa
   branch de worktree de grupo
-- Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship, nunca
+- Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship (exceto sob
+  `--auto-ship`/`autoShipHeadless`, e só com os quatro gates da Fase 6.d em `PASS`), nunca
   auto-aprova permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
   relatório e pare — não improvise
 - O gate de Spec/design (Fase 2) nunca bloqueia o dispatch em `--headless` — vira sinalização

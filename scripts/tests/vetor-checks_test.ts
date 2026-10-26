@@ -730,3 +730,133 @@ Deno.test("delete-merged-branch preserva branch com commit próprio", async () =
     }
   }
 });
+
+// #497: `migrations --against <ref>` soma à árvore atual as migrations da default — um PR preparado
+// antes de outro ser mergeado não enxerga, na própria árvore, a migration que colidiria com a dele.
+async function commitFile(repo: string, path: string, message: string) {
+  await Deno.mkdir(`${repo}/${path.slice(0, path.lastIndexOf("/"))}`, { recursive: true });
+  await Deno.writeTextFile(`${repo}/${path}`, "-- sql\n");
+  await git(["add", path], repo);
+  await git(["commit", "-q", "-m", message], repo);
+}
+
+Deno.test("migrations sem --against só olha a árvore atual (comportamento existente)", async () => {
+  const repo = await makeRepo();
+  try {
+    await commitFile(repo, "svc/db/migration/V14__a.sql", "a na default");
+    await git(["checkout", "-q", "-b", "feat/b", "HEAD~0"], repo);
+    await git(["rm", "-q", "svc/db/migration/V14__a.sql"], repo);
+    await commitFile(repo, "svc/db/migration/V14__b.sql", "b na feature");
+    const result = await runVetorChecks(repo, "migrations");
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("migrations --against <ref> detecta versão duplicada entre a árvore atual e a default — issue #497", async () => {
+  const repo = await makeRepo();
+  try {
+    await commitFile(repo, "svc/db/migration/V13__base.sql", "base");
+    await git(["checkout", "-q", "-b", "feat/b"], repo);
+    await commitFile(repo, "svc/db/migration/V14__b.sql", "b na feature");
+    // a default avança com outra migration V14, depois do Pre-Ship da feature
+    await git(["checkout", "-q", "main"], repo);
+    await commitFile(repo, "svc/db/migration/V14__a.sql", "a na default");
+    await git(["checkout", "-q", "feat/b"], repo);
+
+    const alone = await runVetorChecks(repo, "migrations");
+    assertEquals(alone.code, 0, "sozinha, a árvore da feature não enxerga a colisão");
+
+    const against = await runVetorChecks(repo, "migrations", "--against", "main");
+    assertEquals(against.code, 1);
+    assertStringIncludes(against.stderr, "V14");
+    assertStringIncludes(against.stderr, "V14__a.sql");
+    assertStringIncludes(against.stderr, "V14__b.sql");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("migrations --against <ref> não acusa a mesma migration presente nos dois lados — issue #497", async () => {
+  const repo = await makeRepo();
+  try {
+    await commitFile(repo, "svc/db/migration/V13__base.sql", "base");
+    await git(["checkout", "-q", "-b", "feat/b"], repo);
+    await commitFile(repo, "svc/db/migration/V14__b.sql", "b na feature");
+    const result = await runVetorChecks(repo, "migrations", "--against", "main");
+    assertEquals(result.code, 0, result.stderr);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("migrations --against com ref inexistente sai com erro de uso — issue #497", async () => {
+  const repo = await makeRepo();
+  try {
+    await commitFile(repo, "svc/db/migration/V13__base.sql", "base");
+    const result = await runVetorChecks(repo, "migrations", "--against", "origin/nao-existe");
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, "ref inexistente");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("auto-ship-gates sem argumentos sai com erro de uso — issue #497", async () => {
+  const repo = await makeRepo();
+  try {
+    const result = await runVetorChecks(repo, "auto-ship-gates", "42");
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, "uso: vetor-checks.sh auto-ship-gates");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+// #495: check-disjoint resolve o repo-root e lê o cache de arquivos tocados de cada branch.
+async function writeTouchedCache(repo: string, branch: string, modules: Record<string, string[]>) {
+  const dir = `${repo}/.claude/vetor/status`;
+  await Deno.mkdir(dir, { recursive: true });
+  await Deno.writeTextFile(
+    `${dir}/${branch.replaceAll("/", "-")}-touched-files.json`,
+    JSON.stringify({ branch, files: Object.values(modules).flat(), modules }),
+  );
+}
+
+Deno.test("check-disjoint imprime DISJOINT (exit 0) para branches sem interseção — issue #495", async () => {
+  const repo = await makeRepo();
+  try {
+    await writeTouchedCache(repo, "feat/a", { cli: ["cli/a.js"] });
+    await writeTouchedCache(repo, "feat/b", { scripts: ["scripts/b.ts"] });
+    const result = await runVetorChecks(repo, "check-disjoint", "feat/b", "feat/a");
+    assertEquals(result.code, 0, result.stderr);
+    assertStringIncludes(result.stderr, "DISJOINT");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("check-disjoint imprime OVERLAP (exit 1) para branches que sobrepõem — issue #495", async () => {
+  const repo = await makeRepo();
+  try {
+    await writeTouchedCache(repo, "feat/a", { scripts: ["scripts/common.ts"] });
+    await writeTouchedCache(repo, "feat/b", { scripts: ["scripts/common.ts"] });
+    const result = await runVetorChecks(repo, "check-disjoint", "feat/b", "feat/a");
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, "OVERLAP: feat/a");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("check-disjoint sem argumentos suficientes sai com erro de uso — issue #495", async () => {
+  const repo = await makeRepo();
+  try {
+    const result = await runVetorChecks(repo, "check-disjoint", "feat/b");
+    assertEquals(result.code, 1);
+    assertStringIncludes(result.stderr, "uso: vetor-checks.sh check-disjoint");
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});

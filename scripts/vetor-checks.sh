@@ -13,6 +13,16 @@
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
 #   validate-ship-args [args]  valida e parseia flags do /vetor:ship (--prepare, --finalize, legado)
+#   check-disjoint <candidata> <outra>...  compara a branch candidata com cada uma das outras da onda
+#                               (cache de arquivos tocados, ou git diff se ausente): DISJOINT exit 0 |
+#                               uma linha OVERLAP por branch que sobrepõe, exit 1 | exit 2 = dados
+#                               indisponíveis (#495)
+#   auto-ship-gates <PR> <worktree-path>  avalia os 4 gates da entrega autônoma em --headless (CI SUCCESS,
+#                               revisões sem blocker, migrations sem colisão, MERGEABLE), uma linha
+#                               GATE por gate + VERDICT: exit 0 = PASS | 1 = FAIL (PR fica aberto) |
+#                               3 = PENDING (reavaliar) | 2 = uso incorreto (#497)
+#   migrations [--against <ref>]  colisão de versão de migration na árvore atual; com --against soma
+#                               as migrations de <ref> (ex.: origin/<default>) (#497)
 #   carry-changes <worktree-path> <branch>  transporta as mudanças rastreadas do root para o
 #                               worktree recém-criado e limpa o root (#428). exit 3 = falhou antes
 #                               do backup (root intacto, worktree devolvido a HEAD, pode remover);
@@ -68,13 +78,26 @@ case "$cmd" in
 
   migrations)
     # Colisão semântica invisível ao git: dois arquivos com a mesma versão (V13__a.sql, V13__b.sql).
-    dups=$(git ls-files '*/db/migration/V*__*.sql' \
+    # `--against <ref>` (issue #497) soma à árvore atual as migrations de <ref> (ex.: origin/<default>):
+    # um PR preparado antes de outro ser mergeado não enxerga, na própria árvore, a migration que
+    # colidiria com a dele. Limitação: uma migration que o PR removeu e a <ref> ainda tem conta como presente.
+    migration_files=$(git ls-files '*/db/migration/V*__*.sql')
+    if [ "${2:-}" = "--against" ]; then
+      against="${3:?uso: vetor-checks.sh migrations [--against <ref>]}"
+      if ! git rev-parse --verify -q "${against}^{tree}" >/dev/null; then
+        echo "FALHA: ref inexistente para --against: $against" >&2
+        exit 2
+      fi
+      ref_files=$(git ls-tree -r --name-only "$against" | grep -E '/db/migration/V[0-9]+__.*\.sql$' || true)
+      migration_files=$(printf '%s\n%s\n' "$migration_files" "$ref_files" | sed '/^$/d' | sort -u)
+    fi
+    dups=$(printf '%s\n' "$migration_files" | sed '/^$/d' \
       | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort | uniq -d)
     if [ -n "$dups" ]; then
       echo "FALHA: colisão de versão de migration — versões duplicadas:" >&2
       for v in $dups; do
         echo "  V$v:" >&2
-        git ls-files "*/db/migration/V${v}__*.sql" | sed 's/^/    /' >&2
+        printf '%s\n' "$migration_files" | grep -E "/V${v}__" | sed 's/^/    /' >&2
       done
       echo "Renumere a migration deste worker para a próxima versão livre antes de prosseguir." >&2
       exit 1
@@ -105,6 +128,30 @@ case "$cmd" in
       echo "$hits" >&2
       exit 1
     fi
+    ;;
+
+  check-disjoint)
+    shift
+    if [ "$#" -lt 2 ]; then
+      echo "uso: vetor-checks.sh check-disjoint <candidata> <outra> [<outra>...]" >&2
+      exit 2
+    fi
+    root=$("$0" repo-root 2>/dev/null || echo ".")
+    default_branch=$("$0" default-branch 2>/dev/null || echo "")
+    script_dir=$(cd "$(dirname "$0")" && pwd -P)
+    deno run -A "$script_dir/disjoint-check.ts" "$root" ${default_branch:+"--default-branch=$default_branch"} "$@"
+    # O exit da CLI (0 disjunto, 1 sobreposição, 2 dados indisponíveis) é o resultado do check.
+    exit $?
+    ;;
+
+  auto-ship-gates)
+    pr="${2:?uso: vetor-checks.sh auto-ship-gates <PR> <worktree-path>}"
+    worktree="${3:?uso: vetor-checks.sh auto-ship-gates <PR> <worktree-path>}"
+    default_branch=$("$0" default-branch 2>/dev/null || echo "")
+    script_dir=$(cd "$(dirname "$0")" && pwd -P)
+    deno run -A "$script_dir/auto-ship-gates.ts" "$pr" "--worktree=$worktree" ${default_branch:+"--default-branch=$default_branch"}
+    # O exit da CLI (0 PASS, 1 FAIL, 3 PENDING, 2 uso) é o resultado dos gates.
+    exit $?
     ;;
 
   validate-ship-args)
@@ -583,7 +630,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|carry-changes <worktree-path> <branch>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]>" >&2
+    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|carry-changes <worktree-path> <branch>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]|check-disjoint <candidata> <outra>...|auto-ship-gates <PR> <worktree-path>>" >&2
     exit 2
     ;;
 esac
