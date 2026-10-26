@@ -41,7 +41,9 @@ registre `BLOCKED_WAITING`** no status file — não prossiga adivinhando o dire
    bloco JSON `ContextPacket` (`$schema` terminado em `context-packet.v1.json`), use
    `context.targetFiles`, `context.testCommand` e `issue.acceptanceCriteria` direto, sem busca
    global para redescobrir módulo, comando de teste ou arquivos; `targetFiles` é ponto de partida,
-   não restrição.
+   não restrição. Se houver uma tag `<repo_map>`, são as assinaturas do módulo (sem corpos): use-a
+   para achar símbolos e imports, mas leia o arquivo antes de editá-lo, porque o mapa pode estar
+   defasado.
 2. TDD: escreva um teste de reprodução simples que falhe (vermelho) antes de alterar código de
    produto. KISS/YAGNI: implemente só o necessário para o teste passar — sem refatoração fora do
    escopo da issue.

@@ -34,6 +34,12 @@ teste exigir outro arquivo, busque só o necessário. `worktree.path` pode falta
 dispatch (o worktree é criado pelo harness): nesse caso o seu cwd já é o worktree. Sem o bloco,
 siga o fluxo normal.
 
+Se o prompt trouxer também a tag `<repo_map>`, ela guarda as assinaturas exportadas (interfaces,
+tipos, classes e funções, sem corpos) do módulo e dos vizinhos imediatos dos `targetFiles`, em
+Markdown. Consulte-a antes de `Grep`/`Glob` para saber onde um símbolo mora e que imports usar. É
+uma dica gerada no dispatch e pode estar defasada, e só tem assinaturas: antes de editar um arquivo,
+confira com `Read` o trecho real, e não deduza lógica interna a partir do mapa.
+
 🚫 **NUNCA chame `EnterPlanMode`.** Você é um agente headless despachado em background — não há
 interlocutor disponível para aprovar a saída do plan mode via `ExitPlanMode`, e a escrita do plan
 file fora do worktree é bloqueada pelo `safety-check.ts`. Se você entrar em plan mode, trava sem
