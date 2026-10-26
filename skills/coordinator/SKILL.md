@@ -214,6 +214,7 @@ Mapeie o motivo aos labels existentes no repo alvo, usando o **primeiro da linha
 | ------ | --------------- | ---------- | ---------- | ----------------- |
 | `SKIPPED (aguardando Spec)` | `needs-spec` | `spec-needed` | `triage/needs-information` | Não aplica |
 | `SKIPPED (aguardando insumo do usuário)` / bloqueada | `blocked` | `status/blocked` | — | Não aplica |
+| `EJECTED` (esgotou as tentativas ou bloqueio sem resposta, Fase 5.f) | `needs-human` | — | — | Não aplica |
 
 **Regras e convenções:**
 1. **Regra de ouro — nunca crie labels:** o coordinator **nunca** executa `gh label create`. Se nenhuma das labels candidatas da linha existir no repositório-alvo, não aplica label alguma no GitHub — o motivo fica registrado exclusivamente no plano e no Coordinator Report da sessão.
@@ -221,12 +222,16 @@ Mapeie o motivo aos labels existentes no repo alvo, usando o **primeiro da linha
    ```bash
    gh issue edit <N> --add-label "<label-encontrada>"
    ```
-3. **Remoção da label de triagem ao despachar:** ao despachar posteriormente uma issue (Fase 4) que possua qualquer uma das labels de triagem mapeadas (`needs-spec`, `spec-needed`, `triage/needs-information`, `blocked`, `status/blocked`), o coordinator obrigatoriamente a remove antes ou no momento do dispatch:
+3. **Remoção da label de triagem ao despachar:** ao despachar posteriormente uma issue (Fase 4) que possua qualquer uma das labels de triagem mapeadas (`needs-spec`, `spec-needed`, `triage/needs-information`, `blocked`, `status/blocked`, `needs-human`), o coordinator obrigatoriamente a remove antes ou no momento do dispatch:
    ```bash
    gh issue edit <N> --remove-label "<label-de-triagem>"
    ```
 4. **Comportamento em `--headless`:** aplica igualmente a label de triagem se ela existir no repositório; nunca cria labels (`gh label create`). Sem equivalente no repo, não aplica e documenta a omissão no relatório final.
 5. **Não-escopo:** nunca aplique labels indicando execução em andamento (ex.: `in-progress` ou qualquer estado de execução). O estado de execução vive exclusivamente no worktree e no status file (`.claude/vetor/status/`), e o padrão do GitHub para status de fluxo é o campo Status do Projects.
+6. **Ejeção (`needs-human`, issue #501):** vale a mesma regra de ouro. A label só é aplicada se já
+   existir (`gh label list`); sem ela, o motivo fica no comentário diagnóstico da issue e no relatório,
+   e a ejeção segue normalmente. Falha ao aplicá-la (ex.: token sem permissão) também não interrompe a
+   ejeção: o motivo vai ao relatório.
 
 #### Detecção de issues spike (modo investigação)
 
@@ -354,16 +359,23 @@ Issue(s) #<N>[, #<M>...] parece(m) não-trivial(is) (<razão: múltiplos módulo
 trabalho/Critério de Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem(têm) Spec
 associada. Como prosseguir?
 
-1. Despachar mesmo assim — escopo confirmado nesta conversa (Recommended)
-2. Gerar Spec antes (/vetor:spec) — a(s) issue(s) sai(em) desta leva de dispatch
+1. Despachar com micro-spec JIT — um modelo leve escreve o escopo de 1 página no dispatch (Recommended)
+2. Despachar mesmo assim — escopo confirmado nesta conversa
+3. Gerar Spec antes (/vetor:spec) — a(s) issue(s) sai(em) desta leva de dispatch
 ```
 
-- **Opção 1**: a issue segue no plano normalmente; marque na coluna "Ação" da tabela (abaixo)
+- **Opção 1 (micro-spec JIT, issue #501)**: a issue segue no plano normalmente; marque na coluna
+  "Ação" da tabela (abaixo) `Despachar (⚠️ sem Spec — micro-spec JIT)`. A micro-spec é sintetizada no
+  dispatch da Fase 4, sem interromper o dispatch nem atrasar a aprovação do plano e sem perguntar ao
+  usuário se quer tirar a issue da leva para escrever uma Spec completa: contrato, formato e
+  fallback em `../shared/references/issue-coordinator-dispatch.md` ("Micro-spec JIT"). Se o modelo
+  falhar, a issue é despachada sem micro-spec e continua marcada `⚠️ sem Spec`.
+- **Opção 2**: a issue segue no plano normalmente, sem micro-spec; marque na coluna "Ação"
   `Despachar (⚠️ sem Spec — confirmado pelo usuário)`. Se o usuário informou pontos de escopo
   (problema, resultado esperado, não-escopo) no campo livre da mesma resposta, inclua-os no prompt
   do worker da Fase 4, como contexto adicional (não substitui uma Spec — é só o mínimo de escopo
   confirmado para o worker não inventar critério de aceite sozinho).
-- **Opção 2**: remova a issue desta leva de dispatch — ela não aparece como `Despachar`, e sim com
+- **Opção 3**: remova a issue desta leva de dispatch — ela não aparece como `Despachar`, e sim com
   Ação `SKIPPED (aguardando Spec)` e coluna "Onda" `—` (nunca foi despachada, não pertence a onda
   nenhuma). Se a issue sinalizada é a **Lead** do grupo, o grupo inteiro sai da leva (as Sequential
   Issues do grupo ficam sem Lead para dar nome ao worktree/branch — voltam junto na próxima sessão);
@@ -379,9 +391,10 @@ associada. Como prosseguir?
 
 **Em `--headless`: nunca pergunte, nunca bloqueie.** Um gate síncrono aqui recriaria o mesmo deadlock
 por falta de interlocutor do worker preso em plan mode (issue #121 — ver `wiki/Decisoes-de-Design.md`).
-Marque a issue na coluna "Ação" como `Despachar (⚠️ sem Spec associada — sinalização não-bloqueante)` e
-prossiga o dispatch normalmente; a ausência de Spec fica registrada no relatório final (Fase 7), nunca
-impede o dispatch.
+Marque a issue na coluna "Ação" como
+`Despachar (⚠️ sem Spec associada — sinalização não-bloqueante; micro-spec JIT)` e prossiga o dispatch
+normalmente: a micro-spec JIT (opção 1 acima) é gerada no dispatch, sem perguntar; a ausência de Spec
+fica registrada no relatório final (Fase 7), nunca impede o dispatch.
 
 Monte o plano (conteúdo mínimo em `planning-conventions.md` §2.1), já refletindo o resultado do gate
 acima na coluna "Ação":
@@ -396,7 +409,7 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 | Onda | Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo / Backend | Ação |
 |------|-------------------------|------------------------|------------------|------|
 | O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet|alethe> | Despachar |
-| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet|alethe> | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
+| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet|alethe> | Despachar (⚠️ sem Spec — micro-spec JIT) |
 | O_1  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet|alethe> | Despachar (Spike — modo investigação) |
 | —    | <slug-4>                | #<N5> (Lead)           | —                | SKIPPED (aguardando Spec) |
 | —    | <slug-5>                | #<N6> (Lead)           | —                | SKIPPED (aguardando insumo do usuário) |
@@ -455,7 +468,7 @@ confirmação.
 | # | Item | Opções | Padrão |
 |---|------|--------|--------|
 | 1 | Teto de workers | `<N_rec> (Recommended)` · `1 — serializado` · `<maxConcurrentWorkers>` | `N_rec`; o item some quando `N_rec = 1` |
-| 2 | Sinalização de Specs | `Despachar mesmo assim — ⚠️ sem Spec (Recommended)` · `Gerar Spec antes (/vetor:spec) — sai da leva` | Despachar; o item some quando nenhuma issue foi sinalizada |
+| 2 | Sinalização de Specs | `Despachar com micro-spec JIT (Recommended)` · `Despachar mesmo assim — ⚠️ sem Spec` · `Gerar Spec antes (/vetor:spec) — sai da leva` | Micro-spec JIT; o item some quando nenhuma issue foi sinalizada |
 | 3 | Estratégia de entrega | `Pre-Ship paralelo + merge serializado (Recommended)` · `Parar em GREEN — sem entrega nesta sessão` | Fase 6 como descrita abaixo |
 | 4 | Aprovação do plano | `Aprovar o plano com as decisões acima (Recommended)` · `Ajustar` | Aprovar |
 
@@ -485,7 +498,7 @@ Regras do pacote:
 - **Caminho feliz = 1 turno.** Se o usuário mudar algo que altere o plano (ex.: tirar uma issue da
   leva), reapresente o plano ajustado; essa rodada extra é consequência da mudança, não do setup.
 - **Em `--headless`: não há entrevista.** Adota-se o `(Recommended)` de cada item sem perguntar:
-  item 1 = `N_rec`; item 2 = despachar com `⚠️ sem Spec associada`; item 3 = a regra do headless (só
+  item 1 = `N_rec`; item 2 = despachar com micro-spec JIT e `⚠️ sem Spec associada`; item 3 = a regra do headless (só
   há entrega com `--auto-ship`/`autoShipHeadless`, Fase 6.d); item 4 = sem aprovação, o plano vai ao
   relatório.
 
@@ -515,8 +528,13 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
   Leia `../shared/references/issue-coordinator-dispatch.md` para timeout, transição de ondas e sincronização do root.
 - **Remoção de labels de triagem antes do dispatch:** ao despachar uma issue (Lead ou Sequential),
   verifique se ela possui alguma label de triagem (`needs-spec`, `spec-needed`,
-  `triage/needs-information`, `blocked`, `status/blocked`). Se possuir, remova-a com
+  `triage/needs-information`, `blocked`, `status/blocked`, `needs-human`). Se possuir, remova-a com
   `gh issue edit <N> --remove-label "<label-de-triagem>"`.
+- **Micro-spec JIT (issue #501):** para cada issue sinalizada no gate de Spec/design com a opção de
+  micro-spec (a `(Recommended)`, e sempre em `--headless`), gere a micro-spec antes de montar o prompt
+  do worker, sem perguntar e sem interromper o dispatch: contrato, formato, prazo de 10 s e fallback
+  em `../shared/references/issue-coordinator-dispatch.md` ("Micro-spec JIT"). O resultado entra no
+  `ContextPacket` do worker.
 - **Despacho de issues spike (modo investigação):** se a issue for um `spike` (conforme detecção da Fase 1):
   - Provisione o worktree com tipo `docs` (`docs/<issue#>-<slug>`, suportado desde #429).
   - Despache o worker com prompt específico de modo investigação: dispensa TDD e testes de produto; exige relatório em `docs/investigations/<slug>.md` estruturado com Pergunta, Evidências (comandos/fontes reproduzíveis), Opções avaliadas e Recomendação; define critério de `GREEN` (relatório existe e `git diff --check` passa); e orienta que a entrega seguirá PR só de docs (#427), sem criação automática de issues de follow-up.
@@ -641,6 +659,60 @@ pause os subagentes ativos e pergunte:
 
 **Em `--headless`: não pergunte — sempre pause.** Pare de despachar `QUEUED`, deixe os ativos
 terminarem e vá para o relatório destacando a assinatura de erro comum.
+
+**5.f — Ejeção graciosa de impasses (issue #501)**
+
+Uma issue que não vai convergir sozinha não pode segurar a leva inteira. O coordinator a **ejeta**:
+documenta o impasse na própria issue, etiqueta se for possível, limpa o worktree e segue para a
+próxima issue (RF-05 da Spec `docs/specs/autonomia-continua-e-desacoplamento-interativo.md`).
+
+**Gatilhos:**
+- **`FAILED_MAX_ITERATIONS` definitivo:** depois do único redespacho com `sonnet`
+  (`issue-coordinator-dispatch.md`), ou direto se o grupo já era `sonnet`. Com o circuit breaker
+  acionado (5.c) não ejete os grupos que falharam com a assinatura comum: o impasse é de
+  infraestrutura, não da issue, e eles ficam em `FAILED_MAX_ITERATIONS` no relatório.
+- **Timeout de bloqueio:** uma pendência `SUSPENDED` (5.b) que não pode mais ser respondida nesta
+  sessão. Em `--goal` isso vale quando não resta nada a despachar ou monitorar além de suspensos, ou
+  ao atingir `maxSessionMinutes`. Fora do `--goal` a pendência continua `SUSPENDED` na inbox, para um
+  humano responder depois (`--resume`): não é ejetada.
+
+**Passos.** Cada falha vai ao relatório e nunca interrompe a ejeção nem a sessão:
+1. **Preserve o trabalho.** Dentro do worktree: `git add -u`, mais `git add FAIL_ANALYSIS.md` se
+   o arquivo existir (o `fix` o deixa fora do controle de versão e o `safe-remove-worktree` recusaria o
+   worktree sujo), e um commit `chore: preserva diagnóstico da ejeção (#<N>)`. O diagnóstico passa a
+   viajar com a branch. Qualquer outro arquivo não rastreado deixa o worktree sujo de propósito: a
+   limpeza do passo 5 o preserva e o relatório avisa.
+2. **Comente o diagnóstico.** O script monta o texto (resumo das tentativas, comando de teste, trecho
+   do log final e próximo passo), tira paths absolutos locais e neutraliza menções `@usuario`; a
+   publicação passa por stdin, sem escapes de shell:
+   ```bash
+   deno run -A "$SKILL_DIR/../../scripts/eject-comment.ts" --issue <N> --branch <branch> \
+     --base "$DEFAULT_BRANCH" --kind <failed-max-iterations|blocked-timeout> \
+     --fail-analysis <path-do-worktree>/FAIL_ANALYSIS.md --worktree <path-do-worktree> \
+     | gh issue comment <N> --body-file -
+   ```
+   No `blocked-timeout` troque `--fail-analysis` por `--status-file <status-file-path>`.
+3. **Etiquete**, só se a label já existir no repositório (tabela da Fase 1; o coordinator nunca
+   executa `gh label create`):
+   ```bash
+   gh issue edit <N> --add-label "needs-human"
+   ```
+   Sem a label, o motivo fica no comentário e relatório; falha ao aplicá-la também vai ao relatório.
+4. **Tire a pendência da inbox**, se a ejeção veio de um `SUSPENDED`:
+   `deno run -A "$SKILL_DIR/../../scripts/decision-inbox.ts" drop --id dec-issue-<N>`.
+5. **Limpe o worktree** a partir do root (com o orquestrador Alethe, `alethe_release` antes):
+   `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree <path-do-worktree>`. Se
+   recusar (arquivo não rastreado, worktree filho), o worktree fica preservado e o relatório diz por quê.
+6. **Registre.** `Status: EJECTED` no status file (com `Last action` apontando o comentário e a
+   label), a linha `EJECTED` no relatório e, em `--goal`, a entrada no registro de decisões
+   autônomas. Libere a vaga e despache o próximo `QUEUED` (Fase 4). `EJECTED` conta como resolvido
+   para a transição de onda; os dependentes diretos do grupo viram
+   `SKIPPED (bloqueada por #N)` (`issue-coordinator-dispatch.md`).
+
+**A branch nunca é apagada**, nem a local nem a remota: é onde o trabalho fica para a análise
+humana. Workers não fazem push, então ela costuma existir só localmente; o comentário informa isso e
+traz o comando para publicá-la. O coordinator não faz push automático (é um efeito externo), e a limpeza
+do worktree não depende de a branch estar no remoto.
 
 ### 6 — Fase de entrega (Pre-Ship paralelo, merge serializado)
 

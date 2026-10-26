@@ -8,6 +8,10 @@
 //   deno run -A scripts/decision-inbox.ts list [--root <repo-root>]
 //   deno run -A scripts/decision-inbox.ts resolve --id <dec-issue-N> \
 //     (--option <n> | --decision-file <path> | --optimistic) [--root <repo-root>]
+//   deno run -A scripts/decision-inbox.ts drop --id <dec-issue-N> [--root <repo-root>]
+//
+// `drop` tira a pendência da inbox sem retomar o worker: é a ejeção graciosa (issue #501), e quem
+// grava `Status: EJECTED` é o coordinator.
 //
 // Todo comando imprime JSON no stdout. `--root` é o root do repositório principal; omitido, vem do
 // cwd (inclusive de dentro de um worktree). Sem `--timeout` a pendência nunca expira: é o caso de
@@ -21,6 +25,7 @@
 
 import {
   createCheckpointTag,
+  dropDecision,
   type InboxDecision,
   loadInbox,
   resolveDecision,
@@ -123,13 +128,18 @@ async function resolve(args: string[]): Promise<void> {
   print({ ...resolved, decision, checkpointTag: checkpointTag ?? null });
 }
 
+async function drop(args: string[]): Promise<void> {
+  print(dropDecision(await repoRoot(args), requireFlag(args, "--id")));
+}
+
 if (import.meta.main) {
   const [command, ...args] = Deno.args;
   try {
     if (command === "suspend") await suspend(args);
     else if (command === "list") await list(args);
     else if (command === "resolve") await resolve(args);
-    else fail("uso: decision-inbox.ts <suspend|list|resolve> [flags]");
+    else if (command === "drop") await drop(args);
+    else fail("uso: decision-inbox.ts <suspend|list|resolve|drop> [flags]");
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error));
   }

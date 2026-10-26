@@ -119,6 +119,9 @@ for f in "$STATUS_DIR"/*.md; do
     # Issue #347: status recém-criado pelo coordinator antes do harness criar o worktree
     if [ "$status" = "RUNNING" ] && { [ -z "$iter_n" ] || [ "$iter_n" -le 1 ]; }; then
       wt="aguardando worktree"
+    elif [ "$status" = "EJECTED" ]; then
+      # Issue #501: a ejeção graciosa limpa o worktree de propósito; a branch é preservada.
+      wt="ejetado (worktree removido; branch preservada)"
     else
       wt="cancelled (worktree removed)"
     fi

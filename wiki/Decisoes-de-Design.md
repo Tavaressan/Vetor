@@ -100,6 +100,21 @@ exige o checkpoint (tag local `_vetor_checkpoint_*`) antes de aplicar a opção 
 avaliado a cada ciclo de monitoramento, porque `AskUserQuestion` não tem timeout; o prazo real é, por
 isso, de 60 s até o ciclo seguinte. Texto do usuário nunca vai na linha de comando do `resolve`.
 
+**Ejeção graciosa e micro-spec JIT (issue #501).** Uma issue que esgota as tentativas, ou cuja dúvida
+ninguém responde numa execução autônoma, não deve segurar as outras da leva. O coordinator a ejeta:
+preserva o trabalho na branch (o diagnóstico viaja nela), publica um comentário diagnóstico, aplica
+`needs-human` só se a label já existir — a regra de nunca criar labels vale aqui também —, limpa o
+worktree e segue. O comentário sai por stdin (`gh issue comment --body-file -`), sem paths absolutos
+locais e sem `@usuario` solto, porque o log de uma suíte cita `jsr:@std/...` o tempo todo. O push da
+branch ficou de fora: workers não publicam e publicar é efeito externo, então a branch costuma
+existir só localmente e o comentário diz isso. Um grupo ejetado conta como resolvido para a
+transição de onda, mas seus dependentes diretos são pulados, porque o trabalho de que dependem nunca
+será mergeado. Já o gate de Spec deixou de perguntar se a issue deve sair da leva: um modelo leve
+escreve uma micro-spec de uma página no dispatch, validada por formato (1 objetivo, 3 critérios, 2
+non-goals) antes de entrar no `ContextPacket`. O coordinator a escreve fora do root (`cache/`) e é o
+worker quem cria `docs/specs/micro/<issue#>-<slug>.md` no próprio worktree, para não sujar o checkout
+principal. O prazo de 10 s é meta de desenho, sem medição.
+
 **Por que o circuit breaker headless sempre pausa.** Falha recorrente com a mesma assinatura quase
 sempre é infraestrutura (rede, registry, disco), não código: insistir sem humano só multiplica o
 custo pelo número de grupos restantes.

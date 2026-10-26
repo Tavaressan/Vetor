@@ -360,3 +360,22 @@ Deno.test("vetor-status.sh não imprime o aviso da Decision Inbox sem workers SU
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("vetor-status.sh mostra EJECTED como worktree removido de propósito, não como cancelado — issue #501", async () => {
+  const root = await makeWorkerRepo({ "fix-run": "RUNNING" });
+  try {
+    // a ejeção limpa o worktree: o status file sobra sem worktree correspondente
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-ejected.md`,
+      "Status: EJECTED\nIteration: 5/5 (Issue #9)\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "| fix-ejected | EJECTED |");
+    assertStringIncludes(stdout, "ejetado (worktree removido; branch preservada)");
+    assertEquals(stdout.includes("cancelled (worktree removed)"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

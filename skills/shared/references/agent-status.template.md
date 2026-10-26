@@ -16,7 +16,7 @@ uma cópia em `<worktree>/.claude/vetor-status.md`. O coordinator verifica esse 
 ```markdown
 # Agent Status — <branch>
 Updated: <ISO 8601>
-Status: RUNNING | BLOCKED_WAITING | SUSPENDED | GREEN | PR_STAGED | FAILED_MAX_ITERATIONS
+Status: RUNNING | BLOCKED_WAITING | SUSPENDED | GREEN | PR_STAGED | FAILED_MAX_ITERATIONS | EJECTED
 Iteration: <N>/5 (Issue #<M>)
 Last action: <última ação executada>
 Next: <próximo passo planejado>
@@ -59,6 +59,12 @@ Timeout: <segundos até o avanço otimista; ausente = espera o humano>
 Ao receber a decisão, `scripts/decision-inbox.ts resolve` devolve o status a `RUNNING` (com a linha
 `Decisão humana:` ou, no avanço otimista, `Decisão otimista:` e a tag `[OPTIMISTIC_DECISION]` em
 `Last action`) e o grupo é redespachado no mesmo worktree. Não conta iteração do fix-loop.
+
+**`EJECTED`** (issue #501) — gravado **apenas pelo coordinator**, nunca pelo worker, ao concluir a
+ejeção graciosa de uma issue (Fase 5.f do coordinator): o impasse foi documentado na issue
+(comentário diagnóstico e, se existir, a label `needs-human`), o trabalho ficou na branch e o worktree
+foi limpo. O `Last action` aponta o motivo e o resultado de cada passo; o status file permanece para
+rastreabilidade. O guardian o trata como qualquer status file sem worktree (órfão arquivável).
 
 **`PR_STAGED`** (gravado pelo `/vetor:ship --prepare` ou `ship-worker` após testes locais, push, PR draft e disparo de CI/revisões):
 

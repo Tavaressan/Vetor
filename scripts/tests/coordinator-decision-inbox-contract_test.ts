@@ -77,7 +77,7 @@ Deno.test("issue #500: o headless suspende, libera a vaga e reporta, sem escalar
 });
 
 Deno.test("issue #500: SUSPENDED entra nas regras de onda, duplicidade e dispatch", () => {
-  assertMatch(dispatch, /`FAILED_MAX_ITERATIONS`, `BLOCKED_WAITING` ou `SUSPENDED`/);
+  assertMatch(dispatch, /`FAILED_MAX_ITERATIONS`, `BLOCKED_WAITING`\s+ou `SUSPENDED`/);
   assertMatch(dispatch, /`RUNNING`,\s+`BLOCKED_WAITING`, `SUSPENDED` ou `GREEN`/);
   assertMatch(
     slice(coordinatorSkill, "### 4 — ", "### 5 — "),

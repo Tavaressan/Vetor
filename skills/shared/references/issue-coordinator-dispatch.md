@@ -33,11 +33,16 @@ pela branch) ou pelo retorno do `Agent()`.
   autorizados realizem ship normalmente.
 - **Transição de onda.** Só inicie o dispatch de `O_{i+1}` depois que:
   1. Todos os grupos de `O_i` **que foram efetivamente despachados** tiverem chegado a `GREEN` e
-     passado pela Fase 6 (merge) — um grupo de `O_i` em `FAILED_MAX_ITERATIONS`, `BLOCKED_WAITING` ou `SUSPENDED`
-     (aguardando decisão na Decision Inbox, Fase 5.b) sem resolução bloqueia a transição; trate como pendência a reportar, não avance a onda para não
-     repetir o branch skew que motivou esta seção. Um grupo `SKIPPED (aguardando Spec)` (gate de
-     Spec/design, Fase 2) **nunca** conta como pendência aqui — nunca foi despachado, então não há
-     branch/merge dele para a próxima onda esperar.
+     passado pela Fase 6 (merge) — um grupo de `O_i` em `FAILED_MAX_ITERATIONS`, `BLOCKED_WAITING`
+     ou `SUSPENDED` (aguardando decisão na Decision Inbox, Fase 5.b) sem resolução bloqueia a
+     transição; trate como pendência a reportar, não avance a onda para não repetir o branch skew que
+     motivou esta seção. Um grupo `SKIPPED (aguardando Spec)` (gate de Spec/design, Fase 2) **nunca**
+     conta como pendência aqui — nunca foi despachado, então não há branch/merge dele para a próxima
+     onda esperar. Um grupo `EJECTED` (ejeção graciosa, Fase 5.f) tampouco é pendência:
+     `EJECTED` conta como resolvido, senão um impasse de `O_i` travaria as ondas seguintes até o timeout.
+     A exceção são os **dependentes diretos** do grupo ejetado (arestas do DAG da Fase 1): o trabalho
+     de que dependem nunca será mergeado, então eles ficam `SKIPPED (bloqueada por #N)` e não são
+     despachados; os grupos independentes da onda seguinte seguem normalmente.
   2. O branch default (`$DEFAULT_BRANCH`) estiver sincronizado com esses merges. `git fetch && git
      log origin/<default> -1` confirma que o *remoto* já tem os merges — mas não garante que o HEAD
      *local* do root os tenha: `isolation: "worktree"` cria o novo worktree a partir do HEAD local
@@ -87,7 +92,8 @@ Agent({
 
 **Escolha do `model`:** `haiku` se todas as issues do grupo forem `chore` ou `fix` simples; `sonnet`
 se houver `feat`, `refactor` ou mais de 2 issues complementares. Se esgotar iterações, redespache
-uma vez com `sonnet`.
+uma vez com `sonnet`; esgotadas de novo (ou se o grupo já era `sonnet`), ejete a issue (Fase 5.f do
+`SKILL.md`).
 
 ⚠️ **`isolation: "worktree"` é só para dispatch inicial (worktree ainda não existe).** Se o worktree
 já existe — retomada de sessão, redespacho após `BLOCKED_WAITING`, retomada de um grupo `SUSPENDED`
@@ -217,6 +223,58 @@ conte as tool calls do worker antes do primeiro teste escrito (primeiro `Write`/
 de teste), uma vez sem o pacote (baseline) e outra com ele; a meta da Spec é reduzir essa
 contagem em pelo menos 50%. Nenhum baseline foi coletado ainda, então a meta permanece não
 verificada.
+
+### Micro-spec JIT — issue não-trivial sem Spec (issue #501)
+
+Para cada issue sinalizada pelo gate de Spec/design (Fase 2) com a opção de micro-spec — a
+`(Recommended)` do item 2 da entrevista consolidada, e sempre em `--headless` e `--goal` —, o
+coordinator gera a micro-spec **no dispatch**, sem perguntar ao usuário e sem atrasar a aprovação do
+plano (RF-07 da Spec `docs/specs/autonomia-continua-e-desacoplamento-interativo.md`):
+
+1. **Sintetize com um modelo leve** (`haiku`; ou o runtime de delegação configurado em
+   `delegate-to-runtime.md`, quando for um modelo `flash`), dando a ele o título, o body e os
+   comentários da issue e o contrato abaixo. Prazo-alvo: 10 s. Estourou o prazo ou falhou:
+   **despache sem micro-spec** (passo 5).
+
+   ```markdown
+   # Micro-spec #<N> — <título curto>
+
+   ## Objetivo
+   <uma frase com o resultado central>
+
+   ## Critérios de aceite
+   - [ ] <critério mensurável 1>
+   - [ ] <critério mensurável 2>
+   - [ ] <critério mensurável 3>
+
+   ## Non-goals
+   - <o que fica de fora 1>
+   - <o que fica de fora 2>
+   ```
+
+   São exatamente 3 critérios de aceite e exatamente 2 non-goals, em até 60 linhas (1 página).
+2. **Grave a saída com a ferramenta de escrita** (nunca por `echo` ou string de shell) em
+   `<repo-root>/.claude/vetor/cache/micro-specs/<issue#>-<slug>.md`. Crie o diretório com um
+   `.gitignore` de uma linha (`*`), como o `vetor-status.sh` faz com `cache/`.
+   Não escreva em `docs/specs/micro/` do root: isso sujaria o checkout principal.
+3. **Injete no ContextPacket** com `--micro-spec <arquivo>` no `context-packet.ts`. O CLI confere o
+   formato (seções, 3 critérios, 2 non-goals, 1 página) e sai com erro se o texto do modelo não passar;
+   o pacote ganha `context.microSpec = { path, content }`, com
+   `path = docs/specs/micro/<issue#>-<slug>.md`.
+4. **No prompt do worker**, logo depois do ContextPacket, inclua:
+   > O pacote traz `context.microSpec`. Grave `content` em `path` dentro do seu worktree e faça disso
+   > o primeiro commit (`docs(spec): micro-spec JIT (#<N>)`); trate-a como o escopo da issue, junto dos
+   > critérios de aceite.
+
+   Assim o arquivo `docs/specs/micro/<issue#>-<slug>.md` nasce no worktree e viaja no PR. O
+   `ContextPacket` cobre só a Lead: para uma Sequential Issue sinalizada, gere a micro-spec do mesmo
+   jeito e cole-a no prompt sob a respectiva issue, com a mesma instrução de gravar o arquivo.
+5. **Fallback.** Sem micro-spec (prazo estourado, modelo indisponível, formato inválido), o grupo é
+   despachado normalmente, a coluna "Ação" mantém `⚠️ sem Spec` e a ausência vai ao relatório. A
+   micro-spec nunca bloqueia nem atrasa o dispatch.
+
+O prazo de 10 s é uma meta de desenho: nenhuma medição foi feita. Como o `Agent()` não oferece
+timeout, o coordinator mede o tempo da chamada e descarta a micro-spec de uma chamada que passar disso.
 
 ### Dispatch do ship-worker (Pre-Ship) — contrato
 

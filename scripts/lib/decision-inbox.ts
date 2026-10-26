@@ -299,6 +299,19 @@ export interface ResolveInput {
   now?: Date;
 }
 
+/**
+ * Remove a pendência sem tocar no status file: é a ejeção (issue #501), em que quem grava
+ * `EJECTED` no status file é o coordinator, e não uma retomada.
+ */
+export function dropDecision(root: string, id: string, now = new Date()): InboxDecision {
+  const inbox = loadInbox(root, now);
+  const entry = inbox.pendingDecisions.find((candidate) => candidate.id === id);
+  if (!entry) throw new Error(`decisão não encontrada na inbox: ${id}`);
+  inbox.pendingDecisions = inbox.pendingDecisions.filter((candidate) => candidate.id !== id);
+  writeInbox(root, inbox);
+  return entry;
+}
+
 /** SUSPENDED -> RUNNING: remove a pendência e deixa o status file pronto para a retomada. */
 export function resolveDecision(input: ResolveInput): InboxDecision {
   const { root, id, decision } = input;
