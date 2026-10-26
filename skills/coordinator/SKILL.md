@@ -486,6 +486,10 @@ Consulte `../shared/references/issue-coordinator-dispatch.md` para o fluxo detal
 
 Leia `../shared/references/issue-coordinator-monitoring.md` ao montar/atualizar a tabela de status, incluindo fallback e duplicidade.
 
+Ao ver um ou mais grupos em `GREEN` na tabela, **não espere os demais workers**: acione o Pre-Ship
+de todos os verdes de uma vez (Fase 6.a). O CI desses PRs e o dos que ainda vão chegar correm em
+paralelo no GitHub, e o acompanhamento é uma consulta agregada (5.e do `issue-coordinator-monitoring.md`).
+
 **5.b — Escalação de bloqueios**
 
 **A fonte de verdade da escalação é o status file.** Se um worker sinalizar bloqueio apenas por
@@ -518,26 +522,49 @@ pause os subagentes ativos e pergunte:
 **Em `--headless`: não pergunte — sempre pause.** Pare de despachar `QUEUED`, deixe os ativos
 terminarem e vá para o relatório destacando a assinatura de erro comum.
 
-### 6 — Fase de merge (serializada)
+### 6 — Fase de entrega (Pre-Ship paralelo, merge serializado)
 
-⚠️ **Serializada** — um merge por vez. ⚠️ **Em `--headless` esta fase inteira é pulada**: liste os
-grupos `GREEN` no relatório final com branch e path do worktree, e encerre.
+⚠️ **Em `--headless` esta fase inteira é pulada**: liste os grupos `GREEN` no relatório final com
+branch e path do worktree, e encerre.
 
-Quando um agente atingir `GREEN`:
+A entrega tem dois estágios (Spec `docs/specs/pipeline-ship-e-delegacao-eficiente.md`, RF-01 e
+RF-02). O **Pre-Ship** (`/vetor:ship --prepare`: testes locais, push, PR draft, CI e revisões em
+background) roda **em paralelo** para todos os grupos verdes. O **merge** (`/vetor:ship --finalize`)
+é **serializado** — um por vez.
 
-1. Verifique que o worker está de fato verde (leia o status file).
-2. `/vetor:ship` aborta se o `cwd` não for um worktree, e o contexto do coordinator é o root
-   do repo. Entre no worktree antes de invocar:
-   ```bash
-   git worktree list   # localize a linha cuja branch é a do grupo (Fase 3)
-   cd <path-do-worktree-do-grupo>
+**6.a — Pre-Ship paralelo (issue #494).** Quando um agente atingir `GREEN` (confirme lendo o status
+file), dispare o Pre-Ship de **todos os grupos verdes ainda não preparados**, sem esperar os demais
+workers nem o CI de nenhum:
+
+1. Para cada grupo, obtenha o path real do worktree (`git worktree list`, correlacionando pela
+   branch da Fase 3). O `/vetor:ship` aborta se o `cwd` não for um worktree.
+2. Despache **todos na mesma mensagem**, um `Agent()` por worktree, em background. O worktree já
+   existe, então use um subagente padrão sem `subagent_type` (mesma regra do redespacho da Fase 4), com o
+   `model` da regra de dispatch (`../shared/references/issue-coordinator-dispatch.md`):
+   ```javascript
+   Agent({
+     description: "Pre-Ship #<N>: <título>",
+     prompt: "Entre em <path-do-worktree> e execute /vetor:ship --prepare <issue#>. Não faça merge. " +
+       "Ao terminar, o status file <status-file-path> deve estar PR_STAGED. Se os testes locais ou o push " +
+       "falharem, deixe o worktree intacto e reporte o motivo.",
+     model: "<haiku|sonnet>",
+     run_in_background: true
+   })
    ```
-   Só então:
-   ```
-   /vetor:ship <issue#>
-   ```
-   Para um grupo cujo PR já foi preparado (`PR_STAGED`, via `/vetor:ship --prepare`), **antes** de
-   invocar o ship aplique o **Fast Merge Gate** (issue #495): leia
+3. O Pre-Ship não ocupa vaga do teto `N` (o worker já liberou a sua ao atingir `GREEN`); o limite é o
+   número de grupos verdes da onda.
+4. O resultado vem do status file: `PR_STAGED` (com `PR: #<N>`) é sucesso. Se o `--prepare` falhar,
+   marque o grupo na tabela como falha de pre-ship, preserve o worktree e siga com os demais.
+
+**6.b — Aguardar o CI sem somar esperas (issue #494).** Não use `gh pr checks --watch` por PR (cada
+espera bloqueia e o total vira N × T_ci). Acompanhe todos os PRs preparados com **uma** consulta
+agregada, repetida a cada ≤ 45 s enquanto houver PR pendente (`5.e` de
+`../shared/references/issue-coordinator-monitoring.md`). Como os CIs correm ao mesmo tempo no GitHub e
+cada PR segue para o merge assim que fecha verde, a espera total converge para max(T_ci) + 60 s.
+
+**6.c — Merge serializado.** Um PR por vez, assim que o CI fechar verde:
+
+1. Para cada PR `PR_STAGED`, aplique o **Fast Merge Gate** (issue #495): leia
    `../shared/references/fast-merge-gate.md`. Ele compara os arquivos tocados e os módulos do PR
    (cache `<branch>-touched-files.json`) com as outras branches da onda — mapa de sobreposições feito
    antes do primeiro merge, porque o ship apaga o cache de cada PR no cleanup. Nenhum PR sobreposto
@@ -545,11 +572,14 @@ Quando um agente atingir `GREEN`:
    nem re-testar. Sobreposição com PR já integrado: merge da default no worktree e só a suíte do
    módulo coincidente antes do `--finalize`. Com merge queue ativa o `vetor-merge.sh` enfileira
    (exit 4).
+2. Entre no worktree do grupo (`git worktree list`; `/vetor:ship` aborta fora de um worktree) e
+   invoque `/vetor:ship --finalize <PR>`. Se o grupo não tem PR preparado (Pre-Ship indisponível), use o
+   ciclo completo `/vetor:ship <issue#>`, que já re-sincroniza e re-testa.
 3. Após merge bem-sucedido, atualize a tabela. Um PR **enfileirado** (merge queue/auto-merge, exit 4 do
    `vetor-merge.sh`) não é merge: registre `Enfileirado`, não rode sync-root nem cleanup e siga para o
    próximo grupo sem esperar a fila. Para grupos de spike/investigação, o `/vetor:ship` segue o caminho de PR só de docs (#427). A decisão decorrente do spike continua humana — issues de follow-up não são criadas automaticamente.
 
-Se `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
+Se o `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
 
 ### 7 — Relatório final
 

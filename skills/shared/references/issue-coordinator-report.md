@@ -11,6 +11,7 @@
 |-------|----------|-----|----------|
 | #42 | ✅ Merged | #87 | squash merged |
 | #43 | ❌ CI failed | #88 | 3 fix attempts, worktree preserved |
+| #51 | ❌ Pre-ship failed | — | testes locais ou push falharam no `--prepare`, worktree preservado |
 | #44 | ⏸️ Review required | #89 | awaiting human review |
 | #50 | 🕒 Enfileirado | #90 | merge queue/auto-merge: PR aberto, GitHub conclui o merge; worktree preservado |
 | #45 | ⏭️ SKIPPED (aguardando Spec) | — | gate de Spec/design, Fase 2 — usuário optou por gerar a Spec antes |
@@ -26,11 +27,11 @@ Resumo: <N> merged, <Q> enfileirados, <M> falharam, <K> aguardando review, <J> s
 que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resultados reportados —
 **nenhum grupo do plano aprovado deve ficar sem uma linha de resultado**. Resultados válidos
 dependem do modo:
-- **Interativo**: `Merged`, `Enfileirado`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
+- **Interativo**: `Merged`, `Enfileirado`, `Pre-ship failed`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
   `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`, `SKIPPED (fora deste repositório)`,
   `SKIPPED (épico/acompanhamento)`, `SKIPPED (bloqueada por #N)`. Se houver discrepância (grupo do plano não aparece acima), reporte-o como "não
   despachado" e pergunte ao usuário via `AskUserQuestion` se deve despachar agora.
-- **`--headless`**: `Merged`, `Enfileirado`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
+- **`--headless`**: `Merged`, `Enfileirado`, `Pre-ship failed`, `CI failed`, `FAILED_MAX_ITERATIONS`, `Review required`, `BLOCKED_WAITING`,
   `SKIPPED (aguardando Spec)`, `SKIPPED (aguardando insumo do usuário)`, `SKIPPED (fora deste repositório)`,
   `SKIPPED (épico/acompanhamento)`, `SKIPPED (bloqueada por #N)`, ou `GREEN (pronto para ship)` — este último status aparece para grupos que
   atingiram verde em modo headless (sem merge nessa fase). Se houver discrepância, apenas reporte o
