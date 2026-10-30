@@ -173,8 +173,12 @@ Ação: descartar | mesclar com existente | manter (diferente o suficiente) | vi
 descartada, mas confirma empiricamente uma hipótese já registrada em `#<N>` e evolui seu escopo —
 mantenha as duas e comente na existente ao criar a nova (§6):
 
+Escreva o texto com a ferramenta **Write** em um arquivo temporário e passe-o via `--body-file`
+(nunca `--body` inline, issue #525):
+
 ```bash
-gh issue comment <N> --body "Confirmado empiricamente por #<nova>: <resumo do vínculo>"
+gh issue comment <N> --body-file "<path-do-arquivo-de-comentario>"
+# conteúdo do arquivo: Confirmado empiricamente por #<nova>: <resumo do vínculo>
 ```
 
 Inclua duplicatas e vínculos no resumo para revisão do usuário.
@@ -239,10 +243,12 @@ Aplica apenas labels de tipo e de módulo que comprovadamente existem no reposit
 documenta a omissão quando não existem. Se algum label não existir, omita-o; se nenhum existir,
 omita a flag `--label` por completo ao invocar o `gh issue create`.
 
-```bash
-gh issue create \
-  --title "<título>" \
-  --body "$(cat <<'EOF'
+Escreva o corpo com a ferramenta **Write** em um arquivo temporário (nunca `echo`, `printf` nem
+heredoc: o shell corrompe crases e pode inserir BOM, issue #525) e passe-o via `--body-file`:
+
+Conteúdo do arquivo de corpo (escrito via Write):
+
+```text
 ## Descrição
 <descrição da issue>
 
@@ -256,8 +262,12 @@ Seam de Teste: <seam>
 
 ---
 🤖 Gerado por `/vetor:backlog` — [Claude Code](https://claude.ai/code)
-EOF
-)" \
+```
+
+```bash
+gh issue create \
+  --title "<título>" \
+  --body-file "<path-do-arquivo-de-corpo>" \
   --label "<tipo-mapeado>,<módulo>"
 ```
 
