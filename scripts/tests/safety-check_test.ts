@@ -924,6 +924,61 @@ Deno.test("issue #184: comandos git não-destrutivos equivalentes continuam libe
   }
 });
 
+// Issue #535: `git checkout -- <path>` e `git restore <path>` descartam o working tree como
+// `git checkout .`, mas escapavam do bloqueio. `git restore --staged` só tira do stage.
+for (
+  const command of [
+    "git checkout -- .",
+    "git checkout -- src/",
+    "git checkout HEAD -- file",
+    "git restore .",
+    "git restore src/a.ts",
+    "git restore --worktree .",
+    "git restore --source=HEAD .",
+    "git restore --staged --worktree src/a.ts",
+    "echo ok && git restore .",
+  ]
+) {
+  Deno.test(`issue #535: '${command}' é bloqueado como git destrutivo`, async () => {
+    const repo = await makeRepo("main");
+    try {
+      const result = await runHook({
+        tool_name: "Bash",
+        tool_input: { command },
+        cwd: repo,
+      });
+      assertEquals(result.code, 2);
+      assertStringIncludes(result.stderr, "comando git destrutivo");
+    } finally {
+      await Deno.remove(repo, { recursive: true });
+    }
+  });
+}
+
+for (
+  const command of [
+    "git restore --staged .",
+    "git restore --staged src/a.ts",
+    "git checkout -b feat/x",
+    "git checkout main",
+    "git checkout feat/x",
+  ]
+) {
+  Deno.test(`issue #535: '${command}' continua permitido`, async () => {
+    const repo = await makeRepo("main");
+    try {
+      const result = await runHook({
+        tool_name: "Bash",
+        tool_input: { command },
+        cwd: repo,
+      });
+      assertEquals(result.code, 0, result.stderr);
+    } finally {
+      await Deno.remove(repo, { recursive: true });
+    }
+  });
+}
+
 // Issue #284: o Cursor não envolve `command` em `tool_input` para o hook `beforeShellExecution`
 // (schema confirmado em cursor.com/docs/hooks — `{command, cwd, sandbox}`, campo de topo, sem
 // `tool_name`/`tool_input`). Sem uma extração alternativa, `checkBash` nunca era chamado sob

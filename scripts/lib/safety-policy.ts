@@ -71,7 +71,19 @@ const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|r
  * que precisa ser bloqueado; achado do code-review da PR #200.
  */
 const DESTRUCTIVE_GIT_COMMAND_RE =
-  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$))/;
+  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$)|git\s+checkout\s+(?:[^\s;&|]+\s+)?--\s+[^\s;&|]+|git\s+restore\s+[^;&|\n]*)/g;
+
+/**
+ * `git restore` só tira do stage (sem tocar o working tree) com `--staged`/`-S` sem
+ * `--worktree`/`-W`; essa forma é liberada (issue #535).
+ */
+function isStagedOnlyRestore(cmd: string): boolean {
+  if (!/^git\s+restore\s/.test(cmd)) return false;
+  const args = cmd.trim().split(/\s+/);
+  const staged = args.some((a) => a === "--staged" || /^-[a-zA-Z]*S[a-zA-Z]*$/.test(a));
+  const worktree = args.some((a) => a === "--worktree" || /^-[a-zA-Z]*W[a-zA-Z]*$/.test(a));
+  return staged && !worktree;
+}
 
 /** Devolve o motivo do bloqueio, ou null se o comando não é git destrutivo. */
 function checkDestructiveGit(command: string): string | null {
@@ -79,13 +91,15 @@ function checkDestructiveGit(command: string): string | null {
   // match, senão `git reset \` seguido de `--hard` em nova linha escaparia do regex (mesma razão
   // documentada em pushDestinations acima; achado do code-review da PR #200).
   const joined = command.replace(/\\\r?\n/g, " ");
-  const match = joined.match(DESTRUCTIVE_GIT_COMMAND_RE);
+  const match = [...joined.matchAll(DESTRUCTIVE_GIT_COMMAND_RE)].find((m) =>
+    !isStagedOnlyRestore(m[1].trim())
+  );
   if (!match) return null;
 
   return `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: "${
     match[1].trim()
   }"\n` +
-    "git reset --hard / git clean -f* / git branch -D / git checkout . descartam trabalho " +
+    "git reset --hard / git clean -f* / git branch -D / git checkout . / git checkout -- <path> / git restore <path> descartam trabalho " +
     "local sem chance de recuperação — não são permitidos em nenhum contexto.";
 }
 
