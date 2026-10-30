@@ -222,12 +222,36 @@ Todo \`find\`/\`grep\` executado pelas skills deve excluir:
 `;
 }
 
-export function writeConfig(info: ProjectInfo): Record<string, unknown> {
+export type ConfigStatus = "created" | "updated" | "unchanged";
+
+/** Serialização canônica (chaves ordenadas) para comparar dois objetos JSON semanticamente. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const entries = Object.keys(record).sort().map((key) =>
+      `${JSON.stringify(key)}:${canonicalJson(record[key])}`
+    );
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * Grava config.json só quando o conteúdo semântico muda. Arrays compactos ou outra
+ * formatação preexistente não contam como mudança: nesse caso o arquivo fica intocado.
+ */
+export function writeConfigFile(
+  info: ProjectInfo,
+): { config: Record<string, unknown>; state: ConfigStatus } {
   // Preserva chaves já existentes (ex.: maxConcurrentWorkers, knowledge).
   let config: Record<string, unknown> = {};
-  if (exists(CONFIG_FILE)) {
+  let before: string | null = null;
+  const existed = exists(CONFIG_FILE);
+  if (existed) {
     try {
       config = readJson(CONFIG_FILE) as Record<string, unknown>;
+      before = canonicalJson(config);
     } catch {
       console.error(`AVISO: ${CONFIG_FILE} inválido; será reescrito.`);
     }
@@ -238,8 +262,16 @@ export function writeConfig(info: ProjectInfo): Record<string, unknown> {
   config.packageManager = info.packageManager;
   config.testCommand = info.testCommand;
 
+  if (before !== null && before === canonicalJson(config)) {
+    return { config, state: "unchanged" };
+  }
+
   Deno.writeTextFileSync(CONFIG_FILE, JSON.stringify(config, null, 2) + "\n");
-  return config;
+  return { config, state: existed ? "updated" : "created" };
+}
+
+export function writeConfig(info: ProjectInfo): Record<string, unknown> {
+  return writeConfigFile(info).config;
 }
 
 /** Mesmo contrato do map: arquivo existente é preservado sem --force. */
@@ -276,12 +308,13 @@ function main() {
   const modules = detectModules(root);
 
   if (!mapSkipped) Deno.writeTextFileSync(MAP_FILE, renderMap(root, modules));
-  const config = writeConfig(root);
+  const { config, state: configStatus } = writeConfigFile(root);
   const rules = writeRules(root, force);
   const knowledge = detectKnowledgeState(config);
 
   console.log(JSON.stringify({
     status: mapSkipped ? "skipped" : mapExisted ? "overwritten" : "created",
+    configStatus,
     runtime: root.runtime,
     packageManager: root.packageManager,
     testCommand: root.testCommand,
