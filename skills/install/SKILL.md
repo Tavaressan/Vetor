@@ -92,8 +92,9 @@ O script grava:
 - `.claude/vetor/config.json` — `runtime`, `packageManager` e `testCommand` detectados (incluindo o comando composto ou `AJUSTE:` em projetos Node sem script de teste), preservando
   o `maxConcurrentWorkers` (default 5), o bloco `knowledge` (`enabled`/`provider`) e o bloco opcional
   `delegation` (`preferredRuntime` — ver `delegate-to-runtime.md`) e o bloco opcional `hooks`
-  (`typecheckOnEdit: true` liga o `tsc` a cada edição em projetos Node/TS — ver `wiki/Configuracao.md`),
-  se já existirem. O
+  (`typecheckOnEdit: true` liga o `tsc` a cada edição em projetos Node/TS — ver `wiki/Configuracao.md`)
+  e a chave opcional `prewarmWorktrees` (`true` liga o pre-warming de worktrees do coordinator — ver
+  `wiki/Configuracao.md`), se já existirem. O
   `prepare-worktree.ts` lê isso para saber como preparar cada worktree;
 - `.claude/rules/vetor/<runtime>.md` — convenções do projeto (comando de teste, formatador, lint,
   estilo de import), com frontmatter `paths` para entrarem em contexto **apenas** quando o agente lê

@@ -114,6 +114,12 @@ async function resolve(args: string[]): Promise<void> {
 
   const entry = loadInbox(root, now).pendingDecisions.find((candidate) => candidate.id === id) ??
     fail(`decisão não encontrada na inbox: ${id}`);
+  // Sem timeout é bloqueio de permissão: nenhuma permissão é auto-aprovada, nem pelo temporizador.
+  if (optimistic && entry.timeoutSeconds === null) {
+    fail(
+      `${id} foi suspensa sem timeout: o avanço otimista não se aplica, espere a decisão humana`,
+    );
+  }
   const decision = decisionText(args, entry);
 
   const checkpointTag = optimistic

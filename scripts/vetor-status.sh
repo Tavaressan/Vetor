@@ -40,6 +40,14 @@ fi
 # Exclui a branch principal do repositório.
 active=$(git --no-optional-locks worktree list --porcelain 2>/dev/null | sed -n 's#^branch refs/heads/##p' | tr '/' '-' | grep -v "^${default_branch}$")
 
+# Issue #502 (RF-06): worktrees pré-aquecidos ainda sem dono não têm status file até o dispatch — o
+# prewarm-worktrees.ts lista as branches deles (já sanitizadas) neste arquivo; não são falha anômala.
+pending_file="${REPO_ROOT}/.claude/vetor/prewarm-pending.txt"
+alertable="$active"
+if [ -s "$pending_file" ]; then
+  alertable=$(printf '%s\n' "$active" | grep -vxF -f "$pending_file")
+fi
+
 # Lista de PRs (headRefName=número=estado) via gh CLI. Só serve para anotar status file
 # GREEN/PR_STAGED, então sem nenhum deles o gh nem é chamado (issue #515: durante a fase de código
 # a chamada de rede era latência pura).
@@ -77,14 +85,14 @@ echo
 
 if [ ! -d "$STATUS_DIR" ] || ! ls "$STATUS_DIR"/*.md >/dev/null 2>&1; then
   # Sem status files — verificar se há worktrees ativos sem status (falha anômala)
-  if [ -n "$active" ]; then
+  if [ -n "$alertable" ]; then
     echo "⚠️ **ALERTA: worktrees ativos sem status file (possível falha anômala — issue #72):**"
     echo
     echo "| Worker (branch) | Status | Worktree |"
     echo "|---|---|---|"
     while IFS= read -r branch; do
       echo "| $branch | ⚠️ SEM STATUS FILE | ativo |"
-    done <<< "$active"
+    done <<< "$alertable"
     echo
   else
     echo "(nenhum status file em $STATUS_DIR)"
@@ -166,7 +174,7 @@ while IFS= read -r branch; do
     missing_status="${missing_status}${branch}
 "
   fi
-done <<< "$active"
+done <<< "$alertable"
 
 if [ -n "$missing_status" ]; then
   echo

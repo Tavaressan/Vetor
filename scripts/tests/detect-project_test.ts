@@ -124,6 +124,28 @@ Deno.test("writeConfig preserva o bloco hooks.typecheckOnEdit", () => {
   }
 });
 
+// --- Issue #502: o opt-in do pre-warming de worktrees é uma chave de raiz e não pode sumir ao regerar ---
+
+Deno.test("writeConfig preserva a chave prewarmWorktrees", () => {
+  const directory = Deno.makeTempDirSync();
+  const originalCwd = Deno.cwd();
+  try {
+    Deno.mkdirSync(`${directory}/.claude/vetor`, { recursive: true });
+    Deno.writeTextFileSync(
+      `${directory}/.claude/vetor/config.json`,
+      JSON.stringify({ prewarmWorktrees: true }),
+    );
+
+    Deno.chdir(directory);
+    const config = writeConfig(detectProject("."));
+
+    assertEquals(config.prewarmWorktrees, true);
+  } finally {
+    Deno.chdir(originalCwd);
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
 Deno.test("writeConfig sem config.json prévio: knowledge ausente -> Filesystem", () => {
   const directory = Deno.makeTempDirSync();
   const originalCwd = Deno.cwd();

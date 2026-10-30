@@ -439,3 +439,23 @@ Deno.test("issue #500: o avanço otimista não segue sem checkpoint (branch inex
     assertMatch(await Deno.readTextFile(statusFile), /^Status: SUSPENDED$/m);
   });
 });
+
+Deno.test("issue #500: o avanço otimista recusa pendência sem timeout (bloqueio de permissão)", async () => {
+  await withRoot(async (root) => {
+    await run("git", ["branch", "feat/488-cache-redis"], root);
+    const statusFile = await writeStatus(root, "feat-488-cache-redis", BLOCKED);
+    suspendBlocked({ root, statusFile, worktreePath: "/w", now: NOW });
+
+    const resolve = await run(
+      "deno",
+      ["run", "-A", CLI, "resolve", "--root", root, "--id", "dec-issue-488", "--optimistic"],
+      root,
+    );
+    assertEquals(resolve.code, 1);
+    assertStringIncludes(resolve.stderr, "sem timeout");
+    // nem checkpoint nem decisão: a pendência continua esperando o humano
+    assertEquals((await run("git", ["tag", "--list", "_vetor_checkpoint_*"], root)).stdout, "");
+    assertEquals(loadInbox(root, NOW).pendingDecisions.length, 1);
+    assertMatch(await Deno.readTextFile(statusFile), /^Status: SUSPENDED$/m);
+  });
+});

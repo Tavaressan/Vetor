@@ -124,6 +124,21 @@ ou `VETOR_TYPECHECK_ON_EDIT=true` no ambiente (vale para qualquer sessão, mesmo
 
 Ligado, o hook roda `tsc --noEmit --incremental --tsBuildInfoFile .claude/vetor/cache/tsc.tsbuildinfo`: a primeira edição paga o custo a frio e as seguintes reaproveitam o cache (um arquivo por pacote em monorepo, `tsc-<pacote>.tsbuildinfo`). O diretório `.claude/vetor/cache/` se auto-ignora (cria um `.gitignore` com `*`) e nunca é versionado. Só age com `tsconfig.json` e `node_modules/.bin/tsc` presentes. A chave é uma só, `hooks.typecheckOnEdit`, no mesmo formato de bloco por tema dos demais (`knowledge`, `delegation`, `specValidate`); o `/vetor:install` preserva o bloco `hooks` ao regerar o `config.json`.
 
+## Pre-warming de worktrees do coordinator (opt-in)
+
+Por padrão o `coordinator` cria cada worktree no dispatch (`Agent` com `isolation: "worktree"`) e o worker é o `vetor:issue-worker`. O pre-warming (RF-06) cria os worktrees da primeira onda **antes**, em background, enquanto o coordinator analisa afinidades e conduz a entrevista, e despacha esses grupos como subagente padrão com `cd`. Ele vem **desligado por padrão** por dois motivos: o worker pré-aquecido perde a allowlist de `tools`, o preload da skill `fix` e as guardas por `agent_type` do `safety-check.ts` (o prompt repete as guardas, mas por instrução), e o ganho de tempo de largada **ainda não foi medido**. Em projetos Deno puro o `prepareDeps` é um no-op, então ele antecipa apenas o `git worktree add`.
+
+Para ligar, depois de medir (método em `skills/shared/references/worktree-prewarm.md`, "Como medir os critérios de tempo"):
+
+```jsonc
+// .claude/vetor/config.json (lido a partir da raiz do repositório)
+{
+  "prewarmWorktrees": true
+}
+```
+
+Sem a chave, ou com `false`, o `coordinator` não dispara o pre-warming, não reconcilia e não faz `claim`: o dispatch é sempre o clássico. A chave é um booleano de nível raiz, como `autoShipHeadless`, e o `/vetor:install` a preserva ao regerar o `config.json`. O estado do pre-warming fica em `.claude/vetor/prewarm.json` e `.claude/vetor/prewarm-pending.txt`.
+
 ## Cache local (`.claude/vetor/cache/`)
 
 Dois scripts guardam resultados caros de recalcular em `.claude/vetor/cache/`: o `tsc.tsbuildinfo` do typecheck por edição (seção acima, na raiz do worktree em que o agente edita) e o `pr-list-cache.txt` do `vetor-status.sh` (na raiz do repositório principal). O diretório se auto-ignora (contém um `.gitignore` com `*`), então **nada nele é versionado**, mesmo em projetos que não adicionaram a entrada ao `.gitignore`. É seguro apagá-lo: tudo é recriado sob demanda.

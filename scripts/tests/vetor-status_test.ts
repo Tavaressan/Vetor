@@ -379,3 +379,47 @@ Deno.test("vetor-status.sh mostra EJECTED como worktree removido de propósito, 
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("vetor-status.sh não alerta para worktree pré-aquecido pendente (RF-06, issue #502)", async () => {
+  const { root } = await makeLinkedWorktree("feat/9-prewarmed");
+  try {
+    // O sidecar do prewarm-worktrees.ts lista (branch com "/" trocada por "-") os worktrees ainda
+    // sem dono. Sem status file, nem com o diretório de status ausente, isso é falha anômala.
+    await Deno.mkdir(`${root}/.claude/vetor`, { recursive: true });
+    await Deno.writeTextFile(`${root}/.claude/vetor/prewarm-pending.txt`, "feat-9-prewarmed\n");
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertEquals(stdout.includes("ALERTA"), false, stdout);
+    assertEquals(stdout.includes("SEM STATUS FILE"), false, stdout);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh só poupa o worktree pendente: um órfão de verdade continua alertando", async () => {
+  const { root } = await makeLinkedWorktree("feat/9-prewarmed");
+  try {
+    await run("git", [
+      "worktree",
+      "add",
+      "-b",
+      "fix-orphan",
+      `${root}/.claude/worktrees/fix-orphan`,
+    ], root);
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    await Deno.writeTextFile(`${root}/.claude/vetor/prewarm-pending.txt`, "feat-9-prewarmed\n");
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/other.md`,
+      "Status: GREEN\nIteration: 1/5 (Issue #10)\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "ALERTA");
+    assertStringIncludes(stdout, "fix-orphan");
+    assertEquals(stdout.includes("feat-9-prewarmed"), false, stdout);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

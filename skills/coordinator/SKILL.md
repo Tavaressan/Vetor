@@ -224,6 +224,9 @@ orçamento de 5 iterações por issue.
      ofereça ship — apenas reporte os grupos `GREEN` como prontos, salvo com
      `--auto-ship`/`autoShipHeadless: true`, caso em que os `GREEN` seguem a Fase 6.d. Em `--goal` a
      retomada continua o `goal-audit.json` existente em vez de criar outro.
+     Antes de prosseguir, rode `scripts/prewarm-worktrees.ts discard` para limpar sobras de
+     pre-warming (idempotente, e sem manifest não faz nada, com ou sem o opt-in; ver
+     `../shared/references/worktree-prewarm.md`).
   3. Se **não houver** worktree ativo com status file: caia no fluxo padrão (Fase 1), descobrindo
      dinamicamente labels ou usando `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado.
 - **Lista de números** ou **label explícito**: siga o fluxo padrão a partir da Fase 1.
@@ -422,6 +425,11 @@ conciliação manual depois. Para evitar isso, organize os grupos em **ondas top
    dispatch paralelo atual, sem mudança de comportamento observável.
 6. O usuário pode **corrigir manualmente** o agrupamento em ondas no plano da Fase 2 antes de aprovar
    — dependências nativas e heurísticas são pontos de partida, cabendo ao usuário a validação final.
+7. **Pre-warming (RF-06), opt-in:** só com `"prewarmWorktrees": true` em `.claude/vetor/config.json` (lido
+   a partir do root, `vetor-checks.sh repo-root`). Sem a chave, ou com `false`, pule este item: nenhum
+   `start` e dispatch clássico. Ligado, dispare em background o pre-warming dos worktrees de `O_1` (no
+   máximo `N_rec` grupos) enquanto a Fase 2 conduz a entrevista. Comandos, limites, a troca de guardas e a
+   regra de sincronia em `../shared/references/worktree-prewarm.md`.
 
 ### 2 — Apresentar plano de dispatch e obter aprovação
 
@@ -617,6 +625,9 @@ A aprovação é o item 4 da entrevista consolidada: não há um segundo pedido 
 
 Leia `../shared/references/issue-coordinator-dispatch.md` para derivar slug/branch/status file e localizar o worktree real.
 Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao preparar dispatch de issue dependente.
+Só com o opt-in `prewarmWorktrees` e se o pre-warming da Fase 1 rodou, aguarde o `start` terminar e
+reconcilie-o com o plano aprovado (`discard --keep`) antes de qualquer `Agent()`, conforme
+`../shared/references/worktree-prewarm.md`. Sem o opt-in, não há o que reconciliar.
 
 ### 4 — Fase de desenvolvimento (paralela, com teto de concorrência e ondas)
 
@@ -630,6 +641,11 @@ Leia `../shared/references/memory-handoffs.md` ao retomar `--resume` ou ao prepa
   (Fase 5.b) volta a ocupar uma vaga e passa à frente dos `QUEUED`.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
   Leia `../shared/references/issue-coordinator-dispatch.md` para timeout, transição de ondas e sincronização do root.
+- **Grupo pré-aquecido (RF-06, só com `prewarmWorktrees: true`):** antes de cada `Agent()`, rode
+  `scripts/prewarm-worktrees.ts claim <slug>`. Exit 0: despache em worktree pré-aquecido (subagente
+  padrão com `cd`, sem `subagent_type` nem `isolation`; template em
+  `../shared/references/worktree-prewarm.md`). Exit 1: dispatch clássico. **Sem o opt-in, não rode
+  `claim`:** o dispatch é sempre o clássico, com `vetor:issue-worker` e `isolation: "worktree"`.
 - **Remoção de labels de triagem antes do dispatch:** ao despachar uma issue (Lead ou Sequential),
   verifique se ela possui alguma label de triagem (`needs-spec`, `spec-needed`,
   `triage/needs-information`, `blocked`, `status/blocked`, `needs-human`). Se possuir, remova-a com
@@ -916,6 +932,10 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 
 `sync-root` só troca de branch se a atual estiver limpa e já mesclada em `origin/<default>`. Se
 imprimir `AVISO`, **não force**: reporte a pendência no relatório em vez de descartar trabalho.
+
+Descarte também os worktrees pré-aquecidos que ninguém assumiu (timeout, circuit breaker, onda
+interrompida) com `scripts/prewarm-worktrees.ts discard`, e liste no relatório o que vier em `failed` ou
+`branchesKept` (`../shared/references/worktree-prewarm.md`).
 
 **Em `--goal`**, o relatório é o `## Goal Convergence Report` de
 `../shared/references/issue-coordinator-report.md` (o Coordinator Report entra como tabela dele).

@@ -60,7 +60,7 @@ desses três é `mcp__plugin_vetor_<server>__`.
 | Pesquisa web (Exa) | `mcp__exa__` (ou `mcp__plugin_<plugin>_exa__`) | `backlog` (pesquisar padrões/arquitetura antes de propor issue), `fix` (pesquisar mensagem de erro/documentação de uma lib externa), `issue-worker` (checar docs de API externa durante a implementação) |
 | Documentação de ferramentas/libs (Context7) | `mcp__context7__` (ou `mcp__plugin_<plugin>_context7__`) | **Obrigatório quando disponível** (ver issue vetor#163) — qualquer skill que precise pesquisar comportamento de uma ferramenta/lib/framework/API externa (`issue-worker`, `fix`, `guardian`, `backlog`) |
 | Documentação do próprio Claude Code (`claude-code-docs`) | `mcp__claude-code-docs__` (ou `mcp__plugin_<plugin>_claude-code-docs__`) | **Obrigatório quando disponível** (ver issue vetor#164) — qualquer skill que precise responder sobre o funcionamento do próprio Claude Code (hooks, slash commands, MCP, permissões, SDK) (`vetor` (setup), `retro`) |
-| Memória ai-memory | `mcp__ai-memory__` | `fix` / `issue-worker` (consulta preventiva e registro opcional de gotchas; ver `memory-gotchas.md`) |
+| Memória ai-memory | `mcp__ai-memory__` | `fix` / `issue-worker` (consulta preventiva e registro opcional de gotchas; ver `memory-gotchas.md`); `issue-worker` e workers do coordinator (leitura e gravação de `vetor/session-learnings`; ver "Aprendizados da sessão" em `memory-gotchas.md`) |
 | Orquestrador de agentes (Alethe) | `mcp__alethe__` | `coordinator`, `now` (delegação assíncrona de workers em worktrees isolados; ver `delegate-to-runtime.md` §6) |
 
 ### Documentação de ferramentas/libs (Context7)
