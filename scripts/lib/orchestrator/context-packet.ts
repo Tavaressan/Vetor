@@ -7,6 +7,8 @@
  * campos opcionais em `ContextPacketContext` (ex.: `repoMap`, da Spec repo-map-ast).
  */
 
+import { microSpecPath } from "./micro-spec.ts";
+
 /** Identificador/versão do formato, gravado em `$schema` de todo pacote. */
 export const CONTEXT_PACKET_SCHEMA = "https://vetor.dev/schemas/context-packet.v1.json";
 
@@ -35,12 +37,23 @@ export interface ContextPacketContext {
   testCommand: string;
   /** Arquivos com probabilidade de alteração: dica para começar, não restrição. */
   targetFiles: string[];
+  /**
+   * Micro-spec JIT (issue #501): escopo de uma página sintetizado no dispatch de uma issue
+   * não-trivial sem Spec. O worker grava `content` em `path`, dentro do próprio worktree.
+   */
+  microSpec?: ContextPacketMicroSpec;
   conventions?: string;
   /**
    * Repo Map escopado (Markdown, `scripts/repo-map.ts`) com as assinaturas do módulo e dos vizinhos
    * imediatos. No prompt do worker ele vai na tag `<repo_map>` (ver `renderContextPacketPrompt`).
    */
   repoMap?: string;
+}
+
+export interface ContextPacketMicroSpec {
+  /** `docs/specs/micro/<issue#>-<slug>.md`, relativo ao worktree. */
+  path: string;
+  content: string;
 }
 
 export interface ContextPacket {
@@ -63,6 +76,8 @@ export interface BuildContextPacketInput {
   worktree: ContextPacketWorktree;
   /** Conteúdo do `module-test-map.md` resolvido a partir do root do repositório. */
   moduleTestMap: string;
+  /** Conteúdo da micro-spec JIT já validado por `validateMicroSpec` (issue #501). */
+  microSpec?: string;
   conventions?: string;
   /** Sobrescreve a inferência de arquivos-alvo a partir do título e do body. */
   targetFiles?: string[];
@@ -194,6 +209,9 @@ export function buildContextPacket(input: BuildContextPacketInput): ContextPacke
       module,
       testCommand,
       targetFiles,
+      ...(input.microSpec !== undefined && {
+        microSpec: { path: microSpecPath(issue.number, slug), content: input.microSpec },
+      }),
       ...(conventions !== undefined && { conventions }),
       ...(repoMap !== undefined && { repoMap }),
     },

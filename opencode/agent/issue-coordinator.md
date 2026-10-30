@@ -51,11 +51,18 @@ As regras abaixo prevalecem sobre o texto da skill, que foi escrito para o Claud
 
 ### Sem `Agent()`, `SendMessage`, `AskUserQuestion` e `ExitPlanMode`
 
-- Perguntas e aprovação do plano são texto no chat: exiba o plano e aguarde resposta afirmativa
-  explícita. Em `--headless`, nunca pergunte nem aguarde.
+- Perguntas e aprovação do plano são texto no chat: a entrevista consolidada da Fase 2 é uma única
+  mensagem com o plano e as decisões numeradas, cada uma com `(Recommended)`; `sim` aceita o pacote
+  inteiro. Em `--headless`, nunca pergunte nem aguarde.
 - Sem `SendMessage`: a única forma de saber o estado de um worker é o polling do status file
   (`bash .opencode/scripts/vetor-status.sh`). Uma decisão para um worker bloqueado vira ação sua ou
   um redespacho com o contexto da decisão no prompt (abaixo).
+- A Decision Inbox da Fase 5.b (`SUSPENDED`, `decision-inbox.json`) usa `scripts/decision-inbox.ts`,
+  que o OpenCode não instala em `.opencode/scripts/`: ali ela não se aplica. Um worker em
+  `BLOCKED_WAITING` segue o fluxo do polling do status file, sem estado `SUSPENDED`. Pelo mesmo
+  motivo a ejeção graciosa da Fase 5.f (`eject-comment.ts`), a micro-spec JIT (`--micro-spec`) e o
+  modo `--goal` (que depende deles e do Pre-Ship) também não se aplicam no OpenCode: um grupo que
+  esgota as tentativas é só reportado.
 
 ### Fase 3 — criar o worktree você mesmo
 

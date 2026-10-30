@@ -330,6 +330,56 @@ Deno.test("vetor-status.sh reaproveita a listagem de PRs por 15 s, num cache que
   }
 });
 
+Deno.test("vetor-status.sh avisa sobre decisões SUSPENDED sem tirar nada da tabela — issue #500", async () => {
+  const root = await makeWorkerRepo({ "fix-run": "RUNNING", "fix-wait": "SUSPENDED" });
+  try {
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-wait.md`,
+      "Status: SUSPENDED\nIteration: 2/5 (Issue #9)\nBlocked on: Ambiguidade no driver\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    // a tabela continua completa, com o worktree do suspenso ainda ativo
+    assertStringIncludes(stdout, "| fix-run | RUNNING |");
+    assertStringIncludes(stdout, "| fix-wait | SUSPENDED |");
+    assertStringIncludes(stdout, "Decision Inbox");
+    assertStringIncludes(stdout, "- fix-wait: Ambiguidade no driver");
+    assertEquals(stdout.includes("- fix-run:"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh não imprime o aviso da Decision Inbox sem workers SUSPENDED — issue #500", async () => {
+  const root = await makeWorkerRepo({ "fix-run": "RUNNING" });
+  try {
+    const { stdout } = await run("bash", [SCRIPT], root);
+    assertEquals(stdout.includes("Decision Inbox"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh mostra EJECTED como worktree removido de propósito, não como cancelado — issue #501", async () => {
+  const root = await makeWorkerRepo({ "fix-run": "RUNNING" });
+  try {
+    // a ejeção limpa o worktree: o status file sobra sem worktree correspondente
+    await Deno.writeTextFile(
+      `${root}/.claude/vetor/status/fix-ejected.md`,
+      "Status: EJECTED\nIteration: 5/5 (Issue #9)\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "| fix-ejected | EJECTED |");
+    assertStringIncludes(stdout, "ejetado (worktree removido; branch preservada)");
+    assertEquals(stdout.includes("cancelled (worktree removed)"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("vetor-status.sh não alerta para worktree pré-aquecido pendente (RF-06, issue #502)", async () => {
   const { root } = await makeLinkedWorktree("feat/9-prewarmed");
   try {

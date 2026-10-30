@@ -61,11 +61,15 @@ de dependências dos worktrees não funcionam:
 
 Crie os diretórios do Vetor no projeto-alvo e garanta que os status files dos workers
 (escritos em `.claude/vetor/status/` — ver
-`../shared/references/agent-status.template.md`) nunca sejam commitados:
+`../shared/references/agent-status.template.md`), a Decision Inbox do coordinator
+(`.claude/vetor/decision-inbox.json`) e o registro de decisões do modo `--goal`
+(`.claude/vetor/goal-audit.json`) nunca sejam commitados:
 
 ```bash
 mkdir -p .claude/vetor/status
-grep -qxF '.claude/vetor/status/' .gitignore 2>/dev/null || echo '.claude/vetor/status/' >> .gitignore
+for entry in '.claude/vetor/status/' '.claude/vetor/decision-inbox.json' '.claude/vetor/goal-audit.json'; do
+  grep -qxF "$entry" .gitignore 2>/dev/null || echo "$entry" >> .gitignore
+done
 ```
 
 A entrada no `.gitignore` é idempotente — este passo substitui qualquer ajuste de gitignore por

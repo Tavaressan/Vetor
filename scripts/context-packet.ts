@@ -15,6 +15,7 @@
 // `--worktree` é omitido no primeiro dispatch com `isolation: "worktree"`, quando o path ainda
 // não existe.
 //
+// Opcional: `--micro-spec <path>` injeta a micro-spec JIT (issue #501) em `context.microSpec`.
 // Repo Map (issue #507, RF-04 de docs/specs/repo-map-ast-context-packet.md): com
 // `--repo-root <path>` o CLI gera o mapa escopado (módulo + arquivos-alvo do pacote) a partir desse
 // root e o grava em `context.repoMap`. O ponto de integração é este CLI, e não o
@@ -29,6 +30,7 @@ import {
   type ContextPacket,
   renderContextPacketPrompt,
 } from "./lib/orchestrator/context-packet.ts";
+import { validateMicroSpec } from "./lib/orchestrator/micro-spec.ts";
 import { run } from "./lib/project.ts";
 import { buildRepoMap } from "./repo-map.ts";
 
@@ -85,6 +87,20 @@ async function loadIssue(args: string[]): Promise<IssueData> {
   return parseIssue(result.stdout, `gh issue view ${issueRef}`);
 }
 
+// `--micro-spec <path>` (issue #501): micro-spec JIT escrita pelo coordinator num arquivo (nunca na
+// linha de comando). O texto vem de um modelo leve, então é validado antes de entrar no pacote; se
+// for inválido a CLI falha e o coordinator despacha sem micro-spec.
+async function loadMicroSpec(args: string[]): Promise<string | undefined> {
+  const path = flagValue(args, "--micro-spec");
+  if (path === undefined) return undefined;
+  const content = await Deno.readTextFile(path).catch(() =>
+    fail(`não consegui ler --micro-spec: ${path}`)
+  );
+  const problems = validateMicroSpec(content);
+  if (problems.length > 0) fail(`micro-spec inválida: ${problems.join("; ")}`);
+  return content;
+}
+
 // O mapa é um complemento: qualquer falha vira aviso em stderr e o pacote segue sem `repoMap`.
 async function generateRepoMap(
   root: string,
@@ -129,6 +145,7 @@ if (import.meta.main) {
       slug,
       worktree: { path: flagValue(args, "--worktree"), branch, baseBranch },
       moduleTestMap,
+      microSpec: await loadMicroSpec(args),
       conventions: flagValue(args, "--conventions"),
       targetFiles: flagValue(args, "--target-files")?.split(",").map((file) => file.trim())
         .filter(Boolean),

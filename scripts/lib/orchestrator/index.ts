@@ -9,6 +9,7 @@ export * from "./types.ts";
 export * from "./registry.ts";
 export * from "./adapters/alethe.ts";
 export * from "./context-packet.ts";
+export * from "./micro-spec.ts";
 
 /**
  * Cria uma instância padrão do OrchestratorRegistry pré-populada com o adaptador do Alethe,

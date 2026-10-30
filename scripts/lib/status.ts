@@ -6,8 +6,18 @@
 
 import { run } from "./project.ts";
 
-/** Estados em que o worker pode legitimamente encerrar. */
-export const TERMINAL_STATES = ["GREEN", "FAILED_MAX_ITERATIONS", "BLOCKED_WAITING", "PR_STAGED"];
+/**
+ * Estados em que o worker pode legitimamente encerrar. `SUSPENDED` é gravado só pelo coordinator
+ * (Decision Inbox, issue #500) depois do `BLOCKED_WAITING`; está aqui para o SubagentStop de um
+ * worker que ainda encerra não o tomar por um status inacabado.
+ */
+export const TERMINAL_STATES = [
+  "GREEN",
+  "FAILED_MAX_ITERATIONS",
+  "BLOCKED_WAITING",
+  "PR_STAGED",
+  "SUSPENDED",
+];
 
 export interface WorktreeInfo {
   /** Raiz do repositório principal (não do worktree). */

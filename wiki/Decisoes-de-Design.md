@@ -76,6 +76,59 @@ aberto e é registrada no relatório, sem abortar a sessão nem fazer pergunta. 
 foram publicadas pelo mesmo usuário do `gh`, porque o merge é irreversível e um comentário forjado
 não pode liberar um PR. Sem o opt-in nada muda.
 
+**Entrevista consolidada na largada, em turno único (issue #499).** A Fase 2 chegava a quatro
+rodadas interativas seguidas (Spec por issue, teto de workers, runtime de delegação, aprovação do
+plano), cada uma com espera síncrona por decisões quase sempre previsíveis. Agora as decisões
+(teto, Specs, entrega, aprovação) viram uma única apresentação, cada uma com uma opção
+`(Recommended)` pré-marcada, de modo que aceitar o pacote custa uma confirmação. O runtime de
+delegação saiu da conversa porque o agrupamento roda antes de o plano existir: sem preferência
+configurada, segue inline. "Exatamente 1 turno" é uma propriedade do texto da skill, verificada por
+contrato estrutural; o tempo de setup (< 15 s) depende do usuário e não é medido. Os padrões
+`(Recommended)` são os mesmos que o `--headless` já adotava, agora listados item a item.
+
+**Async Decision Inbox e `SUSPENDED` (issue #500).** Com um worker em `BLOCKED_WAITING` o
+coordinator interrogava o usuário e parava: sem ninguém na tela, a fila `QUEUED` não andava e as
+ondas seguintes esperavam. O worker, porém, já encerrou o turno ao registrar o bloqueio, e o teto `N` é
+só contabilidade do coordinator. Por isso o bloqueio vira `SUSPENDED` (estado gravado só pelo
+coordinator, também terminal para o `SubagentStop`), a dúvida vai para
+`.claude/vetor/decision-inbox.json` e a vaga é reaproveitada no mesmo ciclo. O status file continua
+sendo a fonte de verdade: o `SUSPENDED` guarda `Blocked on`/`Options`/`Recommendation`,
+`Suspended at`, `Worktree` e `Timeout`, de onde a inbox é reconstruída se o JSON sumir. A retomada
+usa o worktree existente (subagente padrão com `cd`, nunca `vetor:issue-worker`). O avanço otimista
+de 60 s é opt-in (`optimisticDecisionSeconds`), vale só para decisão técnica — nunca para permissão —,
+exige o checkpoint (tag local `_vetor_checkpoint_*`) antes de aplicar a opção `(Recommended)` e é
+avaliado a cada ciclo de monitoramento, porque `AskUserQuestion` não tem timeout; o prazo real é, por
+isso, de 60 s até o ciclo seguinte. Texto do usuário nunca vai na linha de comando do `resolve`.
+
+**Ejeção graciosa e micro-spec JIT (issue #501).** Uma issue que esgota as tentativas, ou cuja dúvida
+ninguém responde numa execução autônoma, não deve segurar as outras da leva. O coordinator a ejeta:
+preserva o trabalho na branch (o diagnóstico viaja nela), publica um comentário diagnóstico, aplica
+`needs-human` só se a label já existir — a regra de nunca criar labels vale aqui também —, limpa o
+worktree e segue. O comentário sai por stdin (`gh issue comment --body-file -`), sem paths absolutos
+locais e sem `@usuario` solto, porque o log de uma suíte cita `jsr:@std/...` o tempo todo. O push da
+branch ficou de fora: workers não publicam e publicar é efeito externo, então a branch costuma
+existir só localmente e o comentário diz isso. Um grupo ejetado conta como resolvido para a
+transição de onda, mas seus dependentes diretos são pulados, porque o trabalho de que dependem nunca
+será mergeado. Já o gate de Spec deixou de perguntar se a issue deve sair da leva: um modelo leve
+escreve uma micro-spec de uma página no dispatch, validada por formato (1 objetivo, 3 critérios, 2
+non-goals) antes de entrar no `ContextPacket`. O coordinator a escreve fora do root (`cache/`) e é o
+worker quem cria `docs/specs/micro/<issue#>-<slug>.md` no próprio worktree, para não sujar o checkout
+principal. O prazo de 10 s é meta de desenho, sem medição.
+
+**Modo de meta contínua `--goal` (issue #498).** Os harnesses modernos delegam metas longas pelo
+`/goal`, e um coordinator que para para perguntar não cabe nesse desenho. `--goal "<meta>"` aplica a
+coluna *Headless* da matriz de decisões (nunca pergunta, adota o `(Recommended)` de cada item) e
+acrescenta um loop de convergência até o escopo estar resolvido ou ejetado, com teto de 120 minutos
+(RNF-04 da Spec) e o Goal Convergence Report no fim. **`--goal` não habilita o merge autônomo**: o
+mesmo opt-in da #497 (`--auto-ship` ou `autoShipHeadless`) e os quatro gates da Fase 6.d continuam
+sendo a única porta para entregar sem humano, e sem ele o relatório diz "nenhum PR preparado" em vez
+de fingir entrega. A consequência assumida é que uma meta de várias ondas só converge por completo com
+o opt-in, porque a transição de onda exige o merge da anterior. Em `--goal`, uma dúvida de worker
+vira `SUSPENDED` e, sem ninguém para responder, ejeção; o avanço otimista fica fora, porque decidir
+tecnicamente pelo worker sem checagem humana não é o que a Spec define para o goal. A meta é tratada
+como texto literal (só vai ao relatório e ao `goal-audit.json`, gravado com a ferramenta de escrita),
+porque ela vem do operador e um `$(...)` numa meta não pode virar execução.
+
 **Por que o circuit breaker headless sempre pausa.** Falha recorrente com a mesma assinatura quase
 sempre é infraestrutura (rede, registry, disco), não código: insistir sem humano só multiplica o
 custo pelo número de grupos restantes.

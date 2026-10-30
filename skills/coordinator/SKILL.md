@@ -1,6 +1,6 @@
 ---
 name: coordinator
-description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /vetor:coordinator [label]. Aceita --headless para execução não-interativa (rotinas/CI).
+description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /vetor:coordinator [label]. Aceita --headless para execução não-interativa (rotinas/CI) e --goal "<meta>" para convergência contínua sem perguntas.
 license: MIT
 compatibility: Claude Code
 metadata:
@@ -21,6 +21,8 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
 /vetor:coordinator --resume
 /vetor:coordinator [label] --headless
 /vetor:coordinator [label] --headless --auto-ship
+/vetor:coordinator [label] --goal "<meta>"
+/vetor:coordinator [label] --goal "<meta>" --auto-ship
 ```
 
 - `[label]`: label das issues a despachar (sem argumento: todas as issues abertas, ou usa `defaultDispatchLabel` de `.claude/vetor/config.json` se configurado)
@@ -29,9 +31,15 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
   worktrees/status files existentes (Fase 0).
 - `--headless`: execução **não-interativa**, para rotinas agendadas e CI. Combinável com qualquer
   um dos anteriores.
-- `--auto-ship`: só tem efeito com `--headless`. Habilita a Fase 6 (entrega) sem humano, sob quatro
-  gates determinísticos (Fase 6.d). Equivale a `"autoShipHeadless": true` em
-  `.claude/vetor/config.json`; sem nenhum dos dois, `--headless` continua sem entregar.
+- `--goal "<meta>"`: modo de **meta contínua** (issue #498), no estilo do `/goal` dos harnesses. Roda
+  sem nenhuma pergunta ao usuário até todas as issues do escopo estarem resolvidas ou ejetadas e
+  fecha com o Goal Convergence Report. A meta é uma descrição entre aspas, **obrigatória** (`--goal`
+  sem valor não inicia: responda com uma linha de erro) e só descritiva — não filtra issues.
+  Sem `[label]` nem lista de números, segue a Fase 0 como o comando sem argumento. Relação com
+  `--headless` e `--auto-ship`: seção "Modo goal".
+- `--auto-ship`: só tem efeito com `--headless` ou `--goal`. Habilita a Fase 6 (entrega) sem humano,
+  sob quatro gates determinísticos (Fase 6.d). Equivale a `"autoShipHeadless": true` em
+  `.claude/vetor/config.json`; sem nenhum dos dois, `--headless` e `--goal` continuam sem entregar.
 
 ---
 
@@ -72,15 +80,16 @@ adicional ao ler a issue no passo 1; esta skill não consome nem gera código a 
 
 ## Modo headless
 
-A flag `--headless` substitui os quatro pontos de interação humana por decisões determinísticas:
+A flag `--headless` substitui os pontos de interação humana por decisões determinísticas:
 
 | Fase | Interativo | Headless |
 |------|-----------|----------|
 | 1/2 — labels de triagem | Aplica label de triagem existente no repo ao pular issue (nunca cria) | Aplica igualmente se a label existir no repositório; nunca cria (`gh label create`) |
-| 2 — gate de Spec/design | `AskUserQuestion` por issue não-trivial sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
-| 2 — teto de workers | `AskUserQuestion` (pula se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
-| 2 — aprovação do plano | `ExitPlanMode`, **pare** | Não pede aprovação; imprime o plano no relatório |
-| 5.b — `BLOCKED_WAITING` | `AskUserQuestion` ao usuário | Não escala; deixa o grupo bloqueado e reporta |
+| 2 — entrevista consolidada | Um único turno: plano e as 4 decisões da largada (teto, Specs, entrega, aprovação), cada uma com `(Recommended)` | Não existe; adota o `(Recommended)` de cada item, sem perguntar |
+| 2 — gate de Spec/design | Item 2 da entrevista consolidada: uma pergunta para todas as issues não-triviais sem Spec associada | Nunca pergunta, nunca bloqueia; anota `⚠️ sem Spec associada` na coluna "Ação" e segue o dispatch |
+| 2 — teto de workers | Item 1 da entrevista consolidada (omitido se `N_rec = 1`) | Usa `N_rec` calculado, sem perguntar |
+| 2 — aprovação do plano | Item 4 da entrevista consolidada (`ExitPlanMode` em plan mode), **pare** | Não pede aprovação; imprime o plano no relatório |
+| 5.b — `BLOCKED_WAITING` | Suspende o grupo (`SUSPENDED`), libera a vaga no teto `N` e notifica sem bloquear | Suspende (`SUSPENDED`) e libera a vaga igualmente; não escala nem decide, só reporta |
 | 5.c — circuit breaker | Pergunta se pausa | Sempre pausa: para de despachar e reporta |
 | 6 — entrega | Pre-Ship paralelo e merge serializado | Pulada. Com `--auto-ship` ou `autoShipHeadless: true`, roda sob os 4 gates da Fase 6.d |
 
@@ -90,14 +99,109 @@ Além disso, em `--headless`:
   `.claude/vetor/config.json`, nunca invoque `ship`, `gh pr ready` ou `gh pr merge`: grupos em `GREEN`
   são reportados como prontos para ship. Com o opt-in, a Fase 6 roda sob os quatro gates da 6.d,
   nunca pergunta e, se um gate falhar, deixa o PR aberto.
-- **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão permanece
-  `BLOCKED_WAITING` e aparece no relatório final.
+- **Nenhuma permissão é auto-aprovada.** Um worker que bloqueia pedindo permissão é suspenso
+  (`SUSPENDED`, Fase 5.b) sem avanço otimista e aparece no relatório final.
 - **Labels de triagem em `--headless`**: ao pular ou manter bloqueada uma issue, aplica igualmente a
   label de triagem equivalente se já existir no repositório (ver tabela de mapeamento na Fase 1);
   **nunca** cria labels (`gh label create`). Sem equivalente no repo, não aplica e documenta o motivo
   apenas no relatório final.
 - **Ausência de trabalho não é falha.** Se não houver issue elegível, encerre com um relatório de
   uma linha. Não force dispatch para parecer produtivo.
+
+---
+
+## Modo goal
+
+`--goal "<meta>"` (issue #498, RF-01 da Spec
+`docs/specs/autonomia-continua-e-desacoplamento-interativo.md`) alinha o coordinator ao `/goal` de
+longa duração dos harnesses: o operador delega a meta e volta quando ela termina. O fluxo é o das
+Fases 0–7, mas o coordinator **converge sozinho**: despacha onda após onda até que toda issue do
+escopo esteja resolvida ou ejetada. Nenhuma `AskUserQuestion` nem `ExitPlanMode`, em momento algum.
+A meta é descritiva: não filtra issues (o escopo vem de `[label]`, da lista de números ou da
+descoberta da Fase 1).
+
+### Relação com `--headless` e `--auto-ship`
+
+`--goal` aplica a coluna **Headless** da matriz acima em todos os pontos de decisão. O que o distingue
+do `--headless` puro é a duração (um loop de convergência até o fim do escopo ou do teto) e o
+fechamento (o Goal Convergence Report). A entrega continua sendo um opt-in separado:
+
+| Invocação | Perguntas | Fase 6 (entrega) | Fecha com |
+|---|---|---|---|
+| `--headless` | nenhuma | pulada; roda sob a 6.d só com o opt-in | Coordinator Report |
+| `--goal` | nenhuma | pulada: os grupos `GREEN` ficam prontos para ship | Goal Convergence Report |
+| `--goal --auto-ship` | nenhuma | 6.d, sob os quatro gates | Goal Convergence Report |
+
+O opt-in de entrega é o mesmo `--auto-ship` ou `"autoShipHeadless": true` da Fase 6.d.
+`--goal` não habilita o merge autônomo implicitamente: **`--goal` sozinho nunca** invoca `ship`,
+`gh pr ready` nem `gh pr merge`. Sem o opt-in, a seção "PRs preparados" do Goal Convergence Report fica vazia e os
+grupos `GREEN` são listados como prontos para ship. Com o opt-in, cada PR só é mergeado se passar nos
+quatro gates da Fase 6.d; gate reprovado deixa o PR aberto e registrado, como no `--headless`.
+
+### Decisões determinísticas
+
+Em `--goal` não há entrevista nem aprovação: toda decisão adota a opção `(Recommended)` da Fase 2, e
+a lista do que foi adotado vai ao relatório (RNF-03).
+
+| Decisão | O que o `--goal` adota |
+|---|---|
+| Triagem de despachabilidade | As mesmas regras de `SKIPPED` da Fase 1; label de triagem só se já existir no repositório, e o coordinator nunca cria labels |
+| Specs (gate da Fase 2) | `(Recommended)`: despachar com micro-spec JIT, com a marca `⚠️ sem Spec associada` |
+| Teto de workers | `N_rec`, sem perguntar |
+| Modelos | O `(Recommended)` da coluna "Modelo / Backend" do plano (`haiku`/`sonnet` pela regra de `issue-coordinator-dispatch.md`); delegação a runtime externo só com `delegation.preferredRuntime`, senão inline |
+| Aprovação do plano | Nenhuma; o plano vai ao relatório |
+| Entrega | Só com o opt-in da seção anterior |
+| Bloqueio de worker (5.b) | `SUSPENDED`, que libera a vaga; sem humano para responder, a pendência vira ejeção (5.f) quando não resta mais nada a despachar ou monitorar. Sem avanço otimista, e nenhuma permissão é auto-aprovada |
+| Iterações esgotadas | Um redespacho com `sonnet` (`issue-coordinator-dispatch.md`) e então a ejeção (5.f) |
+| Circuit breaker (5.c) | Pausa e reporta, como no `--headless`: a meta não converge |
+
+### Convergência e término
+
+- **Resolvida** é a issue que terminou `GREEN` (pronta para ship), `PR_STAGED` ou mergeada (com o
+  opt-in), `EJECTED` ou `SKIPPED` pela triagem. A meta converge quando toda issue do escopo está
+  resolvida ou ejetada; o resultado é `CONVERGIU`, senão `PARCIAL`, com o motivo.
+- **Teto de sessão:** min(`maxSessionMinutes` — 120 se ausente —, 120) minutos. A Spec limita a
+  execução autônoma a 120 minutos (RNF-04), então um `maxSessionMinutes` maior não o ultrapassa em
+  `--goal`. Ao atingi-lo valem as regras de sempre (nenhum novo grupo nem nova onda, os ativos
+  concluem a iteração corrente), e as pendências `SUSPENDED` são ejetadas (5.f).
+- **Ondas e entrega:** sem o opt-in de entrega nada é mergeado, e a transição de onda exige o merge de
+  `O_i`. Os grupos de `O_2` em diante ficam `QUEUED` (aguardando `O_i`) até o fim da sessão e entram
+  no Goal Convergence Report como "não convergiram". Sem `--auto-ship`, a meta só converge por
+  completo se o escopo cabe numa única onda.
+- **Circuit breaker:** disparado, o coordinator para de despachar e a meta não converge; os grupos
+  não despachados e a assinatura de erro comum vão ao relatório.
+
+### A meta é texto literal
+
+A meta é dado, não comando: nunca a interpole num comando de shell (nem em `echo`, argumentos de
+`git` ou `gh`, mensagens de commit ou comentários de issue). Ela só aparece no Goal Convergence Report
+e em `<repo-root>/.claude/vetor/goal-audit.json`, que se grava com a ferramenta de escrita, a meta como
+string JSON (escape de `"`, `\` e quebras de linha). Uma meta com `$(...)`, crases ou `;` é texto
+literal, não execução.
+
+O `goal-audit.json` é o registro durável de RNF-03 e a fonte do relatório, porque o contexto de uma
+sessão de 120 minutos pode ser compactado. Reescreva-o a cada decisão ou ejeção, no schema da Spec
+(`goal`, `startedAt`, `completedAt`, `concludedIssues`, `ejectedIssues`, `autoDecisionsApplied`) mais a
+lista `autoDecisions`, que traz cada decisão autônoma com a opção adotada e a referência (hash do
+commit de preservação da ejeção, ou a tag `_vetor_checkpoint_*` de um avanço otimista):
+
+```json
+{
+  "goal": "Entregar correções de bugs da release",
+  "startedAt": "2026-10-26T17:30:00Z",
+  "completedAt": null,
+  "concludedIssues": [482, 485],
+  "ejectedIssues": [{ "issueNumber": 488, "reason": "Esgotou 5 iterações", "labelApplied": "needs-human", "checkpointCommit": "7f8b9c0" }],
+  "autoDecisionsApplied": 2,
+  "autoDecisions": [{ "decision": "Teto de workers", "adopted": "N=3 (Recommended)", "ref": null }]
+}
+```
+
+### O que `--goal` não relaxa
+
+Os hooks de segurança (`safety-check.ts`) continuam bloqueando comandos destrutivos, nenhuma
+permissão é auto-aprovada, o coordinator nunca cria labels (`gh label create`) e o fix-loop mantém o
+orçamento de 5 iterações por issue.
 
 ---
 
@@ -109,14 +213,17 @@ Além disso, em `--headless`:
   1. Rode `bash "$SKILL_DIR/../../scripts/vetor-status.sh"` para listar os worktrees ativos com
      status file. O script cruza os status files com `gh pr list` e anota `GREEN (PR #N aberta)` ou
      `GREEN (já mergeado via #N)`.
-  2. Se houver ao menos um status file ativo: **pule as Fases 1–3** e faça a pergunta de workers
-     (Fase 2; pulada quando `N_rec = 1`) — o estado em memória de `N` não sobrevive a um reinício da sessão. Depois monte a
-     tabela de status (Fase 5.a) e, para cada grupo em `GREEN` sem PR aberta ou merge, ofereça o
-     ship via `AskUserQuestion` ("Fazer ship do grupo `<slug>` (Issue #<N>), que está GREEN?"). Se
-     já estiver mergeado, apenas informe. Prossiga a partir da Fase 5/6.
-     Em `--headless`: não pergunte o teto (use `N_rec`) e não ofereça ship — apenas reporte os
-     grupos `GREEN` como prontos, salvo com `--auto-ship`/`autoShipHeadless: true`, caso em que
-     os `GREEN` seguem a Fase 6.d.
+  2. Se houver ao menos um status file ativo: **pule as Fases 1–3** e pergunte tudo em
+     **uma única chamada de `AskUserQuestion`** (issue #499): o teto de workers (item 1 da entrevista consolidada
+     da Fase 2; omitido quando `N_rec = 1`, pois o estado em memória de `N` não sobrevive a um
+     reinício da sessão) e, se houver grupos em `GREEN` sem PR aberta ou merge, uma segunda pergunta
+     `multiSelect` — "Fazer ship dos grupos `GREEN`?" — listando cada grupo `<slug>` (Issue #<N>)
+     com todos marcados `(Recommended)`. Depois monte a tabela de status (Fase 5.a). Se já estiver
+     mergeado, apenas informe. Prossiga a partir da Fase 5/6.
+     Em `--headless` (e em `--goal`, que o acompanha): não pergunte o teto (use `N_rec`) e não
+     ofereça ship — apenas reporte os grupos `GREEN` como prontos, salvo com
+     `--auto-ship`/`autoShipHeadless: true`, caso em que os `GREEN` seguem a Fase 6.d. Em `--goal` a
+     retomada continua o `goal-audit.json` existente em vez de criar outro.
      Antes de prosseguir, rode `scripts/prewarm-worktrees.ts discard` para limpar sobras de
      pre-warming (idempotente, e sem manifest não faz nada, com ou sem o opt-in; ver
      `../shared/references/worktree-prewarm.md`).
@@ -214,6 +321,7 @@ Mapeie o motivo aos labels existentes no repo alvo, usando o **primeiro da linha
 | ------ | --------------- | ---------- | ---------- | ----------------- |
 | `SKIPPED (aguardando Spec)` | `needs-spec` | `spec-needed` | `triage/needs-information` | Não aplica |
 | `SKIPPED (aguardando insumo do usuário)` / bloqueada | `blocked` | `status/blocked` | — | Não aplica |
+| `EJECTED` (esgotou as tentativas ou bloqueio sem resposta, Fase 5.f) | `needs-human` | — | — | Não aplica |
 
 **Regras e convenções:**
 1. **Regra de ouro — nunca crie labels:** o coordinator **nunca** executa `gh label create`. Se nenhuma das labels candidatas da linha existir no repositório-alvo, não aplica label alguma no GitHub — o motivo fica registrado exclusivamente no plano e no Coordinator Report da sessão.
@@ -221,12 +329,16 @@ Mapeie o motivo aos labels existentes no repo alvo, usando o **primeiro da linha
    ```bash
    gh issue edit <N> --add-label "<label-encontrada>"
    ```
-3. **Remoção da label de triagem ao despachar:** ao despachar posteriormente uma issue (Fase 4) que possua qualquer uma das labels de triagem mapeadas (`needs-spec`, `spec-needed`, `triage/needs-information`, `blocked`, `status/blocked`), o coordinator obrigatoriamente a remove antes ou no momento do dispatch:
+3. **Remoção da label de triagem ao despachar:** ao despachar posteriormente uma issue (Fase 4) que possua qualquer uma das labels de triagem mapeadas (`needs-spec`, `spec-needed`, `triage/needs-information`, `blocked`, `status/blocked`, `needs-human`), o coordinator obrigatoriamente a remove antes ou no momento do dispatch:
    ```bash
    gh issue edit <N> --remove-label "<label-de-triagem>"
    ```
 4. **Comportamento em `--headless`:** aplica igualmente a label de triagem se ela existir no repositório; nunca cria labels (`gh label create`). Sem equivalente no repo, não aplica e documenta a omissão no relatório final.
 5. **Não-escopo:** nunca aplique labels indicando execução em andamento (ex.: `in-progress` ou qualquer estado de execução). O estado de execução vive exclusivamente no worktree e no status file (`.claude/vetor/status/`), e o padrão do GitHub para status de fluxo é o campo Status do Projects.
+6. **Ejeção (`needs-human`, issue #501):** vale a mesma regra de ouro. A label só é aplicada se já
+   existir (`gh label list`); sem ela, o motivo fica no comentário diagnóstico da issue e no relatório,
+   e a ejeção segue normalmente. Falha ao aplicá-la (ex.: token sem permissão) também não interrompe a
+   ejeção: o motivo vai ao relatório.
 
 #### Detecção de issues spike (modo investigação)
 
@@ -254,9 +366,11 @@ Issues do tipo `spike` ("Investigação/exploração — resultado informa decis
 
 Com as candidatas válidas em mãos, se houver mais de 3 issues, você pode delegar a proposta de
 agrupamento a um runtime externo disponível — detecção e algoritmo de seleção em
-`delegate-to-runtime.md` §1-2 (com 2+ candidatos e nenhuma preferência configurada, em sessão
-interativa pergunte qual usar; em `--headless`, siga inline). Você valida e corrige a proposta; a
-distribuição final é sua.
+`delegate-to-runtime.md` §1-2. Aqui a escolha de runtime é **sem pergunta própria** (issue #499): o
+agrupamento acontece antes de o plano existir, então não cabe na entrevista consolidada da Fase 2.
+Com `delegation.preferredRuntime` ou um único candidato siga o algoritmo; com 2+ candidatos e nenhuma
+preferência configurada, siga inline (o mesmo desempate de `--headless`) e sugira no relatório salvar
+`delegation.preferredRuntime`. Você valida e corrige a proposta; a distribuição final é sua.
 
 Inline (ou com 3 ou menos issues):
 - Agrupe issues **complementares ou correlatas** (mesmo módulo, ou um `fix` que complementa
@@ -346,25 +460,34 @@ aplicado aqui à decisão "despachar como está, ou sinalizar a falta de uma Spe
    (um bugfix que já chega com escopo claro não é bloqueado cegamente) nem issues `não-trivial` que já
    têm Spec, e nunca issues `spike` (investigações exploratórias dispensam Spec, ver "Detecção de issues spike").
 
-**Fora de `--headless`:** para cada issue sinalizada, pergunte via `AskUserQuestion` (uma pergunta por
-issue, ou agrupada se houver mais de uma — `planning-conventions.md` §3 "Regra das 3 perguntas"),
-**antes de montar a tabela do plano**:
+**Fora de `--headless`:** não pergunte nada neste ponto (issue #499). As issues sinalizadas viram o
+**item 2 da entrevista consolidada** (abaixo): uma única pergunta para todas elas, e não uma por
+issue (`planning-conventions.md` §3 "Regra das 3 perguntas"). O gate classifica e o plano reflete a
+opção `(Recommended)`; a resposta do usuário, no turno único da largada, ajusta o que for preciso.
+Texto-base da pergunta do item 2:
 
 ```
-Issue #<N> parece não-trivial (<razão: múltiplos módulos | sem Escopo do trabalho/Critério de
-Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem Spec associada. Como prosseguir?
+Issue(s) #<N>[, #<M>...] parece(m) não-trivial(is) (<razão: múltiplos módulos | sem Escopo do
+trabalho/Critério de Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem(têm) Spec
+associada. Como prosseguir?
 
-1. Despachar mesmo assim — escopo confirmado nesta conversa
-2. Gerar Spec antes (/vetor:spec) — esta issue sai desta leva de dispatch
-3. Confirmar rapidamente 2-3 pontos agora (problema, resultado esperado, não-escopo) e seguir sem
-   Spec completa
+1. Despachar com micro-spec JIT — um modelo leve escreve o escopo de 1 página no dispatch (Recommended)
+2. Despachar mesmo assim — escopo confirmado nesta conversa
+3. Gerar Spec antes (/vetor:spec) — a(s) issue(s) sai(em) desta leva de dispatch
 ```
 
-- **Opções 1 ou 3**: a issue segue no plano normalmente; marque na coluna "Ação" da tabela (abaixo)
-  `Despachar (⚠️ sem Spec — confirmado pelo usuário)`. Na opção 3, inclua os 2-3 pontos confirmados
-  no prompt do worker da Fase 4, como contexto adicional (não substitui uma Spec — é só o mínimo de
-  escopo confirmado para o worker não inventar critério de aceite sozinho).
-- **Opção 2**: remova a issue desta leva de dispatch — ela não aparece como `Despachar`, e sim com
+- **Opção 1 (micro-spec JIT, issue #501)**: a issue segue no plano normalmente; marque na coluna
+  "Ação" da tabela (abaixo) `Despachar (⚠️ sem Spec — micro-spec JIT)`. A micro-spec é sintetizada no
+  dispatch da Fase 4, sem interromper o dispatch nem atrasar a aprovação do plano e sem perguntar ao
+  usuário se quer tirar a issue da leva para escrever uma Spec completa: contrato, formato e
+  fallback em `../shared/references/issue-coordinator-dispatch.md` ("Micro-spec JIT"). Se o modelo
+  falhar, a issue é despachada sem micro-spec e continua marcada `⚠️ sem Spec`.
+- **Opção 2**: a issue segue no plano normalmente, sem micro-spec; marque na coluna "Ação"
+  `Despachar (⚠️ sem Spec — confirmado pelo usuário)`. Se o usuário informou pontos de escopo
+  (problema, resultado esperado, não-escopo) no campo livre da mesma resposta, inclua-os no prompt
+  do worker da Fase 4, como contexto adicional (não substitui uma Spec — é só o mínimo de escopo
+  confirmado para o worker não inventar critério de aceite sozinho).
+- **Opção 3**: remova a issue desta leva de dispatch — ela não aparece como `Despachar`, e sim com
   Ação `SKIPPED (aguardando Spec)` e coluna "Onda" `—` (nunca foi despachada, não pertence a onda
   nenhuma). Se a issue sinalizada é a **Lead** do grupo, o grupo inteiro sai da leva (as Sequential
   Issues do grupo ficam sem Lead para dar nome ao worktree/branch — voltam junto na próxima sessão);
@@ -380,9 +503,10 @@ Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem Spec associ
 
 **Em `--headless`: nunca pergunte, nunca bloqueie.** Um gate síncrono aqui recriaria o mesmo deadlock
 por falta de interlocutor do worker preso em plan mode (issue #121 — ver `wiki/Decisoes-de-Design.md`).
-Marque a issue na coluna "Ação" como `Despachar (⚠️ sem Spec associada — sinalização não-bloqueante)` e
-prossiga o dispatch normalmente; a ausência de Spec fica registrada no relatório final (Fase 7), nunca
-impede o dispatch.
+Marque a issue na coluna "Ação" como
+`Despachar (⚠️ sem Spec associada — sinalização não-bloqueante; micro-spec JIT)` e prossiga o dispatch
+normalmente: a micro-spec JIT (opção 1 acima) é gerada no dispatch, sem perguntar; a ausência de Spec
+fica registrada no relatório final (Fase 7), nunca impede o dispatch.
 
 Monte o plano (conteúdo mínimo em `planning-conventions.md` §2.1), já refletindo o resultado do gate
 acima na coluna "Ação":
@@ -397,7 +521,7 @@ Coordenando issues: <label ou "todas as abertas" ou descrição do filtro>
 | Onda | Subagente/Grupo (Slug) | Lead/Sequential Issues | Modelo / Backend | Ação |
 |------|-------------------------|------------------------|------------------|------|
 | O_1  | <slug-1>                | #<N1> (Lead), #<M1>    | <haiku|sonnet|alethe> | Despachar |
-| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet|alethe> | Despachar (⚠️ sem Spec — confirmado pelo usuário) |
+| O_1  | <slug-2>                | #<N3> (Lead)           | <haiku|sonnet|alethe> | Despachar (⚠️ sem Spec — micro-spec JIT) |
 | O_1  | <slug-3>                | #<N4> (Lead)           | <haiku|sonnet|alethe> | Despachar (Spike — modo investigação) |
 | —    | <slug-4>                | #<N5> (Lead)           | —                | SKIPPED (aguardando Spec) |
 | —    | <slug-5>                | #<N6> (Lead)           | —                | SKIPPED (aguardando insumo do usuário) |
@@ -434,27 +558,68 @@ driver de custo agregado do coordinator.
    uma interação vazia (issue #414).
 3. **Em `--headless`:** adote `N = N_rec` sem perguntar e registre no relatório qual valor foi usado
    e como foi calculado.
-4. **Fora de `--headless` (com `N_rec > 1`):** pergunte via `AskUserQuestion` (uma única vez por sessão):
-   - `"<N_rec> (Recomendado)"` — justifique em 1 linha (largura da onda, custo por worker, alerta se > 8)
+4. **Fora de `--headless` (com `N_rec > 1`):** o teto é o **item 1 da entrevista consolidada**
+   (abaixo), sem pergunta própria. Opções do item:
+   - `"<N_rec> (Recommended)"` — justifique em 1 linha (largura da onda, custo por worker, alerta se > 8)
    - `"1 — serializado"` — mais lento, mais previsível, menor custo
    - `"<maxConcurrentWorkers de config.json>"` — só se existir e for diferente de `N_rec`
    - O usuário pode responder valor customizado ("Other"), **inclusive acima de 8** — respeite-o.
 5. **Armazene como `N`** para a Fase 4; vale para toda a sessão de dispatch, incluindo redespachos.
-   Em modo de retomada, repita a pergunta antes de despachar qualquer `QUEUED` apenas se `N_rec > 1`.
+   Em modo de retomada, o teto entra na pergunta única da Fase 0 apenas se `N_rec > 1`.
    O valor **não persiste** em `.claude/vetor/config.json`.
+
+#### Entrevista consolidada de setup (ahead-of-time batching)
+
+Fora de `--headless`, as decisões da largada saem de **uma única apresentação**, com
+**exatamente 1 turno** de diálogo antes do primeiro dispatch de worker (RF-02 da Spec
+`docs/specs/autonomia-continua-e-desacoplamento-interativo.md`, issue #499). Nada é perguntado antes
+dela: a classificação do gate de Spec, o DAG de ondas, o `N_rec` e o plano já foram calculados sem
+interação. Cada item traz uma opção pré-marcada `(Recommended)`; aceitar o pacote inteiro é uma única
+confirmação.
+
+| # | Item | Opções | Padrão |
+|---|------|--------|--------|
+| 1 | Teto de workers | `<N_rec> (Recommended)` · `1 — serializado` · `<maxConcurrentWorkers>` | `N_rec`; o item some quando `N_rec = 1` |
+| 2 | Sinalização de Specs | `Despachar com micro-spec JIT (Recommended)` · `Despachar mesmo assim — ⚠️ sem Spec` · `Gerar Spec antes (/vetor:spec) — sai da leva` | Micro-spec JIT; o item some quando nenhuma issue foi sinalizada |
+| 3 | Estratégia de entrega | `Pre-Ship paralelo + merge serializado (Recommended)` · `Parar em GREEN — sem entrega nesta sessão` | Fase 6 como descrita abaixo |
+| 4 | Aprovação do plano | `Aprovar o plano com as decisões acima (Recommended)` · `Ajustar` | Aprovar |
+
+O item 3 só decide se a Fase 6 roda: `Parar em GREEN` pula a Fase 6 (mesmo efeito do `--headless` sem
+opt-in: os grupos `GREEN` entram no relatório como prontos para ship, com branch e path do worktree).
+
+Apresente o pacote conforme o ecossistema:
+
+- **Claude Code, fora de plan mode:** imprima o plano (tabela de ações) e a tabela de decisões acima
+  na mesma mensagem e chame **um único `AskUserQuestion`** com uma pergunta por item que se aplique,
+  `(Recommended)` sempre como primeira opção. São no máximo 4 perguntas, que cabem numa só chamada da
+  ferramenta; itens omitidos só encurtam a chamada. Não chame `EnterPlanMode` apenas para isso.
+- **Claude Code, em plan mode:** o plano ganha a seção `## Decisões da largada` com as 4 linhas e o
+  padrão `(Recommended)` marcado em cada uma; um único `ExitPlanMode` aprova o pacote. Para mudar
+  um item o usuário rejeita o plano com a mudança no comentário.
+- **Antigravity/Gemini:** o mesmo plano, com a seção `## Decisões da largada`, em
+  `implementation_plan.md` com `request_feedback: true` e `user_facing: true`; aguarde
+  `request_feedback: false` ou "Proceed".
+- **Sem nenhum dos dois:** exiba o plano e as decisões numeradas no chat e termine com "responda `sim`
+  para aceitar todas as opções `(Recommended)`, ou diga quais itens mudar".
+
+Regras do pacote:
+
+- **Item 2 com várias issues:** é uma pergunta só, e a resposta vale para todas as sinalizadas.
+  Exceções por issue e pontos de escopo (problema, resultado esperado, não-escopo) vão no
+  campo livre (`Other`) da mesma resposta — nunca num segundo turno.
+- **Caminho feliz = 1 turno.** Se o usuário mudar algo que altere o plano (ex.: tirar uma issue da
+  leva), reapresente o plano ajustado; essa rodada extra é consequência da mudança, não do setup.
+- **Em `--headless`: não há entrevista.** Adota-se o `(Recommended)` de cada item sem perguntar:
+  item 1 = `N_rec`; item 2 = despachar com micro-spec JIT e `⚠️ sem Spec associada`; item 3 = a regra do headless (só
+  há entrega com `--auto-ship`/`autoShipHeadless`, Fase 6.d); item 4 = sem aprovação, o plano vai ao
+  relatório.
 
 #### Obtenção de aprovação
 
 **Em `--headless`: pule esta seção** — inclua o plano no relatório final (Fase 7) e siga para a Fase 3.
 
-- **No Claude Code:** se a sessão já estiver em plan mode, apresente o plano e conclua com
-  `ExitPlanMode`. Se a sessão **não** estiver em plan mode, aprove via `AskUserQuestion` (ou chame
-  `EnterPlanMode` antes).
-- **No Antigravity/Gemini:** gere/atualize `implementation_plan.md` com `request_feedback: true` e
-  `user_facing: true`, e aguarde `request_feedback: false` ou "Proceed".
-- Sem nenhum dos dois: exiba o plano no chat e aguarde resposta afirmativa explícita.
-
-**Pare** até a aprovação. Respeite trocas manuais de modelo ou de teto no dispatch da Fase 4.
+A aprovação é o item 4 da entrevista consolidada: não há um segundo pedido de aprovação depois dela.
+**Pare** até a resposta única. Respeite trocas manuais de modelo ou de teto no dispatch da Fase 4.
 
 ### 3 — Fase de criação (nativa e serializada)
 
@@ -470,8 +635,10 @@ reconcilie-o com o plano aprovado (`discard --keep`) antes de qualquer `Agent()`
 - Despache em paralelo até `N` grupos, **estritamente dentro da onda corrente** (`O_i`). Grupos de
   `O_{i+1}` ou posterior nunca são despachados enquanto houver grupo de `O_i` ainda não mergeado —
   mesmo que haja vagas no teto `N`. Eles ficam `QUEUED (aguardando O_i)` na tabela (Fase 5.a).
-- Dentro da onda corrente: quando um worker ativo atingir `GREEN`, `FAILED_MAX_ITERATIONS` ou for
-  cancelado, despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto.
+- Dentro da onda corrente: quando um worker ativo
+  atingir `GREEN`, `FAILED_MAX_ITERATIONS`, for suspenso (`SUSPENDED`, Fase 5.b) ou for cancelado,
+  despache o próximo `QUEUED` da mesma onda, mantendo os ativos no teto. Um grupo `SUSPENDED` retomado
+  (Fase 5.b) volta a ocupar uma vaga e passa à frente dos `QUEUED`.
 - O teto é contabilidade do coordinator, não bloqueio de plataforma: respeite-o a cada ciclo.
   Leia `../shared/references/issue-coordinator-dispatch.md` para timeout, transição de ondas e sincronização do root.
 - **Grupo pré-aquecido (RF-06, só com `prewarmWorktrees: true`):** antes de cada `Agent()`, rode
@@ -481,8 +648,13 @@ reconcilie-o com o plano aprovado (`discard --keep`) antes de qualquer `Agent()`
   `claim`:** o dispatch é sempre o clássico, com `vetor:issue-worker` e `isolation: "worktree"`.
 - **Remoção de labels de triagem antes do dispatch:** ao despachar uma issue (Lead ou Sequential),
   verifique se ela possui alguma label de triagem (`needs-spec`, `spec-needed`,
-  `triage/needs-information`, `blocked`, `status/blocked`). Se possuir, remova-a com
+  `triage/needs-information`, `blocked`, `status/blocked`, `needs-human`). Se possuir, remova-a com
   `gh issue edit <N> --remove-label "<label-de-triagem>"`.
+- **Micro-spec JIT (issue #501):** para cada issue sinalizada no gate de Spec/design com a opção de
+  micro-spec (a `(Recommended)`, e sempre em `--headless`), gere a micro-spec antes de montar o prompt
+  do worker, sem perguntar e sem interromper o dispatch: contrato, formato, prazo de 10 s e fallback
+  em `../shared/references/issue-coordinator-dispatch.md` ("Micro-spec JIT"). O resultado entra no
+  `ContextPacket` do worker.
 - **Despacho de issues spike (modo investigação):** se a issue for um `spike` (conforme detecção da Fase 1):
   - Provisione o worktree com tipo `docs` (`docs/<issue#>-<slug>`, suportado desde #429).
   - Despache o worker com prompt específico de modo investigação: dispensa TDD e testes de produto; exige relatório em `docs/investigations/<slug>.md` estruturado com Pergunta, Evidências (comandos/fontes reproduzíveis), Opções avaliadas e Recomendação; define critério de `GREEN` (relatório existe e `git diff --check` passa); e orienta que a entrega seguirá PR só de docs (#427), sem criação automática de issues de follow-up.
@@ -518,27 +690,87 @@ Ao ver um ou mais grupos em `GREEN` na tabela, **não espere os demais workers**
 de todos os verdes de uma vez (Fase 6.a). O CI desses PRs e o dos que ainda vão chegar correm em
 paralelo no GitHub, e o acompanhamento é uma consulta agregada (5.e do `issue-coordinator-monitoring.md`).
 
-**5.b — Escalação de bloqueios**
+**5.b — Escalação de bloqueios (Async Decision Inbox, issue #500)**
 
 **A fonte de verdade da escalação é o status file.** Se um worker sinalizar bloqueio apenas por
 chat, **não escale ainda**: instrua-o via `SendMessage` a gravar o `BLOCKED_WAITING` estruturado
 (`Blocked on` / `Options` / `Recommendation`) primeiro, para que o estado sobreviva a um reinício.
 
-**Em `--headless`: não escale.** Registre no relatório final o agente (`<slug>` / Issue `#<N>`), o
-motivo do bloqueio e a recomendação do worker. Se a issue for mantida bloqueada ou retirada da leva,
-aplique a label de bloqueio equivalente se já existir no repositório (`blocked` -> `status/blocked`;
-nunca execute `gh label create` — ver tabela de mapeamento da Fase 1). Não conceda permissão, não
-escolha opção técnica e não redespache. Nunca mate um worker bloqueado para abrir vaga no teto `N`.
+Perguntar ao usuário e esperar a resposta com o worker segurando uma vaga trava a fila inteira
+(bloqueio em cabeça de fila). Um worker em `BLOCKED_WAITING` já encerrou o turno — é um estado
+terminal para o `SubagentStop` —, então o que ocupa o teto `N` é só contabilidade do coordinator.
+No mesmo ciclo de monitoramento em que detectar o bloqueio, siga estes passos, sem perguntar antes:
 
-Fora do headless, leia o bloco `Blocked on` / `Options` / `Recommendation` e escale via
-`AskUserQuestion`, identificando o agente e transmitindo a recomendação. Opções conforme o tipo:
-- **Permissão bloqueada** (`<comando>`): permitir esta vez / permitir para este agente (auto-aprova
-  chamadas similares dele) / negar (registra "skipped", aplicando label de bloqueio existente no repo
-  conforme a Fase 1 sem nunca criar labels) / parar agente.
-- **Decisão técnica**: as opções do bloco `Options`.
+1. **Suspenda.** O comando é local (sem rede) e atualiza duas coisas: a pendência em
+   `<repo-root>/.claude/vetor/decision-inbox.json` (schema na Spec, seção Data) e o status file, que
+   passa a `Status: SUSPENDED` mantendo os blocos `Blocked on` / `Options` / `Recommendation`:
+   ```bash
+   deno run -A "$SKILL_DIR/../../scripts/decision-inbox.ts" suspend \
+     --status-file <status-file-path> --worktree <path-do-worktree> [--timeout <segundos>]
+   ```
+   O `--timeout` só entra no avanço otimista abaixo; sem ele a pendência espera o humano.
+2. **Libere a vaga.** `SUSPENDED` não conta no teto `N`: no mesmo ciclo, despache o próximo `QUEUED`
+   da onda corrente (Fase 4). O worker não é morto nem tocado — o worktree fica intacto.
+3. **Notificação (não bloqueante).** O `vetor-status.sh` (5.a) lista os suspensos com um aviso 🔔 abaixo da
+   tabela. Em sessão interativa, mostre cada pendência como texto junto da tabela e siga o loop:
+   ```
+   🔔 Decisão pendente — #<N> (<slug>): <Blocked on>
+   Opções: 1. <opção> (Recommended) · 2. <opção> · 3. <opção>
+   Responda `#<N> = <número da opção>` (ou texto livre) a qualquer momento.
+   ```
+   Use `AskUserQuestion` para a pendência só quando não houver mais nada a monitorar nem a despachar
+   (nenhum worker ativo e a fila `QUEUED` da onda vazia): aí perguntar não congela ninguém. Para um
+   bloqueio de **permissão** (`<comando>`) as opções são: permitir esta vez / permitir para este
+   agente (auto-aprova chamadas similares dele) / negar (registra "skipped", aplicando label de
+   bloqueio existente no repo conforme a Fase 1, sem nunca criar labels) / parar agente.
+4. **Retome quando a decisão chegar.** Resolva a pendência — o comando remove-a da inbox e deixa o
+   status file em `RUNNING` com a decisão registrada:
+   ```bash
+   deno run -A "$SKILL_DIR/../../scripts/decision-inbox.ts" resolve --id dec-issue-<N> --option <n>
+   ```
+   Nunca interpole texto do usuário na linha de comando: a escolha de uma opção usa `--option <n>`
+   (1 = primeira) e texto livre vai num arquivo gravado com a ferramenta de escrita, passado em
+   `--decision-file <path>`. Depois redespache o grupo **no worktree existente**, pela nota de
+   redispatch da Fase 4: subagente padrão **sem `subagent_type`** (nunca `vetor:issue-worker`, que
+   força worktree novo), com a skill `fix`, um `cd` para o path real do worktree (`git worktree list`),
+   o status file e a decisão no prompt, continuando da `Iteration: N/5` registrada. Se o worker
+   original ainda for endereçável, `SendMessage` com a decisão é um atalho equivalente. O grupo
+   retomado volta a ocupar uma vaga do teto `N` e tem prioridade sobre os `QUEUED` da mesma onda,
+   mas não interrompe workers ativos: se não há vaga, espera a próxima que abrir.
 
-Comunique a decisão ao sub-agente via `SendMessage`. Se a resposta exigir redespachar em worktree
-existente, siga a nota de redispatch da Fase 4.
+**Avanço otimista (opcional, RF-04).** Desligado por padrão. Ligue com
+`"optimisticDecisionSeconds": 60` em `.claude/vetor/config.json` (lido a partir do root). Ligado, e
+**só para bloqueio de decisão técnica — nunca permissão: nenhuma permissão é auto-aprovada, nem pelo
+temporizador** —, suspenda com `--timeout <segundos>` e acrescente à notificação, literalmente:
+"Avançando automaticamente com a opção (Recommended) em 60s na ausência de resposta". A
+`AskUserQuestion` não tem timeout, então o prazo é avaliado a cada ciclo de monitoramento (≤ 45 s, o
+mesmo ritmo da 5.e): rode `decision-inbox.ts list` e, para cada pendência com `expired: true`:
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/decision-inbox.ts" resolve --id dec-issue-<N> --optimistic
+```
+
+O comando cria antes a tag anotada e **local** `_vetor_checkpoint_<branch>_<timestamp>` na ponta da
+branch do worker (ponto de restauração; nada é publicado), grava `[OPTIMISTIC_DECISION]` no status
+file e aplica a opção `(Recommended)` do worker. Se a tag falhar, nada é resolvido e a pendência segue
+aguardando o humano. Registre id, opção e tag na lista de decisões autônomas do relatório (RNF-03).
+Uma resposta humana que chegue antes do prazo tem precedência. Como a avaliação é por ciclo, o avanço
+ocorre entre 60 s e o ciclo seguinte, não exatamente aos 60 s.
+
+**Se o `decision-inbox.json` for apagado ou corrompido**, `list` e `resolve` o recriam a partir dos
+status files `SUSPENDED` (que guardam `Blocked on`, `Options`, `Suspended at`, `Worktree` e `Timeout`).
+
+**Em `--headless`: não escale e não decida.** Suspenda (`SUSPENDED`, sem `--timeout`) e libere a vaga
+igualmente.
+Registre no relatório final o agente (`<slug>` / Issue `#<N>`), o motivo do bloqueio e a recomendação
+do worker; a pendência fica na inbox para um humano. Se a issue for mantida bloqueada ou retirada da
+leva, aplique a label de bloqueio equivalente se já existir no repositório (`blocked` ->
+`status/blocked`; nunca execute `gh label create` — ver tabela de mapeamento da Fase 1). Não conceda
+permissão, não escolha opção técnica e não redespache. Liberar a vaga não mata nem toca o worker: ele
+já encerrou o turno e o worktree fica intacto.
+
+Um grupo `SUSPENDED` sem resolução **não conta como concluído** para a transição de onda
+(`../shared/references/issue-coordinator-dispatch.md`): trate-o como pendência a reportar.
 
 **5.c — Circuit Breaker**
 
@@ -550,10 +782,66 @@ pause os subagentes ativos e pergunte:
 **Em `--headless`: não pergunte — sempre pause.** Pare de despachar `QUEUED`, deixe os ativos
 terminarem e vá para o relatório destacando a assinatura de erro comum.
 
+**5.f — Ejeção graciosa de impasses (issue #501)**
+
+Uma issue que não vai convergir sozinha não pode segurar a leva inteira. O coordinator a **ejeta**:
+documenta o impasse na própria issue, etiqueta se for possível, limpa o worktree e segue para a
+próxima issue (RF-05 da Spec `docs/specs/autonomia-continua-e-desacoplamento-interativo.md`).
+
+**Gatilhos:**
+- **`FAILED_MAX_ITERATIONS` definitivo:** depois do único redespacho com `sonnet`
+  (`issue-coordinator-dispatch.md`), ou direto se o grupo já era `sonnet`. Com o circuit breaker
+  acionado (5.c) não ejete os grupos que falharam com a assinatura comum: o impasse é de
+  infraestrutura, não da issue, e eles ficam em `FAILED_MAX_ITERATIONS` no relatório.
+- **Timeout de bloqueio:** uma pendência `SUSPENDED` (5.b) que não pode mais ser respondida nesta
+  sessão. Em `--goal` isso vale quando não resta nada a despachar ou monitorar além de suspensos, ou
+  ao atingir `maxSessionMinutes`. Fora do `--goal` a pendência continua `SUSPENDED` na inbox, para um
+  humano responder depois (`--resume`): não é ejetada.
+
+**Passos.** Cada falha vai ao relatório e nunca interrompe a ejeção nem a sessão:
+1. **Preserve o trabalho.** Dentro do worktree: `git add -u`, mais `git add FAIL_ANALYSIS.md` se
+   o arquivo existir (o `fix` o deixa fora do controle de versão e o `safe-remove-worktree` recusaria o
+   worktree sujo), e um commit `chore: preserva diagnóstico da ejeção (#<N>)`. O diagnóstico passa a
+   viajar com a branch. Qualquer outro arquivo não rastreado deixa o worktree sujo de propósito: a
+   limpeza do passo 5 o preserva e o relatório avisa.
+2. **Comente o diagnóstico.** O script monta o texto (resumo das tentativas, comando de teste, trecho
+   do log final e próximo passo), tira paths absolutos locais e neutraliza menções `@usuario`; a
+   publicação passa por stdin, sem escapes de shell:
+   ```bash
+   deno run -A "$SKILL_DIR/../../scripts/eject-comment.ts" --issue <N> --branch <branch> \
+     --base "$DEFAULT_BRANCH" --kind <failed-max-iterations|blocked-timeout> \
+     --fail-analysis <path-do-worktree>/FAIL_ANALYSIS.md --worktree <path-do-worktree> \
+     | gh issue comment <N> --body-file -
+   ```
+   No `blocked-timeout` troque `--fail-analysis` por `--status-file <status-file-path>`.
+3. **Etiquete**, só se a label já existir no repositório (tabela da Fase 1; o coordinator nunca
+   executa `gh label create`):
+   ```bash
+   gh issue edit <N> --add-label "needs-human"
+   ```
+   Sem a label, o motivo fica no comentário e relatório; falha ao aplicá-la também vai ao relatório.
+4. **Tire a pendência da inbox**, se a ejeção veio de um `SUSPENDED`:
+   `deno run -A "$SKILL_DIR/../../scripts/decision-inbox.ts" drop --id dec-issue-<N>`.
+5. **Limpe o worktree** a partir do root (com o orquestrador Alethe, `alethe_release` antes):
+   `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree <path-do-worktree>`. Se
+   recusar (arquivo não rastreado, worktree filho), o worktree fica preservado e o relatório diz por quê.
+6. **Registre.** `Status: EJECTED` no status file (com `Last action` apontando o comentário e a
+   label), a linha `EJECTED` no relatório e, em `--goal`, a entrada no registro de decisões
+   autônomas. Libere a vaga e despache o próximo `QUEUED` (Fase 4). `EJECTED` conta como resolvido
+   para a transição de onda; os dependentes diretos do grupo viram
+   `SKIPPED (bloqueada por #N)` (`issue-coordinator-dispatch.md`).
+
+**A branch nunca é apagada**, nem a local nem a remota: é onde o trabalho fica para a análise
+humana. Workers não fazem push, então ela costuma existir só localmente; o comentário informa isso e
+traz o comando para publicá-la. O coordinator não faz push automático (é um efeito externo), e a limpeza
+do worktree não depende de a branch estar no remoto.
+
 ### 6 — Fase de entrega (Pre-Ship paralelo, merge serializado)
 
 ⚠️ **Em `--headless` esta fase só roda com `--auto-ship` ou `autoShipHeadless: true`** (6.d). Sem eles
-é pulada: liste os grupos `GREEN` no relatório final com branch e path do worktree, e encerre.
+é pulada: liste os grupos `GREEN` no relatório final com branch e path do worktree, e encerre. O mesmo
+vale na sessão interativa em que o usuário escolheu `Parar em GREEN` no item 3 da entrevista
+consolidada da Fase 2.
 
 A entrega tem dois estágios (Spec `docs/specs/pipeline-ship-e-delegacao-eficiente.md`, RF-01 e
 RF-02). O **Pre-Ship** (`/vetor:ship --prepare`: testes locais, push, PR draft, CI e revisões em
@@ -610,8 +898,8 @@ cada PR segue para o merge assim que fecha verde, a espera total converge para m
 Se o `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
 
 **6.d — Entrega autônoma em `--headless` (issue #497).** Só com `--auto-ship` ou
-`autoShipHeadless: true` em `.claude/vetor/config.json` (lido a partir do root do repositório). Segue
-6.a–6.c, com duas diferenças: nunca há pergunta ao usuário, e **nenhum PR é mergeado sem passar nos
+`autoShipHeadless: true` em `.claude/vetor/config.json` (lido a partir do root do repositório), em
+`--headless` ou em `--goal`. Segue 6.a–6.c, com duas diferenças: nunca há pergunta ao usuário, e **nenhum PR é mergeado sem passar nos
 quatro gates**. Leia `../shared/references/auto-ship-gates.md` (definição de cada gate, o que é PASS,
 FAIL e PENDING, e as escolhas de segurança). Para cada PR `PR_STAGED`, antes do 6.c:
 
@@ -649,6 +937,11 @@ Descarte também os worktrees pré-aquecidos que ninguém assumiu (timeout, circ
 interrompida) com `scripts/prewarm-worktrees.ts discard`, e liste no relatório o que vier em `failed` ou
 `branchesKept` (`../shared/references/worktree-prewarm.md`).
 
+**Em `--goal`**, o relatório é o `## Goal Convergence Report` de
+`../shared/references/issue-coordinator-report.md` (o Coordinator Report entra como tabela dele).
+Grave `completedAt` no `goal-audit.json`, monte o relatório a partir dele e liste cada decisão
+autônoma com a opção adotada e a referência (RNF-03).
+
 Após todos os agentes terminarem (ou atingido o timeout de 90 minutos / `maxSessionMinutes`):
 
 ```
@@ -666,7 +959,8 @@ Use `../shared/references/issue-coordinator-report.md` ao montar o Coordinator R
   nenhuma nova onda é iniciada. Porém, grupos ativos podem concluir sua iteração corrente e ships de
   grupos já em `GREEN` (ou já autorizados pelo usuário) podem prosseguir até a conclusão (issue #343).
   Para a contagem do timeout, considere apenas o tempo ativo de coordenação, excluindo períodos de
-  espera por decisões humanas (`AskUserQuestion` ou aprovação de plano).
+  espera por decisões humanas (`AskUserQuestion` ou aprovação de plano). Em `--goal` o teto nunca
+  passa de 120 minutos (seção "Modo goal").
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
 - `vetor-status.sh` destaca com `⚠️` na tabela qualquer `Iteration: N/5` com `N` acima do orçamento —
   sinal de que o agente não escalou como deveria; trate como candidato a redispatch/intervenção.
@@ -684,7 +978,7 @@ O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido 
 - Se interrompido, reconstrói estado com `vetor-status.sh` + `gh pr list` — não depende de memória
 - Ao fim de toda sessão (Fase 7), o root fica na branch principal e sincronizado — nunca preso numa
   branch de worktree de grupo
-- Em `--headless`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship (exceto sob
+- Em `--headless` ou `--goal`: nunca chama `AskUserQuestion` nem `ExitPlanMode`, nunca faz merge/ship (exceto sob
   `--auto-ship`/`autoShipHeadless`, e só com os quatro gates da Fase 6.d em `PASS`), nunca
   auto-aprova permissão. Se o contexto exigir uma decisão que o headless não pode tomar, registre no
   relatório e pare — não improvise

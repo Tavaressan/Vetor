@@ -16,7 +16,7 @@ uma cópia em `<worktree>/.claude/vetor-status.md`. O coordinator verifica esse 
 ```markdown
 # Agent Status — <branch>
 Updated: <ISO 8601>
-Status: RUNNING | BLOCKED_WAITING | GREEN | PR_STAGED | FAILED_MAX_ITERATIONS
+Status: RUNNING | BLOCKED_WAITING | SUSPENDED | GREEN | PR_STAGED | FAILED_MAX_ITERATIONS | EJECTED
 Iteration: <N>/5 (Issue #<M>)
 Last action: <última ação executada>
 Next: <próximo passo planejado>
@@ -42,6 +42,29 @@ em `Blocked on` — ex.: `Blocked on: OPEN_QUESTION crítica — <pergunta>`, `B
 confirmação — <premissa>` ou `Blocked on: Evidence Conflict — <fontes em contradição>`. Isso não cria
 um novo estado ou caminho de escalação: `BLOCKED_WAITING` continua sendo o único mecanismo; o
 vocabulário apenas qualifica o motivo já registrado em `Blocked on`.
+
+**`SUSPENDED`** (issue #500) — gravado **apenas pelo coordinator**, nunca pelo worker: o coordinator
+move para cá um `BLOCKED_WAITING` ao registrá-lo na Decision Inbox
+(`<repo-root>/.claude/vetor/decision-inbox.json`, via `scripts/decision-inbox.ts suspend`), o que libera
+a vaga no teto de concorrência `N` sem tocar no worktree. Mantém os blocos do `BLOCKED_WAITING`
+(`Blocked on` / `Options` / `Recommendation`) e acrescenta o necessário para reconstruir a inbox:
+
+```markdown
+Status: SUSPENDED
+Suspended at: <ISO 8601>
+Worktree: <path absoluto do worktree>
+Timeout: <segundos até o avanço otimista; ausente = espera o humano>
+```
+
+Ao receber a decisão, `scripts/decision-inbox.ts resolve` devolve o status a `RUNNING` (com a linha
+`Decisão humana:` ou, no avanço otimista, `Decisão otimista:` e a tag `[OPTIMISTIC_DECISION]` em
+`Last action`) e o grupo é redespachado no mesmo worktree. Não conta iteração do fix-loop.
+
+**`EJECTED`** (issue #501) — gravado **apenas pelo coordinator**, nunca pelo worker, ao concluir a
+ejeção graciosa de uma issue (Fase 5.f do coordinator): o impasse foi documentado na issue
+(comentário diagnóstico e, se existir, a label `needs-human`), o trabalho ficou na branch e o worktree
+foi limpo. O `Last action` aponta o motivo e o resultado de cada passo; o status file permanece para
+rastreabilidade. O guardian o trata como qualquer status file sem worktree (órfão arquivável).
 
 **`PR_STAGED`** (gravado pelo `/vetor:ship --prepare` ou `ship-worker` após testes locais, push, PR draft e disparo de CI/revisões):
 
