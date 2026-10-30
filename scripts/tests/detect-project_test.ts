@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes, equal } from "@std/assert";
-import { detectProject } from "../lib/project.ts";
+import { detectProject, type ProjectInfo } from "../lib/project.ts";
 import { detectModules, renderMap, writeConfig } from "../detect-project.ts";
 import { detectKnowledgeState, FilesystemKnowledgeProvider } from "../lib/knowledge.ts";
 
@@ -311,6 +311,94 @@ Deno.test("detectProject: Node sem scripts de validação grava AJUSTE explícit
       map,
       "| `root` | `AJUSTE: comando de teste não detectado` | Módulo raiz (sem suíte de testes) |",
     );
+  } finally {
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
+// --- Issue #526: reinstalar sem --force não regrava config.json quando nada mudou ---
+
+const COMPACT_CONFIG_EXTRA =
+  `"simple": ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-5"]`;
+
+function compactConfigText(info: ProjectInfo, extra = "") {
+  return `{
+  "maxConcurrentWorkers": 5,
+  "runtime": ${JSON.stringify(info.runtime)},
+  "packageManager": ${JSON.stringify(info.packageManager)},
+  "testCommand": ${JSON.stringify(info.testCommand)}${extra ? `,\n  ${extra}` : ""}
+}
+`;
+}
+
+Deno.test("writeConfig não regrava config.json com arrays compactos quando os valores são iguais", () => {
+  const directory = Deno.makeTempDirSync();
+  const originalCwd = Deno.cwd();
+  try {
+    Deno.mkdirSync(`${directory}/.claude/vetor`, { recursive: true });
+    const info = detectProject(directory);
+    const original = compactConfigText(info, COMPACT_CONFIG_EXTRA);
+    Deno.writeTextFileSync(`${directory}/.claude/vetor/config.json`, original);
+
+    Deno.chdir(directory);
+    writeConfig(info);
+
+    assertEquals(Deno.readTextFileSync(`${directory}/.claude/vetor/config.json`), original);
+  } finally {
+    Deno.chdir(originalCwd);
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
+async function runDetectProject(directory: string) {
+  const script = new URL("../detect-project.ts", import.meta.url).pathname;
+  const output = await new Deno.Command(Deno.execPath(), {
+    args: ["run", "-A", script],
+    cwd: directory,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  const stdout = new TextDecoder().decode(output.stdout).trim();
+  return { code: output.code, json: JSON.parse(stdout.split("\n").at(-1)!) };
+}
+
+Deno.test("reinstalação sem --force com config.json compacto e valores iguais: bytes idênticos e configStatus unchanged", async () => {
+  const directory = Deno.makeTempDirSync();
+  try {
+    Deno.mkdirSync(`${directory}/.claude/vetor`, { recursive: true });
+    const info = detectProject(directory);
+    const original = compactConfigText(info, COMPACT_CONFIG_EXTRA);
+    Deno.writeTextFileSync(`${directory}/.claude/vetor/config.json`, original);
+
+    const { code, json } = await runDetectProject(directory);
+
+    assertEquals(code, 0);
+    assertEquals(json.configStatus, "unchanged");
+    assertEquals(json.status, "created");
+    assertEquals(Deno.readTextFileSync(`${directory}/.claude/vetor/config.json`), original);
+  } finally {
+    Deno.removeSync(directory, { recursive: true });
+  }
+});
+
+Deno.test("detect-project: configStatus created na primeira instalação, unchanged na segunda, updated quando um valor muda", async () => {
+  const directory = Deno.makeTempDirSync();
+  try {
+    const first = await runDetectProject(directory);
+    assertEquals(first.json.configStatus, "created");
+
+    const second = await runDetectProject(directory);
+    assertEquals(second.json.configStatus, "unchanged");
+    assertEquals(second.json.status, "skipped");
+
+    const configPath = `${directory}/.claude/vetor/config.json`;
+    const config = JSON.parse(Deno.readTextFileSync(configPath));
+    config.testCommand = "AJUSTE: alterado manualmente";
+    Deno.writeTextFileSync(configPath, JSON.stringify(config));
+
+    const third = await runDetectProject(directory);
+    assertEquals(third.json.configStatus, "updated");
+    assertEquals(JSON.parse(Deno.readTextFileSync(configPath)).testCommand, first.json.testCommand);
   } finally {
     Deno.removeSync(directory, { recursive: true });
   }

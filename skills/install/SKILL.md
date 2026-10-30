@@ -95,7 +95,9 @@ O script grava:
   (`typecheckOnEdit: true` liga o `tsc` a cada edição em projetos Node/TS — ver `wiki/Configuracao.md`)
   e a chave opcional `prewarmWorktrees` (`true` liga o pre-warming de worktrees do coordinator — ver
   `wiki/Configuracao.md`), se já existirem. O
-  `prepare-worktree.ts` lê isso para saber como preparar cada worktree;
+  `prepare-worktree.ts` lê isso para saber como preparar cada worktree. O arquivo só é regravado
+  quando o conteúdo semântico muda: reinstalar sem `--force` com valores iguais não altera nenhum byte
+  (formatação preexistente, como arrays compactos, é preservada);
 - `.claude/rules/vetor/<runtime>.md` — convenções do projeto (comando de teste, formatador, lint,
   estilo de import), com frontmatter `paths` para entrarem em contexto **apenas** quando o agente lê
   um arquivo daquele tipo. Só há rules para projetos Deno e Node; nos demais runtimes o script não
@@ -107,7 +109,8 @@ arquivos de config). O que não foi detectado não vira regra.
 Se o runtime sair como `unknown`, avise o usuário de que o `module-test-map.md` precisa de ajuste
 manual — as skills de teste dependem dele.
 
-O JSON de saída inclui um campo `knowledge` (`{"status": ..., "label": ...}`) com o estado do
+O JSON de saída inclui `configStatus` (`created` | `updated` | `unchanged`), o estado do
+`config.json` separado do `status` (que se refere só ao `module-test-map.md`), e um campo `knowledge` (`{"status": ..., "label": ...}`) com o estado do
 **Knowledge Provider** — ver `../shared/references/knowledge-provider-contract.md`.
 Ausência do bloco `knowledge` em `config.json` (ou de `config.json` inteiro) nunca é erro: o default é
 `✓ Filesystem`, sempre funcional sem configuração adicional. Só vira `○ Disabled` com
