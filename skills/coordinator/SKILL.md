@@ -286,6 +286,28 @@ gh pr list --search "closes:#<N>" --state open --json number,title
 Se houver (ou se `vetor-status.sh` reportar `GREEN (PR #N aberta)` / `GREEN (já mergeado via #N)`):
 pule a issue e registre na tabela como "PR já aberto (#<PR>)" ou "Já mergeado (#<PR>)".
 
+### Entrega de PRs sem worktree local
+
+Issue pulada por "PR já aberto" cuja branch não tem worktree local (`worktree list` do git) nem status
+file ativo é um PR órfão: foi preparado em outra máquina, numa sessão interrompida ou o worktree já
+foi limpo (issue #527). Não termine só com "PR já aberto": liste cada um na tabela com estado de CI,
+`mergeable`, draft e idade.
+
+```bash
+gh pr view <PR> --json number,headRefName,isDraft,mergeable,statusCheckRollup,createdAt
+```
+
+- Na sessão interativa, ofereça a entrega pela Fase 6 (`AskUserQuestion`, junto da entrevista
+  consolidada); sem aceite, deixe os PRs só listados.
+- Em `--headless`/`--goal`, só entregue com `--auto-ship` ou `autoShipHeadless: true`, e cada PR passa
+  nos quatro gates da 6.d (`vetor-checks.sh auto-ship-gates`); sem o opt-in, apenas liste no relatório.
+  Um PR em draft vira `ready` pelo `--finalize` somente depois dos gates.
+- Antes do `--finalize`, recrie o worktree a partir da branch remota do PR com o primitivo
+  `worktree-create --from-branch <headRefName>` (nunca apague branch à força nem faça reset destrutivo)
+  e entre nele. O `/vetor:ship --finalize` também faz isso sozinho quando o worktree não existe.
+- Esses PRs entram no mapa de sobreposições do Fast Merge Gate da Fase 6.c
+  (`../shared/references/fast-merge-gate.md`), junto dos PRs da onda.
+
 #### Triagem de despachabilidade (issues não-despacháveis nesta leva)
 
 Nem toda issue aberta está pronta para despacho imediato por um subagente autônomo. Identifique e

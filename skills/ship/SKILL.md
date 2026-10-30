@@ -73,6 +73,13 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" in-worktree
 Se sair não-zero, **aborte**: `/vetor:ship` deve rodar de dentro de um worktree (use
 `/vetor:worktree-create` primeiro). Se passar, guarde a branch atual (`git branch --show-current`).
 
+**Exceção — `--finalize <PR>` sem worktree local (issue #527).** Se a guarda falhar e o modo for
+`finalize`, não aborte: resolva a branch do PR (`gh pr view <PR> --json headRefName -q .headRefName`),
+confirme que nenhum worktree local a usa e recrie-o a partir da branch remota com o primitivo
+`/vetor:worktree-create --from-branch <headRefName>`. Entre nele e siga para o passo 7. Se a criação
+falhar, aborte com o motivo. O PR sobreposto a outro já integrado é re-sincronizado e re-testado
+conforme o Fast Merge Gate antes do merge.
+
 Este comando **nunca muda de diretório por conta própria** — quem o invoca de outro contexto (ex.:
 `coordinator`, cujo cwd é o root) deve fazer `cd` para o worktree antes.
 

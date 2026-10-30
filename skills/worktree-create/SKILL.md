@@ -16,6 +16,7 @@ Você é o primitivo de criação de worktree do Vetor. Sua única responsabilid
 
 ```
 /vetor:worktree-create <type> <slug> [issue#] [--carry-changes]
+/vetor:worktree-create --from-branch <branch>
 ```
 
 - `<type>`: obrigatório — um de `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
@@ -127,6 +128,19 @@ Se `carry-changes` falhar:
   tem as mudanças. Informe o backup e os paths reportados e oriente concluir a limpeza do root à mão.
 - **exit 1** (nada a transportar ou erro antes da aplicação): o root está intacto; remova o worktree
   e a branch como no exit 3 e aborte.
+
+### 4.a — Modo `--from-branch` (PR sem worktree local, issue #527)
+
+Recria um worktree para uma branch que já existe no remoto (PR preparado em outra máquina). Pula os
+passos 1 a 4. Se a branch ou o path `.claude/worktrees/<slug>` (slug = branch com `/` trocada por `-`)
+já existirem localmente, aborte como no passo 3.
+
+```bash
+git fetch origin <branch>
+git worktree add -b <branch> .claude/worktrees/<slug> origin/<branch>
+```
+
+Siga com 4.b e 5. Nunca use `git branch -D` nem `reset --hard`.
 
 ### 4.b — Preparar dependências
 
