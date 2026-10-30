@@ -289,12 +289,31 @@ case "$cmd" in
     ;;
 
   safe-remove-worktree)
-    target="${2:?uso: vetor-checks.sh safe-remove-worktree <path>}"
+    requested="${2:?uso: vetor-checks.sh safe-remove-worktree <path>}"
     caller_pwd=$(pwd -P 2>/dev/null || pwd)
-    target=$(cd "$target" && pwd -P) || {
-      echo "ERRO: worktree para cleanup não encontrado: $target" >&2
-      exit 1
-    }
+    # Issue #531: o path pedido fica em `requested` para as mensagens; `target` só recebe o
+    # path resolvido quando ele existe em disco.
+    if ! target=$(cd "$requested" 2>/dev/null && pwd -P); then
+      # Ausente em disco: se o git também já o desregistrou, o cleanup já aconteceu (sucesso).
+      # Se ainda está registrado, é inconsistência real (diretório apagado à mão) e segue erro.
+      registered_missing=0
+      while IFS= read -r line; do
+        case "$line" in
+          "worktree "*)
+            if [ "${line#worktree }" = "$requested" ]; then
+              registered_missing=1
+              break
+            fi
+            ;;
+        esac
+      done < <(git worktree list --porcelain)
+      if [ "$registered_missing" -eq 1 ]; then
+        echo "ERRO: worktree para cleanup não encontrado em disco, mas ainda registrado no git: $requested" >&2
+        exit 1
+      fi
+      echo "Worktree $requested já removido (ausente em disco e fora de git worktree list); nada a fazer."
+      exit 0
+    fi
 
     # Issue #411: detecta se o cwd atual da sessão está dentro do path alvo (ou é ele mesmo).
     # No Windows, manter o cwd dentro do diretório trava o handle do SO e impede remoção.
@@ -492,6 +511,7 @@ case "$cmd" in
     rm -f "$status_dir/${sanitized}.md"
     rm -f "$status_dir/${sanitized}.md.stopguard"
     rm -f "$status_dir/${sanitized}-touched-files.json"
+    rm -f "$status_dir/${sanitized}-preship.json"
     echo "Status e sentinelas da branch $branch ($sanitized) removidos com sucesso."
     ;;
 
