@@ -16,6 +16,7 @@ Você é o primitivo de criação de worktree do Vetor. Sua única responsabilid
 
 ```
 /vetor:worktree-create <type> <slug> [issue#] [--carry-changes]
+/vetor:worktree-create --from-branch <branch>
 ```
 
 - `<type>`: obrigatório — um de `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
@@ -127,6 +128,32 @@ Se `carry-changes` falhar:
   tem as mudanças. Informe o backup e os paths reportados e oriente concluir a limpeza do root à mão.
 - **exit 1** (nada a transportar ou erro antes da aplicação): o root está intacto; remova o worktree
   e a branch como no exit 3 e aborte.
+
+### 4.a — Modo `--from-branch` (PR sem worktree local, issue #527)
+
+Recria um worktree para uma branch que já existe no remoto (PR preparado em outra máquina). Pula os
+passos 1 a 4 (neste modo `<type>` e `<slug>` posicionais deixam de ser obrigatórios). Se a branch ou
+o path `.claude/worktrees/<slug>` (slug = branch com `/` trocada por `-`) já existirem localmente,
+aborte como no passo 3 (atenção: `feat/a-b` e `feat/a/b` geram o mesmo slug, e a colisão também aborta).
+
+**Validação de `<branch>` (ponto único; `ship --finalize` e `coordinator` só delegam aqui).**
+`headRefName` vem do GitHub e é entrada não confiável. Antes de qualquer `git`, aborte se:
+
+- `git check-ref-format --branch "<branch>"` falhar;
+- começar com `-`, contiver `..` ou não casar `^[A-Za-z0-9][A-Za-z0-9._/-]*$`;
+- o PR for de fork: quando a branch vier de um PR, rode
+  `gh pr view <PR> --json headRefName,isCrossRepository` e, se `isCrossRepository` for `true`, aborte
+  com "PR de fork: a branch não existe em origin; recrie o worktree manualmente" (nunca busque de `origin`).
+
+Cite sempre `<branch>` entre aspas e use `--` antes de refs/paths onde o git aceitar:
+
+```bash
+git fetch origin -- "<branch>" || { echo "fetch falhou (branch removida?)"; exit 1; }
+git worktree add -b "<branch>" -- ".claude/worktrees/<slug>" "origin/<branch>"
+```
+
+Falha do `git fetch` é abort (não prossiga com ref antigo). Siga com 4.b e 5.
+Nunca use `git branch -D` nem `reset --hard`.
 
 ### 4.b — Preparar dependências
 
