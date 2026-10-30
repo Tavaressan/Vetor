@@ -151,31 +151,28 @@ argumento `--label`.
 
 O rodapé `🤖 Gerado por /vetor:retro` permanece **obrigatório** no final do corpo da issue.
 
-Use a CLI `gh`:
+Escreva o corpo com a ferramenta **Write** em um arquivo temporário (nunca `echo`, `printf` nem
+heredoc: o shell corrompe crases e pode inserir BOM, issue #525) e use a CLI `gh` com `--body-file`.
+Conteúdo do arquivo:
+
+```text
+<corpo no formato de §2>
+
+---
+🤖 Gerado por `/vetor:retro` — sessão em <projeto atual, sem dados sensíveis>
+```
 
 ```bash
 # Se a label de tipo existir no repo alvo:
 gh issue create --repo Tavaressan/Vetor \
   --title "<título>" \
-  --body "$(cat <<'EOF'
-<corpo no formato de §2>
-
----
-🤖 Gerado por `/vetor:retro` — sessão em <projeto atual, sem dados sensíveis>
-EOF
-)" \
+  --body-file "<path-do-arquivo-de-corpo>" \
   --label "<tipo>"
 
 # Se a label de tipo NÃO existir no repo alvo, omita --label:
 gh issue create --repo Tavaressan/Vetor \
   --title "<título>" \
-  --body "$(cat <<'EOF'
-<corpo no formato de §2>
-
----
-🤖 Gerado por `/vetor:retro` — sessão em <projeto atual, sem dados sensíveis>
-EOF
-)"
+  --body-file "<path-do-arquivo-de-corpo>"
 ```
 
 Se a criação falhar (repo inacessível, sem permissão, `gh`/MCP indisponível), **não perca o

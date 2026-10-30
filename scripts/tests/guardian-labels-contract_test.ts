@@ -22,7 +22,7 @@ Deno.test("issue #455: corpo das issues criadas pelo guardian termina com rodap�
   );
   assertMatch(
     skill,
-    /---\r?\n🤖 Gerado por \/vetor:guardian\r?\nEOF/,
+    /---\r?\n🤖 Gerado por \/vetor:guardian\r?\n```/,
   );
 });
 

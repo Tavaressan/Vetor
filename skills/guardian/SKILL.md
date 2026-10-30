@@ -250,10 +250,12 @@ issues criadas pelo guardian termina com o rodapé `🤖 Gerado por /vetor:guard
 tipo/módulo só se já existirem no repo (nunca cria; se não existirem, omita). A issue criada é
 delegada ao fluxo humano existente (`backlog`/`coordinator`), nunca refatorada pelo guardian:
 
-```bash
-gh issue create \
-  --title "refactor(<módulo>): revisão de design (deletion test)" \
-  --body "$(cat <<'EOF'
+Escreva o corpo com a ferramenta **Write** em um arquivo temporário (nunca `echo`, `printf` nem
+heredoc: o shell corrompe crases e pode inserir BOM, issue #525) e passe-o via `--body-file`:
+
+Conteúdo do arquivo de corpo (escrito via Write):
+
+```text
 ## Descrição
 Módulo com fan-in alto (<N> arquivos importam diretamente), detectado pelo guardian como candidato a revisão de design (deletion test: dificilmente removível/refazível sem espalhar mudança).
 
@@ -266,8 +268,12 @@ Módulo: <módulo>
 
 ---
 🤖 Gerado por /vetor:guardian
-EOF
-)"
+```
+
+```bash
+gh issue create \
+  --title "refactor(<módulo>): revisão de design (deletion test)" \
+  --body-file "<path-do-arquivo-de-corpo>"
 ```
 
 **Auto-fix (modo --cron):** apenas reporta via `SendMessage` (segue a regra global da seção "Modo
