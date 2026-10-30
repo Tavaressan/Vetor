@@ -382,12 +382,14 @@ Invoque a skill nativa `security-review` sem argumento de diff — ela lê a bra
 
 Ao receber a resposta final (o relatório em markdown), publique-o, com a primeira linha
 `## Security Review (Vetor)` (é o cabeçalho que o gate `reviews` da entrega autônoma em `--headless`
-procura, issue #497):
+procura, issue #497). Grave o comentário num arquivo temporário com a ferramenta Write (nunca por
+heredoc nem `--body` inline: o shell corrompe crases, issues #525/#532) e passe-o via `--body-file`:
 ```bash
-gh pr comment <PR-number> --body "## Security Review (Vetor)
-
-<relatório de security-review recebido>"
+gh pr comment <PR-number> --body-file "<path-do-arquivo-de-comentario>"
 ```
+
+O arquivo começa com `## Security Review (Vetor)`, uma linha em branco e o relatório de
+security-review recebido.
 
 ### 8.7 — Registro de PR_STAGED e encerramento do Pre-Ship
 

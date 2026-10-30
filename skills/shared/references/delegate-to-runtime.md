@@ -234,7 +234,7 @@ Em `ship`, gere a primeira versão da descrição do Pull Request com base no di
 git diff "$DEFAULT_BRANCH"...HEAD | $DELEGATE "Escreva uma descrição concisa e estruturada de Pull Request para este diff. Use markdown em PT-BR com seções: 'O que mudou' (tópicos curtos) e 'Como testar'."
 ```
 
-O Claude **revisa e formata** a descrição antes de passá-la ao comando `gh pr create --body`.
+O Claude **revisa e formata** a descrição antes de passá-la ao comando `gh pr create --body-file` (corpo gravado com a ferramenta Write).
 
 ### 4.5. Análise de afinidade e agrupamento de issues
 Em `coordinator`, delegue a varredura e o agrupamento preliminar de issues em lote:
