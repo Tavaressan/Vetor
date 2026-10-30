@@ -76,12 +76,18 @@ Se sair não-zero, **aborte**: `/vetor:ship` deve rodar de dentro de um worktree
 **Exceção — `--finalize <PR>` sem worktree local (issue #527).** Se a guarda falhar e o modo for
 `finalize`, não aborte: resolva a branch do PR (`gh pr view <PR> --json headRefName -q .headRefName`),
 confirme que nenhum worktree local a usa e recrie-o a partir da branch remota com o primitivo
-`/vetor:worktree-create --from-branch <headRefName>`. Entre nele e siga para o passo 7. Se a criação
-falhar, aborte com o motivo. O PR sobreposto a outro já integrado é re-sincronizado e re-testado
-conforme o Fast Merge Gate antes do merge.
+`/vetor:worktree-create --from-branch <headRefName>`. A validação de `headRefName` (check-ref-format,
+regex restritiva, recusa de PR de fork) é feita pelo `worktree-create` §4.a; não a repita nem pule.
+Se a criação falhar, aborte com o motivo. O PR sobreposto a outro já integrado é re-sincronizado e
+re-testado conforme o Fast Merge Gate antes do merge.
 
-Este comando **nunca muda de diretório por conta própria** — quem o invoca de outro contexto (ex.:
-`coordinator`, cujo cwd é o root) deve fazer `cd` para o worktree antes.
+Nesta exceção o ship não executa `cd`/`EnterWorktree`: ele segue para o passo 7 a partir do path do
+worktree recriado, rodando cada comando com `git -C <path>` (ou `cd <path> &&` na própria chamada).
+Em todos os outros casos este comando **nunca muda de diretório por conta própria** — quem o invoca de
+outro contexto (ex.: `coordinator`, cujo cwd é o root) deve fazer `cd` para o worktree antes.
+
+Em `--headless`/`--goal`, os 4 gates da 6.d do coordinator são responsabilidade do chamador: o ship
+não os reverifica. O `--finalize` standalone continua exigindo ação explícita do usuário.
 
 *(Se `SHIP_MODE` for `finalize`, pule diretamente para o passo 7).*
 
