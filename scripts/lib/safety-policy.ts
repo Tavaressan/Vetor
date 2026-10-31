@@ -71,7 +71,7 @@ const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|r
  * que precisa ser bloqueado; achado do code-review da PR #200.
  */
 const DESTRUCTIVE_GIT_COMMAND_RE =
-  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$)|git\s+checkout\s+(?:[^\s;&|]+\s+)?--\s+[^\s;&|]+|git\s+restore\s+[^;&|\n]*)/g;
+  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$)|git\s+checkout\s+(?:[^\s;&|]+\s+)*?--\s+[^\s;&|]+|git\s+restore\s+[^;&|\n]*)/g;
 
 /**
  * `git restore` só tira do stage (sem tocar o working tree) com `--staged`/`-S` sem
@@ -100,7 +100,8 @@ function checkDestructiveGit(command: string): string | null {
     match[1].trim()
   }"\n` +
     "git reset --hard / git clean -f* / git branch -D / git checkout . / git checkout -- <path> / git restore <path> descartam trabalho " +
-    "local sem chance de recuperação — não são permitidos em nenhum contexto.";
+    "local sem chance de recuperação — não são permitidos em nenhum contexto. " +
+    "(`git restore --staged <path>`, que só tira do stage, continua permitido.)";
 }
 
 /** Devolve o motivo do bloqueio, ou null se o destino do push não é uma branch protegida. */

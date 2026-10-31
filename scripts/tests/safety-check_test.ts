@@ -937,6 +937,13 @@ for (
     "git restore --source=HEAD .",
     "git restore --staged --worktree src/a.ts",
     "echo ok && git restore .",
+    "git checkout -f HEAD -- f",
+    "git checkout --theirs HEAD -- f",
+    "git restore --staged . && git restore .",
+    "git restore -SW f",
+    "git restore -S -W f",
+    "git restore -W f",
+    "git restore --source=HEAD --staged --worktree f",
   ]
 ) {
   Deno.test(`issue #535: '${command}' é bloqueado como git destrutivo`, async () => {
@@ -962,6 +969,10 @@ for (
     "git checkout -b feat/x",
     "git checkout main",
     "git checkout feat/x",
+    "git log -- p",
+    "git diff -- p",
+    "git stash push -- p",
+    "git restore --source=HEAD --staged f",
   ]
 ) {
   Deno.test(`issue #535: '${command}' continua permitido`, async () => {
