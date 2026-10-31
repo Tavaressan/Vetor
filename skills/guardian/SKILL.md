@@ -183,7 +183,7 @@ gh pr view <N> --json mergeable,mergeStateStatus
 ```
 
 **Finding:** PR Dependabot #<N> com merge conflict / needs rebase **Auto-fix (modo manual):**
-registra a proposta no plano (`gh pr comment <N> --body "@dependabot rebase"`).
+registra a proposta no plano (`gh pr comment <N> --body-file <arquivo>`, com o texto `@dependabot rebase` gravado via Write).
 
 ### 7 — Auditoria de Banco de Dados (via MCP)
 
@@ -337,7 +337,7 @@ Audit concluído. Mutações recomendadas abaixo.
       `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree <path>`
 - [ ] Arquivar status file órfão:
       `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" archive-orphan-status <path>`
-- [ ] Solicitar rebase do Dependabot no PR #<N> (`gh pr comment <N> --body "@dependabot rebase"`)
+- [ ] Solicitar rebase do Dependabot no PR #<N> (`gh pr comment <N> --body-file <arquivo>`, com o texto `@dependabot rebase` gravado via Write)
 - [ ] Criar issue de revisão de design para `<módulo>` (fan-in alto — deletion test)
 
 ### Alertas (Apenas Leitura / Ação Manual do Usuário)

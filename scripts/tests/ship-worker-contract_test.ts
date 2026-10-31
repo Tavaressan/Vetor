@@ -24,13 +24,16 @@ Deno.test("ship-worker: frontmatter com tools restritas, sem isolation e compat�
   const frontmatter = frontmatterOf(shipWorker);
 
   assertMatch(frontmatter, /^name:\s*ship-worker\s*$/m);
-  assertMatch(frontmatter, /^tools:\s*\[Bash, Read, Grep, Glob\]\s*$/m);
+  assertMatch(frontmatter, /^tools:\s*\[Bash, Read, Write, Grep, Glob\]\s*$/m);
   // `haiku`/`sonnet` quebram o `agy plugin validate` (#337/#397): o modelo barato vem do dispatch.
   assertMatch(frontmatter, /^model:\s*inherit\s*$/m);
   // O ship-worker opera no worktree que já existe; `isolation: worktree` forçaria um novo.
   assert(!/^isolation:/m.test(frontmatter), "ship-worker não deve declarar isolation");
   assertMatch(frontmatter, /^skills:\s*\[ship\]\s*$/m);
-  assert(!/\b(Write|Edit)\b/.test(frontmatter.match(/^tools:.*$/m)![0]), "sem Write/Edit");
+  assert(
+    !/\bEdit\b/.test(frontmatter.match(/^tools:.*$/m)![0]),
+    "sem Edit (Write é permitido: corpos de PR, issue #533)",
+  );
 });
 
 Deno.test("ship-worker: prompt conduz /vetor:ship --prepare, grava PR_STAGED e não bloqueia no CI", () => {
