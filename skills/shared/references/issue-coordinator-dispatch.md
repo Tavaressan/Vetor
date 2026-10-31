@@ -304,8 +304,10 @@ escapado numa string JSON, ficaria ilegível; por isso `--format prompt` o tira 
 - **Escopo:** o mapa usa o módulo e os `targetFiles` que o próprio pacote resolveu. Os arquivos do
   foco são detalhados primeiro, depois os vizinhos imediatos (o que eles importam e quem os
   importa), depois o resto por centralidade. Se o módulo é o catch-all (`root`, a linha `./` do
-  `module-test-map`) e nenhum `targetFile` é fonte mapeado, o foco fica largo e o CLI avisa em
-  stderr: passe `--target-files` com o que a Fase 1 já sabe.
+  `module-test-map`) e nenhum `targetFile` é fonte mapeado (ex.: só `skills/*.md`), o CLI omite
+  `context.repoMap` e a tag `<repo_map>` e avisa em stderr, em vez de emitir um mapa global
+  irrelevante; com ao menos um alvo que seja código, ou com módulo não catch-all, nada muda. Se
+  o foco ficar largo por falta de alvos, passe `--target-files` com o que a Fase 1 já sabe.
 - **Cache:** fica em `$REPO_ROOT/.claude/vetor/cache/repo-map.json` e é reaproveitado entre os
   dispatches; o worktree não paga o mapa a frio.
 - **Falha não bloqueia:** se o mapa não puder ser gerado (root inválido, erro de leitura), o CLI
