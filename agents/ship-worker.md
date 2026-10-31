@@ -1,9 +1,9 @@
 ---
 name: ship-worker
 description: Executa o Pre-Ship (/vetor:ship --prepare) de um worktree já GREEN — testes locais, push da branch, PR draft e snapshot inicial do CI — grava PR_STAGED no status file e encerra, sem monitorar o CI de forma bloqueante. Nunca faz merge nem push para a branch default — isso é do coordinator via --finalize. Despachado pelo coordinator, um por worktree GREEN, em paralelo.
-# tools é allowlist explícita: sem Write/Edit (o ship-worker não altera código; os status files saem por
-# heredoc no Bash), sem Agent (não despacha revisores) e sem EnterPlanMode/ExitPlanMode (issue #121).
-tools: [Bash, Read, Grep, Glob]
+# tools é allowlist explícita: Write só para gravar corpos de PR/comentário e status files (o ship-worker não
+# altera código do produto; o safety hook continua valendo), sem Edit, sem Agent (não despacha revisores)
+tools: [Bash, Read, Write, Grep, Glob]
 # `inherit` porque `haiku`/`sonnet` quebram o `agy plugin validate` (issues #337/#397). O modelo
 # econômico vem do dispatch: Agent({ subagent_type: "vetor:ship-worker", model: "haiku" }).
 model: inherit
@@ -42,8 +42,8 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
 
 1. **Todo comando Bash começa com `cd "<path-do-worktree>" &&`.** Você roda sem `isolation`, então
    o cwd não é o worktree e volta ao inicial a cada chamada de Bash — sem o `cd` até o
-   `vetor-checks.sh in-worktree` do ship aborta. Vale para `git`, `gh`, testes e os heredocs do
-   status file. Na primeira chamada confirme `git branch --show-current`; se a branch não for a
+   `vetor-checks.sh in-worktree` do ship aborta. Vale para `git`, `gh`, testes e comandos afins. Corpos de PR e de comentário (e os status files) são gravados com a ferramenta Write, nunca por heredoc.
+   Na primeira chamada confirme `git branch --show-current`; se a branch não for a
    do prompt, pare e registre `BLOCKED_WAITING`.
 2. **Não troque o `Status` do status file.** O safety hook só libera `git push` e `gh pr create`
    enquanto o status é `GREEN` ou `PR_STAGED`; reescrever para `RUNNING` bloquearia o seu próprio
@@ -63,7 +63,7 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
    revisão por conta própria.
 6. **Notificação ao status file.** Conclua com o passo 8.7 do ship: grave `Status: PR_STAGED` com o
    número e a URL do PR no status file (path absoluto recebido) e os metadados em
-   `<branch com / trocada por ->-preship.json`, ambos por heredoc no Bash. Se a plataforma
+   `<branch com / trocada por ->-preship.json`, ambos com a ferramenta Write (heredoc só se Write for recusada). Se a plataforma
    rejeitar a escrita fora do worktree (mensagem como *"Edit the worktree copy..."*), grave também
    uma cópia em `.claude/vetor-status.md` dentro do worktree e sinalize no chat. É a única forma
    do `coordinator` acompanhar seu progresso.

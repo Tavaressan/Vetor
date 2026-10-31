@@ -59,7 +59,10 @@ Deno.test("detector pega --body inline e aceita --body-file", () => {
 
 Deno.test("detector pega heredoc, $(cat <<'EOF') e comando após &&", () => {
   assertEquals(offendingBlocks(fenced("gh pr comment 1 --body-file - <<'EOF'\nx\nEOF")).length, 1);
-  assertEquals(offendingBlocks(fenced("gh pr create --body \"$(cat <<'EOF'\nx\nEOF\n)\"")).length, 1);
+  assertEquals(
+    offendingBlocks(fenced("gh pr create --body \"$(cat <<'EOF'\nx\nEOF\n)\"")).length,
+    1,
+  );
   assertEquals(offendingBlocks(fenced('cd w && gh pr comment 1 --body "x"')).length, 1);
   assertEquals(offendingBlocks(fenced("cd w && gh pr comment 1 --body-file f.md")).length, 0);
 });

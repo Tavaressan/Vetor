@@ -202,7 +202,7 @@ Closes #<issue#>
 🤖 Desenvolvido com [Claude Code](https://claude.ai/code)
 ```
 
-Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente, issue #338). Grave o corpo num arquivo temporário e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell (issue #334):
+Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente, issue #338). Grave o corpo num arquivo temporário com a ferramenta Write (nunca por heredoc) e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell (issue #334):
 ```bash
 gh pr create \
   --title "<type>(<slug>): <resumo dos commits>" \
