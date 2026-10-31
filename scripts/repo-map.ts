@@ -154,6 +154,11 @@ function compare(a: string, b: string): number {
 // Descoberta de arquivos
 // ---------------------------------------------------------------------------------------------
 
+/** Se o caminho é código que o Repo Map sabe mapear (extensão de fonte e não excluído). */
+export function isMappedSourcePath(path: string): boolean {
+  return SOURCE_EXTENSIONS.includes(extensionOf(path)) && !isExcludedPath(path);
+}
+
 /** Diretórios vendorizados/gerados e arquivos de segredo ficam fora do mapa. */
 export function isExcludedPath(path: string): boolean {
   const parts = path.split("/");

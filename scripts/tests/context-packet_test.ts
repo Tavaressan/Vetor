@@ -489,6 +489,45 @@ Deno.test("CLI context-packet segue sem o mapa e avisa quando o --repo-root é i
   });
 });
 
+// Issue #534: módulo catch-all com alvos que não são fonte mapeada não ganha um mapa global.
+async function runDocsCli(
+  body: string,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  let result = { code: -1, stdout: "", stderr: "" };
+  await withIssueFixture(async ({ dir, repo, mapPath }) => {
+    const issuePath = `${dir}/docs-issue.json`;
+    await Deno.writeTextFile(
+      issuePath,
+      JSON.stringify({ number: 534, title: "docs: ajustar skill", body }),
+    );
+    result = await runCli([
+      ...packetArgs(issuePath, mapPath),
+      "--repo-root",
+      repo,
+      "--format",
+      "prompt",
+    ]);
+  });
+  return result;
+}
+
+Deno.test("CLI context-packet omite o Repo Map e avisa quando o módulo é catch-all e nenhum alvo é fonte", async () => {
+  const { code, stdout, stderr } = await runDocsCli("Alterar `skills/x.md` e `README.md`.");
+
+  assertEquals(code, 0, stderr);
+  assertEquals(stdout.includes("<repo_map>"), false, stdout);
+  assertMatch(stderr, /repo-map omitido/);
+});
+
+Deno.test("CLI context-packet mantém o Repo Map no catch-all quando algum alvo é fonte", async () => {
+  const { code, stdout, stderr } = await runDocsCli(
+    "Alterar `skills/x.md` e `scripts/other.ts`.",
+  );
+
+  assertEquals(code, 0, stderr);
+  assertMatch(stdout, /<repo_map>/);
+});
+
 Deno.test("CLI context-packet rejeita --format desconhecido", async () => {
   await withIssueFixture(async ({ issuePath, mapPath }) => {
     const { code, stderr } = await runCli([...packetArgs(issuePath, mapPath), "--format", "xml"]);

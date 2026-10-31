@@ -27,12 +27,14 @@
 
 import {
   buildContextPacket,
+  catchAllModule,
   type ContextPacket,
+  parseModuleTestMap,
   renderContextPacketPrompt,
 } from "./lib/orchestrator/context-packet.ts";
 import { validateMicroSpec } from "./lib/orchestrator/micro-spec.ts";
 import { run } from "./lib/project.ts";
-import { buildRepoMap } from "./repo-map.ts";
+import { buildRepoMap, isMappedSourcePath } from "./repo-map.ts";
 
 interface IssueData {
   number: number;
@@ -108,6 +110,19 @@ async function generateRepoMap(
   moduleTestMap: string,
 ): Promise<string | undefined> {
   try {
+    // Catch-all sem nenhum alvo que seja fonte mapeada: o mapa seria global (~1.500 tokens) e
+    // irrelevante para o worker (issue #534).
+    const targets = packet.context.targetFiles;
+    if (
+      packet.context.module === catchAllModule(parseModuleTestMap(moduleTestMap)) &&
+      !targets.some(isMappedSourcePath)
+    ) {
+      console.error(
+        "context-packet: repo-map omitido: módulo catch-all e nenhum arquivo-alvo é código " +
+          `mapeado (${targets.join(", ") || "sem alvos"})`,
+      );
+      return undefined;
+    }
     const result = await buildRepoMap({
       root,
       module: packet.context.module,
