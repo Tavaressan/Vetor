@@ -42,7 +42,7 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
 
 1. **Todo comando Bash começa com `cd "<path-do-worktree>" &&`.** Você roda sem `isolation`, então
    o cwd não é o worktree e volta ao inicial a cada chamada de Bash — sem o `cd` até o
-   `vetor-checks.sh in-worktree` do ship aborta. Vale para `git`, `gh`, testes e comandos afins. Corpos de PR e de comentário (e os status files) são gravados com a ferramenta Write, nunca por heredoc.
+   `vetor-checks.sh in-worktree` do ship aborta. Vale para `git`, `gh`, testes e comandos afins. Corpos de PR e de comentário (e os status files) são gravados com a ferramenta Write (caminho padrão); se a ferramenta Write for recusada, o fallback é um heredoc com delimitador entre aspas (`<<'EOF'`) gravando o arquivo, ainda seguido de `--body-file`.
    Na primeira chamada confirme `git branch --show-current`; se a branch não for a
    do prompt, pare e registre `BLOCKED_WAITING`.
 2. **Não troque o `Status` do status file.** O safety hook só libera `git push` e `gh pr create`
@@ -63,7 +63,7 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
    revisão por conta própria.
 6. **Notificação ao status file.** Conclua com o passo 8.7 do ship: grave `Status: PR_STAGED` com o
    número e a URL do PR no status file (path absoluto recebido) e os metadados em
-   `<branch com / trocada por ->-preship.json`, ambos com a ferramenta Write (heredoc só se Write for recusada). Se a plataforma
+   `<branch com / trocada por ->-preship.json`, ambos com a ferramenta Write (se for recusada, fallback: heredoc com delimitador entre aspas, `<<'EOF'`). Se a plataforma
    rejeitar a escrita fora do worktree (mensagem como *"Edit the worktree copy..."*), grave também
    uma cópia em `.claude/vetor-status.md` dentro do worktree e sinalize no chat. É a única forma
    do `coordinator` acompanhar seu progresso.

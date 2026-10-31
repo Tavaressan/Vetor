@@ -1,7 +1,7 @@
 ---
 name: code-review
 description: Revisão consultiva do diff de uma PR — bugs, segurança, correção e riscos de arquitetura. Nunca bloqueia merge; publica achados como comentário na PR. Despachado pelo ship após CI verde.
-tools: [Bash, Read, Grep, Glob]
+tools: [Bash, Read, Write, Grep, Glob]
 model: inherit
 license: MIT
 compatibility: Claude Code
@@ -67,9 +67,11 @@ O prompt que você recebe traz: número da PR, branch e base de comparação (`$
    - **Severidade**: `blocker` (bug/segurança real) | `warning` (risco a validar) | `nit` (sugestão menor).
    - **Confiança**: `alta` | `média` | `baixa` — quão certo você está de que é um problema real, não
      um falso positivo por falta de contexto.
-4. Publique o resultado como comentário na PR:
+4. Publique o resultado como comentário na PR. Grave o corpo (markdown) num arquivo temporário com a
+   ferramenta Write (o shell corrompe crases em `--body` inline; se Write for recusada, fallback:
+   heredoc com delimitador entre aspas, `<<'EOF'`) e passe-o via `--body-file`:
    ```bash
-   gh pr comment <PR-number> --body "<achados em markdown>"
+   gh pr comment <PR-number> --body-file "<path-do-arquivo-de-corpo>"
    ```
    Formato do corpo (coluna "Achado" pode ter prefixo opcional `[Smell]` para smells de Fowler):
    ```markdown

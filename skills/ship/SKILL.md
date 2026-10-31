@@ -202,7 +202,7 @@ Closes #<issue#>
 🤖 Desenvolvido com [Claude Code](https://claude.ai/code)
 ```
 
-Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente, issue #338). Grave o corpo num arquivo temporário com a ferramenta Write (nunca por heredoc) e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell (issue #334):
+Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente, issue #338). Grave o corpo num arquivo temporário com a ferramenta Write (caminho padrão; se a ferramenta Write for recusada, o fallback é um heredoc com delimitador entre aspas (`<<'EOF'`) gravando o arquivo, ainda seguido de `--body-file`) e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell (issue #334):
 ```bash
 gh pr create \
   --title "<type>(<slug>): <resumo dos commits>" \
@@ -382,8 +382,8 @@ Invoque a skill nativa `security-review` sem argumento de diff — ela lê a bra
 
 Ao receber a resposta final (o relatório em markdown), publique-o, com a primeira linha
 `## Security Review (Vetor)` (é o cabeçalho que o gate `reviews` da entrega autônoma em `--headless`
-procura, issue #497). Grave o comentário num arquivo temporário com a ferramenta Write (nunca por
-heredoc nem `--body` inline: o shell corrompe crases, issues #525/#532) e passe-o via `--body-file`:
+procura, issue #497). Grave o comentário num arquivo temporário com a ferramenta Write (caminho padrão;
+se a ferramenta Write for recusada, o fallback é um heredoc com delimitador entre aspas (`<<'EOF'`) gravando o arquivo, ainda seguido de `--body-file`; nunca `--body` inline: o shell corrompe crases, issues #525/#532) e passe-o via `--body-file`:
 ```bash
 gh pr comment <PR-number> --body-file "<path-do-arquivo-de-comentario>"
 ```
@@ -414,15 +414,15 @@ Last action: Pre-ship concluído (PR draft #<PR_NUMBER> criado, CI e revisões c
 Next: Aguardando checks de CI e revisões consultivas para finalização via /vetor:ship --finalize <PR_NUMBER>
 ```
 
-2. Grave os metadados do Pre-Ship em `<REPO_ROOT>/.claude/vetor/status/<branch com / trocada por ->-preship.json`:
+2. Grave os metadados do Pre-Ship em `<REPO_ROOT>/.claude/vetor/status/<branch com / trocada por ->-preship.json` com a ferramenta Write (valores já resolvidos). Se Write for recusada, fallback com delimitador entre aspas (sem expansão: substitua os placeholders `<...>` pelos valores antes de rodar):
 ```bash
-cat <<EOF > "$REPO_ROOT/.claude/vetor/status/${BRANCH//\//-}-preship.json"
+cat <<'EOF' > "$REPO_ROOT/.claude/vetor/status/${BRANCH//\//-}-preship.json"
 {
-  "branch": "$BRANCH",
-  "prNumber": $PR_NUMBER,
-  "prUrl": "$PR_URL",
-  "headSha": "$HEAD_SHA",
-  "stagedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "branch": "<BRANCH>",
+  "prNumber": <PR_NUMBER>,
+  "prUrl": "<PR_URL>",
+  "headSha": "<HEAD_SHA>",
+  "stagedAt": "<ISO 8601 UTC>",
   "ciStatus": "PENDING",
   "reviewsStatus": "PENDING"
 }
