@@ -296,17 +296,50 @@ case "$cmd" in
     if ! target=$(cd "$requested" 2>/dev/null && pwd -P); then
       # Ausente em disco: se o git também já o desregistrou, o cleanup já aconteceu (sucesso).
       # Se ainda está registrado, é inconsistência real (diretório apagado à mão) e segue erro.
+      # Normaliza o path (sem a raiz existir): tira barra final, resolve relativo contra o cwd e
+      # resolve o ancestral existente mais próximo com `pwd -P` (symlinks); no Windows/Git Bash
+      # converte para a forma POSIX e ignora caixa. Aplicado aos dois lados da comparação.
+      norm_missing_path() {
+        local p="$1" rest="" base head
+        case "$(uname -s 2>/dev/null)" in
+          MINGW*|MSYS*|CYGWIN*) p=$(cygpath -u "$p" 2>/dev/null || printf '%s' "$p") ;;
+        esac
+        while [ "${#p}" -gt 1 ] && [ "${p%/}" != "$p" ]; do p="${p%/}"; done
+        case "$p" in /*) ;; *) p="$caller_pwd/$p" ;; esac
+        while [ "${#p}" -gt 1 ] && ! [ -d "$p" ]; do
+          base="${p##*/}"
+          head="${p%/*}"
+          [ -n "$head" ] || head="/"
+          case "$base" in
+            ""|".") ;;
+            *) rest="/$base$rest" ;;
+          esac
+          p="$head"
+        done
+        p=$(cd "$p" 2>/dev/null && pwd -P || printf '%s' "$p")
+        [ "$p" = "/" ] && [ -n "$rest" ] && p=""
+        p="$p$rest"
+        case "$(uname -s 2>/dev/null)" in
+          MINGW*|MSYS*|CYGWIN*) p=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]') ;;
+        esac
+        printf '%s' "$p"
+      }
+      if ! wt_list=$(git worktree list --porcelain 2>&1); then
+        echo "ERRO: não foi possível consultar git worktree list para $requested: $wt_list" >&2
+        exit 1
+      fi
+      requested_norm=$(norm_missing_path "$requested")
       registered_missing=0
       while IFS= read -r line; do
         case "$line" in
           "worktree "*)
-            if [ "${line#worktree }" = "$requested" ]; then
+            if [ "$(norm_missing_path "${line#worktree }")" = "$requested_norm" ]; then
               registered_missing=1
               break
             fi
             ;;
         esac
-      done < <(git worktree list --porcelain)
+      done <<< "$wt_list"
       if [ "$registered_missing" -eq 1 ]; then
         echo "ERRO: worktree para cleanup não encontrado em disco, mas ainda registrado no git: $requested" >&2
         exit 1

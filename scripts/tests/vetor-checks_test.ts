@@ -382,6 +382,56 @@ Deno.test("safe-remove-worktree com path ausente mas ainda registrado sai com er
   }
 });
 
+Deno.test("safe-remove-worktree ausente mas registrado, passado com barra final, sai com erro — issue #531", async () => {
+  const repo = await makeRepo();
+  const worktree = `${repo}/wt-slash`;
+
+  try {
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "wt-slash", worktree], repo);
+    await Deno.remove(worktree, { recursive: true });
+
+    const result = await runVetorChecks(repo, "safe-remove-worktree", `${worktree}/`);
+
+    assertEquals(result.code, 1);
+    assertEquals(result.stderr.includes("já removido"), false);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("safe-remove-worktree ausente mas registrado, passado como relativo, sai com erro — issue #531", async () => {
+  const repo = await makeRepo();
+  const worktree = `${repo}/wt-rel`;
+
+  try {
+    await git(["commit", "-q", "--allow-empty", "-m", "init"], repo);
+    await git(["worktree", "add", "-q", "-b", "wt-rel", worktree], repo);
+    await Deno.remove(worktree, { recursive: true });
+
+    const result = await runVetorChecks(repo, "safe-remove-worktree", "./wt-rel");
+
+    assertEquals(result.code, 1);
+    assertEquals(result.stderr.includes("já removido"), false);
+  } finally {
+    await Deno.remove(repo, { recursive: true });
+  }
+});
+
+Deno.test("safe-remove-worktree ausente fora de um repositório git sai com erro — issue #531", async () => {
+  const dir = await Deno.realPath(await Deno.makeTempDir());
+
+  try {
+    const result = await runVetorChecks(dir, "safe-remove-worktree", `${dir}/nao-existe`);
+
+    assertEquals(result.code, 1);
+    assertEquals(result.stderr.includes("já removido"), false);
+    assertStringIncludes(result.stderr, `${dir}/nao-existe`);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("validate-issue-ref rejeita valores não-numéricos", async () => {
   const result = await runVetorChecks(Deno.cwd(), "validate-issue-ref", "016-bdd");
   assertEquals(result.code, 1);
@@ -693,6 +743,8 @@ Deno.test("clean-status remove também o sidecar <branch>-preship.json e preserv
       await Deno.writeTextFile(`${statusDir}/${name}`, "{}");
     }
     await Deno.writeTextFile(`${statusDir}/feat-outra-preship.json`, "{}");
+    // Prefixo numérico: `feat/531-x` não pode apagar o sidecar de `feat/5310-x`.
+    await Deno.writeTextFile(`${statusDir}/feat-5310-x-preship.json`, "{}");
 
     const result = await runVetorChecks(repo, "clean-status", "feat/531-x");
 
@@ -701,6 +753,7 @@ Deno.test("clean-status remove também o sidecar <branch>-preship.json e preserv
       assertEquals(await exists(`${statusDir}/${name}`), false, `${name} deveria ser removido`);
     }
     assertEquals(await exists(`${statusDir}/feat-outra-preship.json`), true);
+    assertEquals(await exists(`${statusDir}/feat-5310-x-preship.json`), true);
   } finally {
     await Deno.remove(repo, { recursive: true });
   }
