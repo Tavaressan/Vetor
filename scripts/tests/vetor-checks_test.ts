@@ -738,6 +738,7 @@ Deno.test("clean-status remove também o sidecar <branch>-preship.json e preserv
       "feat-531-x.md.stopguard",
       "feat-531-x-touched-files.json",
       "feat-531-x-preship.json",
+      "feat-531-x-review.md",
     ];
     for (const name of sidecars) {
       await Deno.writeTextFile(`${statusDir}/${name}`, "{}");

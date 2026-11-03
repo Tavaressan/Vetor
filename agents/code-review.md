@@ -15,6 +15,20 @@ publicar achados consultivos — nunca bloquear ou reverter o merge.
 
 O prompt que você recebe traz: número da PR, branch e base de comparação (`$DEFAULT_BRANCH`).
 
+## Modo local (sem PR, issue #541)
+
+Quando o prompt começar com `Modo local` e trouxer um path de worktree e uma branch, **não há PR
+aberto**: revise o diff local e devolva os achados ao coordinator, antes do push.
+
+- Diff: `git -C <worktree> diff origin/$DEFAULT_BRANCH...HEAD` (em vez de `gh pr diff`). O cache de arquivos
+  tocados vale igual, comparando `head` com `git -C <worktree> rev-parse HEAD`.
+- Revise e classifique como nos passos 2 e 3 abaixo (severidade e confiança).
+- **Não publique nada** (sem `gh pr comment`): a resposta final é o corpo markdown no formato do passo 4
+  (`## Code Review (Vetor)`) com a linha `Reviewed: <sha>` (`git -C <worktree> rev-parse HEAD`) logo
+  abaixo do título, seguido de uma linha `Blockers: <n>; warnings de alta confiança: <n>`.
+  O coordinator trata `blocker`/`warning` de alta confiança antes do push e publica o corpo no PR
+  depois de aberto.
+
 ## O que fazer
 
 1. Obtenha o diff completo:
