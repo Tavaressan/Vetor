@@ -886,6 +886,26 @@ workers nem o CI de nenhum:
 
 1. Para cada grupo, obtenha o path real do worktree (`git worktree list`, correlacionando pela
    branch da Fase 3). O `/vetor:ship` aborta se o `cwd` não for um worktree.
+1.b. **Revisão local antes do push (issue #541).** Antes do `prepare` (que faz o push), despache o
+   `vetor:code-review` em **modo local** para cada grupo, todos na mesma mensagem e em background:
+   `Agent({ subagent_type: "vetor:code-review", model: "sonnet", prompt: "Modo local: worktree <path-do-worktree>, branch <branch>, base $DEFAULT_BRANCH. Sem PR aberto; devolva os achados ao coordinator." })`.
+   **Ordem por grupo:** um grupo só vai ao `prepare` depois que a revisão do **HEAD atual** do worktree
+   voltou limpa (sem `blocker` nem `warning` de confiança `alta`) ou estourou o limite de rodadas.
+   Todo redespacho de worker que gerar HEAD novo (volta a `GREEN` com outro sha) exige nova revisão
+   antes do `prepare`; nunca rode o `prepare` só porque o status voltou a `GREEN`.
+   Trate `blocker` e `warning` de confiança `alta` antes do push: redespache o worker no mesmo
+   worktree (regra da Fase 4) com os achados, espere o novo `GREEN` e revise de novo. **Limite de 2
+   rodadas** revisão→fix por grupo: se a 2ª revisão ainda trouxer `blocker`/`warning` de confiança
+   `alta`, registre os remanescentes no corpo e siga para o `prepare`; a decisão fica com o humano
+   (revisão do PR) ou com o gate `reviews` do 6.d. `nit` e achados de confiança `média`/`baixa` não
+   seguram o push e vão só para o registro. Revisão que falhar (rate limit, erro de ferramenta) não
+   bloqueia o grupo: registre e siga para o `prepare`.
+   **Corpo guardado:** salve o corpo da revisão da **última rodada** em
+   `<repo-root>/.claude/vetor/status/<branch-sanitizada>-review.md` (branch com `/` trocado por `-`),
+   iniciando com a linha `Reviewed: <sha>` do HEAD revisado. Achados corrigidos em rodadas anteriores
+   entram numa seção `### Resolvidos antes do push` em **lista com marcadores, nunca em linha de
+   tabela**: o gate `reviews` do 6.d conta linhas de tabela `| blocker |` do comentário e o
+   `Blockers: <n>` do corpo, então um resolvido na tabela travaria o merge.
 2. **Caminho determinístico primeiro (issue #543), sem subagente:** para cada grupo rode
    `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" prepare "<path-do-worktree>" <issue#...>` (vários
    em paralelo com `&`/`wait`, um exit por grupo). Exit 0 = `PR_STAGED` gravado; exit 1/3/5 = falha
@@ -908,6 +928,16 @@ workers nem o CI de nenhum:
    número de grupos verdes da onda.
 4. O resultado vem do status file: `PR_STAGED` (com `PR: #<N>`) é sucesso. Se o `--prepare` falhar,
    marque o grupo na tabela como falha de pre-ship, preserve o worktree e siga com os demais.
+
+4.b. **Registro da revisão no PR (issue #541).** Com `PR_STAGED` e o número do PR, publique o arquivo
+   `<branch-sanitizada>-review.md` do passo 1.b como comentário
+   (`gh pr comment <PR> --body-file <arquivo>`), no formato `## Code Review (Vetor)` do agente e com a
+   linha `Reviewed: <sha>`. Pule o 4.b, sem publicar nada, quando: a revisão local falhou (não há corpo; o
+   ship revisa o PR normalmente), ou o `prepare` saiu com exit ≠ 0 e caiu no fallback `ship-worker`
+   (o ship do worker revisa por conta própria; só publique se o PR já existir e ainda não tiver um
+   `## Code Review (Vetor)` com `Reviewed: <sha>` igual ao HEAD, conferindo com `gh pr view <PR> --json
+   comments`). Nunca publique um segundo comentário para o mesmo sha. O arquivo é removido junto do
+   status file no cleanup (`clean-status`).
 
 **6.b — Aguardar o CI sem somar esperas (issue #494).** Não use `gh pr checks --watch` por PR (cada
 espera bloqueia e o total vira N × T_ci). Acompanhe todos os PRs preparados com **uma** consulta

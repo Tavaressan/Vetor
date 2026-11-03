@@ -816,6 +816,7 @@ case "$cmd" in
     rm -f "$status_dir/${sanitized}.md.stopguard"
     rm -f "$status_dir/${sanitized}-touched-files.json"
     rm -f "$status_dir/${sanitized}-preship.json"
+    rm -f "$status_dir/${sanitized}-review.md"
     echo "Status e sentinelas da branch $branch ($sanitized) removidos com sucesso."
     ;;
 
