@@ -142,13 +142,13 @@ _vc_prepare() {
     tested_sha="${BASH_REMATCH[1]}"; tested_cmd="${BASH_REMATCH[2]}"
   fi
   dirty=$(git status --porcelain --untracked-files=no)
-  if [ -n "$tested_sha" ] && [ "$synced" -eq 0 ] && [ -z "$dirty" ] \
+  if [ -n "$tested_sha" ] && [ -z "$test_cmd" ] && [ "$synced" -eq 0 ] && [ -z "$dirty" ] \
      && [ "$(git rev-parse HEAD)" = "$(git rev-parse "$tested_sha" 2>/dev/null || echo x)" ]; then
     tests_summary="skipped: HEAD ${head_after:0:12} já testado no GREEN ($tested_cmd) e o sync não trouxe commits"
     echo "Testes locais pulados: $tests_summary"
   else
     local cmds=() mod cmd map="$root/.claude/vetor/module-test-map.md" reason=""
-    [ -n "$tested_sha" ] && reason=" (HEAD difere do SHA testado ou o sync trouxe commits: testando de novo)"
+    [ -n "$tested_sha" ] && [ -z "$test_cmd" ] && reason=" (HEAD difere do SHA testado ou o sync trouxe commits: testando de novo)"
     if [ -n "$test_cmd" ]; then
       cmds+=("$test_cmd")
     else
@@ -196,7 +196,9 @@ _vc_prepare() {
     body_file=$(mktemp)
     {
       echo "## Resumo"
-      printf '%s\n' "$subjects" | sed '/^$/d; s/^/- /'
+      # neutraliza palavras de fechamento (Closes/Fixes/Resolves #N) e @menções com crases
+      printf '%s\n' "$subjects" | sed '/^$/d' \
+        | sed -E 's/\b((close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]:]+([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#[0-9]+)/`\1`/Ig; s/(^|[^`A-Za-z0-9_])(@[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)?)/\1`\2`/g; s/^/- /'
       echo; echo "## Módulos testados"; echo "- $tests_summary"
       echo; echo "## Issue relacionada"
       for n in "${issues[@]}"; do echo "Closes #$n"; done
@@ -227,11 +229,14 @@ _vc_prepare() {
     echo "Last action: Pre-ship concluído (PR draft #$pr_number criado, CI disparado; testes: $tests_summary)"
     echo "Next: Revisões consultivas pelo coordinator e, com o CI verde, /vetor:ship --finalize $pr_number"
   } >"$status_file"
+  local jbranch jurl
+  jbranch=$(printf '%s' "$branch" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  jurl=$(printf '%s' "$pr_url" | sed 's/\\/\\\\/g; s/"/\\"/g')
   cat >"$root/.claude/vetor/status/${sanitized}-preship.json" <<JSON
 {
-  "branch": "$branch",
+  "branch": "$jbranch",
   "prNumber": $pr_number,
-  "prUrl": "$pr_url",
+  "prUrl": "$jurl",
   "headSha": "$(git rev-parse HEAD)",
   "stagedAt": "$(_vc_now)",
   "ciStatus": "PENDING",
@@ -257,6 +262,21 @@ _vc_finalize() {
   merge_sh="$(cd "$(dirname "$SELF")" && pwd -P)/vetor-merge.sh"
   root=$("$SELF" repo-root) || return 2
   wt=$(git worktree list --porcelain | awk -v b="refs/heads/$branch" '/^worktree /{p=substr($0,10)} $0=="branch " b {print p; exit}')
+
+  # Pré-condições (sem merge se falharem): branch confere com o PR e CI verde
+  local head_ref checks bad
+  head_ref=$(gh pr view "$pr" --json headRefName -q .headRefName 2>/dev/null || true)
+  if [ "$head_ref" != "$branch" ]; then
+    echo "ERRO: <branch> '$branch' difere do headRefName do PR #$pr ('${head_ref:-desconhecido}'); nada foi feito." >&2
+    return 2
+  fi
+  checks=$(gh pr view "$pr" --json statusCheckRollup -q '.statusCheckRollup[]? | if .__typename == "StatusContext" then .state elif .status == "COMPLETED" then .conclusion else "PENDING" end' 2>/dev/null) \
+    || { echo "FALHA(ci): não foi possível ler os checks do PR #$pr; sem merge." >&2; return 3; }
+  bad=$(printf '%s\n' "$checks" | sed '/^$/d' | grep -Evx 'SUCCESS|SKIPPED|NEUTRAL' | sort -u | paste -sd ' ' - || true)
+  if [ -n "$bad" ]; then
+    echo "FALHA(ci): PR #$pr com checks pendentes ou falhos ($bad); sem merge." >&2
+    return 3
+  fi
 
   local code=0
   bash "$merge_sh" ${merge_flags[@]+"${merge_flags[@]}"} "$pr" || code=$?

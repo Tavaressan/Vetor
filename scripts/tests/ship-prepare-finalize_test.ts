@@ -28,6 +28,8 @@ case "$1 $2" in
     ;;
   "pr view")
     case "$*" in
+      *"--json headRefName -q"*) printf '%s\\n' "\${MOCK_PR_BRANCH:-feat/543-ship-deterministico}" ;;
+      *"--json statusCheckRollup"*) printf '%s\\n' "\${MOCK_CHECKS:-SUCCESS}" ;;
       *"--json mergeable,headRefName,baseRefName,title"*)
         printf '%s\\n' "\${MOCK_MERGEABLE:-MERGEABLE}" "\${MOCK_HEAD:-feat/x}" "master" "Titulo"
         ;;
@@ -338,7 +340,8 @@ Deno.test("#542: HEAD igual ao SHA testado e sync sem commits pula a suíte e re
       f.statusFile,
       `# Agent Status\nStatus: GREEN\nIteration: 2/5 (Issue #542)\nTested: ${sha} deno task test pass\n`,
     );
-    const r = await run(f, `prepare "${f.worktree}" 542 ${touchCmd(f)}`);
+    // sem --test-cmd e sem module-test-map: se a suíte tentasse rodar, o prepare sairia com 1
+    const r = await run(f, `prepare "${f.worktree}" 542`);
     assertEquals(r.code, 0, r.stderr);
     assertEquals(await exists(f.marker), false, "a suíte não deveria rodar");
     assertStringIncludes(r.stdout, "Testes locais pulados");
@@ -450,6 +453,120 @@ Deno.test("finalize: uso incorreto sai com 2", async () => {
     assertEquals((await run(f, `finalize`)).code, 2);
     assertEquals((await run(f, `finalize abc ${f.branch}`)).code, 2);
     assertEquals((await run(f, `finalize 77`)).code, 2);
+  } finally {
+    await cleanup(f);
+  }
+});
+
+Deno.test("finalize: branch diferente do headRefName do PR sai com 2 sem merge nem cleanup", async () => {
+  const f = await setup();
+  try {
+    await stage(f);
+    const r = await run(f, `finalize 77 ${f.branch}`, { MOCK_PR_BRANCH: "feat/outra" });
+    assertEquals(r.code, 2);
+    assertStringIncludes(r.stderr, "headRefName");
+    assertEquals((await ghCalls(f)).includes("pr merge"), false);
+    assertEquals(await exists(f.worktree), true);
+    assertEquals(await exists(f.preshipFile), true);
+  } finally {
+    await cleanup(f);
+  }
+});
+
+Deno.test("finalize: CI pendente ou falho sai com 3 sem merge; SKIPPED e NEUTRAL passam", async () => {
+  const f = await setup();
+  try {
+    await stage(f);
+    for (const checks of ["SUCCESS\nPENDING", "SUCCESS\nFAILURE"]) {
+      const r = await run(f, `finalize 77 ${f.branch}`, { MOCK_CHECKS: checks });
+      assertEquals(r.code, 3, checks);
+      assertStringIncludes(r.stderr, "FALHA(ci)");
+    }
+    assertEquals((await ghCalls(f)).includes("pr merge"), false);
+    assertEquals(await exists(f.worktree), true);
+    const ok = await run(f, `finalize 77 ${f.branch}`, {
+      MOCK_CHECKS: "SUCCESS\nSKIPPED\nNEUTRAL",
+      MOCK_STATE: "MERGED",
+    });
+    assertEquals(ok.code, 0, ok.stderr);
+  } finally {
+    await cleanup(f);
+  }
+});
+
+Deno.test("finalize: mergeado com cleanup incompleto (worktree sujo) sai com 5 e preserva o worktree", async () => {
+  const f = await setup();
+  try {
+    await stage(f);
+    await sh(f.worktree, `echo sujo >> f.txt`);
+    const r = await run(f, `finalize 77 ${f.branch}`, { MOCK_STATE: "MERGED" });
+    assertEquals(r.code, 5, r.stderr);
+    assertStringIncludes(r.stderr, "cleanup ficou incompleto");
+    assertEquals(await exists(f.worktree), true);
+    assertEquals(await exists(f.statusFile), true);
+  } finally {
+    await cleanup(f);
+  }
+});
+
+Deno.test("prepare: debug-scan com console.log no diff sai com 1 sem push nem PR", async () => {
+  const f = await setup();
+  try {
+    await sh(
+      f.worktree,
+      `echo 'console.log("x")' > d.ts && git add . && git commit -q -m "feat: debug"`,
+    );
+    const r = await run(f, `prepare "${f.worktree}" 543 ${touchCmd(f)}`);
+    assertEquals(r.code, 1);
+    assertStringIncludes(r.stderr, "debug");
+    assertEquals(await remoteHasBranch(f), false);
+    assertEquals(await exists(f.marker), false);
+  } finally {
+    await cleanup(f);
+  }
+});
+
+Deno.test("#542: árvore suja (arquivo rastreado modificado) com HEAD testado volta a rodar a suíte", async () => {
+  const f = await setup();
+  try {
+    const sha = await headSha(f);
+    await Deno.writeTextFile(f.statusFile, `Status: GREEN\nTested: ${sha} deno task test pass\n`);
+    await sh(f.worktree, `echo mudou >> f.txt`);
+    const r = await run(f, `prepare "${f.worktree}" 542 ${touchCmd(f)}`);
+    assertEquals(r.code, 0, r.stderr);
+    assert(await exists(f.marker), "árvore suja: a suíte deveria rodar");
+  } finally {
+    await cleanup(f);
+  }
+});
+
+Deno.test("#542: --test-cmd explícito nunca é pulado, mesmo com HEAD testado", async () => {
+  const f = await setup();
+  try {
+    const sha = await headSha(f);
+    await Deno.writeTextFile(f.statusFile, `Status: GREEN\nTested: ${sha} deno task test pass\n`);
+    const r = await run(f, `prepare "${f.worktree}" 542 ${touchCmd(f)}`);
+    assertEquals(r.code, 0, r.stderr);
+    assert(await exists(f.marker), "--test-cmd explícito deve rodar");
+  } finally {
+    await cleanup(f);
+  }
+});
+
+Deno.test("prepare: assuntos de commit no corpo do PR têm Closes/@user neutralizados e o preship.json escapa a branch", async () => {
+  const f = await setup();
+  try {
+    await sh(
+      f.worktree,
+      `echo 2 > g.txt && git add . && git commit -q -m "fix: Closes #99 e avisa @fulano"`,
+    );
+    const r = await run(f, `prepare "${f.worktree}" 543 ${touchCmd(f)}`);
+    assertEquals(r.code, 0, r.stderr);
+    const body = await Deno.readTextFile(f.bodyCopy);
+    assertStringIncludes(body, "`Closes #99`");
+    assertStringIncludes(body, "`@fulano`");
+    assertEquals(/^Closes #99/m.test(body), false);
+    JSON.parse(await Deno.readTextFile(f.preshipFile));
   } finally {
     await cleanup(f);
   }

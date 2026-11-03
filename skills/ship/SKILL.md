@@ -87,6 +87,11 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" finalize <PR-number> <branch>
 | `finalize` | 4 | PR só enfileirado | tudo preservado (§10, exit 4) |
 | `finalize` | 5 | mergeado, mas o cleanup ficou incompleto | rodar o passo falho de §12 à mão |
 
+**Atenção:** o `finalize` remove o worktree da branch; rode-o do root (o shell do chamador não pode
+estar dentro desse worktree). O exit 2 (uso incorreto ou `<branch>` diferente do `headRefName` do PR)
+vale para ambos os comandos. O `finalize` aborta com exit 3, sem merge, se algum check do PR estiver
+pendente ou falho.
+
 O `prepare` pula a suíte quando o `HEAD` é o SHA registrado na linha `Tested: <sha> <comando> pass` do
 status file (gravada pelo worker no `GREEN`) e o sync com a default não trouxe commits; o motivo vai
 para o corpo do PR e para o `Last action`. Com `HEAD` diferente, árvore suja ou sync que trouxe commits,

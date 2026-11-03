@@ -50,9 +50,10 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
    push. Enquanto trabalha, atualize apenas `Updated`, `Last action` e `Next`, mantendo
    `Status: GREEN`.
 3. **Primeiro rode o caminho determinístico:** `cd "<path-do-worktree>" && bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" prepare "<path-do-worktree>" <issue#>`.
-   Exit 0 = `PR_STAGED` já gravado (status file e preship.json): reporte e pare. Exit 1/3/5 = falha: este
-   subagente só existe para diagnosticar (ver o passo 7), seguindo o ship §0.b. Execute `/vetor:ship --prepare <issue#>` seguindo a skill `ship` pré-carregada: guarda de
-   worktree, sincronização com `origin/$DEFAULT_BRANCH`, migrations, módulos, testes locais, debug
+   Exit 0 = `PR_STAGED` já gravado (status file e preship.json): reporte e pare. Exit 1/2/3/5 = falha (2 = uso incorreto:
+   revise os argumentos); falha de teste, conflito ou permissão segue o passo 7. **Somente se o exit
+   for diferente de 0**, execute `/vetor:ship --prepare <issue#>` seguindo a skill `ship` pré-carregada e
+   o ship §0.b: guarda de worktree, sincronização com `origin/$DEFAULT_BRANCH`, migrations, módulos, testes locais, debug
    scan, push da branch, PR draft e disparo do CI.
 4. **Monitoramento não-bloqueante.** **Nunca** use `gh pr checks --watch`: no passo 7 faça um
    único snapshot (`gh pr checks <PR>`) e siga. Não fique em loop de espera nem durma aguardando o
