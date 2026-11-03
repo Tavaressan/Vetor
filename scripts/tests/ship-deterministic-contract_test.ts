@@ -27,6 +27,8 @@ Deno.test("#542: template define Tested:, o worker o grava no GREEN e o ship doc
   assertStringIncludes(ship, "o sync com a default não trouxe commits");
 });
 
+const flat = (t: string) => t.replace(/\s+/g, " ");
+
 Deno.test("#541: coordinator revisa o diff local antes do prepare e registra a revisão no PR", async () => {
   const codeReview = await read("agents/code-review.md");
   const i = coordinator.indexOf("Revisão local antes do push (issue #541)");
@@ -35,9 +37,16 @@ Deno.test("#541: coordinator revisa o diff local antes do prepare e registra a r
   if (i < 0 || j < 0 || k < 0 || !(i < j && j < k)) {
     throw new Error("ordem esperada: revisão local, prepare, registro no PR");
   }
-  assertStringIncludes(coordinator, "`blocker` e `warning` de\n   confiança `alta`");
+  const c = flat(coordinator);
+  assertStringIncludes(c, "`blocker` e `warning` de confiança `alta`");
+  assertStringIncludes(c, "Limite de 2 rodadas");
+  assertStringIncludes(c, "revisão do **HEAD atual**");
+  assertStringIncludes(c, "### Resolvidos antes do push");
+  assertStringIncludes(c, "<branch-sanitizada>-review.md");
   assertStringIncludes(coordinator, "gh pr comment <PR> --body-file");
   assertStringIncludes(codeReview, "## Modo local (sem PR");
   assertStringIncludes(codeReview, "git -C <worktree> diff");
-  assertStringIncludes(ship, "## Code Review (Vetor)");
+  assertStringIncludes(flat(ship), "`## Code Review (Vetor)` com uma linha `Reviewed: <sha>`");
+  assertStringIncludes(flat(codeReview), "`Reviewed: <sha>`");
+  assertStringIncludes(codeReview, "origin/$DEFAULT_BRANCH...HEAD");
 });

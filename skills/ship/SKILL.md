@@ -362,8 +362,10 @@ não entram na exceção.
 
 Havendo módulo alterado, execute as duas revisões:
 
-1. **Code review** (bugs, correção, arquitetura). Pule se o PR já tem um comentário
-   `## Code Review (Vetor)`: o coordinator revisou o diff local antes do push (issue #541).
+1. **Code review** (bugs, correção, arquitetura). Pule só se o PR já tem um comentário
+   `## Code Review (Vetor)` com uma linha `Reviewed: <sha>` igual ao HEAD atual do PR (o coordinator
+   revisou o diff local antes do push, issue #541). Se o sha for diferente (commit de CI, rebase,
+   redespacho) ou a linha faltar, revise, ao menos o diff `<sha>..HEAD`.
    ```javascript
    Agent({
      description: "Code review: PR #<PR-number>",
