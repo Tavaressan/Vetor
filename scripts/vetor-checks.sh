@@ -180,14 +180,15 @@ _vc_prepare() {
   done
 
   # 5. PR draft (título/corpo determinísticos, corpo via --body-file)
-  local pr_number pr_url subjects count title body_file type slug summary
+  local pr_number pr_url subjects title body_file type slug summary
   pr_number=$(gh pr list --head "$branch" --state open --json number -q '.[0].number' 2>/dev/null || true)
   if [ -z "$pr_number" ]; then
-    subjects=$(git log --no-merges --format=%s "origin/$default..HEAD")
-    # O título vira o assunto do squash na default: usa o commit mais antigo (a mudança principal;
-    # os seguintes costumam ser correções de revisão). O template só entra sem assunto utilizável.
+    subjects=$(git log --no-merges --topo-order --reverse --format=%s "origin/$default..HEAD")
+    # Do mais antigo para o mais novo, pela topologia (datas mudam em rebase/cherry-pick). O título
+    # vira o assunto do squash: usa o mais antigo (a mudança principal; os seguintes costumam ser
+    # correções de revisão). O template só entra sem assunto utilizável.
     local first
-    first=$(printf '%s\n' "$subjects" | sed '/^$/d' | tail -n 1)
+    first=$(printf '%s\n' "$subjects" | sed '/^$/d' | head -n 1)
     if [ -n "$first" ] && ! printf '%s' "$first" | LC_ALL=C grep -q '[[:cntrl:]]'; then
       title="$first"
     else
