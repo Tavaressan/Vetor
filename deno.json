@@ -1,7 +1,7 @@
 {
   "tasks": {
     "test": "deno test -A scripts/ opencode/scripts/",
-    "fmt": "deno fmt scripts/ opencode/scripts/",
+    "fmt": "deno fmt",
     "lint": "deno lint scripts/ opencode/scripts/",
     "check": "deno check scripts/ opencode/scripts/"
   },

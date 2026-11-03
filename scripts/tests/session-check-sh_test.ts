@@ -15,6 +15,9 @@ async function resolveBashCommand(): Promise<string> {
     stdout: "piped",
   }).output();
   const posixPath = new TextDecoder().decode(posix.stdout).trim();
+  if (!posix.success || posixPath === "") {
+    throw new Error("`command -v bash` não retornou o caminho do bash; o teste precisa dele");
+  }
   if (Deno.build.os !== "windows") return posixPath;
 
   const win = await new Deno.Command("cygpath", { args: ["-w", posixPath], stdout: "piped" })
@@ -28,15 +31,19 @@ Deno.test("session-check.sh avisa quando deno não está no PATH, sem tentar rod
   // PATH controlado: diretório vazio, para não depender de onde a máquina instalou o deno
   // (ex.: /usr/bin). O script só usa builtins do bash, então não precisa de nenhum binário no PATH.
   const emptyDir = await Deno.makeTempDir();
-  const output = await new Deno.Command(BASH, {
-    args: [SCRIPT],
-    env: { "PATH": emptyDir },
-    clearEnv: true,
-    stdin: "null",
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  await Deno.remove(emptyDir);
+  let output: Deno.CommandOutput;
+  try {
+    output = await new Deno.Command(BASH, {
+      args: [SCRIPT],
+      env: { "PATH": emptyDir },
+      clearEnv: true,
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+  } finally {
+    await Deno.remove(emptyDir, { recursive: true });
+  }
 
   const stdout = new TextDecoder().decode(output.stdout);
   const stderr = new TextDecoder().decode(output.stderr);

@@ -6,6 +6,7 @@
 import { assert, assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { opencodeSupports } from "./helpers/opencode-probe.ts";
 
 const require = createRequire(import.meta.url);
 const { installFiles } = require("../../cli/lib/installer/writer.js") as {
@@ -157,21 +158,6 @@ Deno.test("OpenCode instalado: a skill coordinator e as referências citadas res
     assertEquals(installed.sort(), ["coordinator", "shared"]);
   });
 });
-
-// Binário ausente ou versão sem `debug skill`/`debug agent` => teste ignorado.
-async function opencodeSupports(args: string[]): Promise<boolean> {
-  try {
-    const out = await new Deno.Command("opencode", {
-      args,
-      cwd: await Deno.makeTempDir(),
-      stdout: "null",
-      stderr: "null",
-    }).output();
-    return out.success;
-  } catch {
-    return false;
-  }
-}
 
 // Roda contra o binário `opencode` real quando disponível; do contrário, pula (dependência externa
 // opcional, como em opencode/scripts/agent-registration_test.ts). Versão exercitada e versão mínima:
