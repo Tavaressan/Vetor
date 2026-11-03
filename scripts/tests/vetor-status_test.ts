@@ -423,3 +423,51 @@ Deno.test("vetor-status.sh só poupa o worktree pendente: um órfão de verdade 
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("vetor-status.sh mostra worker que só gravou o fallback no worktree — issue #540", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("fix-fallback-only");
+  try {
+    await Deno.mkdir(`${worktreePath}/.claude`, { recursive: true });
+    await Deno.writeTextFile(
+      `${worktreePath}/.claude/vetor-status.md`,
+      "Status: RUNNING\nIteration: 2/5 (Issue #540)\nLast action: so fallback\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "fix-fallback-only");
+    assertStringIncludes(stdout, "RUNNING");
+    assertStringIncludes(stdout, "2/5 (Issue #540)");
+    assertStringIncludes(stdout, "so fallback");
+    assertStringIncludes(stdout, "fallback do worktree");
+    assertEquals(stdout.includes("SEM STATUS FILE"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh prefere o fallback quando é mais recente que o status do root — issue #540", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("fix-newer-fallback");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    const rootFile = `${root}/.claude/vetor/status/fix-newer-fallback.md`;
+    await Deno.writeTextFile(
+      rootFile,
+      "Status: RUNNING\nIteration: 1/5 (Issue #1)\nLast action: velho\n",
+    );
+    await Deno.mkdir(`${worktreePath}/.claude`, { recursive: true });
+    const fb = `${worktreePath}/.claude/vetor-status.md`;
+    await Deno.writeTextFile(fb, "Status: GREEN\nIteration: 3/5 (Issue #1)\nLast action: novo\n");
+    await Deno.utime(rootFile, new Date(1_000_000_000_000), new Date(1_000_000_000_000));
+
+    const { stdout } = await run("bash", [SCRIPT], root, {
+      ...Deno.env.toObject(),
+      PATH: `${await createMockGh("")}:${Deno.env.get("PATH")}`,
+    });
+
+    assertStringIncludes(stdout, "novo");
+    assertEquals(stdout.includes("velho"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

@@ -20,9 +20,9 @@ memória pelo coordinator. Grupos `QUEUED` de uma onda posterior aparecem como
 `QUEUED (aguardando O_i)` para deixar explícita a razão de não terem sido despachados mesmo havendo
 vaga no teto `N`.
 
-⚠️ **Fallback de leitura.** Se o status file no path absoluto não existir ou estiver desatualizado
-para um worktree ativo, leia `<path-do-worktree>/.claude/vetor-status.md` (path via
-`git worktree list`).
+⚠️ **Fallback de leitura.** O `vetor-status.sh` já lê `<path-do-worktree>/.claude/vetor-status.md`
+de cada worktree ativo quando o status file do root não existe ou é mais antigo (issue #540); a
+linha aparece como `ativo (status via fallback do worktree)`. Não copie o fallback à mão.
 
 ⚠️ **Workers duplicados.** Extraia o número de issue de cada `Iteration: N/5 (Issue #<M>)` dos status
 files ativos e cruze-os. Se a mesma issue aparecer em mais de um worktree ativo, sinalize:
