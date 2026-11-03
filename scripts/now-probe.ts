@@ -39,6 +39,22 @@ async function optional(executor: CommandExecutor, command: string, args: string
 
 const PLUGIN_REPO = "Tavaressan/Vetor";
 
+/** Teto para a consulta de rede da última release; estourar equivale a "sem dado", nunca trava o kickoff. */
+const LATEST_TIMEOUT_MS = 5000;
+
+/** Resolve `null` se `promise` não terminar em `ms`; o timer é sempre limpo. */
+async function withTimeout<T>(promise: Promise<T | null>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Compara versões `X.Y.Z` numericamente; devolve true se `latest` é mais nova que `installed`. */
 export function isNewerVersion(installed: string, latest: string): boolean {
   const parse = (v: string) => v.replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
@@ -52,7 +68,12 @@ export function isNewerVersion(installed: string, latest: string): boolean {
 }
 
 /** Versão instalada (plugin.json) e última release publicada; best-effort, nunca lança. */
-export async function probeVersion(executor: CommandExecutor, cwd: string, manifestUrl?: URL) {
+export async function probeVersion(
+  executor: CommandExecutor,
+  cwd: string,
+  manifestUrl?: URL,
+  timeoutMs: number = LATEST_TIMEOUT_MS,
+) {
   let installed: string | null = null;
   try {
     const url = manifestUrl ?? new URL("../.claude-plugin/plugin.json", import.meta.url);
@@ -61,12 +82,15 @@ export async function probeVersion(executor: CommandExecutor, cwd: string, manif
   } catch {
     // Manifesto ilegível: versão desconhecida.
   }
-  const tag = await optional(executor, "gh", [
-    "api",
-    `repos/${PLUGIN_REPO}/releases/latest`,
-    "--jq",
-    ".tag_name",
-  ], cwd);
+  const tag = await withTimeout(
+    optional(executor, "gh", [
+      "api",
+      `repos/${PLUGIN_REPO}/releases/latest`,
+      "--jq",
+      ".tag_name",
+    ], cwd),
+    timeoutMs,
+  );
   const latest = tag ? tag.replace(/^v/, "") : null;
   const updateAvailable = installed !== null && latest !== null
     ? isNewerVersion(installed, latest)

@@ -120,7 +120,10 @@ O Claude Code só atualiza o cache do plugin quando o campo `version` muda. Ante
 tag/release:
 
 1. Suba `version` (semver) em **todos** os manifestos: `plugin.json`, `.claude-plugin/plugin.json`,
-   `.codex-plugin/plugin.json` e `.cursor-plugin/plugin.json`. O bump é obrigatório: release com a
-   mesma `version` da anterior não chega aos usuários instalados.
+   `.codex-plugin/plugin.json` e `.cursor-plugin/plugin.json` (um teste confere que os quatro têm a
+   mesma `version`). O bump é obrigatório: release com a mesma `version` da anterior não chega aos
+   usuários instalados.
+   - Não precisam de bump: `metadata.version` em `skills/*/SKILL.md` (versão própria de cada skill,
+     evolui só quando a skill muda) e `cli/package.json` (a CLI é versionada à parte).
 2. A tag `vX.Y.Z` deve corresponder ao `version` commitado.
 3. `/vetor:now` compara a versão instalada com a última release e avisa quando há uma mais nova.

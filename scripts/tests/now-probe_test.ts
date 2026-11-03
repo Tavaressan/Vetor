@@ -183,3 +183,27 @@ Deno.test("probeVersion avisa release mais nova e tolera falha do gh", async () 
   assertEquals(noGh.latest, null);
   assertEquals(noGh.updateAvailable, null);
 });
+
+Deno.test("probeVersion devolve latest null quando o gh trava além do timeout", async () => {
+  const hang: CommandExecutor = () => new Promise<string>(() => {});
+  const started = Date.now();
+  const result = await probeVersion(hang, ".", undefined, 20);
+  assertEquals(result.latest, null);
+  assertEquals(result.updateAvailable, null);
+  assert(Date.now() - started < 2000);
+});
+
+Deno.test("os 4 plugin.json têm a mesma version", async () => {
+  const paths = [
+    "../../plugin.json",
+    "../../.claude-plugin/plugin.json",
+    "../../.codex-plugin/plugin.json",
+    "../../.cursor-plugin/plugin.json",
+  ];
+  const versions = await Promise.all(paths.map(async (p) => {
+    const manifest = JSON.parse(await Deno.readTextFile(new URL(p, import.meta.url)));
+    return manifest.version;
+  }));
+  assert(typeof versions[0] === "string");
+  assertEquals(new Set(versions).size, 1, `versions divergentes: ${versions.join(", ")}`);
+});
