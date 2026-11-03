@@ -222,3 +222,12 @@ referencia fora dos próprios testes. Se houver interesse em reavaliar, o próxi
 é rodar o mesmo benchmark com `nimble` em hardware com ≥ 16 GB de RAM ou GPU. Só valeria integrar às
 skills se o modelo superar a baseline nos cenários `text-only-*` sem regredir os demais, e com
 latência p95 abaixo de ~2 s.
+
+## Spikes futuros
+
+- [#556](https://github.com/Tavaressan/Vetor/issues/556) — avaliar `nimble`/`clef` em hardware
+  adequado contra a baseline.
+- [#557](https://github.com/Tavaressan/Vetor/issues/557) — dataset de falhas reais rotulado pelo
+  desfecho.
+- [#558](https://github.com/Tavaressan/Vetor/issues/558) — heurística determinística de falha
+  transitória a partir do texto do erro.
