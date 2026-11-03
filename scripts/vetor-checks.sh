@@ -180,17 +180,24 @@ _vc_prepare() {
   done
 
   # 5. PR draft (título/corpo determinísticos, corpo via --body-file)
-  local pr_number pr_url subjects count title body_file type slug summary
+  local pr_number pr_url subjects title body_file type slug summary
   pr_number=$(gh pr list --head "$branch" --state open --json number -q '.[0].number' 2>/dev/null || true)
   if [ -z "$pr_number" ]; then
-    subjects=$(git log --no-merges --format=%s "origin/$default..HEAD")
-    count=$(printf '%s\n' "$subjects" | sed '/^$/d' | wc -l)
-    if [ "$count" -eq 1 ] && ! printf '%s' "$subjects" | LC_ALL=C grep -q '[[:cntrl:]]'; then
-      title="$subjects"
+    subjects=$(git log --no-merges --topo-order --reverse --format=%s "origin/$default..HEAD")
+    # Do mais antigo para o mais novo, pela topologia (datas mudam em rebase/cherry-pick). O título
+    # vira o assunto do squash: usa o mais antigo (a mudança principal; os seguintes costumam ser
+    # correções de revisão). O template só entra sem assunto utilizável.
+    local first
+    first=$(printf '%s\n' "$subjects" | sed '/^$/d' | head -n 1)
+    if [ -n "$first" ] && ! printf '%s' "$first" | LC_ALL=C grep -q '[[:cntrl:]]'; then
+      title="$first"
     else
       type="${branch%%/*}"; [ "$type" = "$branch" ] && type="chore"
       slug="${branch#*/}"; slug=$(printf '%s' "$slug" | sed -E 's/^[0-9]+-//')
-      summary=$(printf '%s\n' "$subjects" | sed '/^$/d' | tr -d '[:cntrl:]' | paste -sd ';' - | sed 's/;/; /g')
+      # Remove controles de cada linha antes de juntar: `tr -d '[:cntrl:]'` antes do `paste`
+      # apagava as quebras de linha e colava os assuntos sem separador.
+      summary=$(printf '%s\n' "$subjects" | sed '/^$/d' | LC_ALL=C sed 's/[[:cntrl:]]//g' \
+        | paste -sd ';' - | sed 's/;/; /g')
       title="${type}(${slug}): ${summary:-atualização}"
     fi
     body_file=$(mktemp)

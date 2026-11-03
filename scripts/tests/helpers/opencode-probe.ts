@@ -22,11 +22,23 @@ async function help(path: string[]): Promise<string> {
   return new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr);
 }
 
-function lists(helpText: string, subcommand: string): boolean {
+/**
+ * `true` quando o `--help` de `opencode <path>` lista `subcommand`. Reconhece os dois formatos:
+ * a seção `SUBCOMMANDS` do opencode 2.x e a seção `Commands:` do yargs (opencode 1.x), cujas linhas
+ * repetem o caminho completo (`opencode agent list   descrição`).
+ */
+export function listsSubcommand(helpText: string, path: string[], subcommand: string): boolean {
   const section = helpText.split(/^SUBCOMMANDS\s*$/m)[1] ?? "";
   const names = section.split("\n").slice(1).map((line) => line.match(/^\s+(.+?)(?:\s{2,}|$)/)?.[1])
     .flatMap((cell) => (cell ?? "").split(",").map((name) => name.trim()));
-  return names.includes(subcommand);
+  if (names.includes(subcommand)) return true;
+
+  const commands = helpText.split(/^Commands:\s*$/m)[1]?.split(/\n\s*\n/)[0] ?? "";
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const line = new RegExp(
+    `^\\s+opencode\\s+${[...path, subcommand].map(escape).join("\\s+")}(?:\\s|$)`,
+  );
+  return commands.split("\n").some((l) => line.test(l));
 }
 
 /** Retorna o motivo de `opencode <args>` não estar disponível, ou `undefined` se estiver. */
@@ -34,7 +46,7 @@ async function unsupportedReason(args: string[]): Promise<string | undefined> {
   const path = args.filter((arg) => !arg.startsWith("-"));
   try {
     for (let i = 0; i < path.length; i++) {
-      if (!lists(await help(path.slice(0, i)), path[i])) {
+      if (!listsSubcommand(await help(path.slice(0, i)), path.slice(0, i), path[i])) {
         return `subcomando \`${path.slice(0, i + 1).join(" ")}\` ausente nesta versão do opencode`;
       }
     }
