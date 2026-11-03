@@ -886,6 +886,14 @@ workers nem o CI de nenhum:
 
 1. Para cada grupo, obtenha o path real do worktree (`git worktree list`, correlacionando pela
    branch da Fase 3). O `/vetor:ship` aborta se o `cwd` não for um worktree.
+1.b. **Revisão local antes do push (issue #541).** Antes do `prepare` (que faz o push), despache o
+   `vetor:code-review` em **modo local** para cada grupo, todos na mesma mensagem e em background:
+   `Agent({ subagent_type: "vetor:code-review", model: "sonnet", prompt: "Modo local: worktree <path-do-worktree>, branch <branch>, base $DEFAULT_BRANCH. Sem PR aberto; devolva os achados ao coordinator." })`.
+   Só rode o `prepare` de um grupo depois que a revisão dele voltar. Trate `blocker` e `warning` de
+   confiança `alta` antes do push: redespache o worker no mesmo worktree (regra da Fase 4) com os
+   achados, espere o novo `GREEN` e revise de novo; `nit` e achados de confiança `média`/`baixa` não
+   seguram o push e vão só para o registro. Revisão que falhar (rate limit, erro de ferramenta) não
+   bloqueia o grupo: registre e siga para o `prepare`. Guarde o corpo da revisão para o passo 4.b.
 2. **Caminho determinístico primeiro (issue #543), sem subagente:** para cada grupo rode
    `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" prepare "<path-do-worktree>" <issue#...>` (vários
    em paralelo com `&`/`wait`, um exit por grupo). Exit 0 = `PR_STAGED` gravado; exit 1/3/5 = falha
@@ -908,6 +916,11 @@ workers nem o CI de nenhum:
    número de grupos verdes da onda.
 4. O resultado vem do status file: `PR_STAGED` (com `PR: #<N>`) é sucesso. Se o `--prepare` falhar,
    marque o grupo na tabela como falha de pre-ship, preserve o worktree e siga com os demais.
+
+4.b. **Registro da revisão no PR (issue #541).** Com `PR_STAGED` e o número do PR, publique o corpo
+   guardado no passo 1.b como comentário (`gh pr comment <PR> --body-file <arquivo>`), no formato
+   `## Code Review (Vetor)` do agente, marcando os achados já tratados antes do push. O ship não repete a
+   revisão quando o PR já tem esse comentário.
 
 **6.b — Aguardar o CI sem somar esperas (issue #494).** Não use `gh pr checks --watch` por PR (cada
 espera bloqueia e o total vira N × T_ci). Acompanhe todos os PRs preparados com **uma** consulta

@@ -26,3 +26,18 @@ Deno.test("#542: template define Tested:, o worker o grava no GREEN e o ship doc
   assertStringIncludes(ship, "Tested: <sha> <comando> pass");
   assertStringIncludes(ship, "o sync com a default não trouxe commits");
 });
+
+Deno.test("#541: coordinator revisa o diff local antes do prepare e registra a revisão no PR", async () => {
+  const codeReview = await read("agents/code-review.md");
+  const i = coordinator.indexOf("Revisão local antes do push (issue #541)");
+  const j = coordinator.indexOf("Caminho determinístico primeiro (issue #543)");
+  const k = coordinator.indexOf("Registro da revisão no PR (issue #541)");
+  if (i < 0 || j < 0 || k < 0 || !(i < j && j < k)) {
+    throw new Error("ordem esperada: revisão local, prepare, registro no PR");
+  }
+  assertStringIncludes(coordinator, "`blocker` e `warning` de\n   confiança `alta`");
+  assertStringIncludes(coordinator, "gh pr comment <PR> --body-file");
+  assertStringIncludes(codeReview, "## Modo local (sem PR");
+  assertStringIncludes(codeReview, "git -C <worktree> diff");
+  assertStringIncludes(ship, "## Code Review (Vetor)");
+});

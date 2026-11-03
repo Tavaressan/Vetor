@@ -362,7 +362,8 @@ não entram na exceção.
 
 Havendo módulo alterado, execute as duas revisões:
 
-1. **Code review** (bugs, correção, arquitetura):
+1. **Code review** (bugs, correção, arquitetura). Pule se o PR já tem um comentário
+   `## Code Review (Vetor)`: o coordinator revisou o diff local antes do push (issue #541).
    ```javascript
    Agent({
      description: "Code review: PR #<PR-number>",
