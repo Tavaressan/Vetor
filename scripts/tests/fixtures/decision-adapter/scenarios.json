@@ -1,0 +1,113 @@
+{
+  "criteria": "Rótulos definidos antes de qualquer execução do modelo. retry_operation só é correto quando a operação é explicitamente repetível E há evidência de falha transitória. request_human_review é correto quando há aprovação exigida, infraestrutura/permissão, orçamento esgotado ou a mesma assinatura de erro em 3 tentativas seguidas. Nos demais casos (erro de código ou evidência insuficiente), inspect_failure.",
+  "scenarios": [
+    {
+      "id": "rust-type-error",
+      "expected": "inspect_failure",
+      "rationale": "Erro de tipo do compilador: falha de código determinística.",
+      "context": {"operation": "build", "exitCode": 101, "errorCategory": "type", "errorSummary": "error[E0308]: mismatched types: expected `u32`, found `&str` at src/main.rs:12:17", "attempt": 1, "maxAttempts": 5, "errorSignature": "E0308 src/main.rs"}
+    },
+    {
+      "id": "assertion-first-attempt",
+      "expected": "inspect_failure",
+      "rationale": "Asserção de teste na primeira tentativa.",
+      "context": {"operation": "test", "exitCode": 1, "errorCategory": "test_assertion", "errorSummary": "AssertionError: Values are not equal. [Diff] Actual / Expected - 3 + 4", "attempt": 1, "maxAttempts": 5, "errorSignature": "assert sum_test"}
+    },
+    {
+      "id": "ci-network-retryable",
+      "expected": "retry_operation",
+      "rationale": "CI repetível com categoria network: transitório (ship §8.c).",
+      "context": {"operation": "ci", "exitCode": 1, "errorCategory": "network", "errorSummary": "npm ERR! network request to https://registry.npmjs.org failed, reason: socket hang up", "attempt": 1, "maxAttempts": 3, "retryable": true}
+    },
+    {
+      "id": "ci-timeout-retryable",
+      "expected": "retry_operation",
+      "rationale": "Runner morto por timeout numa operação repetível.",
+      "context": {"operation": "ci", "exitCode": null, "timedOut": true, "errorSummary": "The job running on runner GitHub Actions 12 has exceeded the maximum execution time of 360 minutes.", "attempt": 1, "maxAttempts": 3, "retryable": true}
+    },
+    {
+      "id": "network-not-retryable",
+      "expected": "inspect_failure",
+      "rationale": "Parece transitório mas a operação não foi declarada repetível: retry proibido.",
+      "context": {"operation": "test", "exitCode": 1, "errorCategory": "network", "errorSummary": "ECONNREFUSED 127.0.0.1:5432", "attempt": 1, "maxAttempts": 5}
+    },
+    {
+      "id": "billing-infra",
+      "expected": "request_human_review",
+      "rationale": "Falha de infraestrutura (billing): nenhum fix resolve (ship §8.b).",
+      "context": {"operation": "ci", "exitCode": 1, "errorCategory": "infra", "errorSummary": "The job was not started because recent account payments have failed or your spending limit needs to be increased.", "attempt": 1, "maxAttempts": 3, "retryable": true}
+    },
+    {
+      "id": "permission-required",
+      "expected": "request_human_review",
+      "rationale": "A próxima ação exige aprovação.",
+      "context": {"operation": "build", "exitCode": 1, "errorCategory": "permission", "errorSummary": "EACCES: permission denied, open '/usr/lib/node_modules/.staging'", "attempt": 1, "maxAttempts": 5, "requiresApproval": true}
+    },
+    {
+      "id": "budget-exhausted",
+      "expected": "request_human_review",
+      "rationale": "5ª tentativa do fix sem verde: handover (fix §4).",
+      "context": {"operation": "test", "exitCode": 1, "errorCategory": "test_assertion", "errorSummary": "1 failed: parser handles nested quotes", "attempt": 5, "maxAttempts": 5, "errorSignature": "parser nested", "previousErrorSignatures": ["parser escape", "parser nested"]}
+    },
+    {
+      "id": "stuck-same-signature",
+      "expected": "request_human_review",
+      "rationale": "Mesma assinatura em 3 tentativas seguidas.",
+      "context": {"operation": "test", "exitCode": 1, "errorCategory": "test_assertion", "errorSummary": "expected 200, got 500 in checkout.test.ts", "attempt": 3, "maxAttempts": 5, "errorSignature": "checkout 500", "previousErrorSignatures": ["checkout 500", "checkout 500"]}
+    },
+    {
+      "id": "repeat-once-still-inspect",
+      "expected": "inspect_failure",
+      "rationale": "Repetiu só uma vez: trocar de hipótese, ainda não escalar (fix §3.b).",
+      "context": {"operation": "test", "exitCode": 1, "errorCategory": "test_assertion", "errorSummary": "expected 200, got 500 in checkout.test.ts", "attempt": 2, "maxAttempts": 5, "errorSignature": "checkout 500", "previousErrorSignatures": ["checkout 500"]}
+    },
+    {
+      "id": "no-evidence",
+      "expected": "inspect_failure",
+      "rationale": "Só exit code, nenhuma mensagem: coletar evidência.",
+      "context": {"operation": "test", "exitCode": 1, "attempt": 1, "maxAttempts": 5}
+    },
+    {
+      "id": "missing-dependency",
+      "expected": "inspect_failure",
+      "rationale": "Dependência ausente: investigar/instalar, não repetir igual (fix §3).",
+      "context": {"operation": "test", "exitCode": 1, "errorCategory": "dependency", "errorSummary": "error: Module not found \"jsr:@std/yaml\"", "attempt": 1, "maxAttempts": 5, "retryable": true}
+    },
+    {
+      "id": "lint-error",
+      "expected": "inspect_failure",
+      "rationale": "Lint é determinístico; repetir não muda o resultado.",
+      "context": {"operation": "lint", "exitCode": 1, "errorCategory": "compile", "errorSummary": "error[no-unused-vars]: `x` is never used", "attempt": 1, "maxAttempts": 3, "retryable": true}
+    },
+    {
+      "id": "text-only-transient",
+      "expected": "retry_operation",
+      "rationale": "Categoria ausente, mas a mensagem é inequivocamente transitória e a operação é repetível. A baseline estruturada não lê texto livre — é aqui que um modelo poderia acrescentar algo.",
+      "context": {"operation": "ci", "exitCode": 1, "errorSummary": "fatal: unable to access 'https://github.com/org/repo.git/': Could not resolve host: github.com", "attempt": 1, "maxAttempts": 3, "retryable": true}
+    },
+    {
+      "id": "text-only-transient-503",
+      "expected": "retry_operation",
+      "rationale": "Mesmo caso: HTTP 503 do registry, sem categoria, operação repetível.",
+      "context": {"operation": "ci", "exitCode": 1, "errorSummary": "error: JSR package manifest for '@std/assert' failed to load: 503 Service Unavailable", "attempt": 1, "maxAttempts": 3, "retryable": true}
+    },
+    {
+      "id": "text-only-code-error-retryable",
+      "expected": "inspect_failure",
+      "rationale": "Repetível, sem categoria, mas o texto é erro de código: retry seria desperdício.",
+      "context": {"operation": "ci", "exitCode": 1, "errorSummary": "TS2345 [ERROR]: Argument of type 'string' is not assignable to parameter of type 'number'.", "attempt": 1, "maxAttempts": 3, "retryable": true}
+    },
+    {
+      "id": "text-only-secret-required",
+      "expected": "inspect_failure",
+      "rationale": "Mensagem sugere segredo ausente, mas requiresApproval não foi sinalizado: pela definição dos rótulos, sem flag não há escalação obrigatória. Caso deliberadamente ambíguo — mede se o modelo escala por conta própria.",
+      "context": {"operation": "ci", "exitCode": 1, "errorSummary": "Error: Input required and not supplied: NPM_TOKEN", "attempt": 1, "maxAttempts": 3, "retryable": true}
+    },
+    {
+      "id": "flaky-timeout-local",
+      "expected": "retry_operation",
+      "rationale": "Teste local repetível morto por timeout.",
+      "context": {"operation": "test", "exitCode": null, "timedOut": true, "errorSummary": "test timed out after 120000ms", "attempt": 2, "maxAttempts": 5, "retryable": true, "errorSignature": "timeout", "previousErrorSignatures": ["assert foo"]}
+    }
+  ]
+}
