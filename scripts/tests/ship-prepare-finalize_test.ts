@@ -205,7 +205,7 @@ Deno.test("prepare: sucesso grava PR_STAGED, preship.json, push e PR draft com C
   }
 });
 
-Deno.test("prepare: várias issues geram uma linha Closes por issue; vários commits usam o template de título", async () => {
+Deno.test("prepare: várias issues geram uma linha Closes por issue; vários commits usam o assunto do mais antigo", async () => {
   const f = await setup();
   try {
     await sh(f.worktree, `echo 2 > g.txt && git add . && git commit -q -m "feat: segundo"`);
@@ -213,7 +213,10 @@ Deno.test("prepare: várias issues geram uma linha Closes por issue; vários com
     assertEquals(r.code, 0, r.stderr);
     const body = await Deno.readTextFile(f.bodyCopy);
     assertStringIncludes(body, "Closes #543\nCloses #542");
-    assertMatch(await ghCalls(f), /--title feat\(ship-deterministico\): /);
+    assertStringIncludes(body, "feat: segundo");
+    const calls = await ghCalls(f);
+    assertMatch(calls, /--title feat: entrega determinística --body-file/);
+    assertEquals(calls.includes("segundo --body-file"), false);
   } finally {
     await cleanup(f);
   }
