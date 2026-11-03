@@ -36,23 +36,30 @@ import { validateMicroSpec } from "./lib/orchestrator/micro-spec.ts";
 import { run } from "./lib/project.ts";
 import { buildRepoMap, isMappedSourcePath } from "./repo-map.ts";
 
-interface IssueData {
+export interface IssueData {
   number: number;
   title: string;
   body: string;
 }
 
-function flagValue(args: string[], flag: string): string | undefined {
+export function flagValue(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
   return idx === -1 ? undefined : args[idx + 1];
 }
 
-function fail(message: string): never {
-  console.error(`context-packet: ${message}`);
+let failPrefix = "context-packet";
+
+/** CLIs que reaproveitam estes helpers (dispatch-prompt.ts) trocam o prefixo das mensagens. */
+export function setFailPrefix(prefix: string): void {
+  failPrefix = prefix;
+}
+
+export function fail(message: string): never {
+  console.error(`${failPrefix}: ${message}`);
   Deno.exit(1);
 }
 
-function requireFlag(args: string[], flag: string): string {
+export function requireFlag(args: string[], flag: string): string {
   return flagValue(args, flag) ?? fail(`flag obrigatória ausente: ${flag}`);
 }
 
@@ -73,7 +80,7 @@ function parseIssue(raw: string, origin: string): IssueData {
   return { number: data.number, title: data.title, body: data.body ?? "" };
 }
 
-async function loadIssue(args: string[]): Promise<IssueData> {
+export async function loadIssue(args: string[]): Promise<IssueData> {
   const issueJson = flagValue(args, "--issue-json");
   if (issueJson) return parseIssue(await Deno.readTextFile(issueJson), "--issue-json");
 
@@ -92,7 +99,7 @@ async function loadIssue(args: string[]): Promise<IssueData> {
 // `--micro-spec <path>` (issue #501): micro-spec JIT escrita pelo coordinator num arquivo (nunca na
 // linha de comando). O texto vem de um modelo leve, então é validado antes de entrar no pacote; se
 // for inválido a CLI falha e o coordinator despacha sem micro-spec.
-async function loadMicroSpec(args: string[]): Promise<string | undefined> {
+export async function loadMicroSpec(args: string[]): Promise<string | undefined> {
   const path = flagValue(args, "--micro-spec");
   if (path === undefined) return undefined;
   const content = await Deno.readTextFile(path).catch(() =>
@@ -104,7 +111,7 @@ async function loadMicroSpec(args: string[]): Promise<string | undefined> {
 }
 
 // O mapa é um complemento: qualquer falha vira aviso em stderr e o pacote segue sem `repoMap`.
-async function generateRepoMap(
+export async function generateRepoMap(
   root: string,
   packet: ContextPacket,
   moduleTestMap: string,

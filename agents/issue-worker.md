@@ -94,8 +94,10 @@ Next: Reading issue scope
    fix → rebuild → test até verde.
 5. Atualize o status file a cada iteração — path absoluto recebido no prompt; formato em
    `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`. É a única forma do
-   `coordinator` acompanhar seu progresso. Ele fica fora do worktree, no root do repo —
-   sem risco de commit acidental.
+   `coordinator` acompanhar seu progresso. Ele fica no root do repo, fora do worktree — sem risco de
+   commit acidental.
+   Exceção: se a escrita no root for recusada ou ficar pendente de confirmação, não espere; grave
+   `.claude/vetor-status.md` no worktree e siga (o `vetor-status.sh` lê o fallback; issue #540).
 
 ### Modo Investigação (`spike`)
 
