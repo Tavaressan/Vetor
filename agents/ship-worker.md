@@ -49,7 +49,9 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
    enquanto o status é `GREEN` ou `PR_STAGED`; reescrever para `RUNNING` bloquearia o seu próprio
    push. Enquanto trabalha, atualize apenas `Updated`, `Last action` e `Next`, mantendo
    `Status: GREEN`.
-3. Execute `/vetor:ship --prepare <issue#>` seguindo a skill `ship` pré-carregada: guarda de
+3. **Primeiro rode o caminho determinístico:** `cd "<path-do-worktree>" && bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" prepare "<path-do-worktree>" <issue#>`.
+   Exit 0 = `PR_STAGED` já gravado (status file e preship.json): reporte e pare. Exit 1/3/5 = falha: este
+   subagente só existe para diagnosticar (ver o passo 7), seguindo o ship §0.b. Execute `/vetor:ship --prepare <issue#>` seguindo a skill `ship` pré-carregada: guarda de
    worktree, sincronização com `origin/$DEFAULT_BRANCH`, migrations, módulos, testes locais, debug
    scan, push da branch, PR draft e disparo do CI.
 4. **Monitoramento não-bloqueante.** **Nunca** use `gh pr checks --watch`: no passo 7 faça um
