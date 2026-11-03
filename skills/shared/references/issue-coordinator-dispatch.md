@@ -162,6 +162,33 @@ worker precisar de MCP adicional.
    repositório. Com `--repo-root` e `--format prompt` o mesmo comando acrescenta o Repo Map
    escopado do módulo na tag `<repo_map>`, logo depois do JSON (seção "Repo Map escopado").
 
+### Prompt gerado por `dispatch-prompt.ts` (issue #545)
+
+O coordinator não monta o prompt dos subagentes à mão: `scripts/dispatch-prompt.ts` emite o texto
+padronizado (montagem em `scripts/lib/orchestrator/dispatch-prompt.ts`, ContextPacket e Repo Map
+reaproveitados de `context-packet.ts`) e a saída vai direto ao `prompt` do `Agent()`.
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/dispatch-prompt.ts" \
+  --role <worker|ship|review|fix> --issue <N>[,<M>] --branch <branch> --base "$DEFAULT_BRANCH" \
+  --status-file "<status-file-path>" --slug <slug> \
+  --module-test-map "$REPO_ROOT/.claude/vetor/module-test-map.md" --repo-root "$REPO_ROOT"
+```
+
+| Papel | Obrigatórios além dos comuns | O que o prompt traz |
+|-------|------------------------------|---------------------|
+| `worker` | `--module-test-map` | ContextPacket + `<repo_map>` da Lead, issues sequenciais, branch (`git checkout -b`), trailer de commit, status file e fallback, validação, falhas de ambiente, proibições |
+| `ship` | `--worktree` | path do worktree, branch, issue, branch default, status file, `/vetor:ship --prepare`, proibições (merge, push na default) |
+| `review` | `--pr` | PR, branch, base, comentário com `--body-file`, consultivo |
+| `fix` | `--worktree` | `cd` para o worktree existente, skill `fix`, issues, motivo do redispatch (`--reason`), status file e proibições |
+
+Opcionais: `--worktree`, `--wave <n>` (a partir de 2 injeta a sincronização com `origin`, item 5),
+`--spike <N,M>` (issues em modo investigação, item 7), `--micro-spec <N>=<arquivo>,...` (micro-spec
+JIT validada), `--test-commands "mod=cmd|mod=cmd"` (item 6), `--env-failures "a|b"`,
+`--trailer <linha>` (padrão `Co-Authored-By: Claude <noreply@anthropic.com>`) e `--issue-json`
+(offline). Os itens 1 a 8 do prompt de execução sequencial acima e as seções seguintes seguem sendo
+o contrato dos campos; o script os materializa.
+
 ### ContextPacket — contexto estruturado no prompt do worker
 
 O coordinator já determinou nas Fases 1 e 2 o que o worker gastaria 3 a 6 tool calls

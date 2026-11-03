@@ -691,11 +691,13 @@ reconcilie-o com o plano aprovado (`discard --keep`) antes de qualquer `Agent()`
 
   Antes de cada dispatch, leia `../shared/references/issue-coordinator-dispatch.md` para duplicidade, status file e retomada em worktree existente.
 
-  Ao preparar o worker, leia `../shared/references/issue-coordinator-dispatch.md` para convenções e o template completo do prompt.
-  Abra o prompt de cada Lead Issue com o `ContextPacket` (critérios de aceite, módulo, comando de
-  teste e arquivos-alvo), gerado por `scripts/context-packet.ts` conforme essa mesma referência.
-  Passe `--repo-root "$REPO_ROOT" --format prompt` para anexar o Repo Map escopado do módulo na tag
-  `<repo_map>` logo depois do JSON (seção "Repo Map escopado" da referência).
+  **Gere o prompt de cada subagente com `scripts/dispatch-prompt.ts` (issue #545); não o monte à
+  mão.** `--role worker|ship|review|fix` emite o prompt completo e padronizado (ContextPacket com
+  Repo Map na tag `<repo_map>` via `--repo-root "$REPO_ROOT"`, branch, status file e fallback, sincronização de onda, modo spike, falhas de ambiente,
+  trailer de commit e proibições), e a saída vai direto ao `prompt` do `Agent()`. Flags, papéis e
+  contrato em `../shared/references/issue-coordinator-dispatch.md` (seção "Prompt gerado por
+  `dispatch-prompt.ts`"); leia essa seção, não a referência inteira. Se o script falhar, reporte e
+  só então monte o prompt pelo contrato da referência.
   No encerramento de cada iteração com pendências ou escalação, siga `../shared/references/memory-handoffs.md` para registrar handoff opcional; status file permanece primário.
 
 Ao concluir todas as issues com sucesso, o worker marca `GREEN`. Se falhar em alguma, para e marca
