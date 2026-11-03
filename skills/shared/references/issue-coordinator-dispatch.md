@@ -132,8 +132,10 @@ worker precisar de MCP adicional.
    (ex.: `Iteration: 2/5 (Issue #<M1>)`). Instrua o worker explicitamente:
    > Escreva o status file no path absoluto `<status-file-path>`. Se a plataforma rejeitar com
    > mensagem como *"Edit the worktree copy..."* ou qualquer bloqueio de escrita fora do worktree,
-   > salve também uma cópia dentro do worktree em `.claude/vetor-status.md`. Se apenas a cópia local
-   > foi gravada, sinalize no chat.
+   > grave o status no worktree, em `.claude/vetor-status.md`. O `vetor-status.sh` lê esse fallback
+   > sozinho: não é preciso sinalizar no chat nem o coordinator copiar o arquivo. Nunca espere confirmação de permissão para gravar o
+   > status file: se a escrita no root ficar pendente ou for recusada, grave o fallback e siga
+   > (issue #540).
 5. **Sincronização com origin (obrigatória a partir de `O_2`).** Se este dispatch pertence a uma
    onda `O_{i+1}` posterior à primeira, inclua no prompt, como **primeiro passo padrão logo após o
    `git checkout -b`** — não como recuperação ad-hoc descoberta pelo próprio worker (issue #244):
@@ -161,6 +163,34 @@ worker precisar de MCP adicional.
    a seção "ContextPacket" abaixo, para o worker começar pelo teste em vez de explorar o
    repositório. Com `--repo-root` e `--format prompt` o mesmo comando acrescenta o Repo Map
    escopado do módulo na tag `<repo_map>`, logo depois do JSON (seção "Repo Map escopado").
+
+### Prompt gerado por `dispatch-prompt.ts` (issue #545)
+
+O coordinator não monta o prompt dos subagentes à mão: `scripts/dispatch-prompt.ts` emite o texto
+padronizado (montagem em `scripts/lib/orchestrator/dispatch-prompt.ts`, ContextPacket e Repo Map
+reaproveitados de `context-packet.ts`) e a saída vai direto ao `prompt` do `Agent()`.
+
+```bash
+deno run -A "$SKILL_DIR/../../scripts/dispatch-prompt.ts" \
+  --role <worker|ship|review|fix> --issue <N>[,<M>] --branch <branch> --base "$DEFAULT_BRANCH" \
+  --status-file "<status-file-path>" --slug <slug> \
+  --module-test-map "$REPO_ROOT/.claude/vetor/module-test-map.md" --repo-root "$REPO_ROOT"
+```
+
+| Papel | Obrigatórios além dos comuns | O que o prompt traz |
+|-------|------------------------------|---------------------|
+| `worker` | `--module-test-map` | ContextPacket + `<repo_map>` da Lead, issues sequenciais, branch (`git checkout -b`), trailer de commit, status file e fallback, validação, falhas de ambiente, proibições |
+| `ship` | `--worktree` | path do worktree, branch, issue, branch default, status file, `/vetor:ship --prepare`, proibições (merge, push na default) |
+| `review` | `--pr` | PR, branch, base, comentário com `--body-file`, consultivo |
+| `fix` | `--worktree` | `cd` para o worktree existente, skill `fix`, issues, motivo do redispatch (`--reason`), status file e proibições |
+
+Opcionais: `--worktree`, `--wave <n>` (a partir de 2 injeta a sincronização com `origin`, item 5),
+`--spike <N,M>` (issues em modo investigação, item 7), `--micro-spec <N>=<arquivo>,...` (micro-spec
+JIT validada), `--test-commands` (item 6: uma linha `mod=cmd` por módulo, ou um objeto JSON; o comando
+pode ter `=` e `|`), `--env-failures "a|b"`,
+`--trailer <linha>` (padrão `Co-Authored-By: Claude <noreply@anthropic.com>`) e `--issue-json`
+(offline). Os itens 1 a 8 do prompt de execução sequencial acima e as seções seguintes seguem sendo
+o contrato dos campos; o script os materializa.
 
 ### ContextPacket — contexto estruturado no prompt do worker
 
