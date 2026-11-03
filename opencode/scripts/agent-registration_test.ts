@@ -11,10 +11,12 @@ import { assertMatch } from "@std/assert";
 
 const OPENCODE_SRC = `${import.meta.dirname}/../`;
 
-async function opencodeAvailable(): Promise<boolean> {
+// Binário ausente ou versão sem o subcomando `agent list` (ex.: OpenCode 2.x) => testes ignorados.
+async function opencodeSupports(args: string[]): Promise<boolean> {
   try {
     const out = await new Deno.Command("opencode", {
-      args: ["--version"],
+      args,
+      cwd: await Deno.makeTempDir(),
       stdout: "null",
       stderr: "null",
     }).output();
@@ -37,7 +39,7 @@ async function copyDir(src: string, dest: string): Promise<void> {
   }
 }
 
-const AVAILABLE = await opencodeAvailable();
+const AVAILABLE = await opencodeSupports(["agent", "list"]);
 
 Deno.test({
   name: "opencode agent list reconhece issue-coordinator (CLI real)",

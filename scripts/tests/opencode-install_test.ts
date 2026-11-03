@@ -158,10 +158,12 @@ Deno.test("OpenCode instalado: a skill coordinator e as referências citadas res
   });
 });
 
-async function opencodeAvailable(): Promise<boolean> {
+// Binário ausente ou versão sem `debug skill`/`debug agent` => teste ignorado.
+async function opencodeSupports(args: string[]): Promise<boolean> {
   try {
     const out = await new Deno.Command("opencode", {
-      args: ["--version"],
+      args,
+      cwd: await Deno.makeTempDir(),
       stdout: "null",
       stderr: "null",
     }).output();
@@ -177,7 +179,7 @@ async function opencodeAvailable(): Promise<boolean> {
 Deno.test({
   name:
     "OpenCode real: descobre a skill coordinator instalada e resolve a permissão skill do agent",
-  ignore: !await opencodeAvailable(),
+  ignore: !await opencodeSupports(["debug", "skill", "--pure"]),
   fn: async () => {
     await withInstalledProject(async ({ root }) => {
       // `--pure` não carrega plugins externos: sem ele, o `opencode` instala as dependências do
