@@ -990,6 +990,56 @@ for (
   });
 }
 
+// Issue #547: opções globais do git, `sh -c` e nova linha contornavam o bloqueio de git destrutivo.
+for (
+  const command of [
+    "git -C /tmp/x reset --hard",
+    "git -C /tmp/x -c a=b reset --hard HEAD~1",
+    "git -c x=y restore .",
+    "git --git-dir=.git reset --hard",
+    "git --git-dir .git --work-tree . clean -fd",
+    "git --no-pager branch -D foo",
+    "echo ok\ngit reset --hard",
+    "echo ok\n  git restore .",
+    'sh -c "git reset --hard"',
+    "bash -c 'git restore .'",
+    "bash -lc 'git -C p reset --hard'",
+    "echo a && sh -c 'echo x; git clean -fd'",
+  ]
+) {
+  Deno.test(`issue #547: ${JSON.stringify(command)} é bloqueado como git destrutivo`, async () => {
+    const repo = await makeRepo("main");
+    try {
+      const result = await runHook({ tool_name: "Bash", tool_input: { command }, cwd: repo });
+      assertEquals(result.code, 2);
+      assertStringIncludes(result.stderr, "comando git destrutivo");
+    } finally {
+      await Deno.remove(repo, { recursive: true });
+    }
+  });
+}
+
+for (
+  const command of [
+    "git -C /tmp/x status",
+    "git -C /tmp/x log --oneline",
+    "git -c core.pager=cat diff",
+    "git --git-dir=.git status",
+    "bash -c 'git status'",
+    'sh -c "echo hello"',
+  ]
+) {
+  Deno.test(`issue #547: ${JSON.stringify(command)} continua permitido`, async () => {
+    const repo = await makeRepo("main");
+    try {
+      const result = await runHook({ tool_name: "Bash", tool_input: { command }, cwd: repo });
+      assertEquals(result.code, 0, result.stderr);
+    } finally {
+      await Deno.remove(repo, { recursive: true });
+    }
+  });
+}
+
 // Issue #284: o Cursor não envolve `command` em `tool_input` para o hook `beforeShellExecution`
 // (schema confirmado em cursor.com/docs/hooks — `{command, cwd, sandbox}`, campo de topo, sem
 // `tool_name`/`tool_input`). Sem uma extração alternativa, `checkBash` nunca era chamado sob

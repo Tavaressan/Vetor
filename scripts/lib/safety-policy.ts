@@ -71,7 +71,7 @@ const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|r
  * que precisa ser bloqueado; achado do code-review da PR #200.
  */
 const DESTRUCTIVE_GIT_COMMAND_RE =
-  /(?:^|&&|\|\||;|\|)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$)|git\s+checkout\s+(?:[^\s;&|]+\s+)*?--\s+[^\s;&|]+|git\s+restore\s+[^;&|\n]*)/g;
+  /(?:^|&&|\|\||;|\||\n)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$)|git\s+checkout\s+(?:[^\s;&|]+\s+)*?--\s+[^\s;&|]+|git\s+restore\s+[^;&|\n]*)/g;
 
 /**
  * `git restore` só tira do stage (sem tocar o working tree) com `--staged`/`-S` sem
@@ -85,12 +85,46 @@ function isStagedOnlyRestore(cmd: string): boolean {
   return staged && !worktree;
 }
 
+/** Valor de opção global do git: aspas simples, duplas ou token sem espaço. */
+const GIT_VALUE = `(?:"[^"]*"|'[^']*'|\\S+)`;
+/** Opções globais do git entre `git` e o subcomando (`-C <p>`, `-c k=v`, `--git-dir=...`). */
+const GIT_GLOBAL_OPTS_RE = new RegExp(
+  `\\bgit((?:\\s+(?:-[Cc]\\s+${GIT_VALUE}|--(?:git-dir|work-tree|namespace|exec-path|config-env)(?:=\\S+|\\s+${GIT_VALUE})|--[a-z][a-z-]*|-[pP]))+)\\s+(?=[a-z])`,
+  "g",
+);
+/** `sh -c "..."` / `bash -c '...'` (inclui `-lc`, `-ec`): captura o script entre aspas. */
+const SHELL_C_RE =
+  /\b(?:ba|z|da|k)?sh\s+(?:-\w+\s+)*?-\w*c\w*\s+(?:"((?:[^"\\]|\\.)*)"|'([^']*)')/g;
+
+/**
+ * Normaliza o comando antes do casamento (issue #547): junta continuações de linha, remove
+ * opções globais do git e acrescenta, como linhas extras, o conteúdo de `sh -c`/`bash -c`
+ * entre aspas (analisado recursivamente), para o regex ancorado em separadores enxergá-lo.
+ */
+function normalizeGitCommand(command: string): string {
+  const flat = (c: string) => c.replace(/\\\r?\n/g, " ").replace(GIT_GLOBAL_OPTS_RE, "git ");
+  let out = flat(command);
+  let pending = [out];
+  for (let depth = 0; depth < 3 && pending.length; depth++) {
+    const next: string[] = [];
+    for (const text of pending) {
+      for (const m of text.matchAll(SHELL_C_RE)) {
+        const inner = flat((m[1] ?? m[2] ?? "").replace(/\\(["\\$`])/g, "$1"));
+        next.push(inner);
+        out += "\n" + inner;
+      }
+    }
+    pending = next;
+  }
+  return out;
+}
+
 /** Devolve o motivo do bloqueio, ou null se o comando não é git destrutivo. */
 function checkDestructiveGit(command: string): string | null {
   // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes do
   // match, senão `git reset \` seguido de `--hard` em nova linha escaparia do regex (mesma razão
   // documentada em pushDestinations acima; achado do code-review da PR #200).
-  const joined = command.replace(/\\\r?\n/g, " ");
+  const joined = normalizeGitCommand(command);
   const match = [...joined.matchAll(DESTRUCTIVE_GIT_COMMAND_RE)].find((m) =>
     !isStagedOnlyRestore(m[1].trim())
   );
