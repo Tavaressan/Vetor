@@ -4,7 +4,10 @@
 # ou de dentro de qualquer worktree (issue #339).
 #
 # Uso: vetor-status.sh
-# Saída: tabela markdown com uma linha por status file em .claude/vetor/status/.
+# Saída: tabela markdown com uma linha por worker: o status file em .claude/vetor/status/ ou, quando
+#        ele não existe/é mais antigo, o fallback <worktree>/.claude/vetor-status.md (issue #540;
+#        empate de mtime -> o do root vence). Worktree em detached HEAD (rebase, checkout de SHA) não
+#        tem linha "branch" no porcelain e, portanto, não tem fallback lido (nem conta como ativo).
 #        Worktree correspondente removido manualmente -> "cancelled (worktree removed)".
 #        Worktree recém-despachado -> "aguardando worktree" (issue #347).
 #        Worktree sem status file -> ⚠️ WARNING (possível falha anômala, issue #72).
@@ -48,11 +51,64 @@ if [ -s "$pending_file" ]; then
   alertable=$(printf '%s\n' "$active" | grep -vxF -f "$pending_file")
 fi
 
+# Issue #540: workers isolados (isolation: "worktree") podem ter a escrita em <root>/.claude/vetor/status/
+# recusada pela plataforma e gravar só o fallback <worktree>/.claude/vetor-status.md. Para não exigir
+# que o coordinator copie o fallback à mão, cada worktree ativo contribui com o fallback quando o
+# status file do root não existe ou é mais antigo; em empate (mesmo mtime) o do root vence.
+file_mtime() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0
+}
+
+# Entradas "nome<TAB>arquivo<TAB>origem" (origem: root | fallback), uma por worker.
+TAB=$(printf '\t')
+entries=""
+if [ -d "$STATUS_DIR" ]; then
+  for f in "$STATUS_DIR"/*.md; do
+    [ -f "$f" ] || continue
+    entries="${entries}$(basename "$f" .md)${TAB}${f}${TAB}root
+"
+  done
+fi
+
+wt_path=""
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*) wt_path="${line#worktree }" ;;
+    "branch refs/heads/"*)
+      fb="${wt_path}/.claude/vetor-status.md"
+      b=$(printf '%s' "${line#branch refs/heads/}" | tr '/' '-')
+      if [ "$b" != "$default_branch" ] && [ -f "$fb" ]; then
+        cur=$(printf '%s\n' "$entries" | awk -F"$TAB" -v n="$b" '$1 == n { print $2; exit }')
+        if [ -z "$cur" ]; then
+          entries="${entries}${b}${TAB}${fb}${TAB}fallback
+"
+        elif [ "$(file_mtime "$fb")" -gt "$(file_mtime "$cur")" ]; then
+          entries=$(printf '%s\n' "$entries" | awk -F"$TAB" -v n="$b" '$1 != n')
+          entries="${entries}
+${b}${TAB}${fb}${TAB}fallback
+"
+        fi
+      fi
+      ;;
+  esac
+done < <(git --no-optional-locks worktree list --porcelain 2>/dev/null)
+entries=$(printf '%s\n' "$entries" | sed '/^$/d')
+
 # Lista de PRs (headRefName=número=estado) via gh CLI. Só serve para anotar status file
 # GREEN/PR_STAGED, então sem nenhum deles o gh nem é chamado (issue #515: durante a fase de código
 # a chamada de rede era latência pura).
 prs=""
-if [ -d "$STATUS_DIR" ] && grep -Eq '^Status: *(GREEN|PR_STAGED)' "$STATUS_DIR"/*.md 2>/dev/null; then
+needs_prs=0
+if [ -n "$entries" ]; then
+  # Loop em vez de xargs: `xargs -d` é extensão GNU e não existe no BSD xargs (macOS).
+  while IFS= read -r ef; do
+    if grep -Eq '^Status: *(GREEN|PR_STAGED)' -- "$ef" 2>/dev/null; then
+      needs_prs=1
+      break
+    fi
+  done < <(printf '%s\n' "$entries" | cut -f2)
+fi
+if [ "$needs_prs" -eq 1 ]; then
   cache_dir="${REPO_ROOT}/.claude/vetor/cache"
   cache_file="${cache_dir}/pr-list-cache.txt"
   now_epoch=$(date +%s 2>/dev/null || echo 0)
@@ -83,7 +139,7 @@ fi
 echo "## Status — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo
 
-if [ ! -d "$STATUS_DIR" ] || ! ls "$STATUS_DIR"/*.md >/dev/null 2>&1; then
+if [ -z "$entries" ]; then
   # Sem status files — verificar se há worktrees ativos sem status (falha anômala)
   if [ -n "$alertable" ]; then
     echo "⚠️ **ALERTA: worktrees ativos sem status file (possível falha anômala — issue #72):**"
@@ -108,8 +164,8 @@ seen_branches=""
 # Decision Inbox (issue #500): workers SUSPENDED, uma linha "- <branch>: <Blocked on>" cada.
 suspended=""
 
-for f in "$STATUS_DIR"/*.md; do
-  name=$(basename "$f" .md)
+while IFS="$TAB" read -r name f origin; do
+  [ -z "$name" ] && continue
   status=$(sed -n 's/^Status: *//p' "$f" | head -1 | tr -d '\r')
   iter=$(sed -n 's/^Iteration: *//p' "$f" | head -1 | tr -d '\r')
   last=$(sed -n 's/^Last action: *//p' "$f" | head -1 | tr -d '\r')
@@ -123,6 +179,7 @@ for f in "$STATUS_DIR"/*.md; do
   fi
   if printf '%s\n' "$active" | grep -qx "$name"; then
     wt="ativo"
+    [ "$origin" = "fallback" ] && wt="ativo (status via fallback do worktree)"
   else
     # Issue #347: status recém-criado pelo coordinator antes do harness criar o worktree
     if [ "$status" = "RUNNING" ] && { [ -z "$iter_n" ] || [ "$iter_n" -le 1 ]; }; then
@@ -157,7 +214,7 @@ for f in "$STATUS_DIR"/*.md; do
   fi
 
   echo "| $name | ${status:-?} | ${iter:--} | ${last:--} | $wt |"
-done
+done <<< "$entries"
 
 # Notificação não-bloqueante (issue #500): não interrompe o loop de monitoramento do coordinator.
 if [ -n "$suspended" ]; then

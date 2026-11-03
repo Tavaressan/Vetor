@@ -423,3 +423,159 @@ Deno.test("vetor-status.sh só poupa o worktree pendente: um órfão de verdade 
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("vetor-status.sh mostra worker que só gravou o fallback no worktree — issue #540", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("fix-fallback-only");
+  try {
+    await Deno.mkdir(`${worktreePath}/.claude`, { recursive: true });
+    await Deno.writeTextFile(
+      `${worktreePath}/.claude/vetor-status.md`,
+      "Status: RUNNING\nIteration: 2/5 (Issue #540)\nLast action: so fallback\n",
+    );
+
+    const { stdout } = await run("bash", [SCRIPT], root);
+
+    assertStringIncludes(stdout, "fix-fallback-only");
+    assertStringIncludes(stdout, "RUNNING");
+    assertStringIncludes(stdout, "2/5 (Issue #540)");
+    assertStringIncludes(stdout, "so fallback");
+    assertStringIncludes(stdout, "fallback do worktree");
+    assertEquals(stdout.includes("SEM STATUS FILE"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh prefere o fallback quando é mais recente que o status do root — issue #540", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("fix-newer-fallback");
+  try {
+    await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+    const rootFile = `${root}/.claude/vetor/status/fix-newer-fallback.md`;
+    await Deno.writeTextFile(
+      rootFile,
+      "Status: RUNNING\nIteration: 1/5 (Issue #1)\nLast action: velho\n",
+    );
+    await Deno.mkdir(`${worktreePath}/.claude`, { recursive: true });
+    const fb = `${worktreePath}/.claude/vetor-status.md`;
+    await Deno.writeTextFile(fb, "Status: GREEN\nIteration: 3/5 (Issue #1)\nLast action: novo\n");
+    await Deno.utime(rootFile, new Date(1_000_000_000_000), new Date(1_000_000_000_000));
+
+    const { stdout } = await run("bash", [SCRIPT], root, {
+      ...Deno.env.toObject(),
+      PATH: `${await createMockGh("")}:${Deno.env.get("PATH")}`,
+    });
+
+    assertStringIncludes(stdout, "novo");
+    assertEquals(stdout.includes("velho"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+async function setupFallbackCase(
+  branch: string,
+  rootBody: string,
+  fbBody: string,
+  rootMs: number,
+  fbMs: number,
+  worktreePath?: string,
+): Promise<{ root: string; env: Record<string, string> }> {
+  const root = await makeRepo("main");
+  const wt = worktreePath ?? `${root}/.claude/worktrees/${branch.replaceAll("/", "-")}`;
+  await run("git", ["worktree", "add", "-b", branch, wt], root);
+  const name = branch.replaceAll("/", "-");
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  const rootFile = `${root}/.claude/vetor/status/${name}.md`;
+  await Deno.writeTextFile(rootFile, rootBody);
+  await Deno.mkdir(`${wt}/.claude`, { recursive: true });
+  const fb = `${wt}/.claude/vetor-status.md`;
+  await Deno.writeTextFile(fb, fbBody);
+  await Deno.utime(rootFile, new Date(rootMs), new Date(rootMs));
+  await Deno.utime(fb, new Date(fbMs), new Date(fbMs));
+  return {
+    root,
+    env: { ...Deno.env.toObject(), PATH: `${await createMockGh("")}:${Deno.env.get("PATH")}` },
+  };
+}
+
+const ROOT_BODY = "Status: RUNNING\nIteration: 1/5 (Issue #1)\nLast action: do-root\n";
+const FB_BODY = "Status: RUNNING\nIteration: 2/5 (Issue #1)\nLast action: do-fallback\n";
+
+Deno.test("vetor-status.sh: root mais novo que o fallback vence — issue #540", async () => {
+  const { root, env } = await setupFallbackCase(
+    "fix-root-newer",
+    ROOT_BODY,
+    FB_BODY,
+    2_000_000_000_000,
+    1_000_000_000_000,
+  );
+  try {
+    const { stdout } = await run("bash", [SCRIPT], root, env);
+    assertStringIncludes(stdout, "do-root");
+    assertEquals(stdout.includes("do-fallback"), false);
+    assertEquals(stdout.includes("via fallback"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh: empate de mtime entre root e fallback, root vence — issue #540", async () => {
+  const { root, env } = await setupFallbackCase(
+    "fix-tie",
+    ROOT_BODY,
+    FB_BODY,
+    1_500_000_000_000,
+    1_500_000_000_000,
+  );
+  try {
+    const { stdout } = await run("bash", [SCRIPT], root, env);
+    assertStringIncludes(stdout, "do-root");
+    assertEquals(stdout.includes("do-fallback"), false);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh: branch com / casa o fallback com o status file sanitizado — issue #540", async () => {
+  const { root, env } = await setupFallbackCase(
+    "fix/slash-branch",
+    ROOT_BODY,
+    FB_BODY,
+    1_000_000_000_000,
+    2_000_000_000_000,
+  );
+  try {
+    const { stdout } = await run("bash", [SCRIPT], root, env);
+    assertStringIncludes(stdout, "do-fallback");
+    assertEquals(stdout.includes("do-root"), false);
+    assertEquals(stdout.split("\n").filter((l) => l.includes("fix-slash-branch")).length, 1);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-status.sh: worktree com espaço no path lê o fallback e chama o gh — issue #540", async () => {
+  const root = await makeRepo("main");
+  try {
+    const wt = `${root}/.claude/worktrees/com espaco`;
+    await run("git", ["worktree", "add", "-b", "fix-space", wt], root);
+    await Deno.mkdir(`${wt}/.claude`, { recursive: true });
+    await Deno.writeTextFile(
+      `${wt}/.claude/vetor-status.md`,
+      "Status: GREEN\nIteration: 2/5 (Issue #1)\nLast action: com-espaco\n",
+    );
+    const callLog = `${await Deno.makeTempDir()}/gh.log`;
+    const ghDir = await createMockGh("fix-space=77=OPEN", callLog);
+
+    const { stdout } = await run("bash", [SCRIPT], root, {
+      ...Deno.env.toObject(),
+      PATH: `${ghDir}:${Deno.env.get("PATH")}`,
+    });
+
+    assertStringIncludes(stdout, "com-espaco");
+    assertStringIncludes(stdout, "PR #77 aberta");
+    assertEquals(await ghCalls(callLog), 1);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

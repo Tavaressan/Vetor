@@ -132,8 +132,10 @@ worker precisar de MCP adicional.
    (ex.: `Iteration: 2/5 (Issue #<M1>)`). Instrua o worker explicitamente:
    > Escreva o status file no path absoluto `<status-file-path>`. Se a plataforma rejeitar com
    > mensagem como *"Edit the worktree copy..."* ou qualquer bloqueio de escrita fora do worktree,
-   > salve também uma cópia dentro do worktree em `.claude/vetor-status.md`. Se apenas a cópia local
-   > foi gravada, sinalize no chat.
+   > grave o status no worktree, em `.claude/vetor-status.md`. O `vetor-status.sh` lê esse fallback
+   > sozinho: não é preciso sinalizar no chat nem o coordinator copiar o arquivo. Nunca espere confirmação de permissão para gravar o
+   > status file: se a escrita no root ficar pendente ou for recusada, grave o fallback e siga
+   > (issue #540).
 5. **Sincronização com origin (obrigatória a partir de `O_2`).** Se este dispatch pertence a uma
    onda `O_{i+1}` posterior à primeira, inclua no prompt, como **primeiro passo padrão logo após o
    `git checkout -b`** — não como recuperação ad-hoc descoberta pelo próprio worker (issue #244):
