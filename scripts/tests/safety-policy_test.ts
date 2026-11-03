@@ -4,7 +4,11 @@
 // próprios hooks.
 
 import { assertEquals, assertMatch } from "@std/assert";
-import { evaluateShellCommand } from "../lib/safety-policy.ts";
+import {
+  evaluateShellCommand,
+  evaluateShellCommandSafe,
+  isDestructiveGitArgs,
+} from "../lib/safety-policy.ts";
 
 const noWorktree = () => Promise.resolve(null);
 
@@ -114,4 +118,46 @@ Deno.test("safety-policy: worker gate permite push e PR quando status é PR_STAG
   } finally {
     await Deno.remove(repo, { recursive: true });
   }
+});
+
+// Revisão 2 da PR #549 (issue #547): avaliação linear, sem estouro de pilha nem custo exponencial.
+const DESTRUCTIVE = ["res", "et"].join("") + " --" + "hard";
+
+for (const n of [40, 15000]) {
+  Deno.test(`issue #547: ${n} opções globais desconhecidas + destrutivo termina rápido e nega`, async () => {
+    const opts = Array.from({ length: n }, (_, i) => `--x${i}`).join(" ");
+    const t0 = performance.now();
+    const tokens = `${opts} ${DESTRUCTIVE}`.split(" ");
+    assertEquals(isDestructiveGitArgs(tokens), true);
+    const result = await evaluateShellCommand(`git ${opts} ${DESTRUCTIVE}`, noWorktree);
+    assertEquals(result.decision, "deny");
+    assertEquals(performance.now() - t0 < 1000, true);
+  });
+
+  Deno.test(`issue #547: ${n} opções globais desconhecidas sem destrutivo termina rápido`, () => {
+    const tokens = [...Array.from({ length: n }, (_, i) => `--x${i}`), "status"];
+    const t0 = performance.now();
+    assertEquals(isDestructiveGitArgs(tokens), false);
+    assertEquals(performance.now() - t0 < 1000, true);
+  });
+}
+
+Deno.test("issue #547: opção desconhecida com ou sem valor continua bloqueando", () => {
+  assertEquals(isDestructiveGitArgs(["--super-prefix=x", ...DESTRUCTIVE.split(" ")]), true);
+  assertEquals(isDestructiveGitArgs(["--unknown-opt", "val", ...DESTRUCTIVE.split(" ")]), true);
+  assertEquals(isDestructiveGitArgs(["--unknown-opt", "status"]), false);
+});
+
+Deno.test("issue #547: comando git com tokens acima do teto é negado (fail-closed)", async () => {
+  const opts = Array.from({ length: 5000 }, (_, i) => `--x${i}`).join(" ");
+  const result = await evaluateShellCommand(`git ${opts} status`, noWorktree);
+  assertEquals(result.decision, "deny");
+});
+
+Deno.test("issue #547: exceção na avaliação vira negação (fail-closed)", async () => {
+  const result = await evaluateShellCommandSafe("git status", noWorktree, () => {
+    throw new RangeError("Maximum call stack size exceeded");
+  });
+  assertEquals(result.decision, "deny");
+  if (result.decision === "deny") assertMatch(result.reason, /fail-closed/);
 });
