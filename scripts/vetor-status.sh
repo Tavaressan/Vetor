@@ -4,7 +4,10 @@
 # ou de dentro de qualquer worktree (issue #339).
 #
 # Uso: vetor-status.sh
-# Saída: tabela markdown com uma linha por status file em .claude/vetor/status/.
+# Saída: tabela markdown com uma linha por worker: o status file em .claude/vetor/status/ ou, quando
+#        ele não existe/é mais antigo, o fallback <worktree>/.claude/vetor-status.md (issue #540;
+#        empate de mtime -> o do root vence). Worktree em detached HEAD (rebase, checkout de SHA) não
+#        tem linha "branch" no porcelain e, portanto, não tem fallback lido (nem conta como ativo).
 #        Worktree correspondente removido manualmente -> "cancelled (worktree removed)".
 #        Worktree recém-despachado -> "aguardando worktree" (issue #347).
 #        Worktree sem status file -> ⚠️ WARNING (possível falha anômala, issue #72).
@@ -95,7 +98,17 @@ entries=$(printf '%s\n' "$entries" | sed '/^$/d')
 # GREEN/PR_STAGED, então sem nenhum deles o gh nem é chamado (issue #515: durante a fase de código
 # a chamada de rede era latência pura).
 prs=""
-if [ -n "$entries" ] && printf '%s\n' "$entries" | cut -f2 | xargs -d '\n' grep -Eq '^Status: *(GREEN|PR_STAGED)' 2>/dev/null; then
+needs_prs=0
+if [ -n "$entries" ]; then
+  # Loop em vez de xargs: `xargs -d` é extensão GNU e não existe no BSD xargs (macOS).
+  while IFS= read -r ef; do
+    if grep -Eq '^Status: *(GREEN|PR_STAGED)' -- "$ef" 2>/dev/null; then
+      needs_prs=1
+      break
+    fi
+  done < <(printf '%s\n' "$entries" | cut -f2)
+fi
+if [ "$needs_prs" -eq 1 ]; then
   cache_dir="${REPO_ROOT}/.claude/vetor/cache"
   cache_file="${cache_dir}/pr-list-cache.txt"
   now_epoch=$(date +%s 2>/dev/null || echo 0)

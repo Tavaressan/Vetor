@@ -92,12 +92,12 @@ Next: Reading issue scope
 3. Implemente a mudança no worktree indicado, com commits incrementais e mensagens `conventional commits`.
 4. Siga as instruções da skill `fix` (pré-carregada acima) para o loop de reproduce →
    fix → rebuild → test até verde.
-5. Se a escrita do status file no root for recusada ou ficar pendente de confirmação, não espere:
-   grave `.claude/vetor-status.md` no worktree e siga (o `vetor-status.sh` lê o fallback; issue #540).
-   Atualize o status file a cada iteração — path absoluto recebido no prompt; formato em
+5. Atualize o status file a cada iteração — path absoluto recebido no prompt; formato em
    `$CLAUDE_PLUGIN_ROOT/skills/shared/references/agent-status.template.md`. É a única forma do
-   `coordinator` acompanhar seu progresso. Ele fica fora do worktree, no root do repo —
-   sem risco de commit acidental.
+   `coordinator` acompanhar seu progresso. Ele fica no root do repo, fora do worktree — sem risco de
+   commit acidental.
+   Exceção: se a escrita no root for recusada ou ficar pendente de confirmação, não espere; grave
+   `.claude/vetor-status.md` no worktree e siga (o `vetor-status.sh` lê o fallback; issue #540).
 
 ### Modo Investigação (`spike`)
 
