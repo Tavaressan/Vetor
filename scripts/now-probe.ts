@@ -37,6 +37,43 @@ async function optional(executor: CommandExecutor, command: string, args: string
   }
 }
 
+const PLUGIN_REPO = "Tavaressan/Vetor";
+
+/** Compara versões `X.Y.Z` numericamente; devolve true se `latest` é mais nova que `installed`. */
+export function isNewerVersion(installed: string, latest: string): boolean {
+  const parse = (v: string) => v.replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const a = parse(installed);
+  const b = parse(latest);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (b[i] ?? 0) - (a[i] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
+}
+
+/** Versão instalada (plugin.json) e última release publicada; best-effort, nunca lança. */
+export async function probeVersion(executor: CommandExecutor, cwd: string, manifestUrl?: URL) {
+  let installed: string | null = null;
+  try {
+    const url = manifestUrl ?? new URL("../.claude-plugin/plugin.json", import.meta.url);
+    const manifest = JSON.parse(await Deno.readTextFile(url));
+    if (typeof manifest.version === "string") installed = manifest.version;
+  } catch {
+    // Manifesto ilegível: versão desconhecida.
+  }
+  const tag = await optional(executor, "gh", [
+    "api",
+    `repos/${PLUGIN_REPO}/releases/latest`,
+    "--jq",
+    ".tag_name",
+  ], cwd);
+  const latest = tag ? tag.replace(/^v/, "") : null;
+  const updateAvailable = installed !== null && latest !== null
+    ? isNewerVersion(installed, latest)
+    : null;
+  return { installed, latest, updateAvailable };
+}
+
 export async function probeNow(cwd: string, executor: CommandExecutor = execute) {
   const branch = await optional(executor, "git", ["branch", "--show-current"], cwd);
   const status = await optional(
@@ -109,6 +146,7 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     aiMemoryContainerState,
     mcps,
     runtimes,
+    pluginVersion: await probeVersion(executor, cwd),
   };
 }
 

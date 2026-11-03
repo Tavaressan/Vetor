@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
-import { type CommandExecutor, probeNow } from "../now-probe.ts";
+import { type CommandExecutor, isNewerVersion, probeNow, probeVersion } from "../now-probe.ts";
 
 Deno.test("now probe tolera repo sem MCP e gh e é idempotente", async () => {
   const dir = await Deno.makeTempDir();
@@ -164,4 +164,22 @@ Deno.test("now probe ignora variáveis de ambiente de orquestradores", async () 
     Deno.env.delete("ALETHE_SESSION_ID");
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+Deno.test("isNewerVersion compara numericamente", () => {
+  assertEquals(isNewerVersion("1.2.0", "v1.3.0"), true);
+  assertEquals(isNewerVersion("1.3.0", "1.3.0"), false);
+  assertEquals(isNewerVersion("1.10.0", "1.9.0"), false);
+});
+
+Deno.test("probeVersion avisa release mais nova e tolera falha do gh", async () => {
+  const ok: CommandExecutor = () => Promise.resolve("v99.0.0");
+  const fail: CommandExecutor = () => Promise.reject(new Error("sem rede"));
+  const withGh = await probeVersion(ok, ".");
+  assert(withGh.installed !== null);
+  assertEquals(withGh.latest, "99.0.0");
+  assertEquals(withGh.updateAvailable, true);
+  const noGh = await probeVersion(fail, ".");
+  assertEquals(noGh.latest, null);
+  assertEquals(noGh.updateAvailable, null);
 });
