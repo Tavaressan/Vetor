@@ -61,79 +61,153 @@ const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|r
 /**
  * Comandos git destrutivos que descartam trabalho local sem chance de recuperação — bloqueados
  * incondicionalmente, independente de worktree/status file (ao contrário do WORKER_GATE_COMMAND_RE
- * acima, que só se aplica a workers não-GREEN). Mesma ancoragem: só casa no início do comando ou
- * logo após um separador de shell, nunca em qualquer posição da string — senão o mesmo texto
- * aparecendo como conteúdo dentro de um heredoc/echo seria tratado como se fosse o comando em si
- * (mesma classe de falso positivo das issues #123/#161). `git checkout \.` exige que o ponto seja
- * o argumento inteiro (fim do comando ou espaço em seguida) para não casar `git checkout .github`
- * (issue #184). `-[a-z]*f[a-z]*` casa `-f` em qualquer posição dentro do flag combinado de
- * `git clean` (ex.: `-xdf`, `-df`, não só `-fdx`) — a própria issue #184 cita `-xdf` como exemplo
- * que precisa ser bloqueado; achado do code-review da PR #200.
+ * acima, que só se aplica a workers não-GREEN).
+ *
+ * Detecção em duas etapas (issues #184/#535/#547 e revisão da PR #549):
+ *  1. `GIT_CMD_RE` localiza o `git` apenas em posição de comando — início, ou logo após uma
+ *     fronteira (`\n ; & | ( ) { } ` ` ! $(`, `then/do/else/elif/if/while/until`), opcionalmente
+ *     precedido de atribuições `VAR=val` e wrappers (`env`, `sudo`, `command`, `xargs`, `nice`,
+ *     `time`, `exec`, `eval`, `sh`/`bash`/`zsh`... — cobre `sh -c "..."`, `bash -c $'...'`,
+ *     scripts sem aspas, aninhamento de qualquer profundidade). Texto que apenas cita o comando
+ *     no meio de um echo/heredoc/grep não casa (issues #123/#161/#184).
+ *  2. O resto da linha é tokenizado (respeitando aspas, que são removidas), as opções globais do
+ *     git são puladas (`isDestructiveGitArgs`) e o subcomando + flags são avaliados.
+ *
+ * Fail-closed: com `eval`, `source`, `| sh`/`| bash` o texto executado pode não ser analisável;
+ * nesses casos qualquer `git` destrutivo em QUALQUER posição do comando bloqueia.
+ *
+ * Limitação conhecida (falha para o lado seguro): sem parser de shell completo, um separador ou
+ * um git destrutivo dentro de string entre aspas bloqueia, ex.: uma mensagem de commit
+ * `"fix; git <subcomando destrutivo>"`.
  */
-const DESTRUCTIVE_GIT_COMMAND_RE =
-  /(?:^|&&|\|\||;|\||\n)\s*(git\s+reset\s+--hard\S*|git\s+clean\s+-[a-z]*f[a-z]*|git\s+branch\s+-D\S*|git\s+checkout\s+\.(?=\s|$)|git\s+checkout\s+(?:[^\s;&|]+\s+)*?--\s+[^\s;&|]+|git\s+restore\s+[^;&|\n]*)/g;
+const GIT_BOUNDARY = "(?:^|[\\n;&|(){}`!]|\\b(?:then|do|else|elif|if|while|until)\\s)";
+const GIT_PREFIXES = "(?:[A-Za-z_]\\w*=(?:\"[^\"]*\"|'[^']*'|\\S*)\\s+|" +
+  "(?:env|sudo|doas|command|builtin|xargs|nice|nohup|time|exec|eval|(?:\\S*/)?(?:ba|z|da|k)?sh)" +
+  "\\s+(?:[^\\s;&|()`]+\\s+)*?)*";
+const GIT_WORD = "[\\\\$\"']*(?:[^\\s\"';&|()`]*/)?git[\"']?(?=\\s)";
+const GIT_CMD_RE = new RegExp(`${GIT_BOUNDARY}\\s*${GIT_PREFIXES}${GIT_WORD}([^;&|\\n)\`]*)`, "g");
+/** Modo fail-closed: `git` em qualquer posição (só usado quando o texto executado é opaco). */
+const GIT_ANYWHERE_RE = new RegExp(`(?<![\\w.-])${GIT_WORD}([^;&|\\n)\`]*)`, "g");
+/** `eval`, `source`/`. /dev/stdin` e `| sh`/`| bash`: o que roda não é analisável. */
+const OPAQUE_SHELL_RE =
+  /\beval\b|\bsource\b|\|\s*(?:\S*\/)?(?:env\s+|sudo\s+)?(?:ba|z|da|k)?sh\b|(?:^|\s)\.\s+\/dev\/stdin/;
 
-/**
- * `git restore` só tira do stage (sem tocar o working tree) com `--staged`/`-S` sem
- * `--worktree`/`-W`; essa forma é liberada (issue #535).
- */
-function isStagedOnlyRestore(cmd: string): boolean {
-  if (!/^git\s+restore\s/.test(cmd)) return false;
-  const args = cmd.trim().split(/\s+/);
-  const staged = args.some((a) => a === "--staged" || /^-[a-zA-Z]*S[a-zA-Z]*$/.test(a));
-  const worktree = args.some((a) => a === "--worktree" || /^-[a-zA-Z]*W[a-zA-Z]*$/.test(a));
-  return staged && !worktree;
+/** Opções globais do git que consomem o próximo token como valor. */
+const GIT_VALUE_OPTS = new Set([
+  "-C",
+  "-c",
+  "--git-dir",
+  "--work-tree",
+  "--namespace",
+  "--config-env",
+  "--super-prefix",
+  "--attr-source",
+]);
+/** Opções globais do git sem valor (ou com valor colado via `=`). */
+const GIT_FLAG_OPTS = new Set([
+  "-p",
+  "-P",
+  "--paginate",
+  "--no-pager",
+  "--bare",
+  "--no-replace-objects",
+  "--literal-pathspecs",
+  "--glob-pathspecs",
+  "--noglob-pathspecs",
+  "--icase-pathspecs",
+  "--no-optional-locks",
+  "--no-lazy-fetch",
+  "--exec-path",
+]);
+
+function tokenize(text: string): string[] {
+  const raw = text.replace(/\\\r?\n/g, " ").replace(/\\ /g, " ").match(
+    /(?:"(?:[^"\\]|\\.)*"?|'[^']*'?|\\.|[^\s"'\\])+/g,
+  ) ?? [];
+  return raw.map((t) => t.replace(/^\$(?=["'])/, "").replace(/["'\\]/g, "")).filter((t) =>
+    t && t !== "}"
+  );
 }
 
-/** Valor de opção global do git: aspas simples, duplas ou token sem espaço. */
-const GIT_VALUE = `(?:"[^"]*"|'[^']*'|\\S+)`;
-/** Opções globais do git entre `git` e o subcomando (`-C <p>`, `-c k=v`, `--git-dir=...`). */
-const GIT_GLOBAL_OPTS_RE = new RegExp(
-  `\\bgit((?:\\s+(?:-[Cc]\\s+${GIT_VALUE}|--(?:git-dir|work-tree|namespace|exec-path|config-env)(?:=\\S+|\\s+${GIT_VALUE})|--[a-z][a-z-]*|-[pP]))+)\\s+(?=[a-z])`,
-  "g",
-);
-/** `sh -c "..."` / `bash -c '...'` (inclui `-lc`, `-ec`): captura o script entre aspas. */
-const SHELL_C_RE =
-  /\b(?:ba|z|da|k)?sh\s+(?:-\w+\s+)*?-\w*c\w*\s+(?:"((?:[^"\\]|\\.)*)"|'([^']*)')/g;
-
 /**
- * Normaliza o comando antes do casamento (issue #547): junta continuações de linha, remove
- * opções globais do git e acrescenta, como linhas extras, o conteúdo de `sh -c`/`bash -c`
- * entre aspas (analisado recursivamente), para o regex ancorado em separadores enxergá-lo.
+ * Segunda leitura, sem agrupar por aspas: aspas sem fechar (ex.: restos de `sh -c "..."` cortados
+ * no separador) fariam `tokenize` engolir o texto seguinte num token só. Fail-closed: bloqueia se
+ * qualquer das duas leituras indicar git destrutivo.
  */
-function normalizeGitCommand(command: string): string {
-  const flat = (c: string) => c.replace(/\\\r?\n/g, " ").replace(GIT_GLOBAL_OPTS_RE, "git ");
-  let out = flat(command);
-  let pending = [out];
-  for (let depth = 0; depth < 3 && pending.length; depth++) {
-    const next: string[] = [];
-    for (const text of pending) {
-      for (const m of text.matchAll(SHELL_C_RE)) {
-        const inner = flat((m[1] ?? m[2] ?? "").replace(/\\(["\\$`])/g, "$1"));
-        next.push(inner);
-        out += "\n" + inner;
-      }
+function naiveTokens(text: string): string[] {
+  return text.replace(/["'\\]/g, "").split(/\s+/).filter((t) => t && t !== "}");
+}
+
+/** `--name` (ou abreviação sem ambiguidade com ao menos `min` caracteres), com ou sem `=valor`. */
+function longFlag(arg: string, name: string, min: number): boolean {
+  const flag = arg.split("=")[0];
+  return flag.length >= min && flag.startsWith("--") && name.startsWith(flag);
+}
+/** Letras de um flag curto combinado (`-xdf` → "xdf"); "" se não for flag curto. */
+function shortFlags(arg: string): string {
+  return /^-[a-zA-Z]+$/.test(arg) ? arg.slice(1) : "";
+}
+
+function isDestructiveSubcommand(sub: string, args: string[]): boolean {
+  const opts = args.includes("--") ? args.slice(0, args.indexOf("--")) : args;
+  switch (sub) {
+    case "reset":
+      return opts.some((a) => longFlag(a, "--hard", 4));
+    case "clean":
+      return opts.some((a) => shortFlags(a).includes("f") || longFlag(a, "--force", 4));
+    case "branch": {
+      const force = opts.some((a) => shortFlags(a).includes("f") || longFlag(a, "--force", 4));
+      const del = opts.some((a) => shortFlags(a).includes("d") || longFlag(a, "--delete", 4));
+      return opts.some((a) => shortFlags(a).includes("D")) || (force && del);
     }
-    pending = next;
+    case "checkout":
+      return args.includes(".") ||
+        (args.includes("--") && args.indexOf("--") < args.length - 1) ||
+        opts.some((a) => shortFlags(a).includes("f") || longFlag(a, "--force", 4));
+    case "switch":
+      return opts.some((a) =>
+        shortFlags(a).includes("f") || longFlag(a, "--force", 4) ||
+        longFlag(a, "--discard-changes", 4)
+      );
+    case "restore": {
+      // Só tira do stage (sem tocar o working tree) com `--staged`/`-S` sem `--worktree`/`-W`
+      // — essa forma é liberada (issue #535).
+      const staged = opts.some((a) => a === "--staged" || shortFlags(a).includes("S"));
+      const worktree = opts.some((a) => a === "--worktree" || shortFlags(a).includes("W"));
+      return !(staged && !worktree);
+    }
+    default:
+      return false;
   }
-  return out;
+}
+
+/** Pula as opções globais do git a partir de `i` e avalia o subcomando (issue #547). */
+function isDestructiveGitArgs(tokens: string[], i = 0): boolean {
+  const t = tokens[i];
+  if (t === undefined) return false;
+  if (!t.startsWith("-")) return isDestructiveSubcommand(t, tokens.slice(i + 1));
+  if (GIT_VALUE_OPTS.has(t)) return isDestructiveGitArgs(tokens, i + 2);
+  if (GIT_FLAG_OPTS.has(t) || /^-[Cc]./.test(t) || /^--[\w-]+=/.test(t)) {
+    return isDestructiveGitArgs(tokens, i + 1);
+  }
+  // Opção global desconhecida: pode ou não consumir valor — fail-closed, avalia as duas leituras.
+  return isDestructiveGitArgs(tokens, i + 1) || isDestructiveGitArgs(tokens, i + 2);
 }
 
 /** Devolve o motivo do bloqueio, ou null se o comando não é git destrutivo. */
 function checkDestructiveGit(command: string): string | null {
-  // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell — junte-as antes do
-  // match, senão `git reset \` seguido de `--hard` em nova linha escaparia do regex (mesma razão
-  // documentada em pushDestinations acima; achado do code-review da PR #200).
-  const joined = normalizeGitCommand(command);
-  const match = [...joined.matchAll(DESTRUCTIVE_GIT_COMMAND_RE)].find((m) =>
-    !isStagedOnlyRestore(m[1].trim())
+  // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell (issue #200).
+  const joined = command.replace(/\\\r?\n/g, " ").replace(/\\ /g, " ");
+  const re = OPAQUE_SHELL_RE.test(joined) ? GIT_ANYWHERE_RE : GIT_CMD_RE;
+  const match = [...joined.matchAll(re)].find((m) =>
+    isDestructiveGitArgs(tokenize(m[1])) || isDestructiveGitArgs(naiveTokens(m[1]))
   );
   if (!match) return null;
 
-  return `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: "${
+  return `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: "git ${
     match[1].trim()
   }"\n` +
-    "git reset --hard / git clean -f* / git branch -D / git checkout . / git checkout -- <path> / git restore <path> descartam trabalho " +
+    "git reset --hard / git clean -f* / git branch -D / git checkout . / git checkout -- <path> / git checkout -f / git switch --discard-changes / git restore <path> descartam trabalho " +
     "local sem chance de recuperação — não são permitidos em nenhum contexto. " +
     "(`git restore --staged <path>`, que só tira do stage, continua permitido.)";
 }

@@ -4,6 +4,7 @@
 
 import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import { fileURLToPath } from "node:url";
+import { evaluateShellCommand } from "../lib/safety-policy.ts";
 
 const SCRIPT = fileURLToPath(new URL("../safety-check.ts", import.meta.url));
 
@@ -1075,3 +1076,122 @@ Deno.test("issue #284: payload beforeShellExecution do Cursor com comando inofen
     await Deno.remove(repo, { recursive: true });
   }
 });
+
+// Revisão da PR #549 (issue #547): contornos de ancoragem, wrappers, `sh -c` e formas de flag.
+// Avaliado direto em `evaluateShellCommand` (sem subprocesso) — nada é executado de verdade.
+const noWorktree = () => Promise.resolve(null);
+const RH = ["git", "reset", "--hard"].join(" ");
+
+for (
+  const command of [
+    `(${RH})`,
+    `{ ${RH}; }`,
+    `a & ${RH}`,
+    `echo $(${RH})`,
+    `echo \`${RH}\``,
+    `if x; then ${RH}; fi`,
+    `for i in 1; do ${RH}; done`,
+    `if x; then :; else ${RH}; fi`,
+    `! ${RH}`,
+    `FOO=1 ${RH}`,
+    `FOO=1 BAR="a b" ${RH}`,
+    `env ${RH}`,
+    `env -i FOO=1 ${RH}`,
+    `sudo ${RH}`,
+    `sudo -u root ${RH}`,
+    `command ${RH}`,
+    `echo x | xargs ${RH}`,
+    `nice ${RH}`,
+    `time ${RH}`,
+    `exec ${RH}`,
+    `eval "${RH}"`,
+    `eval ${RH}`,
+    `sh --login -c '${RH}'`,
+    `bash -c $'${RH}'`,
+    `bash -c git\\ reset\\ --hard`,
+    `bash -c ${RH}`,
+    `echo "${RH}" | sh`,
+    `echo "${RH}" | bash -s`,
+    `sh -c "sh -c \\"sh -c 'sh -c \\\\\\"${RH}\\\\\\"'\\"" `,
+    `bash -c "bash -c \\"bash -c 'bash -c \\\\\\"git clean -fd\\\\\\"'\\"" `,
+    `bash <<< "${RH}"`,
+    "git clean --force",
+    "git clean -d --force",
+    "git clean --for",
+    "git branch --delete --force x",
+    "git branch -d -f x",
+    "git branch -df x",
+    "git branch -D x",
+    `git "reset" --hard`,
+    `git reset "--hard"`,
+    `git 'reset' '--hard'`,
+    `/usr/bin/git reset --hard`,
+    `"git" reset --hard`,
+    `git -Cp reset --hard`,
+    `git -C=p reset --hard`,
+    `git -C "my dir" reset --hard`,
+    `git --super-prefix=x reset --hard`,
+    `git --super-prefix x reset --hard`,
+    `git --unknown-opt reset --hard`,
+    `git --unknown-opt val reset --hard`,
+    `git reset --har`,
+    "git checkout -f",
+    "git checkout --force main",
+    "git switch --discard-changes main",
+    "git switch -f main",
+    "git -C p checkout main .",
+    // Falso positivo conhecido (falha para o lado seguro): separador/comando dentro de aspas.
+    `git commit -m "fix; ${RH}"`,
+  ]
+) {
+  Deno.test(`PR #549 review: ${JSON.stringify(command)} é bloqueado como git destrutivo`, async () => {
+    const result = await evaluateShellCommand(command, noWorktree);
+    assertEquals(result.decision, "deny");
+  });
+}
+
+for (
+  const command of [
+    "git -C p status",
+    "git -C p log --oneline",
+    "git -Cp status",
+    "git -c core.pager=cat diff",
+    "git --super-prefix=x status",
+    "git --unknown-opt status",
+    "git checkout main",
+    "git checkout feature/x",
+    "git checkout -b new-branch",
+    "git switch main",
+    "git switch -c new-branch",
+    "git branch -d merged",
+    "git branch --delete merged",
+    "git branch -f x HEAD",
+    "git branch --list",
+    "git clean -n",
+    "git clean -nd",
+    "git clean --dry-run",
+    "git reset --soft HEAD~1",
+    "git reset --mixed",
+    "git restore --staged f",
+    "git -C p restore --staged f",
+    "env FOO=1 git status",
+    "(git status)",
+    "sudo git log",
+    "echo ok | xargs echo",
+    "bash -c 'git status'",
+    "sh --login -c 'echo hi'",
+    "echo hi | sh",
+    "eval echo hi",
+    'echo "lembrete: nunca use git reset --hard"',
+    "grep -r 'git clean -f' docs",
+    "git log --grep=fix",
+    "git commit -m 'sem problema'",
+    "ls .github",
+    "git digit --force",
+  ]
+) {
+  Deno.test(`PR #549 review: ${JSON.stringify(command)} continua permitido`, async () => {
+    const result = await evaluateShellCommand(command, noWorktree);
+    assertEquals(result.decision, "allow");
+  });
+}
