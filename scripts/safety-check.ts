@@ -36,7 +36,7 @@
 
 import { isWriteAllowed } from "./lib/guard.ts";
 import { run } from "./lib/project.ts";
-import { evaluateShellCommand } from "./lib/safety-policy.ts";
+import { evaluateShellCommandSafe } from "./lib/safety-policy.ts";
 import { agentBindingPath, resolveWorktree, type WorktreeInfo } from "./lib/status.ts";
 import { evaluateFreshness } from "./lib/worktree.ts";
 
@@ -251,7 +251,7 @@ async function main() {
   // inerte no Cursor.
   const command = input.tool_input?.command ?? input.command;
   if (typeof command === "string") {
-    const verdict = await evaluateShellCommand(command, () => Promise.resolve(wt));
+    const verdict = await evaluateShellCommandSafe(command, () => Promise.resolve(wt));
     if (verdict.decision === "deny") blocked(verdict.reason);
   }
   Deno.exit(0);

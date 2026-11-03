@@ -181,17 +181,45 @@ function isDestructiveSubcommand(sub: string, args: string[]): boolean {
   }
 }
 
-/** Pula as opções globais do git a partir de `i` e avalia o subcomando (issue #547). */
-function isDestructiveGitArgs(tokens: string[], i = 0): boolean {
-  const t = tokens[i];
-  if (t === undefined) return false;
-  if (!t.startsWith("-")) return isDestructiveSubcommand(t, tokens.slice(i + 1));
-  if (GIT_VALUE_OPTS.has(t)) return isDestructiveGitArgs(tokens, i + 2);
-  if (GIT_FLAG_OPTS.has(t) || /^-[Cc]./.test(t) || /^--[\w-]+=/.test(t)) {
-    return isDestructiveGitArgs(tokens, i + 1);
+const GIT_SUBCOMMANDS_CHECKED = new Set([
+  "reset",
+  "clean",
+  "branch",
+  "checkout",
+  "switch",
+  "restore",
+]);
+
+/** Teto de tokens por invocação git: acima disso o comando é negado (fail-closed, issue #547). */
+const MAX_GIT_TOKENS = 2000;
+
+/**
+ * Pula as opções globais do git e avalia o subcomando (issue #547). Varredura linear e iterativa:
+ * uma opção global desconhecida pode ou não consumir valor, então as duas posições seguintes
+ * (i+1 e i+2) viram candidatas — marcadas num vetor de alcançáveis, sem ramificar (O(n), sem
+ * recursão, logo sem estouro de pilha).
+ */
+export function isDestructiveGitArgs(tokens: string[]): boolean {
+  const reach = new Uint8Array(tokens.length + 2);
+  reach[0] = 1;
+  for (let i = 0; i < tokens.length; i++) {
+    if (!reach[i]) continue;
+    const t = tokens[i];
+    if (!t.startsWith("-")) {
+      if (GIT_SUBCOMMANDS_CHECKED.has(t) && isDestructiveSubcommand(t, tokens.slice(i + 1))) {
+        return true;
+      }
+    } else if (GIT_VALUE_OPTS.has(t)) {
+      reach[i + 2] = 1;
+    } else if (GIT_FLAG_OPTS.has(t) || /^-[Cc]./.test(t) || /^--[\w-]+=/.test(t)) {
+      reach[i + 1] = 1;
+    } else {
+      // Opção global desconhecida: fail-closed, avalia as duas leituras.
+      reach[i + 1] = 1;
+      reach[i + 2] = 1;
+    }
   }
-  // Opção global desconhecida: pode ou não consumir valor — fail-closed, avalia as duas leituras.
-  return isDestructiveGitArgs(tokens, i + 1) || isDestructiveGitArgs(tokens, i + 2);
+  return false;
 }
 
 /** Devolve o motivo do bloqueio, ou null se o comando não é git destrutivo. */
@@ -199,7 +227,13 @@ function checkDestructiveGit(command: string): string | null {
   // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell (issue #200).
   const joined = command.replace(/\\\r?\n/g, " ").replace(/\\ /g, " ");
   const re = OPAQUE_SHELL_RE.test(joined) ? GIT_ANYWHERE_RE : GIT_CMD_RE;
-  const match = [...joined.matchAll(re)].find((m) =>
+  const matches = [...joined.matchAll(re)];
+  const tooLong = matches.find((m) => naiveTokens(m[1]).length > MAX_GIT_TOKENS);
+  if (tooLong) {
+    return `ERROR: comando git com mais de ${MAX_GIT_TOKENS} tokens bloqueado pelo Vetor Safety Hook ` +
+      "(não é possível avaliá-lo com segurança; fail-closed).";
+  }
+  const match = matches.find((m) =>
     isDestructiveGitArgs(tokenize(m[1])) || isDestructiveGitArgs(naiveTokens(m[1]))
   );
   if (!match) return null;
@@ -271,4 +305,24 @@ export async function evaluateShellCommand(
     await checkWorkerGate(command, getWorktree);
 
   return reason === null ? { decision: "allow" } : { decision: "deny", reason };
+}
+
+/**
+ * Como `evaluateShellCommand`, mas qualquer exceção na avaliação vira negação (fail-closed):
+ * um erro inesperado nunca pode liberar o comando (exit 1 não bloqueia no Claude Code).
+ */
+export async function evaluateShellCommandSafe(
+  command: string,
+  getWorktree: () => Promise<WorktreeInfo | null>,
+  evaluate: typeof evaluateShellCommand = evaluateShellCommand,
+): Promise<SafetyDecision> {
+  try {
+    return await evaluate(command, getWorktree);
+  } catch (e) {
+    return {
+      decision: "deny",
+      reason: "ERROR: falha ao avaliar o comando no Vetor Safety Hook — bloqueado por precaução " +
+        `(fail-closed): ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
 }
