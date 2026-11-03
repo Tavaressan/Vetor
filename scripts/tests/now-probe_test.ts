@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
-import { type CommandExecutor, probeNow } from "../now-probe.ts";
+import { type CommandExecutor, isNewerVersion, probeNow, probeVersion } from "../now-probe.ts";
 
 Deno.test("now probe tolera repo sem MCP e gh e é idempotente", async () => {
   const dir = await Deno.makeTempDir();
@@ -164,4 +164,46 @@ Deno.test("now probe ignora variáveis de ambiente de orquestradores", async () 
     Deno.env.delete("ALETHE_SESSION_ID");
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+Deno.test("isNewerVersion compara numericamente", () => {
+  assertEquals(isNewerVersion("1.2.0", "v1.3.0"), true);
+  assertEquals(isNewerVersion("1.3.0", "1.3.0"), false);
+  assertEquals(isNewerVersion("1.10.0", "1.9.0"), false);
+});
+
+Deno.test("probeVersion avisa release mais nova e tolera falha do gh", async () => {
+  const ok: CommandExecutor = () => Promise.resolve("v99.0.0");
+  const fail: CommandExecutor = () => Promise.reject(new Error("sem rede"));
+  const withGh = await probeVersion(ok, ".");
+  assert(withGh.installed !== null);
+  assertEquals(withGh.latest, "99.0.0");
+  assertEquals(withGh.updateAvailable, true);
+  const noGh = await probeVersion(fail, ".");
+  assertEquals(noGh.latest, null);
+  assertEquals(noGh.updateAvailable, null);
+});
+
+Deno.test("probeVersion devolve latest null quando o gh trava além do timeout", async () => {
+  const hang: CommandExecutor = () => new Promise<string>(() => {});
+  const started = Date.now();
+  const result = await probeVersion(hang, ".", undefined, 20);
+  assertEquals(result.latest, null);
+  assertEquals(result.updateAvailable, null);
+  assert(Date.now() - started < 2000);
+});
+
+Deno.test("os 4 plugin.json têm a mesma version", async () => {
+  const paths = [
+    "../../plugin.json",
+    "../../.claude-plugin/plugin.json",
+    "../../.codex-plugin/plugin.json",
+    "../../.cursor-plugin/plugin.json",
+  ];
+  const versions = await Promise.all(paths.map(async (p) => {
+    const manifest = JSON.parse(await Deno.readTextFile(new URL(p, import.meta.url)));
+    return manifest.version;
+  }));
+  assert(typeof versions[0] === "string");
+  assertEquals(new Set(versions).size, 1, `versions divergentes: ${versions.join(", ")}`);
 });
