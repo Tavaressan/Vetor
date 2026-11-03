@@ -38,18 +38,21 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
    (`openIssuesTotal`), a contagem do que o `coordinator` despacharia sem argumento
    (`dispatchableIssues` — issues com `defaultDispatchLabel` se configurado, senão todas as
    abertas), MCPs declarados em `.mcp.json`, runtimes detectados e `aiMemoryContainerState`
-   (`running`, outro estado, `absent` ou `null` se Docker não responder). A detecção de
-   orquestrador no probe não está implementada: não há sinal verificável fora do harness (nenhuma
-   variável de ambiente do orquestrador no worker observado em 2026-10-23), então o orquestrador só
-   é reconhecido no passo 2. Falhas de comandos opcionais não devem interromper o kickoff.
+   (`running`, outro estado, `absent` ou `null` se Docker não responder). A detecção de orquestrador
+   no probe não está implementada: não há sinal verificável fora do harness (nenhuma variável de
+   ambiente do orquestrador no worker observado em 2026-10-23), então o orquestrador só é
+   reconhecido no passo 2. `pluginVersion` traz a versão instalada (`installed`), a última release
+   publicada (`latest`) e `updateAvailable`; quando `true`, avise no sumário que há versão mais nova
+   (`/plugin update vetor`); `null` = não foi possível verificar (best-effort). Falhas de comandos
+   opcionais não devem interromper o kickoff.
 
 2. Complemente a lista de MCPs declarados com os MCPs ativos na sessão conforme
    `mcp-availability.md`. Os servidores Context7, Docker, ai-memory e o orquestrador Alethe
-   (`mcp__alethe__*`) são relevantes para o sumário.
-   Nunca tente conectar apenas para sondar; a sondagem do container Docker no passo 1 é
-   somente-leitura. Considere ai-memory configurado nesta sessão somente se estiver ativo ou
-   aparecer entre os MCPs que falharam ao conectar. Se não estiver configurado, não mencione receita
-   nem container ai-memory. Se estiver configurado, mas não ativo:
+   (`mcp__alethe__*`) são relevantes para o sumário. Nunca tente conectar apenas para sondar; a
+   sondagem do container Docker no passo 1 é somente-leitura. Considere ai-memory configurado nesta
+   sessão somente se estiver ativo ou aparecer entre os MCPs que falharam ao conectar. Se não
+   estiver configurado, não mencione receita nem container ai-memory. Se estiver configurado, mas
+   não ativo:
    - Com `aiMemoryContainerState` igual a `running`, oriente `/mcp` → Reconnect.
    - Se o estado for `exited` ou `created`, peça anuência explícita via `AskUserQuestion` antes de
      executar `docker start ai-memory`. Com anuência, execute somente esse comando e então verifique
@@ -84,11 +87,11 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
    - Se algum runtime CLI estiver disponível: **Use agy/delegação para tarefas pesadas** conforme
      `../shared/references/delegate-to-runtime.md`; respeite a seleção e anuência descritas na
      referência.
-   - Se `mcp__alethe__*` estiver ativo: **Use o orquestrador Alethe para despacho paralelo de workers
-     e isolamento de worktree** conforme `../shared/references/delegate-to-runtime.md` §6. Ele só é
-     selecionado quando `delegation.preferredRuntime` é `alethe` (informe `mcpAvailable: ["alethe"]`
-     ao `selectDelegationRuntime`) e depois do acordo de escopo do §2.1; sem a preferência, não o
-     escolha em silêncio.
+   - Se `mcp__alethe__*` estiver ativo: **Use o orquestrador Alethe para despacho paralelo de
+     workers e isolamento de worktree** conforme `../shared/references/delegate-to-runtime.md` §6.
+     Ele só é selecionado quando `delegation.preferredRuntime` é `alethe` (informe
+     `mcpAvailable: ["alethe"]` ao `selectDelegationRuntime`) e depois do acordo de escopo do §2.1;
+     sem a preferência, não o escolha em silêncio.
    - Se Docker MCP estiver disponível, use-o apenas quando uma tarefa da sessão precisar inspecionar
      containers.
 
