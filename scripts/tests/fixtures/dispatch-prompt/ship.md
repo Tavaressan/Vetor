@@ -7,6 +7,7 @@ Status file: /repo/.claude/vetor/status/feat-10-algo.md.
 Todo comando Bash começa com `cd "/wt/algo" &&`. Rode `/vetor:ship --prepare 10`,
 mantenha `Status: GREEN` enquanto trabalha e grave `PR_STAGED` ao fim (com a ferramenta Write).
 Se a plataforma rejeitar a escrita fora do worktree, grave também `.claude/vetor-status.md` no worktree.
+Se os testes locais ou o push falharem, deixe o worktree intacto e reporte o motivo.
 
 ## Proibições
 

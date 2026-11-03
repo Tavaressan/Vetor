@@ -47,8 +47,15 @@ export function flagValue(args: string[], flag: string): string | undefined {
   return idx === -1 ? undefined : args[idx + 1];
 }
 
+let failPrefix = "context-packet";
+
+/** CLIs que reaproveitam estes helpers (dispatch-prompt.ts) trocam o prefixo das mensagens. */
+export function setFailPrefix(prefix: string): void {
+  failPrefix = prefix;
+}
+
 export function fail(message: string): never {
-  console.error(`context-packet: ${message}`);
+  console.error(`${failPrefix}: ${message}`);
   Deno.exit(1);
 }
 

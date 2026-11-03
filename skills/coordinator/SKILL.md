@@ -693,8 +693,8 @@ reconcilie-o com o plano aprovado (`discard --keep`) antes de qualquer `Agent()`
 
   **Gere o prompt de cada subagente com `scripts/dispatch-prompt.ts` (issue #545); não o monte à
   mão.** `--role worker|ship|review|fix` emite o prompt completo e padronizado (ContextPacket com
-  Repo Map na tag `<repo_map>` via `--repo-root "$REPO_ROOT"`, branch, status file e fallback, sincronização de onda, modo spike, falhas de ambiente,
-  trailer de commit e proibições), e a saída vai direto ao `prompt` do `Agent()`. Flags, papéis e
+  Repo Map na tag `<repo_map>` via `--repo-root "$REPO_ROOT"`, branch, status file e fallback,
+  sincronização de onda, modo spike, falhas de ambiente, trailer de commit e proibições), e a saída vai direto ao `prompt` do `Agent()`. Flags, papéis e
   contrato em `../shared/references/issue-coordinator-dispatch.md` (seção "Prompt gerado por
   `dispatch-prompt.ts`"); leia essa seção, não a referência inteira. Se o script falhar, reporte e
   só então monte o prompt pelo contrato da referência.

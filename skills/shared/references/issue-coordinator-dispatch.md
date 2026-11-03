@@ -184,7 +184,8 @@ deno run -A "$SKILL_DIR/../../scripts/dispatch-prompt.ts" \
 
 Opcionais: `--worktree`, `--wave <n>` (a partir de 2 injeta a sincronização com `origin`, item 5),
 `--spike <N,M>` (issues em modo investigação, item 7), `--micro-spec <N>=<arquivo>,...` (micro-spec
-JIT validada), `--test-commands "mod=cmd|mod=cmd"` (item 6), `--env-failures "a|b"`,
+JIT validada), `--test-commands` (item 6: uma linha `mod=cmd` por módulo, ou um objeto JSON; o comando
+pode ter `=` e `|`), `--env-failures "a|b"`,
 `--trailer <linha>` (padrão `Co-Authored-By: Claude <noreply@anthropic.com>`) e `--issue-json`
 (offline). Os itens 1 a 8 do prompt de execução sequencial acima e as seções seguintes seguem sendo
 o contrato dos campos; o script os materializa.
