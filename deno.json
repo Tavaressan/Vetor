@@ -1,7 +1,7 @@
 {
   "tasks": {
     "test": "deno test -A scripts/ opencode/scripts/",
-    "fmt": "deno fmt scripts/ opencode/scripts/",
+    "fmt": "deno fmt",
     "lint": "deno lint scripts/ opencode/scripts/",
     "check": "deno check scripts/ opencode/scripts/"
   },
@@ -10,6 +10,7 @@
   },
   "fmt": {
     "lineWidth": 100,
+    "include": ["scripts/", "opencode/scripts/"],
     "exclude": ["scripts/tests/fixtures/"]
   }
 }

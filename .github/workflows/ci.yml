@@ -45,7 +45,7 @@ jobs:
           deno-version: v2.x
 
       - name: fmt
-        run: deno fmt --check scripts/ opencode/scripts/
+        run: deno fmt --check
 
       - name: lint
         run: deno task lint

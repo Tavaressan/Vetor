@@ -6,6 +6,7 @@
 import { assert, assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { opencodeSupports } from "./helpers/opencode-probe.ts";
 
 const require = createRequire(import.meta.url);
 const { installFiles } = require("../../cli/lib/installer/writer.js") as {
@@ -158,26 +159,13 @@ Deno.test("OpenCode instalado: a skill coordinator e as referências citadas res
   });
 });
 
-async function opencodeAvailable(): Promise<boolean> {
-  try {
-    const out = await new Deno.Command("opencode", {
-      args: ["--version"],
-      stdout: "null",
-      stderr: "null",
-    }).output();
-    return out.success;
-  } catch {
-    return false;
-  }
-}
-
 // Roda contra o binário `opencode` real quando disponível; do contrário, pula (dependência externa
 // opcional, como em opencode/scripts/agent-registration_test.ts). Versão exercitada e versão mínima:
 // wiki/Compatibilidade-OpenCode.md, seção "Deduplicação de scripts e do coordinator".
 Deno.test({
   name:
     "OpenCode real: descobre a skill coordinator instalada e resolve a permissão skill do agent",
-  ignore: !await opencodeAvailable(),
+  ignore: !await opencodeSupports(["debug", "skill", "--pure"]),
   fn: async () => {
     await withInstalledProject(async ({ root }) => {
       // `--pure` não carrega plugins externos: sem ele, o `opencode` instala as dependências do

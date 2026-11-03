@@ -8,21 +8,9 @@
 // dependência externa opcional para dev/CI local, não travável via deno.lock).
 
 import { assertMatch } from "@std/assert";
+import { opencodeSupports } from "../../scripts/tests/helpers/opencode-probe.ts";
 
 const OPENCODE_SRC = `${import.meta.dirname}/../`;
-
-async function opencodeAvailable(): Promise<boolean> {
-  try {
-    const out = await new Deno.Command("opencode", {
-      args: ["--version"],
-      stdout: "null",
-      stderr: "null",
-    }).output();
-    return out.success;
-  } catch {
-    return false;
-  }
-}
 
 async function copyDir(src: string, dest: string): Promise<void> {
   await Deno.mkdir(dest, { recursive: true });
@@ -37,7 +25,7 @@ async function copyDir(src: string, dest: string): Promise<void> {
   }
 }
 
-const AVAILABLE = await opencodeAvailable();
+const AVAILABLE = await opencodeSupports(["agent", "list"]);
 
 Deno.test({
   name: "opencode agent list reconhece issue-coordinator (CLI real)",
