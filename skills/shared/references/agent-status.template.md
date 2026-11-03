@@ -9,7 +9,17 @@ enquanto `Status` ≠ `GREEN`). Fica **fora do worktree**, no root do repo — n
 acidental; o `/vetor:install` init garante a entrada no `.gitignore`.
 
 **Fallback (issue #94):** se a plataforma bloquear a escrita fora do worktree, o worker deve salvar
-uma cópia em `<worktree>/.claude/vetor-status.md`. O coordinator verifica esse fallback ao ler.
+uma cópia em `<worktree>/.claude/vetor-status.md`. O `scripts/vetor-status.sh` lê esse fallback
+sozinho (issue #540): para cada worktree ativo, o fallback vale quando o status file do root não
+existe ou é mais antigo. Nenhuma cópia manual é necessária.
+
+**Causa da recusa (issue #540):** vem do isolamento de worktree da plataforma (subagente com
+`isolation: "worktree"` pede para editar a "cópia do worktree"), não do guard do Vetor
+(`scripts/lib/guard.ts`, `isWriteAllowed`, que já libera o status dir). Fonte: evidência da rodada
+descrita na issue #540 (3 de 4 workers recusados); não foi confirmada em documentação oficial. Em
+verificação posterior, um worker isolado (#540) gravou no root sem confirmação, então a recusa é
+intermitente. Regra do worker: se o root for recusado ou ficar pendente de confirmação, grave o
+fallback e siga, sem esperar resposta.
 
 ## Estrutura base (todos os estados)
 
