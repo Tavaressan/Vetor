@@ -119,7 +119,7 @@ Issues `spike` ("Investigação/exploração — resultado informa decisão futu
    - O commit com o relatório é registrado (ex.: `docs(investigation): <descrição do spike> (#<N>)`).
 4. **Decisão Humana e Follow-up (Não-escopo)**:
    A entrega do spike segue o caminho de PR só de docs (#427). A decisão derivada do relatório continua humana — o worker e o coordinator **não criam issues de follow-up automaticamente** a partir da recomendação.
-5. Atualize o status file a cada iteração (inaugural como `RUNNING`, e ao concluir como `GREEN`).
+5. Atualize o status file a cada iteração (inaugural como `RUNNING`, e ao concluir como `GREEN`). Ao gravar `GREEN`, inclua `Tested: <sha> <comando> pass` (SHA de `git rev-parse HEAD` e a suíte completa que passou; ver `agent-status.template.md`, issue #542) para o `ship --prepare` não repetir a suíte.
 
 ### Memória cruzada entre workers (Modo Desenvolvimento Regular)
 

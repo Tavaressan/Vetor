@@ -30,6 +30,17 @@
 #                               o worktree e o backup em .claude/vetor/carry/)
 #   safe-remove-worktree <path> remove o worktree somente se não houver worktree filho ativo;
 #                               exit 1 se, após o remove, sobrar diretório residual em disco (#157)
+#   prepare <worktree> <issue#...> [--test-cmd <cmd>]  Pre-Ship completo sem LLM (#543): sync com a
+#                               default, migrations, debug-scan, testes dos módulos tocados (pulados
+#                               quando HEAD == SHA da linha `Tested:` do status file e o sync não trouxe
+#                               commits, #542), push, PR draft (corpo via --body-file) e PR_STAGED +
+#                               preship.json. Exit: 0 = PR_STAGED | 1 = validação (branch, migrations,
+#                               debug-scan, config) | 2 = uso | 3 = teste ou sync falhou (worktree
+#                               intacto) | 5 = push ou PR falhou
+#   finalize <PR> <branch> [--auto]  merge via vetor-merge.sh e, só com merge concluído, sync-root +
+#                               cleanup completo (worktree, branch, status, preship.json) (#543).
+#                               Exit: 0 = mergeado e limpo | 3 = merge não aconteceu | 4 = enfileirado
+#                               (tudo preservado) | 5 = mergeado com cleanup incompleto | 2 = uso
 #   sync-root                  tenta retornar o repositório principal para a branch default de forma segura
 #   worktree-audit              lista worktrees linkados (exceto o root) com idade/tamanho/uncommitted
 #   find-orphan-status [dir]   lista status files sem worktree correspondente (default: .claude/vetor/status)
@@ -44,8 +55,268 @@
 set -uo pipefail
 
 cmd="${1:-}"
+SELF="$0"
+case "$SELF" in */*) SELF="$(cd "$(dirname "$SELF")" && pwd -P)/$(basename "$SELF")" ;; esac
+
+# --- prepare / finalize determinísticos (issues #543, #542) -------------------------------------
+# Funções chamadas pelos subcomandos `prepare` e `finalize` (definidas antes do `case`).
+
+_vc_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# Módulos tocados pelos arquivos alterados (stdin: um path por linha) segundo a tabela
+# "Prefixo do path | Módulo" do module-test-map.md ($1). Primeiro prefixo que casa vence.
+_vc_modules_for_files() {
+  local map="$1" prefixes=() mods=() prefix mod file i seen=""
+  while IFS='|' read -r _ prefix mod _; do
+    prefix=$(printf '%s' "$prefix" | sed -E 's/^[[:space:]]*`?//; s/`?[[:space:]]*$//')
+    mod=$(printf '%s' "$mod" | sed -E 's/^[[:space:]]*`?//; s/`?[[:space:]]*$//')
+    case "$prefix" in ""|Prefixo*|---*) continue ;; esac
+    prefixes+=("$prefix"); mods+=("$mod")
+  done < <(sed -n '/Prefixo do path/,/^$/p' "$map")
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    for i in "${!prefixes[@]}"; do
+      if [ "${prefixes[$i]}" = "./" ] || [[ "$file" == "${prefixes[$i]}"* ]]; then
+        case " $seen " in *" ${mods[$i]} "*) ;; *) seen="$seen ${mods[$i]}"; echo "${mods[$i]}" ;; esac
+        break
+      fi
+    done
+  done
+}
+
+# Comando headless de um módulo ($2) na tabela "Módulo | Comando headless" do map ($1).
+_vc_command_for_module() {
+  awk -F'|' -v m="$2" '
+    function trim(s) { gsub(/^[ \t]*`?|`?[ \t]*$/, "", s); return s }
+    /Comandos por módulo/ { on = 1; next }
+    /^## / { on = 0 }
+    on && NF >= 3 && trim($2) == m { print trim($3); exit }' "$1"
+}
+
+_vc_prepare() {
+  local worktree="" issues=() test_cmd=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --test-cmd) test_cmd="${2:?--test-cmd exige um comando}"; shift 2 ;;
+      *) if [ -z "$worktree" ]; then worktree="$1"; else issues+=("$1"); fi; shift ;;
+    esac
+  done
+  if [ -z "$worktree" ] || [ "${#issues[@]}" -eq 0 ]; then
+    echo "uso: vetor-checks.sh prepare <worktree> <issue#...> [--test-cmd <cmd>]" >&2; return 2
+  fi
+  local n
+  for n in "${issues[@]}"; do
+    [[ "$n" =~ ^[1-9][0-9]*$ ]] || { echo "ERRO: issue# inválido: \"$n\"" >&2; return 2; }
+  done
+  cd "$worktree" 2>/dev/null || { echo "ERRO: worktree inexistente: $worktree" >&2; return 1; }
+  "$SELF" in-worktree || return 1
+
+  local branch default root sanitized status_file
+  branch=$(git branch --show-current)
+  default=$("$SELF" default-branch)
+  [ -n "$branch" ] && [ "$branch" != "$default" ] || { echo "ERRO: branch inválida para o Pre-Ship: '${branch}'" >&2; return 1; }
+  root=$("$SELF" repo-root) || return 1
+  sanitized="${branch//\//-}"
+  status_file="$root/.claude/vetor/status/${sanitized}.md"
+
+  # 1. Sincroniza com a default (conflito -> aborta o merge e devolve ao LLM, exit 3)
+  local head_before head_after synced=0
+  git fetch origin "$default" >/dev/null 2>&1 || { echo "FALHA(sync): git fetch origin $default falhou" >&2; return 3; }
+  head_before=$(git rev-parse HEAD)
+  if ! git merge --no-edit "origin/$default" >/dev/null 2>&1; then
+    git merge --abort >/dev/null 2>&1 || true
+    echo "FALHA(sync): conflito ao mesclar origin/$default; merge abortado, worktree intacto. Resolva seguindo conflict-resolution.md." >&2
+    return 3
+  fi
+  head_after=$(git rev-parse HEAD)
+  [ "$head_before" != "$head_after" ] && synced=1
+
+  # 2. Migrations e debug-scan
+  "$SELF" migrations --against "origin/$default" || return 1
+  "$SELF" debug-scan "origin/$default" || return 1
+
+  # 3. Testes locais (#542: pula quando HEAD == SHA testado no GREEN e o sync não trouxe nada)
+  local tested_line tested_sha="" tested_cmd="" tests_summary="" dirty
+  tested_line=$(grep -m1 '^Tested:' "$status_file" 2>/dev/null || true)
+  if [[ "$tested_line" =~ ^Tested:[[:space:]]+([0-9a-f]{7,40})[[:space:]]+(.*)[[:space:]]+pass[[:space:]]*$ ]]; then
+    tested_sha="${BASH_REMATCH[1]}"; tested_cmd="${BASH_REMATCH[2]}"
+  fi
+  dirty=$(git status --porcelain --untracked-files=no)
+  if [ -n "$tested_sha" ] && [ -z "$test_cmd" ] && [ "$synced" -eq 0 ] && [ -z "$dirty" ] \
+     && [ "$(git rev-parse HEAD)" = "$(git rev-parse "$tested_sha" 2>/dev/null || echo x)" ]; then
+    tests_summary="skipped: HEAD ${head_after:0:12} já testado no GREEN ($tested_cmd) e o sync não trouxe commits"
+    echo "Testes locais pulados: $tests_summary"
+  else
+    local cmds=() mod cmd map="$root/.claude/vetor/module-test-map.md" reason=""
+    [ -n "$tested_sha" ] && [ -z "$test_cmd" ] && reason=" (HEAD difere do SHA testado ou o sync trouxe commits: testando de novo)"
+    if [ -n "$test_cmd" ]; then
+      cmds+=("$test_cmd")
+    else
+      [ -f "$map" ] || { echo "ERRO: $map ausente e sem --test-cmd (rode /vetor:install)" >&2; return 1; }
+      while IFS= read -r mod; do
+        cmd=$(_vc_command_for_module "$map" "$mod")
+        case "$cmd" in ""|*"sem suíte de testes"*) echo "Módulo $mod: skipped (no test suite)"; continue ;; esac
+        cmds+=("$cmd")
+      done < <(git diff --name-only "origin/$default" | _vc_modules_for_files "$map")
+    fi
+    local log; log=$(mktemp)
+    for cmd in "${cmds[@]}"; do
+      echo "Rodando: $cmd$reason"
+      if ! bash -c "$cmd" >"$log" 2>&1; then
+        echo "FALHA(teste): '$cmd' não passou. Últimas 30 linhas:" >&2
+        tail -n 30 "$log" >&2; rm -f "$log"; return 3
+      fi
+    done
+    rm -f "$log"
+    tests_summary="${#cmds[@]} comando(s) passaram: ${cmds[*]:-nenhum (sem módulos com suíte)}"
+  fi
+
+  # 4. Push (3 tentativas)
+  local tries=0
+  until git push -u origin "$branch" >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    [ "$tries" -ge 3 ] && { echo "FALHA(push): git push -u origin $branch falhou após 3 tentativas" >&2; return 5; }
+    sleep "${VETOR_PUSH_RETRY_DELAY:-2}"
+  done
+
+  # 5. PR draft (título/corpo determinísticos, corpo via --body-file)
+  local pr_number pr_url subjects count title body_file type slug summary
+  pr_number=$(gh pr list --head "$branch" --state open --json number -q '.[0].number' 2>/dev/null || true)
+  if [ -z "$pr_number" ]; then
+    subjects=$(git log --no-merges --format=%s "origin/$default..HEAD")
+    count=$(printf '%s\n' "$subjects" | sed '/^$/d' | wc -l)
+    if [ "$count" -eq 1 ] && ! printf '%s' "$subjects" | LC_ALL=C grep -q '[[:cntrl:]]'; then
+      title="$subjects"
+    else
+      type="${branch%%/*}"; [ "$type" = "$branch" ] && type="chore"
+      slug="${branch#*/}"; slug=$(printf '%s' "$slug" | sed -E 's/^[0-9]+-//')
+      summary=$(printf '%s\n' "$subjects" | sed '/^$/d' | tr -d '[:cntrl:]' | paste -sd ';' - | sed 's/;/; /g')
+      title="${type}(${slug}): ${summary:-atualização}"
+    fi
+    body_file=$(mktemp)
+    {
+      echo "## Resumo"
+      # neutraliza palavras de fechamento (Closes/Fixes/Resolves #N) e @menções com crases
+      printf '%s\n' "$subjects" | sed '/^$/d' \
+        | sed -E 's/\b((close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]:]+([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#[0-9]+)/`\1`/Ig; s/(^|[^`A-Za-z0-9_])(@[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)?)/\1`\2`/g; s/^/- /'
+      echo; echo "## Módulos testados"; echo "- $tests_summary"
+      echo; echo "## Issue relacionada"
+      for n in "${issues[@]}"; do echo "Closes #$n"; done
+      echo; echo "🤖 Desenvolvido com [Claude Code](https://claude.ai/code)"
+    } >"$body_file"
+    pr_url=$(gh pr create --title "$title" --body-file "$body_file" --draft --base "$default" 2>&1) \
+      || { echo "FALHA(pr): gh pr create falhou: $pr_url" >&2; rm -f "$body_file"; return 5; }
+    rm -f "$body_file"
+    pr_url=$(printf '%s\n' "$pr_url" | grep -Eo 'https?://[^ ]+/pull/[0-9]+' | tail -n1)
+    pr_number="${pr_url##*/}"
+  else
+    pr_url=$(gh pr view "$pr_number" --json url -q .url 2>/dev/null || true)
+  fi
+  [[ "$pr_number" =~ ^[0-9]+$ ]] || { echo "FALHA(pr): número do PR não identificado" >&2; return 5; }
+
+  # 6. Dispara o CI (snapshot, sem esperar) e registra PR_STAGED + preship.json
+  gh pr checks "$pr_number" >/dev/null 2>&1 || true
+  mkdir -p "$root/.claude/vetor/status"
+  local iter
+  iter=$(grep -m1 '^Iteration:' "$status_file" 2>/dev/null || echo "Iteration: 1/5 (Issue #${issues[0]})")
+  {
+    echo "# Agent Status — $branch"
+    echo "Updated: $(_vc_now)"
+    echo "Status: PR_STAGED"
+    echo "PR: #$pr_number ($pr_url)"
+    echo "$iter"
+    [ -n "$tested_line" ] && echo "$tested_line"
+    echo "Last action: Pre-ship concluído (PR draft #$pr_number criado, CI disparado; testes: $tests_summary)"
+    echo "Next: Revisões consultivas pelo coordinator e, com o CI verde, /vetor:ship --finalize $pr_number"
+  } >"$status_file"
+  local jbranch jurl
+  jbranch=$(printf '%s' "$branch" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  jurl=$(printf '%s' "$pr_url" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  cat >"$root/.claude/vetor/status/${sanitized}-preship.json" <<JSON
+{
+  "branch": "$jbranch",
+  "prNumber": $pr_number,
+  "prUrl": "$jurl",
+  "headSha": "$(git rev-parse HEAD)",
+  "stagedAt": "$(_vc_now)",
+  "ciStatus": "PENDING",
+  "reviewsStatus": "PENDING"
+}
+JSON
+  echo "PR_STAGED #$pr_number $pr_url"
+  return 0
+}
+
+_vc_finalize() {
+  local pr="" branch="" merge_flags=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --auto) merge_flags+=(--auto); shift ;;
+      *) if [ -z "$pr" ]; then pr="$1"; elif [ -z "$branch" ]; then branch="$1"; else pr=""; break; fi; shift ;;
+    esac
+  done
+  if ! [[ "$pr" =~ ^[1-9][0-9]*$ ]] || [ -z "$branch" ]; then
+    echo "uso: vetor-checks.sh finalize <PR> <branch> [--auto]" >&2; return 2
+  fi
+  local merge_sh root wt
+  merge_sh="$(cd "$(dirname "$SELF")" && pwd -P)/vetor-merge.sh"
+  root=$("$SELF" repo-root) || return 2
+  wt=$(git worktree list --porcelain | awk -v b="refs/heads/$branch" '/^worktree /{p=substr($0,10)} $0=="branch " b {print p; exit}')
+
+  # Pré-condições (sem merge se falharem): branch confere com o PR e CI verde
+  local head_ref checks bad
+  head_ref=$(gh pr view "$pr" --json headRefName -q .headRefName 2>/dev/null || true)
+  if [ "$head_ref" != "$branch" ]; then
+    echo "ERRO: <branch> '$branch' difere do headRefName do PR #$pr ('${head_ref:-desconhecido}'); nada foi feito." >&2
+    return 2
+  fi
+  checks=$(gh pr view "$pr" --json statusCheckRollup -q '.statusCheckRollup[]? | if .__typename == "StatusContext" then .state elif .status == "COMPLETED" then .conclusion else "PENDING" end' 2>/dev/null) \
+    || { echo "FALHA(ci): não foi possível ler os checks do PR #$pr; sem merge." >&2; return 3; }
+  bad=$(printf '%s\n' "$checks" | sed '/^$/d' | grep -Evx 'SUCCESS|SKIPPED|NEUTRAL' | sort -u | paste -sd ' ' - || true)
+  if [ -n "$bad" ]; then
+    echo "FALHA(ci): PR #$pr com checks pendentes ou falhos ($bad); sem merge." >&2
+    return 3
+  fi
+
+  local code=0
+  bash "$merge_sh" ${merge_flags[@]+"${merge_flags[@]}"} "$pr" || code=$?
+  case "$code" in
+    0) ;;
+    4) echo "PR #$pr ENFILEIRADO: worktree, branch e status preservados (sem sync-root nem cleanup)."; return 4 ;;
+    *) return "$code" ;;
+  esac
+
+  cd "$root" || return 5
+  local fail=0
+  "$SELF" sync-root || fail=1
+  if [ -n "$wt" ] && [ "$wt" != "$root" ]; then
+    "$SELF" safe-remove-worktree "$wt" || fail=1
+  fi
+  if [ "$fail" -eq 0 ]; then
+    "$SELF" delete-merged-branch "$branch" || fail=1
+    "$SELF" clean-status "$branch" || fail=1
+  fi
+  if [ "$fail" -ne 0 ]; then
+    echo "AVISO: PR #$pr mergeado, mas o cleanup ficou incompleto (worktree/branch/status preservados quando aplicável)." >&2
+    return 5
+  fi
+  echo "PR #$pr mergeado e cleanup completo (worktree, branch, status e preship.json)."
+  return 0
+}
 
 case "$cmd" in
+  prepare)
+    shift
+    _vc_prepare "$@"
+    exit $?
+    ;;
+
+  finalize)
+    shift
+    _vc_finalize "$@"
+    exit $?
+    ;;
+
   default-branch)
     DEFAULT_BRANCH=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | sed -n '/HEAD branch/s/.*: //p')
@@ -683,7 +954,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|carry-changes <worktree-path> <branch>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]|check-disjoint <candidata> <outra>...|auto-ship-gates <PR> <worktree-path>>" >&2
+    echo "uso: vetor-checks.sh <default-branch|repo-root|in-worktree|migrations|debug-scan <base-branch>|validate-issue-ref <valor>|carry-changes <worktree-path> <branch>|safe-remove-worktree <path>|sync-root|worktree-audit|find-orphan-status [dir]|archive-orphan-status <path>|architectural-risk [map] [days]|check-disjoint <candidata> <outra>...|auto-ship-gates <PR> <worktree-path>|prepare <worktree> <issue#...>|finalize <PR> <branch>>" >&2
     exit 2
     ;;
 esac

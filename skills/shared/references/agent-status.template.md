@@ -34,6 +34,20 @@ Next: <próximo passo planejado>
 
 ## Blocos adicionais por estado
 
+**`GREEN`** (issue #542) — além da base, o worker grava a linha `Tested:` com o SHA de `HEAD` em que a
+suíte completa do módulo passou, o comando e o resultado:
+
+```markdown
+Status: GREEN
+Tested: <sha> <comando> pass
+```
+
+Exemplo: `Tested: 3f9c1ab2e7d0 deno task test pass`. O `vetor-checks.sh prepare` pula os testes locais
+quando `git rev-parse HEAD` é igual a esse SHA, a árvore está limpa e o sync com a default não trouxe
+commits (registra o motivo no corpo do PR); com `HEAD` diferente ou sync com commits, roda a suíte dos
+módulos tocados. Sem a linha, a suíte roda. Grave o SHA do commit final (depois do último commit do
+fix), nunca de um commit anterior.
+
 **`BLOCKED_WAITING`** (obrigatórios — o coordinator escala ao usuário a partir deles; sem eles a
 escalação não acontece):
 

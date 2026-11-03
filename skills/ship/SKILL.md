@@ -64,6 +64,42 @@ De acordo com `SHIP_MODE`:
 - `finalize`: `SHIP_TARGET` contém o `<PR-number>`. Pula os passos 2 a 6 e executa estritamente a verificação de CI (§7 e §8), verificação de reviews (§8.5–§9), squash merge via `vetor-merge.sh` (§10), sincronização do root (§11) e cleanup (§12).
 - `full` (modo padrão legado, sem flags): executa o ciclo sequencial completo dos passos 1 a 12 de ponta a ponta. Se `SHIP_TARGET` estiver preenchido, ele representa a issue GitHub a ser referenciada em `Closes #N`.
 
+### 0.b — Caminho determinístico (sem LLM, issue #543)
+
+Em `prepare` e `finalize`, os passos fixos são um único comando de `vetor-checks.sh`; só escale ao
+LLM (conflito, teste vermelho, permissão negada) quando o exit indicar falha.
+
+```bash
+# --prepare: sync, migrations, debug-scan, testes, push, PR draft (--body-file), PR_STAGED + preship.json
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" prepare "<path-do-worktree>" <issue#...>
+# --finalize: vetor-merge.sh e, só com merge concluído, sync-root + cleanup completo
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" finalize <PR-number> <branch>
+```
+
+| Comando | Exit | Significado | O que fazer |
+|---|---|---|---|
+| `prepare` | 0 | `PR_STAGED` gravado | seguir para revisões consultivas (§8.5, a cargo de quem tem a tool `Agent`) |
+| `prepare` | 1 | validação: branch, migrations, debug-scan ou config | corrigir e repetir (§2.b, §4.b) |
+| `prepare` | 3 | testes vermelhos ou conflito de sync (merge já abortado) | §2/§4: resolver e repetir |
+| `prepare` | 5 | push ou criação do PR falhou | diagnosticar `gh`/rede e repetir (idempotente: reaproveita PR aberto) |
+| `finalize` | 0 | mergeado, root sincronizado, worktree/branch/status/`*-preship.json` removidos | fim |
+| `finalize` | 3 | merge não aconteceu | §10 (exit 3) |
+| `finalize` | 4 | PR só enfileirado | tudo preservado (§10, exit 4) |
+| `finalize` | 5 | mergeado, mas o cleanup ficou incompleto | rodar o passo falho de §12 à mão |
+
+**Atenção:** o `finalize` remove o worktree da branch; rode-o do root (o shell do chamador não pode
+estar dentro desse worktree). O exit 2 (uso incorreto ou `<branch>` diferente do `headRefName` do PR)
+vale para ambos os comandos. O `finalize` aborta com exit 3, sem merge, se algum check do PR estiver
+pendente ou falho.
+
+O `prepare` pula a suíte quando o `HEAD` é o SHA registrado na linha `Tested: <sha> <comando> pass` do
+status file (gravada pelo worker no `GREEN`) e o sync com a default não trouxe commits; o motivo vai
+para o corpo do PR e para o `Last action`. Com `HEAD` diferente, árvore suja ou sync que trouxe commits,
+roda os comandos dos módulos tocados (`module-test-map.md`). O CI continua sendo o gate final.
+
+*Os passos 2 a 8.7 e 10 a 12 abaixo descrevem o que esses comandos fazem e o procedimento manual de
+recuperação em caso de falha.*
+
 ### 1 — Guarda de contexto
 
 ```bash

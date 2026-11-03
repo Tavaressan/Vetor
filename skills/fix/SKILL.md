@@ -217,7 +217,7 @@ ver "Test scoping" no §3.a):
 ```json
 {"status": "green", "iterations": <i>, "module": "<módulo>"}
 ```
-Atualize o status file com `Status: GREEN` e **pare**.
+Atualize o status file com `Status: GREEN` e a linha `Tested: <sha> <comando> pass` (`<sha>` = `git rev-parse HEAD` depois do último commit, `<comando>` = a suíte completa que acabou de passar; formato em `agent-status.template.md`, issue #542) e **pare**.
 No encerramento Green, siga o registro opcional de aprendizado em `memory-gotchas.md`; falha ou
 indisponibilidade da memória não altera o estado Green nem impede o encerramento.
 

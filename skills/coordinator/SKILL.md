@@ -886,7 +886,12 @@ workers nem o CI de nenhum:
 
 1. Para cada grupo, obtenha o path real do worktree (`git worktree list`, correlacionando pela
    branch da Fase 3). O `/vetor:ship` aborta se o `cwd` não for um worktree.
-2. Despache **todos na mesma mensagem**, um `Agent()` por worktree, em background. O worktree já
+2. **Caminho determinístico primeiro (issue #543), sem subagente:** para cada grupo rode
+   `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" prepare "<path-do-worktree>" <issue#...>` (vários
+   em paralelo com `&`/`wait`, um exit por grupo). Exit 0 = `PR_STAGED` gravado; exit 1/3/5 = falha
+   (validação, teste ou sync, push ou PR; tabela em `ship` §0.b) e só então o grupo vai ao subagente
+   abaixo; os grupos com exit 0 não recebem subagente. Os grupos que falharam (exit 1/3/5) são os únicos
+   despachados: Despache **todos na mesma mensagem**, um `Agent()` por worktree, em background. O worktree já
    existe, então use um subagente padrão sem `subagent_type` (mesma regra do redespacho da Fase 4), com o
    `model` da regra de dispatch (`../shared/references/issue-coordinator-dispatch.md`):
    ```javascript
@@ -920,8 +925,15 @@ cada PR segue para o merge assim que fecha verde, a espera total converge para m
    nem re-testar. Sobreposição com PR já integrado: merge da default no worktree e só a suíte do
    módulo coincidente antes do `--finalize`. Com merge queue ativa o `vetor-merge.sh` enfileira
    (exit 4).
-2. Entre no worktree do grupo (`git worktree list`; `/vetor:ship` aborta fora de um worktree) e
-   invoque `/vetor:ship --finalize <PR>`. Se o grupo não tem PR preparado (Pre-Ship indisponível), use o
+2. Rode `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" finalize <PR> <branch>` (issue #543): faz o
+   merge e, só com merge concluído, `sync-root` e o cleanup completo (worktree, branch, status e
+   `*-preship.json`) em um comando, do root, sem subagente. Exit 0 = mergeado e limpo; 4 = enfileirado
+   (nada é limpo); 3 = merge não aconteceu; 5 = mergeado com cleanup incompleto; 2 = uso ou branch
+   divergente do PR. O fallback `/vetor:ship --finalize <PR>` distingue o exit: **4 e 5 nunca tentam
+   novo merge** (4 = o PR já está na fila; 5 = já foi mergeado e só refaz o passo de cleanup que falhou
+   — worktree, branch ou status — à mão, do root). Só em falha de merge (exit 1/2/3) entre no worktree
+   do grupo (`git worktree list`; `/vetor:ship` aborta fora de um worktree) e invoque
+   `/vetor:ship --finalize <PR>`. Se o grupo não tem PR preparado (Pre-Ship indisponível), use o
    ciclo completo `/vetor:ship <issue#>`, que já re-sincroniza e re-testa.
 3. Após merge bem-sucedido, atualize a tabela. Um PR **enfileirado** (merge queue/auto-merge, exit 4 do
    `vetor-merge.sh`) não é merge: registre `Enfileirado`, não rode sync-root nem cleanup e siga para o
