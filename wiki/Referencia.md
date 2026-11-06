@@ -68,12 +68,6 @@ skills/
 scripts/                         # scripts Deno/bash dos hooks e das skills (Claude Code)
 ├── lib/                         # módulos compartilhados (guard, project, rules, status, worktree)
 └── tests/                       # toda a suíte de testes, um arquivo por script/módulo testado
-legacy/                          # código aposentado — mantido como referência, não carregado
-├── worktree-session/SKILL.md    # skill monolítica, substituída por worktree-create + ship
-└── stop-recovery/               # hook Stop aposentado (#141)
-    ├── stop-recovery.ts
-    ├── transcript.ts
-    └── *_test.ts
 ```
 
 ---

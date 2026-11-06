@@ -111,8 +111,6 @@ Ele detecta o runtime do repositório, gera o mapeamento de comandos de teste e 
 | `/vetor:stack-practices [--refresh]` | Gera regras de melhores práticas por stack detectada, via Context7 |
 | `/vetor:retro` | Avalia o uso do Vetor na sessão e propõe melhorias no próprio plugin |
 
-> Os nomes antigos /vetor:vetor, /vetor:backlog-ideator, /vetor:issue-coordinator, /vetor:fix-loop-agent e /vetor:worktree-ship continuam disponíveis como aliases de compatibilidade, mas estão deprecados. Use os comandos novos acima.
-
 ## Início rápido
 
 **Automatizado** — do backlog ao merge:
