@@ -17,8 +17,8 @@ As regras de Bash do `PreToolUse` (git destrutivo, push para branch protegida, p
 
 O relaxamento da #374 (confinar escrita apenas quando `agent_type` identifica `issue-worker`) vale somente no Claude Code. Codex (`PreToolUse`) e Cursor não incluem `agent_type` nesse payload e usam `--strict-worktree-writes`; OpenCode `tool.execute.before` também não inclui `agent` e aplica o guard estrito por cwd.
 
-> ⚠️ O hook `Stop` (`stop-recovery.ts`) foi **aposentado** (issue #141) e o código foi para
-> `legacy/stop-recovery/`, onde **não é carregado** pelo plugin. Ele comparava o transcript da
+> ⚠️ O hook `Stop` (`stop-recovery.ts`) foi **aposentado** (issue #141) e o código foi removido do
+> repositório (continua no histórico do git). Ele comparava o transcript da
 > sessão com o estado dos arquivos em disco e bloqueava o encerramento ao divergir. Não foi
 > retirado por bug aberto — as correções das issues #136/#137 já haviam eliminado o falso
 > positivo conhecido — mas por custo/benefício: a comparação transcript-versus-disco é frágil por
