@@ -2,12 +2,24 @@
 // Codifica as regras que fix/ship já descrevem em prosa; é a linha de base do experimento.
 
 import { allowedAlternatives } from "./policy.ts";
+import { detectTransient } from "./transient.ts";
 import type { Alternative, FailureContext } from "./types.ts";
+
+export interface BaselineOptions {
+  /**
+   * Também trata como transitória uma falha cujo texto casa com os padrões estritos de
+   * `transient.ts` (#558). Desligado por padrão: a baseline original não lê o texto.
+   */
+  transientFromText?: boolean;
+}
 
 /** Quantas tentativas anteriores com a mesma assinatura caracterizam um loop travado. */
 const STUCK_REPEATS = 2;
 
-export function classifyBaseline(context: FailureContext): Alternative {
+export function classifyBaseline(
+  context: FailureContext,
+  options: BaselineOptions = {},
+): Alternative {
   const allowed = allowedAlternatives(context);
   // 1. Restrição rígida da política (aprovação, infra, orçamento esgotado).
   if (allowed.length === 1) return allowed[0];
@@ -24,7 +36,8 @@ export function classifyBaseline(context: FailureContext): Alternative {
   // 3. Falha transitória numa operação explicitamente repetível (ship §8.c).
   if (
     allowed.includes("retry_operation") &&
-    (context.timedOut === true || context.errorCategory === "network")
+    (context.timedOut === true || context.errorCategory === "network" ||
+      (options.transientFromText === true && detectTransient(context.errorSummary) !== null))
   ) {
     return "retry_operation";
   }

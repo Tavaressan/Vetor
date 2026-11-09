@@ -1,0 +1,89 @@
+{
+  "criteria": "Spike #558. Rótulos fixados antes de qualquer execução da heurística. Os casos code-* são erros de código cujo texto contém palavras ou números que parecem transitórios (o tipo de falso positivo que a #557 encontrou em falhas reais): o correto é inspect_failure. Os casos transient-* reproduzem mensagens reais de ferramentas comuns (git, npm, Deno, Docker, GitHub API) para falhas de rede, DNS, TLS, gateway ou rate limit numa operação repetível: o correto é retry_operation. Todos com operation ci, retryable true, attempt 1 de 3 e sem errorCategory, como numa falha real de CI.",
+  "scenarios": [
+    {
+      "id": "code-test-asserts-503",
+      "expected": "inspect_failure",
+      "rationale": "O teste verifica o próprio 503 e falhou na asserção.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "FAIL src/api/health.test.ts\n  ● health › returns 503 Service Unavailable when the database is down\n    expect(received).toBe(expected)\n    Expected: 503\n    Received: 200\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "code-test-name-network",
+      "expected": "inspect_failure",
+      "rationale": "Nome de teste com 'Network'; a falha é de asserção (caso real da #557, reescrito).",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "DemoModeIntegrationTest > allEndpointsReturnValidResponses_withoutRealNetwork FAILED\n120 tests completed, 1 failed\nFAILURE: Build failed with an exception.\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "code-test-timeout-option",
+      "expected": "inspect_failure",
+      "rationale": "Erro de tipo sobre um parâmetro chamado timeout.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "error: TS2353 [ERROR]: Object literal may only specify known properties, and 'timeoutMs' does not exist in type 'FetchOptions'.\n    at file:///home/runner/work/app/app/src/client.ts:42:5\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "code-econnrefused-local-db",
+      "expected": "inspect_failure",
+      "rationale": "Teste de integração sem o serviço local de banco: configuração do job, repetir não resolve.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "Error: connect ECONNREFUSED 127.0.0.1:5432\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)\n 1 failing\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "code-mock-econnreset-assertion",
+      "expected": "inspect_failure",
+      "rationale": "O teste espera que o cliente trate ECONNRESET e a asserção falhou.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "✗ retries on ECONNRESET\n  AssertionError: expected 3 retries, got 1\n    at Context.<anonymous> (test/retry.spec.js:18:12)\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "code-lint-rate-limit-rule",
+      "expected": "inspect_failure",
+      "rationale": "Regra de lint num arquivo chamado rate-limit.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "src/middleware/rate-limit.ts\n  12:7  error  'windowMs' is assigned a value but never used  @typescript-eslint/no-unused-vars\n✖ 1 problem (1 error, 0 warnings)\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "transient-git-dns",
+      "expected": "retry_operation",
+      "rationale": "DNS no checkout.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "fatal: unable to access 'https://github.com/org/repo.git/': Could not resolve host: github.com\n##[error]The process '/usr/bin/git' failed with exit code 128"}
+    },
+    {
+      "id": "transient-npm-eai-again",
+      "expected": "retry_operation",
+      "rationale": "DNS temporário do registry do npm.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "npm error code EAI_AGAIN\nnpm error syscall getaddrinfo\nnpm error errno EAI_AGAIN\nnpm error request to https://registry.npmjs.org/esbuild failed, reason: getaddrinfo EAI_AGAIN registry.npmjs.org\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "transient-jsr-503",
+      "expected": "retry_operation",
+      "rationale": "Registry JSR indisponível.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "error: JSR package manifest for '@std/assert' failed to load. Import 'https://jsr.io/@std/assert/meta.json' failed: 503 Service Unavailable\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "transient-git-rpc-failed",
+      "expected": "retry_operation",
+      "rationale": "Conexão cortada durante o fetch.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "error: RPC failed; curl 56 GnuTLS recv error (-9): Error decoding the received TLS packet.\nfatal: early EOF\nfatal: fetch-pack: invalid index-pack output\n##[error]The process '/usr/bin/git' failed with exit code 128"}
+    },
+    {
+      "id": "transient-docker-tls",
+      "expected": "retry_operation",
+      "rationale": "Timeout de TLS ao baixar imagem.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": net/http: TLS handshake timeout\n##[error]Docker pull failed with exit code 1"}
+    },
+    {
+      "id": "transient-gh-rate-limit",
+      "expected": "retry_operation",
+      "rationale": "Rate limit secundário da API do GitHub.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "HttpError: You have exceeded a secondary rate limit. Please wait a few minutes before you try again.\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "transient-deno-econnreset",
+      "expected": "retry_operation",
+      "rationale": "Conexão resetada ao baixar dependência.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "error: Import 'https://deno.land/std@0.224.0/path/mod.ts' failed: error sending request for url (https://deno.land/std@0.224.0/path/mod.ts): client error (SendRequest): connection error: connection reset by peer (os error 104)\n##[error]Process completed with exit code 1."}
+    },
+    {
+      "id": "transient-gateway-502",
+      "expected": "retry_operation",
+      "rationale": "Gateway do provedor de pacotes.",
+      "context": {"operation": "ci", "exitCode": 1, "attempt": 1, "maxAttempts": 3, "retryable": true, "errorSummary": "Could not GET 'https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/2.1.0/kotlin-stdlib-2.1.0.pom'. Received status code 502 from server: Bad Gateway\n##[error]Process completed with exit code 1."}
+    }
+  ]
+}

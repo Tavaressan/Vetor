@@ -324,6 +324,104 @@ deno run --allow-read scripts/decision-bench.ts --fixture scripts/tests/fixtures
 - `delphos` foi limitado aos últimos 1000 runs. A primeira tentativa de coleta caiu por timeout de
   rede do próprio `gh` e foi repetida uma vez.
 
+## Heurística de falha transitória pelo texto (#558, 2026-11-09)
+
+**Pergunta:** uma lista de padrões transitórios, no estilo de `detect-infra-failure.ts`, resolve os
+casos `text-only-transient*` sem gerar falsos positivos em erros de código? Onde ela deve viver, e vale
+ligá-la a um re-run automático no ship §8.c?
+
+### O que foi feito
+
+- `scripts/lib/decision-adapter/transient.ts`: função pura `detectTransient(texto)`, com:
+  - padrões **estritos** de rede, DNS, TLS, gateway, rate limit e transporte do git;
+  - padrões **amplos** (`network`, `timeout`, `50x` solto, `ECONNREFUSED`), só para comparação;
+  - duas salvaguardas: a **guarda** ignora linhas de asserção e títulos de teste (Jest, Mocha, TAP,
+    Gradle/JUnit), e um erro de **DNS** só conta para host público (com ponto, fora de `.local`,
+    `.internal`, `.svc`).
+- `classifyBaseline(context, { transientFromText: true })`: variante opcional da baseline. O padrão
+  continua desligado, e o comportamento atual não muda.
+- `scripts/tests/fixtures/decision-adapter/scenarios-transient-adversarial.json`: 14 cenários com
+  rótulos fixados antes da execução. São 6 erros de código cujo texto **parece** transitório (teste que
+  verifica um 503, nome de teste com "Network", parâmetro `timeoutMs`, `ECONNREFUSED` de banco local,
+  mock de `ECONNRESET`, regra de lint num arquivo `rate-limit`) e 8 mensagens transitórias reais de
+  git, npm, JSR, Docker, Deno, Maven e da API do GitHub.
+- `scripts/transient-eval.ts`: compara quatro variantes em cada conjunto (`--aggregate-only` para o
+  repositório privado).
+- Testes em `scripts/tests/transient_test.ts`.
+
+```sh
+D=scripts/tests/fixtures/decision-adapter
+deno run --allow-read scripts/transient-eval.ts $D/scenarios.json $D/scenarios-transient-adversarial.json $D/scenarios-real.json
+```
+
+### Números
+
+Variantes: `baseline` (original), `estrito+guarda` (proposta), `estrito` (sem a guarda) e `amplo` (sem
+a guarda). "FP" e "VP" se referem a `retry_operation`.
+
+**Primeira versão (v1)**, antes de qualquer ajuste:
+
+| Conjunto | baseline | estrito+guarda | estrito | amplo |
+| --- | --- | --- | --- | --- |
+| Sintéticos (18) | 16/18 | 17/18 (FN: o `503` do JSR, pulado pela guarda) | 18/18 | 17/18 |
+| Adversariais (14) | 6/14 | 10/14 (2 FP, 2 FN) | 11/14 (2 FP) | 5/14 (4 FP) |
+| Reais públicos (40) | 38/40 | 38/40 | 38/40 | 37/40 (1 FP) |
+| delphos (72, privado) | 64/72 | 61/72 (3 FP) | 61/72 (3 FP) | 61/72 (3 FP) |
+
+Os defeitos da v1 e os ajustes da **segunda versão (v2)**:
+- **A guarda pulava `@std/assert`.** Ela ignorava qualquer linha com `assert`, inclusive o nome de um
+  pacote. Na v2, ela só reconhece formas de asserção (`AssertionError`, `assertEquals`, `expect(`).
+- **Títulos de teste passavam pela guarda** (`● health › returns 503 …`, `✗ retries on ECONNRESET`).
+  A v2 os reconhece.
+- **`status code 502` não casava.** O padrão de gateway foi ampliado.
+- **DNS de nome de serviço interno.** Dois FP do `delphos` eram serviços internos do job que não
+  subiram, um problema de configuração. A v2 exige host público.
+
+**Segunda versão (v2):**
+
+| Conjunto | baseline | estrito+guarda | estrito | amplo |
+| --- | --- | --- | --- | --- |
+| Sintéticos (18) | 16/18 | **18/18** | 18/18 | 17/18 |
+| Adversariais (14) | 6/14 | **14/14** | 12/14 (2 FP) | 5/14 (4 FP) |
+| Reais públicos (40) | 38/40 | 38/40 (0 VP, 0 FP) | 38/40 | 37/40 (1 FP) |
+| delphos (72, privado) | 64/72 | 63/72 (0 VP, **1 FP**) | 63/72 | 61/72 (3 FP) |
+
+**Viés:** a v2 foi ajustada olhando os conjuntos sintético, adversarial e do `delphos`. Os 18/18 e
+14/14 medem o ajuste, não a generalização. O único número que generaliza é o das falhas reais:
+**0 verdadeiros positivos e 1 falso positivo em 106 falhas `inspect_failure`** (0,9 %; IC 95 % de
+0,2 % a 5,2 %). O FP restante é um `socket hang up` que foi resolvido com mudança de código.
+
+### Respostas
+
+1. **Os padrões resolvem os `text-only-*` sem falso positivo em erro de código?** Nos cenários
+   escritos à mão, sim, mas só com as duas salvaguardas; sem a guarda, um teste que verifica um 503
+   vira re-run. Nas falhas reais destes repositórios não há nada para resolver: nenhum dos 6
+   `retry_operation` reais tem sinal de rede no texto (#557). Os padrões amplos são inaceitáveis:
+   casam com nomes de teste e parâmetros.
+2. **Onde a heurística deve viver?** Como função pura em `scripts/lib/decision-adapter/transient.ts`,
+   testável sem rede. Se um dia for usada pelo ship, o ponto de entrada certo é o
+   `detect-infra-failure.ts`, que o §8.b já chama com o run-id. Ele passaria a ler também o
+   `--log-failed` e a devolver três classes (`infra`, `transient`, `code`), em vez de um script novo
+   com outro contrato de saída. Dentro da baseline, ela só serve ao experimento, que não está ligado a
+   nenhuma skill.
+3. **Ligar a um re-run automático no ship §8.c?** **Não agora.** Os custos são assimétricos e
+   pequenos: um FP gasta um re-run de CI (minutos) antes de voltar ao fix, e um FN deixa a decisão com
+   o agente, como hoje. Mas o ganho medido em falhas reais é zero. Se o
+   `collect-real-failures.ts`, rodado de novo no futuro, mostrar ao menos ~10 casos transitórios reais
+   com sinal no texto, a ligação faria sentido nestes termos: no máximo **um** re-run automático, só
+   para `gh run rerun` (idempotente), só com casamento `estrito+guarda` e registrando a linha casada
+   no status file.
+
+### Limitações
+
+- O conjunto adversarial foi escrito pela mesma pessoa que escreveu os padrões, e a v2 foi ajustada a
+  ele.
+- As falhas reais vêm de 4 repositórios de uma única pessoa (os que tiveram casos com desfecho). Outros
+  ecossistemas e outras infraestruturas de CI têm outras mensagens transitórias.
+- O caso transitório mais comum nos dados reais é o **teste instável**, que nenhuma heurística de
+  texto resolve. Isso exigiria histórico por teste (passou e falhou no mesmo commit), uma informação
+  que o `FailureContext` não carrega.
+
 ## Spikes futuros
 
 - [#556](https://github.com/Tavaressan/Vetor/issues/556) — avaliar `nimble`/`clef` em hardware
