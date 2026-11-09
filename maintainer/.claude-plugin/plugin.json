@@ -1,0 +1,9 @@
+{
+  "name": "vetor-maintainer",
+  "version": "0.1.0",
+  "description": "Ferramentas para quem mantém o Vetor: /vetor-maintainer:retro avalia o uso do plugin na sessão e propõe issues no repositório do Vetor.",
+  "author": { "name": "Vitor Tavares Chaves" },
+  "homepage": "https://github.com/Tavaressan/Vetor",
+  "repository": "https://github.com/Tavaressan/Vetor",
+  "license": "MIT"
+}

@@ -2,10 +2,10 @@
 name: retro
 description: Avalia o uso do Vetor nesta sessão, destaca o que pode ser melhorado no plugin em si (não no projeto do usuário) e propõe issues para o repositório do Vetor, com aprovação antes de criar.
 license: MIT
-compatibility: "Núcleo: ler, editar e rodar shell. Opcional: perguntas (fallback em shared/references/harness-capabilities.md)."
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: perguntas (sem elas, aprovação no chat)."
 metadata:
   author: vitortavares
-  version: "1.0.0"
+  version: "2.0.0"
 ---
 
 Você é o retrospectivo do Vetor. Sua missão é olhar para trás nesta sessão, identificar onde o
@@ -22,34 +22,29 @@ técnica do projeto ou decisões de arquitetura do projeto **não** entram aqui 
 ## Sintaxe
 
 ```
-/vetor:retro
+/vetor-maintainer:retro      (Claude Code, plugin vetor-maintainer)
+/retro                       (demais harnesses, com a skill copiada para a pasta de skills)
 ```
 
-Invocação manual, tipicamente ao final de uma sessão que usou uma ou mais skills do Vetor
+Faz parte do plugin `vetor-maintainer`, separado do plugin principal: só interessa a quem mantém o
+Vetor. Invocação manual, tipicamente ao final de uma sessão que usou uma ou mais skills do Vetor
 (`backlog`, `coordinator`, `guardian`, `worktree-create`, `ship`, `fix`, `issue-worker`).
 
 ---
 
 ## Referências
 
-> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
-> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos
-> `bash`/`deno run`, prefixe o path absoluto desse diretório ao caminho relativo antes de executar —
-> defina uma vez:
->
-> ```bash
-> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
-> ```
->
-> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+Esta skill é autossuficiente: não depende de arquivos do plugin principal.
 
-- `../shared/references/mcp-availability.md` — ao avaliar um achado sobre hooks, slash commands,
-  configuração de MCP, permissões ou SDK de agentes do próprio Claude Code, o MCP `claude-code-docs`
-  é **obrigatório quando disponível** (ver "Documentação do próprio Claude Code
-  (`claude-code-docs`)") antes de afirmar o comportamento esperado da plataforma. Nota: há
-  sobreposição parcial com o agente `claude-code-guide` (dúvidas gerais do usuário sobre o produto)
-  — o `retro` usa o MCP para decisões internas sobre o comportamento do Vetor, não para responder
-  perguntas do usuário sobre o Claude Code em si.
+- **Documentação do próprio Claude Code.** Ao avaliar um achado sobre hooks, slash commands,
+  configuração de MCP, permissões ou SDK de agentes, consulte o MCP `claude-code-docs` (ferramentas
+  `mcp__claude-code-docs__*` ou `mcp__plugin_<plugin>_claude-code-docs__*`) quando ele estiver
+  disponível na sessão, antes de afirmar o comportamento esperado da plataforma. Sem ele, cite a
+  página oficial (`code.claude.com/docs`) e a data da consulta. Nunca conecte um MCP só para sondar.
+- **Aprovação antes de criar.** Use o mecanismo do harness: plan mode com `ExitPlanMode` se a sessão
+  já estiver em plan mode (nunca fora dele), a ferramenta de perguntas (`AskUserQuestion` no Claude
+  Code), `implementation_plan.md` com `request_feedback: true` no Antigravity ou, sem nenhum deles, a
+  lista no chat terminando com "responda `sim` para criar todas, ou diga quais". Pare até a resposta.
 
 ---
 
@@ -103,8 +98,7 @@ precisão.
 ### 3 — Verificar duplicatas no repositório do Vetor
 
 Antes de propor criação, cheque se já existe issue equivalente no repo do Vetor (não no projeto
-atual). Resolva o repo alvo lendo `homepage` (ou `repository`, se presente) de
-`$SKILL_DIR/../../.claude-plugin/plugin.json` — hoje `Tavaressan/Vetor`.
+atual). O repo alvo é sempre `Tavaressan/Vetor`.
 
 Use a CLI `gh`:
 
@@ -116,18 +110,14 @@ Se encontrar equivalente, não proponha criar de novo — anote como "já rastre
 
 ### 4 — Apresentar e aguardar aprovação
 
-Apresente a lista de issues candidatas (após remover duplicatas) e obtenha aprovação seguindo o
-mecanismo do ecossistema atual (`../shared/references/planning-conventions.md` §2.2 — plan mode
-nativo no Claude Code via `ExitPlanMode` se a sessão já estiver em plan mode, ou `AskUserQuestion`
-caso não esteja, `implementation_plan.md` com `request_feedback: true` no Antigravity, ou
-confirmação no chat).
+Apresente a lista de issues candidatas (após remover duplicatas) e obtenha aprovação pelo
+mecanismo descrito em Referências ("Aprovação antes de criar").
 
 **Pare** até a aprovação. O usuário pode aprovar todas, algumas, ou nenhuma.
 
 ### 5 — Criar as issues aprovadas — sempre no repo do Vetor, nunca no do projeto
 
-⚠️ **Restrição crítica:** estas issues vão para o repositório do **plugin** (`Tavaressan/Vetor`,
-lido do `plugin.json`), que quase sempre é diferente do repositório do projeto onde esta sessão está
+⚠️ **Restrição crítica:** estas issues vão para o repositório do **plugin** (`Tavaressan/Vetor`), que quase sempre é diferente do repositório do projeto onde esta sessão está
 rodando. Sempre especifique o repo explicitamente — nunca deixe implícito no diretório atual.
 
 #### 5.a — Política de labels
@@ -195,7 +185,7 @@ Já rastreados (duplicata, não recriado):
 
 - Nunca avalia o código ou as issues do projeto do usuário — só o comportamento do Vetor
 - Nunca cria issues sem aprovação explícita
-- Nunca cria issues no repositório do projeto atual — sempre no repo do Vetor (`plugin.json`)
+- Nunca cria issues no repositório do projeto atual — sempre no repo do Vetor (`Tavaressan/Vetor`)
 - Nunca cria labels no repositório — aplica só a label de tipo existente no repo
 - Não aplica ai-generated — a procedência é mantida pelo rodapé obrigatório
 - O rodapé `🤖 Gerado por /vetor:retro` permanece obrigatório em toda issue criada

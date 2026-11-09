@@ -109,7 +109,8 @@ Ele detecta o runtime do repositório, gera o mapeamento de comandos de teste e 
 | `/vetor:architecture-review [foco]` | Survey de dívida arquitetural via deletion test — sempre manual, nunca `--cron` |
 | `/vetor:design [<diretório>]` | Modo de operação de design, Design Contract e self-correction loop de frontend |
 | `/vetor:stack-practices [--refresh]` | Gera regras de melhores práticas por stack detectada, via Context7 |
-| `/vetor:retro` | Avalia o uso do Vetor na sessão e propõe melhorias no próprio plugin |
+
+> **Para quem mantém o Vetor:** a retrospectiva (`retro`), que avalia o uso do plugin na sessão e propõe issues no repositório do Vetor, fica no plugin separado `vetor-maintainer` (pasta `maintainer/`): `/plugin install vetor-maintainer@vetor` no Claude Code e `/vetor-maintainer:retro`. Instalação nos demais harnesses em [Desenvolvimento](wiki/Desenvolvimento.md#plugin-vetor-maintainer).
 
 > Os nomes antigos /vetor:vetor, /vetor:backlog-ideator, /vetor:issue-coordinator, /vetor:fix-loop-agent e /vetor:worktree-ship continuam disponíveis como aliases de compatibilidade, mas estão deprecados. Use os comandos novos acima.
 

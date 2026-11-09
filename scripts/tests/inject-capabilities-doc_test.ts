@@ -149,7 +149,6 @@ Deno.test("CAPABILITIES_BODY contém todas as skills ativas e nenhum comando dep
     "/vetor:guardian",
     "/vetor:stack-practices",
     "/vetor:architecture-review",
-    "/vetor:retro",
   ];
 
   for (const skill of requiredSkills) {
@@ -159,6 +158,9 @@ Deno.test("CAPABILITIES_BODY contém todas as skills ativas e nenhum comando dep
       `CAPABILITIES_BODY deve conter a skill ${skill}`,
     );
   }
+
+  // retro foi para o plugin vetor-maintainer (issue #581)
+  assertFalse(CAPABILITIES_BODY.includes("/vetor:retro"));
 
   // spec-validate virou `/vetor:spec --validate` (issue #580)
   assertFalse(CAPABILITIES_BODY.includes("/vetor:spec-validate"));

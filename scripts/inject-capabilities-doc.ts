@@ -79,7 +79,6 @@ Automação de ciclo de desenvolvimento (issues → worktrees → fix loop → P
 - \`/vetor:guardian\` (\`guardian\`) — auditoria e auto-fix de integridade (JSONs, migrations, worktrees, status files, containers).
 - \`/vetor:stack-practices\` (\`stack-practices\`) — detecta frameworks da stack e gera regras de melhores práticas (Context7).
 - \`/vetor:architecture-review\` (\`architecture-review\`) — survey de dívida arquitetural, hot spots e deletion test.
-- \`/vetor:retro\` (\`retro\`) — retrospectiva do ciclo de trabalho e proposição de melhorias no plugin.
 - Agentes \`code-review\` e \`issue-worker\` — usados internamente pelos comandos acima.
 
 Detalhes de cada skill: \`skills/<nome>/SKILL.md\` no plugin.`;
