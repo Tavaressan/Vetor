@@ -4,9 +4,11 @@
 // cita (fecho transitivo), separando leitura obrigatória de leitura sob demanda; para cada agent,
 // o corpo mais as skills pré-carregadas via `skills:` no frontmatter.
 //
-// Obrigatória x sob demanda: uma referência é sob demanda quando todo item de lista ou parágrafo
-// que a cita (o frontmatter não conta) tem um gatilho condicional ("quando", "se", "ao", "caso", "só", "somente", "apenas"); citada ao menos
-// uma vez sem gatilho, é obrigatória. Referência citada por uma obrigatória entra pela mesma regra.
+// Obrigatória x sob demanda: obrigatória é a referência listada na seção `## Referências` sem
+// gatilho condicional ("quando", "se", "ao", "caso", "só", "somente", "apenas") no item que a cita;
+// é a lista que o modelo lê ao carregar a skill. Citação no corpo (num passo, numa tabela, numa
+// restrição) só é lida quando o fluxo chega lá, então é sob demanda. Referência listada assim por
+// uma obrigatória entra pela mesma regra.
 //
 // Tokens são estimados por caracteres / 4: servem para comparar versões, não para faturar.
 //
@@ -43,6 +45,7 @@ export interface BudgetConfig {
 
 const CONDITIONAL_RE = /\b(?:quando|se|ao|caso|só|somente|apenas)\b/i;
 const REFERENCE_RE = /([\w./-]*?)([\w-]+\.md)\b/g;
+const REFERENCES_HEADING_RE = /refer[êe]ncias|references/i;
 
 export const estimateTokens = (chars: number) => Math.ceil(chars / 4);
 
@@ -72,15 +75,18 @@ export function citedReferences(
 ): Map<string, boolean> {
   const found = new Map<string, boolean>();
   const citingDir = citingPath.split("/").slice(0, -1).join("/");
-  for (const unit of citationUnits(text)) {
-    const unconditional = !CONDITIONAL_RE.test(unit);
+  for (const { text: unit, inReferences } of sectionedUnits(text)) {
+    const unconditional = inReferences && !CONDITIONAL_RE.test(unit);
     for (const [, prefix, file] of unit.matchAll(REFERENCE_RE)) {
       if (file === "SKILL.md") continue;
-      const candidates = prefix ? [normalize(`${citingDir}/${prefix}${file}`)] : [
-        normalize(`${citingDir}/${file}`),
-        `${skillDir}/references/${file}`,
-        `skills/shared/references/${file}`,
-      ];
+      // Prefixado: relativo ao arquivo citante ou, como as referências declaram, à skill.
+      const candidates = prefix
+        ? [normalize(`${citingDir}/${prefix}${file}`), normalize(`${skillDir}/${prefix}${file}`)]
+        : [
+          normalize(`${citingDir}/${file}`),
+          `${skillDir}/references/${file}`,
+          `skills/shared/references/${file}`,
+        ];
       const resolved = candidates.find((c) =>
         c.startsWith("skills/") && c !== citingPath && exists(`${root}/${c}`)
       );
@@ -96,15 +102,23 @@ export function citedReferences(
  * meio da frase, então o gatilho condicional de uma citação pode estar na linha anterior.
  */
 export function citationUnits(text: string): string[] {
+  return sectionedUnits(text).map((u) => u.text);
+}
+
+/** Como `citationUnits`, marcando as unidades que estão numa seção `## Referências`. */
+function sectionedUnits(text: string): Array<{ text: string; inReferences: boolean }> {
   const body = text.replace(/^---\n[\s\S]*?\n---\n/, "");
-  const units: string[] = [];
+  const units: Array<{ text: string; inReferences: boolean }> = [];
   let current: string[] = [];
+  let inReferences = false;
   const flush = () => {
-    if (current.length > 0) units.push(current.join(" "));
+    if (current.length > 0) units.push({ text: current.join(" "), inReferences });
     current = [];
   };
   for (const line of body.split("\n")) {
     if (line.trim() === "" || /^\s*(?:[-*]|\d+[.)]|#+)\s/.test(line)) flush();
+    const heading = line.match(/^#+\s+(.*)$/);
+    if (heading) inReferences = REFERENCES_HEADING_RE.test(heading[1]);
     if (line.trim() !== "") current.push(line.trim());
   }
   flush();

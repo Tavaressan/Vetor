@@ -989,8 +989,8 @@ cada PR segue para o merge assim que fecha verde, a espera total converge para m
    novo merge** (4 = o PR já está na fila; 5 = já foi mergeado e só refaz o passo de cleanup que falhou
    — worktree, branch ou status — à mão, do root). Só em falha de merge (exit 1/2/3) entre no worktree
    do grupo (`git worktree list`; `/vetor:ship` aborta fora de um worktree) e invoque
-   `/vetor:ship --finalize <PR>`. Se o grupo não tem PR preparado (Pre-Ship indisponível), use o
-   ciclo completo `/vetor:ship <issue#>`, que já re-sincroniza e re-testa.
+   `/vetor:ship --finalize <PR>`. Se o grupo não tem PR preparado (Pre-Ship indisponível), rode
+   `/vetor:ship --prepare <issue#>` no worktree e, com `PR_STAGED` e o CI verde, o `finalize`.
 3. Após merge bem-sucedido, atualize a tabela. Um PR **enfileirado** (merge queue/auto-merge, exit 4 do
    `vetor-merge.sh`) não é merge: registre `Enfileirado`, não rode sync-root nem cleanup e siga para o
    próximo grupo sem esperar a fila. Para grupos de spike/investigação, o `/vetor:ship` segue o caminho de PR só de docs (#427). A decisão decorrente do spike continua humana — issues de follow-up não são criadas automaticamente.

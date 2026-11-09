@@ -104,7 +104,7 @@ Ele detecta o runtime do repositório, gera o mapeamento de comandos de teste e 
 | `/vetor:coordinator [label] [--headless]` | Despacho paralelo de issues para sub-agentes isolados, com merge serializado |
 | `/vetor:worktree-create <type> <slug> [issue#]` | Cria worktree isolado, headless |
 | `/vetor:fix <descrição>` | Loop autônomo reproduce → fix → rebuild → test (máx. 5 iterações) |
-| `/vetor:ship [issue#]` | Pipeline: test → push → PR draft → CI → code review → merge → cleanup |
+| `/vetor:ship --prepare [issue#]` · `--finalize <PR>` | Entrega em duas etapas: test → push → PR draft → code review; depois CI → merge → cleanup |
 | `/vetor:guardian [--cron]` | Audit + auto-fix de gaps que o pre-commit não cobre |
 | `/vetor:architecture-review [foco]` | Survey de dívida arquitetural via deletion test — sempre manual, nunca `--cron` |
 | `/vetor:design [<diretório>]` | Modo de operação de design, Design Contract e self-correction loop de frontend |
@@ -129,7 +129,9 @@ Ele detecta o runtime do repositório, gera o mapeamento de comandos de teste e 
 /vetor:worktree-create fix auth-bug 42
 # (desenvolve normalmente)
 /vetor:fix testes falhando
-/vetor:ship 42
+/vetor:ship --prepare 42
+# (CI verde)
+/vetor:ship --finalize <PR>
 ```
 
 > Para rodar o `/vetor:coordinator` com dispatch em background é preciso o modo de permissões autônomo — ver [Configuração › Permissões](wiki/Configuracao.md#permissões).

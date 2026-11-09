@@ -18,7 +18,8 @@
 #   migrations                 exit 1 se há versões de migration duplicadas (convenção Flyway)
 #   debug-scan <base-branch>   exit 1 se o diff vs. a base contém padrões de debug/teste exclusivo
 #   validate-issue-ref <valor> exit 1 se valor não for inteiro positivo; exit 0 caso contrário
-#   validate-ship-args [args]  valida e parseia flags do /vetor:ship (--prepare, --finalize, legado)
+#   validate-ship-args [args]  valida e parseia flags do /vetor:ship (--prepare, --finalize); sem flag
+#                               sai com 2 (o modo sequencial legado foi removido, #571)
 #   check-disjoint <candidata> <outra>...  compara a branch candidata com cada uma das outras da onda
 #                               (cache de arquivos tocados, ou git diff se ausente): DISJOINT exit 0 |
 #                               uma linha OVERLAP por branch que sobrepõe, exit 1 | exit 2 = dados
@@ -453,13 +454,13 @@ case "$cmd" in
 
   validate-ship-args)
     shift
-    mode="full"
+    mode=""
     target=""
 
     while [ $# -gt 0 ]; do
       case "$1" in
         --prepare)
-          if [ "$mode" != "full" ]; then
+          if [ -n "$mode" ]; then
             echo "ERRO: flags conflitantes no ship (--prepare e --finalize não podem ser usadas juntas)" >&2
             exit 1
           fi
@@ -467,7 +468,7 @@ case "$cmd" in
           shift
           ;;
         --finalize)
-          if [ "$mode" != "full" ]; then
+          if [ -n "$mode" ]; then
             echo "ERRO: flags conflitantes no ship (--prepare e --finalize não podem ser usadas juntas)" >&2
             exit 1
           fi
@@ -494,6 +495,11 @@ case "$cmd" in
           ;;
       esac
     done
+
+    if [ -z "$mode" ]; then
+      echo "ERRO: /vetor:ship exige --prepare [issue#] ou --finalize <PR-number>; o modo sequencial sem flag foi removido (rode --prepare e, com o CI verde, --finalize)" >&2
+      exit 2
+    fi
 
     if [ "$mode" = "finalize" ]; then
       if ! [[ "$target" =~ ^[1-9][0-9]*$ ]]; then
