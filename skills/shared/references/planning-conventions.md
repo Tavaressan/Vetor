@@ -75,7 +75,9 @@ código de produto**. Para elas:
 #### Fallback para ecossistemas sem mecanismo nativo
 
 Em ecossistemas sem nenhum dos dois mecanismos acima, exiba o plano no chat e aguarde uma resposta
-textual afirmativa do usuário (ex.: "sim", "prosseguir") antes de prosseguir com a execução.
+textual afirmativa do usuário (ex.: "sim", "prosseguir") antes de prosseguir com a execução. Os
+fallbacks das demais capacidades opcionais (subagentes, hooks, isolamento de worktree, perguntas,
+background e agendamento) estão em `harness-capabilities.md`.
 
 ---
 

@@ -2,7 +2,7 @@
 name: spec-validate
 description: Valida a qualidade de uma Spec (RF/RNF, Acceptance Criteria, Non-Goals, Edge Cases) contra o Quality Model do Vetor — score 0-100 ponderado por dimensão e Quality Gate (READY/NEEDS_REFINEMENT/INCOMPLETE) — e reporta Strengths/Gaps/Suggestions.
 license: MIT
-compatibility: Claude Code, OpenCode, Codex, Antigravity
+compatibility: "Núcleo: ler, editar e rodar shell. Sem capacidade opcional."
 metadata:
   author: vitortavares
   version: "1.0.0"

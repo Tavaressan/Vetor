@@ -2,7 +2,7 @@
 name: retro
 description: Avalia o uso do Vetor nesta sessão, destaca o que pode ser melhorado no plugin em si (não no projeto do usuário) e propõe issues para o repositório do Vetor, com aprovação antes de criar.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: perguntas (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
   version: "1.0.0"

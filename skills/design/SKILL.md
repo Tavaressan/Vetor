@@ -2,7 +2,7 @@
 name: design
 description: Skill de design do Vetor — (1) detecta o modo de operação (Prototype-first/System-first/Vetor-first #213), importa um Design System existente sem duplicá-lo e mantém a Design Direction persistente em .vetor/design/; (2) Handoff de protótipo para Design Contract, com estados de interface além do happy path (#229); (3) Frontend Self-Correction Loop (Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done) com Visual Critique em 10 dimensões e degradação graciosa sem MCP de browser. Consumida por issue-worker/fix ao implementar ou corrigir UI de frontend.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Sem capacidade opcional."
 metadata:
   author: vitortavares
   version: "1.2.0"
