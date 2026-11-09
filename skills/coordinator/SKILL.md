@@ -619,11 +619,23 @@ confirmação.
 |---|------|--------|--------|
 | 1 | Teto de workers | `<N_rec> (Recommended)` · `1 — serializado` · `<maxConcurrentWorkers>` | `N_rec`; o item some quando `N_rec = 1` |
 | 2 | Sinalização de Specs | `Despachar com micro-spec JIT (Recommended)` · `Despachar mesmo assim — ⚠️ sem Spec` · `Gerar Spec antes (/vetor:spec) — sai da leva` | Micro-spec JIT; o item some quando nenhuma issue foi sinalizada |
-| 3 | Estratégia de entrega | `Pre-Ship paralelo + merge serializado (Recommended)` · `Parar em GREEN — sem entrega nesta sessão` | Fase 6 como descrita abaixo |
+| 3 | Estratégia de entrega e autorização de merge | `Pre-Ship paralelo + merge serializado — merges autorizados (Recommended)` · `Pre-Ship paralelo + confirmar cada merge` · `Só deixar os PRs prontos — sem merge` · `Parar em GREEN — sem entrega nesta sessão` | Fase 6 como descrita abaixo |
 | 4 | Aprovação do plano | `Aprovar o plano com as decisões acima (Recommended)` · `Ajustar` | Aprovar |
 
-O item 3 só decide se a Fase 6 roda: `Parar em GREEN` pula a Fase 6 (mesmo efeito do `--headless` sem
-opt-in: os grupos `GREEN` entram no relatório como prontos para ship, com branch e path do worktree).
+O item 3 decide se a Fase 6 roda e até onde ela vai, e a resposta é a **autorização de merge da
+sessão**:
+
+- `merges autorizados`: a Fase 6 mergeia cada PR verde sem nova pergunta.
+- `confirmar cada merge`: a Fase 6 pergunta antes de cada merge (6.c).
+- `Só deixar os PRs prontos`: a Fase 6 roda 6.a e 6.b e para antes do 6.c. Os PRs com CI verde entram no
+  relatório como prontos para merge.
+- `Parar em GREEN`: pula a Fase 6 (mesmo efeito do `--headless` sem opt-in: os grupos `GREEN` entram
+  no relatório como prontos para ship, com branch e path do worktree).
+
+A pergunta existe porque a camada de permissões do harness pode negar um merge que não tenha
+autorização explícita na conversa (no Claude Code, o classificador do auto mode nega com o motivo
+"Merge Without Review", issue #13 e `ship` §10). Perguntar na largada evita descobrir a negação no
+ponto mais adiantado da entrega, com CI e revisão já concluídos.
 
 Apresente o pacote conforme o ecossistema:
 
@@ -649,8 +661,8 @@ Regras do pacote:
   leva), reapresente o plano ajustado; essa rodada extra é consequência da mudança, não do setup.
 - **Em `--headless`: não há entrevista.** Adota-se o `(Recommended)` de cada item sem perguntar:
   item 1 = `N_rec`; item 2 = despachar com micro-spec JIT e `⚠️ sem Spec associada`; item 3 = a regra do headless (só
-  há entrega com `--auto-ship`/`autoShipHeadless`, Fase 6.d); item 4 = sem aprovação, o plano vai ao
-  relatório.
+  há entrega com `--auto-ship`/`autoShipHeadless`, Fase 6.d, e o opt-in é a autorização de merge);
+  item 4 = sem aprovação, o plano vai ao relatório.
 
 #### Obtenção de aprovação
 
@@ -881,7 +893,7 @@ do worktree não depende de a branch estar no remoto.
 ⚠️ **Em `--headless` esta fase só roda com `--auto-ship` ou `autoShipHeadless: true`** (6.d). Sem eles
 é pulada: liste os grupos `GREEN` no relatório final com branch e path do worktree, e encerre. O mesmo
 vale na sessão interativa em que o usuário escolheu `Parar em GREEN` no item 3 da entrevista
-consolidada da Fase 2.
+consolidada da Fase 2. Com `Só deixar os PRs prontos`, rode 6.a e 6.b e pare antes do 6.c.
 
 A entrega tem dois estágios (Spec `docs/specs/pipeline-ship-e-delegacao-eficiente.md`, RF-01 e
 RF-02). O **Pre-Ship** (`/vetor:ship --prepare`: testes locais, push, PR draft, CI e revisões em
@@ -978,6 +990,22 @@ cada PR segue para o merge assim que fecha verde, a espera total converge para m
    próximo grupo sem esperar a fila. Para grupos de spike/investigação, o `/vetor:ship` segue o caminho de PR só de docs (#427). A decisão decorrente do spike continua humana — issues de follow-up não são criadas automaticamente.
 
 Se o `ship` falhar (CI vermelho, review required), marque na tabela e continue com os outros.
+
+**Autorização de merge (issue #560).** Antes do `finalize` de cada PR, aplique a resposta do item 3
+da entrevista consolidada:
+
+- `merges autorizados`: ao rodar o merge, cite a autorização na mesma mensagem (por exemplo,
+  "merge do PR #<N> autorizado pelo usuário na aprovação do plano"), para que a camada de permissões
+  do harness a encontre na conversa.
+- `confirmar cada merge`: pergunte antes de cada PR, com a ferramenta de perguntas do harness ou
+  no chat quando ela não existir. Recusa deixa o PR aberto e registrado como pronto para merge.
+
+**Negação mesmo com autorização.** Se a camada de permissões negar o merge (no Claude Code, o
+classificador do auto mode, motivo "Merge Without Review"; issue #13, `ship` §10), não contorne a
+negação nem aborte os outros grupos. Pergunte **uma única vez** na sessão, com a lista dos PRs ainda
+não mergeados ("mergear todos os restantes", "um a um" ou "deixar abertos"), e siga com a resposta.
+Nova negação depois do "sim" deixa aquele PR aberto, registrado como `Merge negado pelo harness`, e o
+coordinator segue para o próximo grupo. Em `--headless`, não há pergunta: vale a regra do 6.d.
 
 **6.d — Entrega autônoma em `--headless` (issue #497).** Só com `--auto-ship` ou
 `autoShipHeadless: true` em `.claude/vetor/config.json` (lido a partir do root do repositório), em

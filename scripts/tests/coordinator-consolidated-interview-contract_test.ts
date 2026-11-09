@@ -96,3 +96,20 @@ Deno.test("issue #499: o espelho OpenCode registra a entrevista como uma mensage
     "o agent fino do OpenCode deve ficar abaixo de 150 linhas",
   );
 });
+
+Deno.test("issue #560: o item 3 pede a autorização de merge com as três opções de entrega", () => {
+  const row = interview.split("\n").find((line) => line.startsWith("| 3 |"));
+  assert(row, "linha do item 3 ausente na entrevista consolidada");
+  const options = row.split("|")[3].split("·").map((option) => option.trim());
+  assertMatch(options[0], /merges autorizados[^`]*\(Recommended\)/);
+  assertMatch(options[1], /confirmar cada merge/);
+  assertMatch(options[2], /sem merge/);
+  assertMatch(options[3], /Parar em GREEN/);
+});
+
+Deno.test("issue #560: a Fase 6 trata a negação do merge com uma única pergunta", () => {
+  const phase6 = slice(coordinatorSkill, "### 6 — ", "### 7 — ");
+  assertMatch(phase6, /Negação mesmo com autorização/);
+  assertMatch(phase6, /uma única vez/);
+  assertMatch(phase6, /`ship` §10/);
+});
