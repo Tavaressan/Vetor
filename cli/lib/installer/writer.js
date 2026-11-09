@@ -451,9 +451,16 @@ function writeManaged({ destFile, manifestKey, contentHash, write, engineId, man
 // Cursor (#396, ver wiki/Compatibilidade-Cursor.md): `cursor.com/docs/subagents` (consultada em
 // 2026-10-15) lista só `inherit` ou um ID específico para `model` no frontmatter de `.cursor/agents/*.md`,
 // enquanto os `agents/*.md` da fonte usam os aliases `haiku`/`sonnet` do Claude Code.
+// Issue #576: campos exclusivos do Claude Code que a documentação do Cursor não lista (`maxTurns`)
+// saem da cópia do Cursor; o comportamento sem eles continua correto (wiki/Contrato-de-Capacidades.md).
+const CLAUDE_ONLY_AGENT_FIELDS = ['maxTurns'];
+
 function translateAgentForCursor(content) {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---/, (frontmatter) =>
-    frontmatter.replace(/^model:[ \t]*(?:haiku|sonnet)(?=\r?$)/gm, 'model: inherit'),
+    CLAUDE_ONLY_AGENT_FIELDS.reduce(
+      (fm, field) => fm.replace(new RegExp(`^${field}:.*\\r?\\n`, 'gm'), ''),
+      frontmatter.replace(/^model:[ \t]*(?:haiku|sonnet)(?=\r?$)/gm, 'model: inherit'),
+    ),
   );
 }
 

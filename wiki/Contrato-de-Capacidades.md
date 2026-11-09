@@ -42,3 +42,22 @@ numa dessas páginas, com fonte e data.
 O `compatibility` do frontmatter segue esta matriz: diz que a skill exige só o núcleo e lista as
 capacidades opcionais que ela usa quando existem. O fallback de cada uma está na referência citada
 acima.
+
+## Campos opcionais de frontmatter por engine
+
+Campos do Claude Code que reduzem custo ou risco entram só como otimização: o comportamento sem eles
+continua correto em todos os harnesses (issue #576). Fontes consultadas em 2026-11-09:
+https://code.claude.com/docs/en/skills.md, https://code.claude.com/docs/en/sub-agents.md e
+https://code.claude.com/docs/en/plugins/components.md.
+
+| Campo | Avaliado para | Decisão | Motivo |
+| --- | --- | --- | --- |
+| `disable-model-invocation: true` (skill) | `ship`, `coordinator`, `install`, `guardian` | não adotado | Além de tirar a descrição do contexto, impede o modelo de invocar a skill, o pré-carregamento em subagentes e a execução por tarefa agendada. O `/vetor:now` encaminha para `coordinator` e `install` pelo modelo; o Pre-Ship de fallback roda `/vetor:ship --prepare` dentro de um subagente; `coordinator --headless` e `guardian --cron` existem para rotinas agendadas. |
+| `context: fork` (skill) | `guardian`, `architecture-review`, validação de Spec | não adotado | O fork roda a skill num subagente sem o histórico e sem conversa com o usuário. O `guardian` pede aprovação antes de corrigir, o `architecture-review` pergunta qual candidato aprofundar, e a validação virou o modo `/vetor:spec --validate` (#580), que roda um CLI determinístico e barato. |
+| `maxTurns` (agent) | `issue-worker` | **adotado: 120** | Dá teto real ao orçamento de 5 iterações do `fix` (#156). Ao atingir o limite, o Claude Code devolve saída parcial; o status fica não terminal e o coordinator reconcilia pela Fase 5.g. Calibração no comentário do frontmatter de `agents/issue-worker.md`. |
+
+Nos outros harnesses: o `agy plugin validate` aceita `maxTurns` no agent (verificado em
+2026-11-09); o instalador o remove da cópia do Cursor, cuja documentação não lista o campo; o Codex
+usa `agents/issue-worker/codex.toml`, sem equivalente, e o OpenCode tem o próprio
+`opencode/agent/issue-worker.md`. Em todos eles o orçamento continua sendo o sugerido pelo `fix`.
+

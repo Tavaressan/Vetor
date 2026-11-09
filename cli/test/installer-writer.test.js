@@ -943,7 +943,7 @@ test('installFiles: grava "model: inherit" em .cursor/agents/*.md no lugar de ha
     try {
       fs.writeFileSync(
         path.join(sourceRoot, 'agents', 'issue-worker.md'),
-        '---\nname: issue-worker\nmodel: haiku\nisolation: worktree\n---\n\nCorpo do worker.\n',
+        '---\nname: issue-worker\nmodel: haiku\nmaxTurns: 120\nisolation: worktree\n---\n\nCorpo do worker.\n',
       );
       fs.writeFileSync(
         path.join(sourceRoot, 'agents', 'code-review.md'),
@@ -968,6 +968,10 @@ test('installFiles: grava "model: inherit" em .cursor/agents/*.md no lugar de ha
       assert.doesNotMatch(fs.readFileSync(cursorWorkerDest, 'utf8'), /^model: haiku$/m);
       assert.match(fs.readFileSync(cursorReviewDest, 'utf8'), /^model: inherit$/m);
       assert.doesNotMatch(fs.readFileSync(cursorReviewDest, 'utf8'), /^model: sonnet$/m);
+
+      // Issue #576: maxTurns é só do Claude Code e sai da cópia do Cursor.
+      assert.doesNotMatch(fs.readFileSync(cursorWorkerDest, 'utf8'), /^maxTurns:/m);
+      assert.match(fs.readFileSync(claudeWorkerDest, 'utf8'), /^maxTurns: 120$/m);
 
       // As cópias do Claude Code ficam como estão.
       assert.match(fs.readFileSync(claudeWorkerDest, 'utf8'), /^model: haiku$/m);

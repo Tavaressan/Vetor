@@ -9,6 +9,13 @@ description: Implementa uma issue GitHub isolada dentro de um worktree já criad
 # as entradas não resolvem, o que só impede o lançamento se nenhuma entrada da lista resolver.
 tools: [Bash, Read, Write, Edit, Grep, Glob, Skill, mcp__ai-memory__memory_query, mcp__ai-memory__memory_read_page, mcp__ai-memory__memory_write_page]
 model: inherit
+# maxTurns (issue #576): teto real do orçamento do `fix` (5 iterações, #156), que antes era só sugerido.
+# Conta turnos do agente, não iterações. Calibração: ~15 turnos de largada (status inaugural, issue,
+# exploração, teste de reprodução) + ~10 por iteração (teste, leitura do erro, edição, commit, status)
+# x 5 + ~6 de fechamento (suíte, GREEN com Tested:, verify-status, memória) ≈ 71; 120 dá folga de ~1,7x.
+# Ao atingir o teto o Claude Code devolve saída parcial e o status fica não terminal: o coordinator
+# reconcilia pela 5.g. Recalibre com transcripts reais se workers verdes baterem no teto.
+maxTurns: 120
 skills: [fix]
 isolation: worktree
 license: MIT
