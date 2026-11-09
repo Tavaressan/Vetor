@@ -5,13 +5,11 @@ license: MIT
 compatibility: "Núcleo: ler, editar e rodar shell. Opcional: perguntas, agendamento (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
-  version: "1.4.1"
+  version: "2.0.0"
 ---
 
-Você é o guardião do Vetor. Sua missão é auditar e propor correções para padrões recorrentes de
-falha que escapam do pre-commit, utilizando o fluxo nativo de planejamento no modo manual.
-
----
+Você é o guardião do Vetor. A auditoria é um script determinístico e somente leitura; seu papel é
+apresentar o resultado, propor as correções e aplicar só as aprovadas.
 
 ## Sintaxe
 
@@ -19,241 +17,67 @@ falha que escapam do pre-commit, utilizando o fluxo nativo de planejamento no mo
 /vetor:guardian [--cron]
 ```
 
-- Sem flags: modo manual — audita, propõe auto-fixes no plano de execução (`implementation_plan.md`)
-  e os aplica após o "Proceed" do usuário.
-- `--cron`: modo report-only — zero writes, zero `pre-commit run`; findings reportados via
-  `SendMessage`
-
----
+- Sem flags: modo manual — audita, propõe correções e aplica as aprovadas.
+- `--cron`: só relata; nenhuma escrita, nenhuma mutação de git ou GitHub.
 
 ## Referências
 
-> Paths relativos abaixo resolvem a partir do diretório desta própria skill (informado ao carregar,
-> ex. "Base directory for this skill: ..."), não do `cwd` de execução. Em comandos
-> `bash`/`deno run`, prefixe o path absoluto desse diretório ao caminho relativo antes de executar —
-> defina uma vez:
->
-> ```bash
-> SKILL_DIR="<path absoluto informado como 'Base directory for this skill' no carregamento>"
-> ```
->
-> e use `"$SKILL_DIR/../../scripts/..."` em todo comando abaixo, nunca o path relativo isolado.
+Resolva os paths a partir do diretório desta skill (`SKILL_DIR`, informado no carregamento) e use
+`"$SKILL_DIR/../../scripts/..."` nos comandos.
 
-- `../shared/references/delegate-to-runtime.md` — uso opcional de um runtime externo disponível
-  (Gemini/OpenCode/Codex) para auditar a listagem de migrations (§4.7) e rascunhar o relatório
-  final. Você valida o rascunho antes de apresentá-lo.
-- `../shared/references/mcp-availability.md` — detecção de MCPs (§7, §8). Se a auditoria exigir
-  consultar comportamento de uma ferramenta/lib/framework/API externa (ex.: semântica de uma flag do
-  Docker, driver de banco), o MCP Context7 é **obrigatório quando disponível** (ver "Documentação de
-  ferramentas/libs (Context7)").
-- `../shared/references/codebase-design-vocabulary.md` — vocabulário de "fan-in"/"deletion test"
-  usado pelo Check 9.
-- `../shared/references/project-conventions.md` — resolução do `module-test-map.md` a partir do
-  repo-root, consumida pelo Check 9 (§9).
+- `references/database.md` — só se a sessão tiver um MCP de banco (check 7).
+- `../shared/references/codebase-design-vocabulary.md` — só ao redigir a issue de revisão de design
+  do check 9 ("fan-in", "deletion test").
 
----
+## Divisão com o pre-commit
 
-## Divisão de responsabilidades com o pre-commit
+Se o projeto tiver `.pre-commit-config.yaml`, ele já cobre formatação, lint e secret-scanning dos
+arquivos staged: o guardian não reimplementa nada disso e, para formatação, delega a
+`pre-commit run --all-files` (só no modo manual). O guardian olha o estado do repositório inteiro:
+worktrees, migrations, status files, PRs de bots.
 
-Se o projeto tiver `.pre-commit-config.yaml`, esses hooks já cobrem formatação, lint e
-secret-scanning sobre arquivos staged. O guardian **não reimplementa** nenhum check que o pre-commit
-já faça. Ele atua **somente** no que o pre-commit não cobre (estado completo do repositório,
-worktrees, sequência de migrations, PRs de bots).
-
-Se não houver `.pre-commit-config.yaml`, o guardian roda apenas seus próprios checks abaixo.
-
----
-
-## Checks
-
-### 1 — JSON validity
-
-Escaneie `.claude/` e quaisquer diretórios de config presentes (ex.: `.reversa/` se existir):
+## 1 — Auditoria
 
 ```bash
-find .claude/ $( [ -d .reversa ] && echo .reversa/ ) -name "*.json" -not -path ".claude/worktrees/*" -exec python3 -m json.tool {} \; 2>&1
+deno run -A "$SKILL_DIR/../../scripts/guardian-audit.ts" --format json
 ```
 
-**Finding:** JSON inválido em `<path>` **Auto-fix (modo manual):** reescreve com `jq` se o erro for
-trivial (trailing comma, encoding). Confirma antes de sobrescrever.
+Rode no repo-root. Exit 0 = nada encontrado; 1 = há achados. Cada check traz `status` (`ok`,
+`finding`, `skipped`, `error`), `findings` (com `message`, `path` e, quando houver, `fix`) e `detail`.
+Checks: JSON inválido em `.claude/` e `.reversa/`; sequência de migrations (buraco, duplicata, nome
+fora de `V<N>__<descrição>.sql`); worktrees fora de `.claude/worktrees/`; diretórios residuais em
+`.claude/worktrees/`; auditoria de worktrees (idade, PR, trabalho não commitado, commits fora do
+remoto); status files órfãos; PRs do Dependabot com rebase pendente; containers Docker do projeto
+fora de `running`/`healthy` (via `docker ps`, sem MCP); risco arquitetural (fan-in dos módulos
+tocados em 7 dias); frescor da cartografia Graphify; saúde do servidor ai-memory; regras de
+best-practices com mais de 90 dias.
 
-### 2 — Sequência de migrations (condicional)
+**Check 7 — banco de dados:** só se houver um MCP de banco na sessão (`mcp__<db>__*` ou
+`mcp__plugin_<plugin>_<db>__*`); leia `references/database.md`. Sem ele, ignore.
 
-Só execute se o projeto tiver migrations versionadas:
+Nunca invente um achado fora do que o script e o check 7 reportaram.
 
-```bash
-MIGRATIONS_DIR=$(find . -type d -path '*/db/migration' -not -path './.claude/worktrees/*' 2>/dev/null | head -1)
-```
+## 2 — Plano de correções (modo manual)
 
-Se nada for encontrado, reporte "skipped (no migrations dir)" e siga adiante.
+Liste os achados com `fix` como ações propostas e os demais como alertas de ação manual. A aprovação
+usa o mecanismo do harness: plan mode ou `implementation_plan.md` com `request_feedback: true`
+(`../shared/references/planning-conventions.md` §2.2), a ferramenta de perguntas, ou o fallback do
+chat (`../shared/references/harness-capabilities.md` §2.4). **Pare** até a resposta e aplique só o
+que foi aprovado. Achado sem `fix` (migrations, worktree fora do padrão, trabalho não commitado,
+diretório residual, container, Graphify, ai-memory, best-practices) nunca é corrigido sozinho.
 
-Se encontrado, verifique a sequência **completa** (ex.: convenção Flyway `V<N>__<descrição>.sql`):
+## 3 — Aplicar as correções aprovadas
 
-```bash
-# duplicatas de versão — mecanismo compartilhado com o ship §2.b
-bash "$SKILL_DIR/../../scripts/vetor-checks.sh" migrations
-ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
-```
-
-Analise a listagem para buracos de versão (ex.: V3 → V5 sem V4) e naming inválido — duplicatas já
-são cobertas pelo script. A análise da listagem pode ser delegada a um runtime disponível (ver
-`delegate-tasks.md` §4.7).
-
-**Finding:** buraco de versão, duplicata ou naming inválido **Auto-fix:** nenhum — apenas reporta.
-Migrations são domínio do desenvolvedor.
-
-### 3 — Worktrees fora de `.claude/worktrees/`
-
-```bash
-git worktree list
-```
-
-**Finding:** worktree em `<path>` fora do diretório padrão **Auto-fix:** nenhum — apenas reporta
-para o usuário decidir.
-
-### 3.b — Diretórios residuais em `.claude/worktrees/` (issue #157)
-
-`git worktree remove` DESREGISTRA o worktree do git e só então tenta apagar o diretório. Quando essa
-exclusão falha parcialmente (no Windows, tipicamente `Filename too long` por artefatos de build como
-`build/`, `.gradle/`, `node_modules/`), sobra um diretório que o `git worktree list` não conhece
-mais e nenhuma outra checagem detecta.
-
-```bash
-comm -23 <(find .claude/worktrees -mindepth 1 -maxdepth 1 -type d | sort) \
-  <(git worktree list --porcelain | grep '^worktree ' | sed 's/^worktree //' | sort)
-```
-
-**Finding:** diretório em `<path>` presente em `.claude/worktrees/` mas ausente de
-`git worktree
-list` — resíduo de remoção parcial. **Auto-fix:** nenhum — apenas reporta. Pode conter
-uncommitted work relevante; a remoção exige inspeção manual do operador antes de apagar.
-
-### 4 — Auditoria de worktrees (idade, tamanho, PR, uncommitted)
-
-Responde "o que sobrou e por quê?" — o cleanup do `ship` (passo 12) só roda no caminho feliz;
-execuções que falham no CI, ficam em revisão ou são abandonadas deixam worktree órfão.
-
-```bash
-bash "$SKILL_DIR/../../scripts/vetor-checks.sh" worktree-audit
-```
-
-Cada linha vem como `<path>|<branch>|<age_days>|<size_kb>|<uncommitted:yes/no>` (`age_days` medido
-do último commit, proxy de staleness). Cruze a `<branch>` com o status do PR:
-
-```bash
-gh pr list --state all --json headRefName,number,state
-```
-
-Monte a tabela de auditoria:
-
-| Worktree | Branch     | Idade  | Tamanho             | PR                                        | Uncommitted |
-| -------- | ---------- | ------ | ------------------- | ----------------------------------------- | ----------- |
-| `<path>` | `<branch>` | `<N>d` | `<tamanho legível>` | `#<N> (OPEN\|MERGED\|CLOSED)` ou "sem PR" | ✅/⚠️       |
-
-**Finding:** worktree com idade > 7 dias, sem PR aberto e sem trabalho pendente — candidata a
-remoção segura. **Finding:** worktree com `uncommitted=yes` — nunca remover automaticamente.
-**Auto-fix (modo manual):** para candidatas seguras (`uncommitted=no` **e** PR ausente ou já
-`MERGED`/`CLOSED`), propõe no plano
-`bash "$SKILL_DIR/../../scripts/vetor-checks.sh"
-safe-remove-worktree <path>` — nunca `--force`, e
-nunca sobre worktree com `uncommitted=yes` ou branch com commits ausentes no remoto
-(`git log origin/<branch>..<branch>` não vazio → não propõe). Aplica somente após aprovação
-explícita.
-
-### 5 — Reconciliação de status files órfãos
-
-Arquivos em `.claude/vetor/status/` sobrevivem à remoção do worktree que os gerou.
-
-```bash
-bash "$SKILL_DIR/../../scripts/vetor-checks.sh" find-orphan-status
-```
-
-O script já confirma que o worktree correspondente não existe mais em `git worktree list`.
-
-**Finding:** status file órfão em `<path>` (worktree removido) **Auto-fix (modo manual):** propõe
-`bash "$SKILL_DIR/../../scripts/vetor-checks.sh"
-archive-orphan-status <path>` — move para
-`.claude/vetor/status/archive/` (não apaga; reversível). Aplica somente após aprovação explícita.
-
-### 6 — PRs Dependabot com rebase pendente
-
-```bash
-gh pr list --author "app/dependabot" --state open
-gh pr view <N> --json mergeable,mergeStateStatus
-```
-
-**Finding:** PR Dependabot #<N> com merge conflict / needs rebase **Auto-fix (modo manual):**
-registra a proposta no plano (`gh pr comment <N> --body-file <arquivo>`, com o texto `@dependabot rebase` gravado via Write).
-
-### 7 — Auditoria de Banco de Dados (via MCP)
-
-Verifique disponibilidade de um MCP de banco (prefixo standalone `mcp__<db>__*` ou empacotado em
-plugin `mcp__plugin_<plugin>_<db>__*`, conforme `scripts/lib/mcp.ts` — o nome do servidor varia). Se
-não houver, ignore este check. Se houver, audite a saúde estrutural (adapte ao dialeto):
-
-- Índices não utilizados.
-- Tabelas sem chave primária ou índices.
-- Constraints violadas ou chaves estrangeiras não indexadas.
-
-Se o stack for identificável (`mcp__planetscale__*`, `mcp__postgres__*`, `mcp__mysql__*`, ou
-`DATABASE_URL`/`.env` com dialeto claro), aprofunde:
-
-- **Index-aware:** cruze colunas usadas em `WHERE`/`JOIN`/`ORDER BY` (se o MCP expuser queries
-  frequentes) contra os índices existentes.
-- **N+1:** se houver log/histórico de queries, procure a mesma query parametrizada repetida em
-  sequência curta.
-- **PlanetScale:** aponte migrations de schema pendentes de deploy (branch de schema não mergeada).
-
-**Finding:** <detalhes da anomalia encontrada> **Auto-fix:** nenhum — apenas reporta.
-
-### 8 — Auditoria de Saúde de Containers Docker (via MCP)
-
-Verifique disponibilidade de um MCP Docker (`mcp__docker__*` ou `mcp__plugin_<plugin>_docker__*`,
-diretas ou diferidas — sem casar gateways como `mcp__MCP_DOCKER__`, conforme `scripts/lib/mcp.ts`).
-Se não houver, ignore silenciosamente.
-
-Se disponível, liste os containers do projeto (equivalente a `docker ps`/`docker inspect`) e
-identifique quais **não** estão `running`/`healthy` (ex.: `exited`, `restarting`, `unhealthy`).
-
-**Finding:** container `<nome>` em estado `<status>` (esperado: running/healthy) **Auto-fix:**
-nenhum — apenas reporta. Este check não valida especificidades de stack, apenas o estado do
-container.
-
-### 9 — Risco arquitetural (deletion test)
-
-Sinal contínuo de dívida arquitetural, não reativo a uma deleção pontual: mede o fan-in (quantos
-outros arquivos importam) dos módulos **tocados nos últimos 7 dias**, como proxy do "deletion test"
-(Feathers/Pocock) — um módulo bem desenhado pode ser deletado e refeito sem espalhar mudança.
-Read-only e barato (nunca cria/aplica fix de código). Vocabulário de "fan-in"/"deletion test"
-definido em `../shared/references/codebase-design-vocabulary.md` §Princípios (compartilhado com
-`architecture-review`, survey mais profundo e qualitativo — este check é só a heurística barata de
-contagem).
-
-```bash
-bash "$SKILL_DIR/../../scripts/vetor-checks.sh" architectural-risk
-```
-
-O script resolve os módulos tocados via `git log --since="7 days ago" --name-only`, mapeados pela
-tabela "Detecção de módulo por arquivos alterados" do `module-test-map.md` (mesma resolução usada
-por `fix` — sempre a partir do repo-root, nunca do `cwd`, ver `project-conventions.md`). Para cada
-módulo tocado, mede fan-in via `grep -rlE "(import|require).*['\"].*<módulo>"` (heurística textual,
-sem AST). Emite uma linha por módulo: `<módulo>|<fan-in>|<candidate:yes/no>` — `candidate=yes`
-quando fan-in > 10 (heurística ajustável, **não** é hard cap — mesmo espírito das heurísticas de
-`code-review`). Nenhum módulo tocado nos últimos 7 dias → sem saída, reporte "skipped (nenhum módulo
-tocado nos últimos 7 dias)".
-
-**Finding:** módulo `<nome>` com fan-in alto (`<N>` arquivos importam diretamente) — candidato a
-revisão de design (deletion test: dificilmente removível/refazível sem espalhar mudança). **Auto-fix
-(modo manual):** propõe no plano "Criar issue de revisão de design para `<módulo>`" — só executa
-`gh issue create` após aprovação explícita, igual aos demais auto-fixes do guardian. O corpo das
-issues criadas pelo guardian termina com o rodapé `🤖 Gerado por /vetor:guardian`. Labels de
-tipo/módulo só se já existirem no repo (nunca cria; se não existirem, omita). A issue criada é
-delegada ao fluxo humano existente (`backlog`/`coordinator`), nunca refatorada pelo guardian:
-
-Escreva o corpo com a ferramenta **Write** em um arquivo temporário (nunca `echo`, `printf` nem
-heredoc: o shell corrompe crases e pode inserir BOM, issue #525) e passe-o via `--body-file`:
-
-Conteúdo do arquivo de corpo (escrito via Write):
+- `rewrite-json`: só se o erro for trivial (vírgula final, encoding); mostre o diff e confirme antes
+  de sobrescrever com `jq`.
+- `safe-remove-worktree` e `archive-orphan-status`: rode o `command` do achado. O script só propõe
+  remoção de worktree limpo, sem PR aberto e sem commits fora do remoto; nunca use `--force`.
+- `dependabot-rebase`: grave `@dependabot rebase` num arquivo com a ferramenta de escrita e rode
+  `gh pr comment <N> --body-file <arquivo>`.
+- `design-review-issue`: grave o corpo abaixo com a ferramenta de escrita (nunca `echo`, `printf` nem
+  heredoc, issue #525) e crie com `gh issue create --title "refactor(<módulo>): revisão de design
+  (deletion test)" --body-file <arquivo>`. Labels de tipo ou módulo só se já existirem no repositório;
+  nunca crie labels. A issue segue o fluxo humano (`backlog`/`coordinator`), nunca é refatorada aqui.
 
 ```text
 ## Descrição
@@ -270,145 +94,27 @@ Módulo: <módulo>
 🤖 Gerado por /vetor:guardian
 ```
 
-```bash
-gh issue create \
-  --title "refactor(<módulo>): revisão de design (deletion test)" \
-  --body-file "<path-do-arquivo-de-corpo>"
-```
+## 4 — Relatório
 
-**Auto-fix (modo --cron):** apenas reporta via `SendMessage` (segue a regra global da seção "Modo
-cron" abaixo) — **nunca** propõe `implementation_plan.md` nem cria issue.
-
-### 10 — Frescor da cartografia Graphify (issue #376)
-
-```bash
-deno run -A "$SKILL_DIR/../../scripts/guardian-knowledge.ts"
-```
-
-Rode no repo-root. O check compara o mtime de `graphify-out/graph.json` e
-`graphify-out/GRAPH_REPORT.md` com os commits em `HEAD` posteriores ao artefato mais antigo
-(`git rev-list --count --since=<mtime> HEAD`). Mais de **5 commits** gera aviso para regenerar a
-cartografia. Se algum artefato não existir, reporte como informativo/skipped — ausência nunca falha
-a auditoria.
-
-**Finding:** Graphify desatualizado (`<N>` commits desde os artefatos; limiar: 5) **Auto-fix:**
-nenhum — apenas reporta.
-
-### 11 — Saúde do servidor ai-memory (issue #376)
-
-O mesmo comando do Check 10 lê `.mcp.json` no repo-root. Se `mcpServers.ai-memory` estiver declarado
-com `type: "http"`, reaproveita `scripts/ai-memory-check.ts` para executar `initialize`,
-`tools/list` e `memory_status`; conexão recusada, erro MCP ou ferramenta ausente gera aviso. Sem
-declaração HTTP válida, reporte como informativo — não falha a auditoria.
-
-**Finding:** servidor ai-memory indisponível ou sem `memory_status` **Auto-fix:** nenhum — apenas
-reporta.
-
-### Staleness de regras de melhores práticas (`/vetor:stack-practices`)
-
-Sinalização leve, sem virar check numerado — reaproveita o padrão read-only já usado pelos checks
-acima. Se `.claude/rules/vetor/best-practices/*.md` existir, leia a data no cabeçalho de
-proveniência (linha `> Gerado por /vetor:stack-practices ... via Context7 em <data>`) de cada
-arquivo. Para os que tiverem mais de 90 dias:
-
-**Finding:** regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere
-`/vetor:stack-practices --refresh` **Auto-fix:** nenhum — só sinaliza. A refresh consulta o Context7
-de novo, o que exige julgamento sobre qual versão da lib está em uso agora; não é uma mutação
-mecânica que o guardian deva aplicar sozinho.
-
----
-
-## Relatório e Fluxo de Planejamento (Modo Manual)
-
-Havendo findings com auto-fix propostos, entre em Modo de Planejamento gerando ou atualizando
-`implementation_plan.md` com `request_feedback: true` e `user_facing: true`:
-
-```markdown
-# Plano de Execução Vetor — Guardian
-
-Audit concluído. Mutações recomendadas abaixo.
-
-## Ações Propostas
-
-### Auto-fixes Recomendados
-
-- [ ] Corrigir JSON inválido no arquivo: `<path>`
-- [ ] Remover worktree órfão (limpa, sem PR aberto):
-      `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" safe-remove-worktree <path>`
-- [ ] Arquivar status file órfão:
-      `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" archive-orphan-status <path>`
-- [ ] Solicitar rebase do Dependabot no PR #<N> (`gh pr comment <N> --body-file <arquivo>`, com o texto `@dependabot rebase` gravado via Write)
-- [ ] Criar issue de revisão de design para `<módulo>` (fan-in alto — deletion test)
-
-### Alertas (Apenas Leitura / Ação Manual do Usuário)
-
-- [Aviso] Sequência de migrations com buracos ou timestamps incorretos
-- [Aviso] Trabalho não commitado no worktree: `<worktree-path>`
-- [Aviso] Worktree localizado fora do padrão: `<path>`
-- [Aviso] Container Docker fora de healthy/running: `<nome>` (`<status>`)
-- [Aviso] Regra de best-practice de `<lib>` desatualizada (`<N>` dias) — considere
-  `/stack-practices --refresh`
-
-## Instruções de Aprovação
-
-Clique no botão **Proceed** no seu editor para autorizar o Guardian a aplicar os auto-fixes
-recomendados.
-```
-
-**Pare.** Aguarde a aprovação (`request_feedback: false`). Se aprovado, aplique os auto-fixes
-selecionados.
-
-Após a execução (ou se nenhum finding necessitar correção), produza o relatório final no chat:
-
-```
-## Guardian Report — <data>
-
-### Found (problemas detectados)
-- <item 1>
-
-### Fixed (auto-corrigidos nesta execução)
-- <item 1> — <ação tomada>
-
-### Hardened (verificações que passaram)
-- JSON validity: ✅ <N> arquivos verificados
-- Migrations: ✅ sequência sem buracos (ou "skipped — no migrations dir")
-- Worktrees: ✅ todos em .claude/worktrees/
-- Uncommitted work: ✅ nenhum
-- Auditoria de worktrees: ✅ <N> worktrees, <M> candidatas a remoção, <K> com trabalho pendente
-- Status órfãos: ✅ <N> status files verificados, <M> órfãos arquivados
-- Dependabot: ✅ <N> PRs abertos, nenhum com conflito
-- Docker containers: ✅ <N> containers, todos healthy/running (ou "skipped — MCP indisponível")
-- Risco arquitetural: ✅ <N> módulos tocados analisados, <M> candidatos (ou "skipped — nenhum módulo
-  tocado nos últimos 7 dias")
-
-### Skipped
-- <checks não executados e por quê>
-```
-
----
+Use o relatório do script (`--format md`: Found, Hardened, Skipped) e acrescente a seção
+`### Fixed` com cada correção aplicada e a ação tomada.
 
 ## Modo cron
 
-Quando invocado com `--cron` (via `CronCreate`):
+O `--cron` funciona só com o script, sem LLM e sem ferramenta de harness:
 
-- **Zero writes**, **zero `pre-commit run`**, **zero git/gh mutations**
-- Findings vão via `SendMessage` para a sessão principal (nunca cria `implementation_plan.md`)
-- Se nenhum finding, silêncio — não envia mensagem vazia
+```bash
+deno run -A "$SKILL_DIR/../../scripts/guardian-audit.ts" --format md
+```
 
----
-
-## Exclusões obrigatórias
-
-Todo `find` ou `grep` deve excluir:
-
-- `.claude/worktrees/*`
-- `node_modules/`, `target/`, `.next/`, `__pycache__/`, `.venv/`
-
----
+Exit 0 = silêncio (não envie mensagem vazia); exit 1 = entregue o relatório. Agende pelo mecanismo
+disponível (`../shared/references/harness-capabilities.md` §2.6): no Claude Code, `CronCreate` com
+o relatório enviado à sessão principal; fora dele, cron do sistema, timer ou CI. Nenhuma escrita,
+nenhum `pre-commit run`, nenhuma mutação de git ou GitHub, nenhum plano de correção.
 
 ## Restrições
 
-- Nunca reimplementa checks que o pre-commit já cobre
-- Para formatação, delega para `pre-commit run --all-files` (modo manual apenas)
-- Em modo manual, toda mutação/auto-fix passa pelo `implementation_plan.md` antes da execução
-- Em modo `--cron`, absolutamente nenhum write
+- Nunca reimplementa checks que o pre-commit já cobre.
+- A auditoria é somente leitura; toda correção passa pela aprovação do passo 2.
+- Em `--cron`, absolutamente nenhuma escrita.
+- Migrations são domínio do desenvolvedor: o guardian só relata.

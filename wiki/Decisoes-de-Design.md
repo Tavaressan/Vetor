@@ -175,3 +175,18 @@ outro lugar?").
 ---
 
 [← Wiki do Vetor](Home.md)
+
+**Por que a auditoria do `guardian` é um script (issue #578).** Quase todos os checks eram
+mecânicos, e o modelo gastava turnos executando comandos e lendo listagens, com dependências frágeis
+(`python3 -m json.tool`, `comm` com `<( )`, `SendMessage`, o botão "Proceed"). Agora
+`scripts/guardian-audit.ts` faz a auditoria, somente leitura, e o `--cron` roda sem LLM. Destino de
+cada check antigo:
+
+| Check | Destino |
+| --- | --- |
+| 1 JSON, 2 migrations, 3 worktree fora do padrão, 3.b diretório residual, 4 auditoria de worktrees, 5 status órfão, 6 Dependabot, 9 risco arquitetural, 10 Graphify, 11 ai-memory, staleness de best-practices | `guardian-audit.ts` |
+| 8 containers Docker | `guardian-audit.ts`, com `docker ps` em vez de MCP, filtrando pelo projeto do Compose |
+| 7 banco de dados | `skills/guardian/references/database.md`, opcional, porque exige julgamento |
+| Delegação da análise de migrations a um runtime externo | removida: o script calcula buracos, duplicatas e nomes inválidos |
+| "Uncommitted work" como linha própria do relatório | coberto pela auditoria de worktrees (`trabalho não commitado`) |
+
