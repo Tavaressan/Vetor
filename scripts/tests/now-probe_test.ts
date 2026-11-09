@@ -1,5 +1,12 @@
 import { assert, assertEquals } from "@std/assert";
-import { type CommandExecutor, isNewerVersion, probeNow, probeVersion } from "../now-probe.ts";
+import {
+  aiMemoryGuidance,
+  type CommandExecutor,
+  isNewerVersion,
+  probeNow,
+  probeVersion,
+  recommendNextStep,
+} from "../now-probe.ts";
 
 Deno.test("now probe tolera repo sem MCP e gh e é idempotente", async () => {
   const dir = await Deno.makeTempDir();
@@ -206,4 +213,75 @@ Deno.test("os 4 plugin.json têm a mesma version", async () => {
   }));
   assert(typeof versions[0] === "string");
   assertEquals(new Set(versions).size, 1, `versions divergentes: ${versions.join(", ")}`);
+});
+
+// Issue #579: a recomendação de próxima etapa e a orientação do ai-memory saem do probe.
+const options = (step: ReturnType<typeof recommendNextStep>) => step.options.map((o) => o.command);
+
+Deno.test("recommendNextStep: projeto não inicializado recomenda o install em primeiro", () => {
+  const step = recommendNextStep({ initialized: false, dispatchableIssues: 5, worktrees: ["/r"] });
+  assertEquals(step.recommended, "install");
+  assertEquals(options(step)[0], "/vetor:install");
+  assertEquals(step.options.length, 4);
+});
+
+Deno.test("recommendNextStep: issues despacháveis sem worktree de trabalho recomendam o coordinator", () => {
+  const step = recommendNextStep({ initialized: true, dispatchableIssues: 3, worktrees: ["/r"] });
+  assertEquals(step.recommended, "coordinator");
+  assertEquals(options(step), [
+    "/vetor:coordinator",
+    "/vetor:backlog",
+    "/vetor:spec",
+    "/vetor:guardian",
+  ]);
+});
+
+Deno.test("recommendNextStep: sem issues despacháveis recomenda o backlog, mesmo com worktrees", () => {
+  const step = recommendNextStep({
+    initialized: true,
+    dispatchableIssues: 0,
+    worktrees: ["/r", "/w"],
+  });
+  assertEquals(step.recommended, "backlog");
+  assertEquals(options(step)[0], "/vetor:backlog");
+});
+
+Deno.test("recommendNextStep: worktrees em andamento recomendam retomar o coordinator", () => {
+  const step = recommendNextStep({
+    initialized: true,
+    dispatchableIssues: 2,
+    worktrees: ["/r", "/r/.claude/worktrees/w"],
+  });
+  assertEquals(step.recommended, "coordinator-resume");
+  assertEquals(options(step)[0], "/vetor:coordinator --resume");
+  assertEquals(step.options.length, 4);
+});
+
+Deno.test("recommendNextStep: sem contagem de issues não recomenda, mas oferece as quatro opções", () => {
+  const step = recommendNextStep({
+    initialized: true,
+    dispatchableIssues: null,
+    worktrees: ["/r"],
+  });
+  assertEquals(step.recommended, null);
+  assertEquals(step.options.length, 4);
+});
+
+Deno.test("aiMemoryGuidance: só exited/created pedem anuência para iniciar", () => {
+  assertEquals(aiMemoryGuidance("running").action, "reconnect");
+  assertEquals(aiMemoryGuidance("exited").action, "ask-to-start");
+  assertEquals(aiMemoryGuidance("created").command, "docker start ai-memory");
+  assertEquals(aiMemoryGuidance("paused").action, "report-state");
+  assertEquals(aiMemoryGuidance("paused").command, undefined);
+  assertEquals(aiMemoryGuidance("absent").action, "show-recipe");
+  assertEquals(aiMemoryGuidance(null).action, "docker-unavailable");
+});
+
+Deno.test("recommendNextStep: worktree fora de .claude/worktrees/ não é trabalho do Vetor", () => {
+  const step = recommendNextStep({
+    initialized: true,
+    dispatchableIssues: 2,
+    worktrees: ["/r", "/outro/lugar/wt"],
+  });
+  assertEquals(step.recommended, "coordinator");
 });
