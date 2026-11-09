@@ -139,6 +139,18 @@ Para ligar, depois de medir (método em `skills/shared/references/worktree-prewa
 
 Sem a chave, ou com `false`, o `coordinator` não dispara o pre-warming, não reconcilia e não faz `claim`: o dispatch é sempre o clássico. A chave é um booleano de nível raiz, como `autoShipHeadless`, e o `/vetor:install` a preserva ao regerar o `config.json`. O estado do pre-warming fica em `.claude/vetor/prewarm.json` e `.claude/vetor/prewarm-pending.txt`.
 
+## Watchdog de workers parados do coordinator
+
+```jsonc
+// .claude/vetor/config.json (lido a partir da raiz do repositório)
+{ "workerStallMinutes": 20 }
+```
+
+Tempo, em minutos, que um worker pode ficar sem atualizar o status file antes de o `coordinator`
+escalá-lo como bloqueio (em geral, um prompt de permissão pendente). O padrão é 20. A checagem é
+`vetor-checks.sh stalled-workers`, somente leitura; o `/vetor:install` preserva a chave ao regerar o
+`config.json`.
+
 ## Cache local (`.claude/vetor/cache/`)
 
 Dois scripts guardam resultados caros de recalcular em `.claude/vetor/cache/`: o `tsc.tsbuildinfo` do typecheck por edição (seção acima, na raiz do worktree em que o agente edita) e o `pr-list-cache.txt` do `vetor-status.sh` (na raiz do repositório principal). O diretório se auto-ignora (contém um `.gitignore` com `*`), então **nada nele é versionado**, mesmo em projetos que não adicionaram a entrada ao `.gitignore`. É seguro apagá-lo: tudo é recriado sob demanda.

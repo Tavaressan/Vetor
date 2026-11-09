@@ -80,6 +80,7 @@ function addFakeOpencodeShared(root, { prefix = '' } = {}) {
 
   write('scripts/check-edit.ts', 'import { isWithin } from "./lib/guard.ts";\n');
   write('scripts/check-status.ts', 'import { isWithin } from "./lib/guard.ts";\n');
+  write('scripts/stalled-workers.ts', 'import { isWithin } from "./lib/guard.ts";\n');
   write('scripts/safety-check.ts', 'import { evaluate } from "./lib/safety-policy.ts";\n');
   write('scripts/vetor-checks.sh', '#!/usr/bin/env bash\n');
   write('scripts/vetor-status.sh', '#!/usr/bin/env bash\n');

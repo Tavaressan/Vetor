@@ -28,11 +28,12 @@ function write(root, relPath, content = '\n') {
   fs.writeFileSync(file, content);
 }
 
-// Fonte fake mínima: as cinco entradas explícitas, uma dependência transitiva em lib/ e um
+// Fonte fake mínima: as seis entradas explícitas, uma dependência transitiva em lib/ e um
 // utilitário que ninguém importa (não deve ser empacotado).
 function makeScriptsTree(root) {
   write(root, 'scripts/check-edit.ts', 'import { a } from "./lib/a.ts";\n');
   write(root, 'scripts/check-status.ts', 'import { a } from "./lib/a.ts";\n');
+  write(root, 'scripts/stalled-workers.ts', 'import { a } from "./lib/a.ts";\n');
   write(root, 'scripts/safety-check.ts', 'import { b } from "./lib/b.ts";\n');
   write(root, 'scripts/vetor-checks.sh', '#!/usr/bin/env bash\n');
   write(root, 'scripts/vetor-status.sh', '#!/usr/bin/env bash\n');
@@ -53,6 +54,7 @@ test('resolveOpencodeScripts: entradas explícitas mais as dependências locais,
       'lib/b.ts',
       'lib/c.ts',
       'safety-check.ts',
+      'stalled-workers.ts',
       'vetor-checks.sh',
       'vetor-status.sh',
     ]);

@@ -96,3 +96,42 @@ mesmo dizendo no chat que terminou. Ao receber o término de um worker, rode do 
 4. Rode `verify-status` de novo para confirmar e só então siga para o Pre-Ship (Fase 6.a). Registre
    a reconciliação no relatório final, com a issue e o status observado.
 
+---
+
+**5.h — Watchdog de workers parados (issue #562)**
+
+Um worker pode ficar horas sem avançar, em geral esperando um prompt de permissão que ninguém viu,
+e nada acorda o coordinator até a primeira notificação de término. Depois do primeiro dispatch,
+mantenha esta checagem até a onda terminar:
+
+```bash
+bash "$SKILL_DIR/../../scripts/vetor-checks.sh" stalled-workers
+```
+
+O comando é somente leitura. Para cada worktree de worker com status não terminal (root ou fallback,
+mesma regra da 5.a), compara a idade do status com `workerStallMinutes` de `.claude/vetor/config.json`
+(default 20). Sem status file, usa a idade do worktree. Exit 0 = nenhum parado; exit 1 = uma linha
+`STALLED <branch> <minutos>min <status> <path>` por worker parado.
+
+**Como armar, por harness:**
+
+- **Portátil (todo harness):** rode o comando em todo ciclo de monitoramento da Fase 5 e em todo
+  ciclo da consulta agregada de CI (5.e). Não depende de nenhum recurso do harness.
+- **Com execução em background e notificação** (no Claude Code, a ferramenta `Monitor` com um laço
+  que termina quando o comando sai com 1): arme logo após o dispatch, para ser acordado mesmo sem
+  nenhum outro evento. Ao ser notificado, trate a saída e rearme enquanto houver worker ativo. Isso é
+  otimização: o caminho portátil continua valendo.
+
+**Ao detectar worker parado**, escale como bloqueio da 5.b, uma vez por worker até ele voltar a
+atualizar o status:
+
+```
+⏸️ Worker parado — #<N> (<branch>): sem atualizar o status há <minutos> min (Status: <status>).
+Verifique se há prompt de permissão pendente para esse worker; aprovar ou negar o destrava.
+```
+
+Se o worker continuar parado depois da escalação, as opções da 5.b valem (redespachar no mesmo
+worktree, parar o agente). Em `--headless` não há a quem escalar: registre o worker parado no
+relatório e siga monitorando os demais. O tempo de onda totalmente parada com escalação aberta não
+conta no `maxSessionMinutes` ("Orçamentos e hard caps" do `SKILL.md`).
+

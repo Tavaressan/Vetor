@@ -740,6 +740,9 @@ Leia `../shared/references/issue-coordinator-monitoring.md` ao montar/atualizar 
 Quando um worker terminar (notificação de término do subagente ou o worker devolveu a resposta) e
 o status dele ainda não for terminal, siga a **reconciliação 5.g** da mesma referência antes de
 qualquer Pre-Ship: nunca despache o Pre-Ship de um grupo sem `GREEN` no status file.
+Depois do primeiro dispatch, mantenha o **watchdog de workers parados (5.h** da mesma referência**)**
+armado até a onda terminar: worker sem atualizar o status há mais de `workerStallMinutes` vira
+bloqueio da 5.b.
 
 Ao ver um ou mais grupos em `GREEN` na tabela, **não espere os demais workers**: acione o Pre-Ship
 de todos os verdes de uma vez (Fase 6.a). O CI desses PRs e o dos que ainda vão chegar correm em
@@ -1072,8 +1075,14 @@ Use `../shared/references/issue-coordinator-report.md` ao montar o Coordinator R
   nenhuma nova onda é iniciada. Porém, grupos ativos podem concluir sua iteração corrente e ships de
   grupos já em `GREEN` (ou já autorizados pelo usuário) podem prosseguir até a conclusão (issue #343).
   Para a contagem do timeout, considere apenas o tempo ativo de coordenação, excluindo períodos de
-  espera por decisões humanas (`AskUserQuestion` ou aprovação de plano). Em `--goal` o teto nunca
-  passa de 120 minutos (seção "Modo goal").
+  espera por decisões humanas (`AskUserQuestion` ou aprovação de plano). **A espera por workers
+  ativos conta** no `maxSessionMinutes`: é tempo de coordenação. **Não conta** o período em que
+  todos os workers ativos estão parados com escalação aberta pelo watchdog (5.h), porque aí a
+  espera é por um humano (prompt de permissão pendente). Assim, uma onda presa por horas não
+  esgota o teto antes de o usuário destravá-la. Em `--goal` o teto nunca passa de 120 minutos
+  (seção "Modo goal").
+- **Worker parado:** `workerStallMinutes` em `.claude/vetor/config.json` (default 20) é o tempo sem
+  atualizar o status file a partir do qual o watchdog (5.h) escala o worker como bloqueio.
 - Agentes em `BLOCKED_WAITING` não consomem iterações do fix-loop
 - `vetor-status.sh` destaca com `⚠️` na tabela qualquer `Iteration: N/5` com `N` acima do orçamento —
   sinal de que o agente não escalou como deveria; trate como candidato a redispatch/intervenção.
