@@ -3,7 +3,8 @@
     "test": "deno test -A scripts/ opencode/scripts/",
     "fmt": "deno fmt",
     "lint": "deno lint scripts/ opencode/scripts/",
-    "check": "deno check scripts/ opencode/scripts/"
+    "check": "deno check scripts/ opencode/scripts/",
+    "budget": "deno run --allow-read scripts/skill-budget.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1"
