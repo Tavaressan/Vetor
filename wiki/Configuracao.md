@@ -36,7 +36,16 @@ Se o projeto usar um framework de docs/feature (ex.: um diretório `.reversa/` o
 
 ## Permissões
 
-Para evitar prompts repetitivos, configure `.claude/settings.json` na raiz do projeto. Escolha um caminho conforme seu modelo de ameaça e uso de dependências de terceiros:
+**Caminho guiado (issue #566):** o passo 2.d do `/vetor:install` roda
+`scripts/permissions-setup.ts --check`, mostra as regras mínimas do Vetor que faltam (status files,
+leituras do `gh`, subcomandos de leitura do `vetor-checks.sh` e o comando de teste) e, com sua
+anuência, as acrescenta ao `.claude/settings.json` ou ao `.claude/settings.local.json` sem alterar
+nada do que já existe. Merge, push para a default e comandos destrutivos nunca entram. O passo também
+recomenda `/auto-mode-setup` e `/fewer-permission-prompts`; o que cada um grava e onde, com fontes,
+está em `skills/shared/references/autonomous-permissions.md`. O `/vetor:now` avisa quando faltam
+regras.
+
+Para evitar prompts repetitivos manualmente, configure `.claude/settings.json` na raiz do projeto. Escolha um caminho conforme seu modelo de ameaça e uso de dependências de terceiros:
 
 **Opção A — Modo Seguro (privilégio mínimo, recomendado).** Auto-aprova leitura do GitHub e gerenciamento de worktrees locais, mas **mantém a confirmação visual** para execução de testes, builds, pushes e merges.
 

@@ -39,6 +39,8 @@ Você é a skill de inicialização e configuração do Vetor. Sua missão é pr
   disponível** (ver "Documentação do próprio Claude Code (`claude-code-docs`)").
 - `../shared/references/memory-gotchas.md` — regra de escopo do ai-memory (`.ai-memory.toml` com
   `workspace` e `project`) que o passo 2.c oferece scaffoldar.
+- `../shared/references/autonomous-permissions.md` — só no passo 2.d, no Claude Code: regras mínimas
+  de permissão, `/auto-mode-setup` e `/fewer-permission-prompts`, com fontes.
 
 ---
 
@@ -179,6 +181,13 @@ project = "<project>"
 O ai-memory recomenda versionar o arquivo para que todo checkout e worktree resolva o mesmo escopo;
 o passo 2 dos próximos passos (§3) já cobre o commit.
 
+### 2.d — Preparar permissões para fluxos autônomos (opcional, só Claude Code)
+
+Fora do Claude Code, registre "não se aplica" e siga. No Claude Code, siga a seção "Procedimento
+do install" de `../shared/references/autonomous-permissions.md`: ela checa as regras mínimas, só as
+acrescenta com anuência e sem alterar nada do que existe, e recomenda `/auto-mode-setup` e
+`/fewer-permission-prompts` sem dispará-los.
+
 ### 3 — Exibir Sumário de Configuração e Próximos Passos
 
 Após a criação/validação dos arquivos, exiba uma mensagem informativa clara e amigável para o desenvolvedor:
@@ -198,6 +207,7 @@ Arquivos configurados:
 - [<x ou ->] CLAUDE.md — bloco de capacidades <inserido | atualizado | ignorado (importa @AGENTS.md) | não encontrado (arquivo ausente)>
 - [<x ou ->] AGENTS.md — bloco de capacidades <inserido | atualizado | não encontrado (arquivo ausente)>
 - [<x ou ->] .ai-memory.toml — escopo do ai-memory <criado | já existia | recusado>
+- [<x ou ->] Permissões para fluxos autônomos <acrescentadas em settings.json | acrescentadas em settings.local.json | já configuradas | recusado | não se aplica>
 
 Próximos passos recomendados:
 1. Abra e revise o arquivo `.claude/vetor/module-test-map.md` para garantir que os comandos de teste headless e os mapeamentos de pasta de seu projeto estejam 100% corretos.

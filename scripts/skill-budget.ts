@@ -43,7 +43,8 @@ export interface BudgetConfig {
   limits: Record<string, number>;
 }
 
-const CONDITIONAL_RE = /\b(?:quando|se|ao|caso|só|somente|apenas)\b/i;
+// Fronteiras Unicode: `\b` do JavaScript trata "ó" como não-letra, e `\bsó\b` nunca casaria.
+const CONDITIONAL_RE = /(?<!\p{L})(?:quando|se|ao|caso|só|somente|apenas)(?!\p{L})/iu;
 const REFERENCE_RE = /([\w./-]*?)([\w-]+\.md)\b/g;
 const REFERENCES_HEADING_RE = /refer[êe]ncias|references/i;
 
