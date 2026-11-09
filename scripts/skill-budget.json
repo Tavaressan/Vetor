@@ -3,7 +3,7 @@
   "limits": {
     "default": 6000,
     "backlog": 7000,
-    "coordinator": 21500,
+    "coordinator": 8500,
     "design": 14500,
     "fix": 10500,
     "guardian": 8000,

@@ -32,7 +32,7 @@ Cache ausente não é erro: a CLI recalcula com `git diff --name-only origin/<de
 mapeia os módulos pela tabela do `module-test-map.md`). Basta comparar com os PRs da própria onda:
 o que entrou na default por fora dela é coberto pelo estado `mergeable` do passo 2.
 
-**PRs órfãos (issue #527).** PRs abertos sem worktree local (ver "Entrega de PRs sem worktree local"
+**PRs órfãos (issue #527).** PRs abertos sem worktree local (ver `references/orphan-prs.md` do coordinator
 no coordinator) não têm cache de arquivos tocados: entram no mapa via `check-disjoint` (o fallback
 `git diff --name-only origin/<default>...<branch>` cobre o cache ausente) e valem como elementos de
 `S(Pk)` dos demais. O segundo PR sobreposto a um órfão já integrado é re-sincronizado e re-testado
