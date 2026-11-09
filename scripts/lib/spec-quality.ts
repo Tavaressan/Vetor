@@ -1,4 +1,4 @@
-// Quality Model + Quality Gate de `/vetor:spec-validate` (#220, parte de #203 §2-§3).
+// Quality Model + Quality Gate de `/vetor:spec --validate` (#220, parte de #203 §2-§3).
 //
 // O score é 0-100, soma ponderada de 5 dimensões (DIMENSION_WEIGHTS). Cada dimensão é avaliada por
 // um checker independente (spec-quality-checkers.ts, #221) que devolve uma fração 0-1 de quanto foi

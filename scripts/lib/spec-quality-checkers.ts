@@ -1,4 +1,4 @@
-// Dimension checkers do Quality Model de `/vetor:spec-validate`. Cada checker recebe um
+// Dimension checkers do Quality Model de `/vetor:spec --validate`. Cada checker recebe um
 // `ParsedSpec` (spec-parser.ts) e devolve um `DimensionResult` (spec-quality.ts): fração 0-1
 // satisfeita, gaps estruturados (`Gap`) e strengths.
 //

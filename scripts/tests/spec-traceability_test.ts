@@ -1,7 +1,7 @@
 // Testes de scripts/lib/spec-traceability.ts — metadados de requisito e Decision Log (#223,
 // #203 §13-§18). Infraestrutura de preparação: só o formato de metadata e a estabilidade do `id`
 // através de transições de status são exercitados aqui; a integração real com Coordinator/Guardian
-// (RF→Task, Spec Drift) fica documentada em skills/spec-validate/references/traceability.md, sem
+// (RF→Task, Spec Drift) fica documentada em skills/spec/references/traceability.md, sem
 // código de integração nesta issue (fora de escopo por design, ver corpo da issue #223).
 
 import { assertEquals, assertMatch } from "@std/assert";

@@ -1,4 +1,4 @@
-// Quality Report em Markdown + refinamento iterativo de `/vetor:spec-validate` (#222, parte de
+// Quality Report em Markdown + refinamento iterativo de `/vetor:spec --validate` (#222, parte de
 // #203 §9-§11).
 //
 // Cada gap emitido pelos checkers já é estruturado (`Gap` — spec-quality.ts): este módulo só

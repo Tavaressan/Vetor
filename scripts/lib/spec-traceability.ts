@@ -2,7 +2,7 @@
 // e os pontos de extensão para Coordinator/Guardian. Esta issue prepara o formato e as garantias
 // (id estável através de transições de status), sem implementar a integração completa: não há
 // transformação real de requirement → task nem análise semântica de código nesta issue (ver
-// skills/spec-validate/references/traceability.md para o desenho completo do fluxo futuro).
+// skills/spec/references/traceability.md para o desenho completo do fluxo futuro).
 
 export type RequirementPriority = "Must" | "Should" | "Could";
 
