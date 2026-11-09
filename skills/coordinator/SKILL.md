@@ -474,16 +474,24 @@ aplicado aqui à decisão "despachar como está, ou sinalizar a falta de uma Spe
      mencionado no título/corpo da issue (ex.: `cli/`, `scripts/`). Mais de 1 é sinal de complexidade
      — em projetos com poucos módulos mapeados este sinal tende a ficar em 0 ou 1 na maioria das
      issues; nesse caso o sinal de "escopo já declarado" abaixo é quem decide a classificação.
-   - **Escopo já declarado**: o corpo já traz uma seção equivalente a "Escopo do trabalho" e um
-     "Critério de Aceite" com itens concretos (checklist, não frase vaga).
-   - **Label**: `feat`/`enhancement`/`refactor` tendem a não-trivial mesmo com escopo declarado;
-     `fix`/`chore`/`bug` com escopo declarado tendem a trivial. Ajuste esta lista ao vocabulário de
-     labels efetivamente usado no repositório-alvo (ex.: um projeto sem label `feat` própria, como
-     este mesmo repositório, usa `enhancement` para o equivalente).
+   - **Escopo já declarado**: o corpo descreve a mudança (seção "Descrição", "Escopo do trabalho"
+     ou equivalente) **e** traz um "Critério de Aceite" com itens concretos (checklist, não frase
+     vaga).
+   - **Label**: não decide a classificação sozinha. Uma `feat`/`enhancement`/`refactor` com escopo
+     declarado já carrega o mínimo que uma micro-spec daria; sinalizá-la só gera pergunta repetida.
 2. **Classificação**: `trivial` quando o escopo já está declarado **e** o nº de módulos tocados é
-   ≤ 1 **e** a label não é `feat`/`enhancement`/`refactor`; **não-trivial** em qualquer outro caso
-   (múltiplos módulos, ou escopo ausente/vago, ou `feat`/`enhancement`/`refactor` sem Critério de
-   Aceite explícito).
+   ≤ 1, qualquer que seja a label; **não-trivial** em qualquer outro caso (múltiplos módulos, ou
+   escopo ausente ou vago). Tabela de decisão para issue com ≤ 1 módulo:
+
+   | Label | Critério de Aceite em checklist | Classificação |
+   | --- | --- | --- |
+   | `feat`/`enhancement`/`refactor` | sim | `trivial` |
+   | `feat`/`enhancement`/`refactor` | não (ausente ou vago) | não-trivial |
+   | `fix`/`bug`/`chore`/`docs` | sim | `trivial` |
+   | `fix`/`bug`/`chore`/`docs` | não (ausente ou vago) | não-trivial |
+
+   Com 2 ou mais módulos tocados, a issue é não-trivial em todas as linhas. Issues `spike` ficam
+   fora da tabela (ver "Detecção de issues spike").
 3. **Spec associada**: verifique se a issue referencia uma Spec (`docs/specs/<slug>.md`, ver
    `spec/SKILL.md` §6) no corpo ou em algum comentário.
 4. **Gate**: sinalize apenas issues `não-trivial` **sem** Spec associada — nunca issues `trivial`
@@ -497,8 +505,8 @@ opção `(Recommended)`; a resposta do usuário, no turno único da largada, aju
 Texto-base da pergunta do item 2:
 
 ```
-Issue(s) #<N>[, #<M>...] parece(m) não-trivial(is) (<razão: múltiplos módulos | sem Escopo do
-trabalho/Critério de Aceite | feat/enhancement/refactor sem escopo detalhado>) e não tem(têm) Spec
+Issue(s) #<N>[, #<M>...] parece(m) não-trivial(is) (<razão: múltiplos módulos | sem
+descrição/Critério de Aceite em checklist>) e não tem(têm) Spec
 associada. Como prosseguir?
 
 1. Despachar com micro-spec JIT — um modelo leve escreve o escopo de 1 página no dispatch (Recommended)
