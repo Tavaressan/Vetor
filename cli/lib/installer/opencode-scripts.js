@@ -16,6 +16,7 @@ const OPENCODE_SCRIPT_ENTRIES = [
   'check-edit.ts',
   'check-status.ts',
   'safety-check.ts',
+  'stalled-workers.ts',
   'vetor-checks.sh',
   'vetor-status.sh',
 ];

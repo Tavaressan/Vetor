@@ -9,6 +9,9 @@
 #                               e .claude/vetor/config.json, que não são materializados em
 #                               worktrees quando .claude/ está no .gitignore do projeto-alvo
 #   in-worktree                exit 0 se o cwd é um worktree linkado; exit 1 se é o root
+#   stalled-workers [--minutes <N>]  watchdog (#562): uma linha STALLED por worker com status não
+#                               terminal sem atualização há N minutos (workerStallMinutes, senão 20);
+#                               exit 0 = nenhum parado | 1 = há parado
 #   verify-status              último passo do worker (#559): exit 0 se o status file (ou o fallback
 #                               do worktree) está em estado terminal; 1 se não está ou falta; 2 fora
 #                               de um worktree linkado
@@ -355,6 +358,13 @@ case "$cmd" in
       echo "cwd é o root do repositório, não um worktree linkado" >&2
       exit 1
     fi
+    ;;
+
+  stalled-workers)
+    shift
+    script_dir=$(cd "$(dirname "$0")" && pwd -P)
+    deno run -A "$script_dir/stalled-workers.ts" "$@"
+    exit $?
     ;;
 
   verify-status)
