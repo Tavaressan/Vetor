@@ -127,3 +127,20 @@ tag/release:
      evolui só quando a skill muda) e `cli/package.json` (a CLI é versionada à parte).
 2. A tag `vX.Y.Z` deve corresponder ao `version` commitado.
 3. `/vetor:now` compara a versão instalada com a última release e avisa quando há uma mais nova.
+
+---
+
+## Orçamento de contexto das skills
+
+`deno task budget` mede, por skill, o `SKILL.md` e as referências que ele cita, separando leitura
+obrigatória de leitura sob demanda, e soma aos agents as skills pré-carregadas via `skills:`
+(issue #570). A medição é estática: não depende de harness nem de sessão.
+
+- Uma referência é **sob demanda** quando todo item de lista ou parágrafo que a cita tem um gatilho
+  condicional ("quando", "se", "ao", "caso", "só", "somente", "apenas"). Para tirar uma referência da
+  leitura obrigatória, cite-a com o gatilho que diz quando lê-la.
+- Os limites ficam em `scripts/skill-budget.json` e o teste `scripts/tests/skill-budget_test.ts`
+  falha no CI quando uma skill passa do seu. Ao reduzir uma skill, baixe o limite no mesmo PR; subir
+  um limite pede a decisão registrada no PR.
+- O baseline anterior às refatorações está em `docs/skill-budget-baseline.md`.
+
