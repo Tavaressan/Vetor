@@ -39,6 +39,7 @@ const promptFiles = [
   ...markdownFiles("skills"),
   ...markdownFiles("agents"),
   ...markdownFiles("opencode/agent"),
+  ...markdownFiles("maintainer/skills"),
 ];
 
 const frontmatterOf = (text: string) => text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
@@ -181,4 +182,16 @@ Deno.test("invariante: o fluxo do coordinator usa os scripts que montam o dispat
   for (const script of ["dispatch-prompt.ts", "context-packet.ts", "vetor-status.sh"]) {
     assert(coordinator.includes(script), `o coordinator deixou de usar ${script}`);
   }
+});
+
+Deno.test("invariante: o retro do vetor-maintainer mantém o rodapé que o coordinator reconhece", () => {
+  assertMatch(read("maintainer/skills/retro/SKILL.md"), /^🤖 Gerado por `?\/vetor:retro\b/m);
+});
+
+Deno.test("invariante: o retro do vetor-maintainer não depende de arquivos do plugin principal", () => {
+  const retro = read("maintainer/skills/retro/SKILL.md");
+  assert(
+    !/\.\.\/shared\/references|\$SKILL_DIR\/\.\.\/\.\./.test(retro),
+    "retro deve ser autossuficiente",
+  );
 });

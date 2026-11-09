@@ -160,3 +160,29 @@ referência. Ao mexer em uma skill:
 - **Redação** não é testada. A classificação dos testes antigos está em
   `docs/contract-tests-classification.md`.
 
+---
+
+## Plugin `vetor-maintainer`
+
+A skill `retro` avalia o uso do Vetor numa sessão e propõe issues no repositório do Vetor. Ela só
+interessa a quem mantém o plugin, então fica num plugin separado, em `maintainer/` (issue #581). Fora
+de `skills/`, não entra no plugin principal nem no pacote npm. Ela roda no projeto em que o atrito
+aconteceu, por isso não basta deixá-la em `.claude/skills/` deste repositório. A skill é
+autossuficiente: não lê arquivos do plugin principal, e o repositório alvo é sempre
+`Tavaressan/Vetor`. O rodapé das issues continua `🤖 Gerado por /vetor:retro`, porque é o prefixo que
+o `coordinator` usa para reconhecer issues geradas pelo plugin.
+
+| Harness | Instalação |
+| --- | --- |
+| Claude Code | `/plugin marketplace add Tavaressan/Vetor` (se ainda não tiver) e `/plugin install vetor-maintainer@vetor`; o comando é `/vetor-maintainer:retro`. |
+| Antigravity | clone o repositório e rode `agy plugin install <clone>/maintainer`. |
+| OpenCode, Codex e Cursor | copie `maintainer/skills/retro/` para a pasta de skills do harness (`.opencode/skills/`, `.agents/skills/` ou `.cursor/skills/`). |
+
+Verificado em 2026-11-09, com `HOME` temporário: `agy plugin install maintainer/` instalou a skill
+`retro` (`agy plugin list`: `vetor-maintainer (enabled, 0.1.0)`), e `claude plugin marketplace add
+<repo>` seguido de `claude plugin install vetor-maintainer@vetor` instalou o plugin com
+`skills/retro/SKILL.md`; o `vetor@vetor` instalado do mesmo marketplace não traz mais o `retro`.
+Avisos do `claude plugin validate`: `ICON_MISSING` no `vetor-maintainer` e `PRIVACY_URL_MISSING` no
+plugin principal (este já existia). Os dois são checagens do catálogo público de plugins e não afetam
+a instalação por marketplace próprio. O `agy plugin validate maintainer` só avisa da falta de logo.
+
