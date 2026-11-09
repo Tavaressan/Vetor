@@ -69,8 +69,7 @@ Automação de ciclo de desenvolvimento (issues → worktrees → fix loop → P
 
 - \`/vetor:install\` (\`install\`) — inicializa e configura o ambiente do Vetor neste projeto.
 - \`/vetor:now\` (\`now\`) — kickoff da sessão, resume o estado do projeto e orienta os próximos passos.
-- \`/vetor:spec\` (\`spec\`) — descobre contexto do projeto e rascunha uma Spec a partir de um tema.
-- \`/vetor:spec-validate\` (\`spec-validate\`) — valida a qualidade de uma Spec contra o Quality Model do Vetor.
+- \`/vetor:spec\` (\`spec\`) — descobre contexto do projeto e rascunha uma Spec a partir de um tema; \`--validate <path>\` valida a qualidade de uma Spec contra o Quality Model do Vetor.
 - \`/vetor:backlog\` (\`backlog\`) — propõe issues a partir de gaps do código/docs.
 - \`/vetor:coordinator\` (\`coordinator\`) — orquestra workers paralelos em worktrees isolados para issues do backlog.
 - \`/vetor:worktree-create\` (\`worktree-create\`) — cria um worktree isolado para uma issue.

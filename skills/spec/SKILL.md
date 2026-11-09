@@ -18,8 +18,8 @@ Esta skill ainda não cobre todo o pipeline de #202: implementa a entrada, a des
 componentes, a entrevista focada, o motor de geração de RF/RNF/Acceptance Criteria/Edge Cases/
 Non-Goals, a montagem do rascunho a partir do template e a persistência (frontmatter válido,
 identidade estável, path previsível em `docs/specs/<slug>.md` por padrão, overwrite nunca silencioso
-— sempre `update`/`create-new`/`cancel`, ver passo 6). Validação de qualidade (Quality Gate,
-rastreabilidade — Handoff #203) chega em outra issue; overwrite avançado (versionamento, merge de
+— sempre `update`/`create-new`/`cancel`, ver passo 6) e a validação de qualidade (Quality Gate, no
+modo `--validate` e no passo 6.4); overwrite avançado (versionamento, merge de
 rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra (issue #225); consumo
 automático da Spec pelo `coordinator` (geração de código) não é escopo desta skill — cada
 estágio abaixo sinaliza explicitamente o que ainda não está implementado.
@@ -31,7 +31,11 @@ estágio abaixo sinaliza explicitamente o que ainda não está implementado.
 ```
 /vetor:spec
 /vetor:spec <tema>
+/vetor:spec --validate <path>
 ```
+
+- `--validate <path>`: valida uma Spec já persistida contra o Quality Model, sem gerar nada. Leia
+  `references/validate.md` e siga só ela; os passos 0 a 6 abaixo não se aplicam.
 
 - `<tema>`: opcional — o assunto a especificar (ex.: "sistema de autenticação", "melhorar fluxo de
   checkout", "API de notificações").
@@ -65,6 +69,8 @@ estágio abaixo sinaliza explicitamente o que ainda não está implementado.
   Knowledge Provider consumido pelos passos 0.2, 1 (item 5) e 4 via `scripts/knowledge-doc.ts`.
 - `../../scripts/knowledge-doc.ts` — CLI que expõe `status`/`search-specs`/
   `create-spec`/`update-spec`/`find` sobre o Knowledge Provider (ver passo 0.2).
+- `references/validate.md` — só no modo `--validate` ou ao validar o rascunho persistido no fim do
+  passo 6.
 
 ---
 
@@ -387,8 +393,6 @@ Mostre o rascunho completo na conversa para revisão do usuário e pergunte se d
 o que esta versão da skill **não** cobre ainda, para não sugerir uma qualidade que ela ainda não
 entrega:
 
-- validação de qualidade (Quality Gate, dimension checkers, rastreabilidade — Handoff #203) e
-  refinamento iterativo a partir de feedback de qualidade;
 - overwrite avançado (versionamento, merge automático de rascunhos divergentes) — o que existe é o
   fluxo binário `update`/`create-new`/`cancel` abaixo, não um merge de conteúdo;
 - Knowledge Provider além de filesystem (ex.: Obsidian, issue #225);
@@ -485,7 +489,12 @@ Já existe uma Spec com a identidade "spec:<slug>" (<path>). O que deseja fazer?
   confirmação de que nada foi gravado).
 
 Quando o Knowledge Provider está desabilitado (passo 0.2), mantenha o comportamento anterior: **não
-grava a Spec em disco** — o rascunho fica apenas na conversa, e 6.1-6.3 não se aplicam.
+grava a Spec em disco** — o rascunho fica apenas na conversa, e 6.1-6.4 não se aplicam.
+
+**6.4 — Validar o rascunho persistido.** Depois de `create-spec`/`update-spec` bem-sucedido, ofereça
+validar a Spec gravada: "Validar a Spec agora (Quality Gate, score 0-100)?". Com o "sim", siga
+`references/validate.md` com o path persistido; o refinamento de lá edita o arquivo gravado. Em
+modo headless, rode a validação sem perguntar e só reporte o resultado, sem refinar.
 
 ---
 

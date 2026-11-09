@@ -39,13 +39,13 @@ usuário pode escolher qualquer valor, inclusive acima de 8. Não há teto duro.
 #298).** Comparado à skill `brainstorming` do superpowers (`obra/superpowers`, MIT), que bloqueia
 skills de implementação até aprovação humana explícita do design, o Vetor não tinha nenhum ponto do
 pipeline automatizado impedindo `worktree-create`/`fix`/`coordinator` de rodar sobre
-uma issue sem Spec aprovada — `/vetor:spec` e `/vetor:spec-validate` existiam, mas seu uso antes de
+uma issue sem Spec aprovada — `/vetor:spec` e a validação de Spec (hoje `/vetor:spec --validate`) existiam, mas seu uso antes de
 implementar era convenção de fluxo manual, não um gate enforced. A Fase 2 do coordinator foi escolhida
 como ponto do gate por ser o único estágio do pipeline automatizado com humano de fato na sessão antes
 do dispatch, e onde `AskUserQuestion` já é usado para outras decisões (teto de workers, aprovação do
 plano) — não introduz um novo padrão de interação. **Este gate é sobre se uma Spec é necessária antes
 do dispatch, nunca sobre a qualidade da Spec em si** — isso já é coberto pelo Quality Gate de
-`spec-validate` (`READY`/`NEEDS_REFINEMENT`/`INCOMPLETE`); os dois são independentes e não se
+`/vetor:spec --validate` (`READY`/`NEEDS_REFINEMENT`/`INCOMPLETE`); os dois são independentes e não se
 substituem.
 
 **Por que o gate de Spec/design nunca bloqueia em `--headless` (issue #298).** Mesma razão já

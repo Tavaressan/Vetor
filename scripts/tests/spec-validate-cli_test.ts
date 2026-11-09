@@ -1,5 +1,5 @@
-// Exercita o CLI real documentado em skills/spec-validate/SKILL.md (scripts/spec-validate.ts) via
-// subprocess — cobre os critérios de aceite de teste de #220 ("rodar /vetor:spec-validate <path>
+// Exercita o CLI real documentado em skills/spec/references/validate.md (scripts/spec-validate.ts) via
+// subprocess — cobre os critérios de aceite de teste de #220 ("rodar /vetor:spec --validate <path>
 // numa Spec de exemplo (mesmo incompleta) e confirmar que emite Score: N/100 e Status: ...") e de
 // #222 (refinamento iterativo evolui o score sem misturar o report ao conteúdo da Spec).
 //

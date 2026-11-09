@@ -140,7 +140,6 @@ Deno.test("CAPABILITIES_BODY contém todas as skills ativas e nenhum comando dep
     "/vetor:install",
     "/vetor:now",
     "/vetor:spec",
-    "/vetor:spec-validate",
     "/vetor:backlog",
     "/vetor:coordinator",
     "/vetor:worktree-create",
@@ -160,6 +159,10 @@ Deno.test("CAPABILITIES_BODY contém todas as skills ativas e nenhum comando dep
       `CAPABILITIES_BODY deve conter a skill ${skill}`,
     );
   }
+
+  // spec-validate virou `/vetor:spec --validate` (issue #580)
+  assertFalse(CAPABILITIES_BODY.includes("/vetor:spec-validate"));
+  assertStringIncludes(CAPABILITIES_BODY, "--validate");
 
   // Não deve conter o comando deprecado `/vetor` isolado como item de lista
   assertFalse(

@@ -1,4 +1,4 @@
-// Persistência do estado de validação de `/vetor:spec-validate` (#222, #203 §12) — separada do
+// Persistência do estado de validação de `/vetor:spec --validate` (#222, #203 §12) — separada do
 // arquivo da Spec, para nunca poluir seu conteúdo com informação de execução do validador.
 //
 // Convenção de path segue o mesmo diretório dos demais artefatos internos do Vetor
