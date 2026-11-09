@@ -88,7 +88,7 @@ informado no carregamento e use `"$SKILL_DIR/../../scripts/..."` nos comandos.
      `../shared/references/delegate-to-runtime.md`; respeite a seleção e anuência descritas na
      referência.
    - Se `mcp__alethe__*` estiver ativo: **Use o orquestrador Alethe para despacho paralelo de
-     workers e isolamento de worktree** conforme `../shared/references/delegate-to-runtime.md` §6.
+     workers e isolamento de worktree** conforme `../shared/references/delegate-alethe.md`.
      Ele só é selecionado quando `delegation.preferredRuntime` é `alethe` (informe
      `mcpAvailable: ["alethe"]` ao `selectDelegationRuntime`) e depois do acordo de escopo do §2.1;
      sem a preferência, não o escolha em silêncio.

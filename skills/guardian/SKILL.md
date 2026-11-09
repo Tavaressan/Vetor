@@ -97,7 +97,7 @@ ls "$MIGRATIONS_DIR" | grep "^V" | sort -V
 
 Analise a listagem para buracos de versão (ex.: V3 → V5 sem V4) e naming inválido — duplicatas já
 são cobertas pelo script. A análise da listagem pode ser delegada a um runtime disponível (ver
-`delegate-to-runtime.md` §4.7).
+`delegate-tasks.md` §4.7).
 
 **Finding:** buraco de versão, duplicata ou naming inválido **Auto-fix:** nenhum — apenas reporta.
 Migrations são domínio do desenvolvedor.

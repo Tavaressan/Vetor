@@ -53,7 +53,8 @@ agents/
 skills/
 ├── shared/references/
 │   ├── module-test-map.template.md
-│   ├── delegate-to-runtime.md
+│   ├── delegate-to-runtime.md   # detecção e seleção; o resto é sob demanda:
+│   ├── delegate-runtime-{gemini,opencode,codex}.md, delegate-tasks.md, delegate-alethe.md
 │   ├── project-conventions.md
 │   ├── issue-coordinator-dispatch.md
 │   ├── issue-coordinator-monitoring.md

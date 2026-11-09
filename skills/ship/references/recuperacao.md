@@ -128,7 +128,7 @@ Se houver exatamente um assunto, ele não estiver vazio e não contiver caracter
 git log "origin/$DEFAULT_BRANCH..HEAD" --oneline
 ```
 
-O corpo pode ser rascunhado por um runtime de delegação disponível (ver `delegate-to-runtime.md`
+O corpo pode ser rascunhado por um runtime de delegação disponível (ver `delegate-tasks.md`
 §4.4); caso contrário, use o template inline:
 ```markdown
 ## Resumo
@@ -235,7 +235,7 @@ Se retornar exit 0 (JSON com `isInfrastructureFailure: true`), nenhum fix de có
 ```bash
 gh run view <run-id> --log-failed
 ```
-(opcionalmente condensado por um runtime de delegação disponível — ver `delegate-to-runtime.md`
+(opcionalmente condensado por um runtime de delegação disponível — ver `delegate-tasks.md`
 §4.1). Avalie a natureza do erro:
 
 - **Transiente (rede/timeout do runner):** **não altere o código**. Aguarde 30 segundos e rode

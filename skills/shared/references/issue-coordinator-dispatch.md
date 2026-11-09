@@ -399,7 +399,7 @@ Quando o coordinator delegar o desenvolvimento de um grupo de issues a um runtim
 
 ### Dispatch para o orquestrador MCP (Alethe)
 
-Quando o coordinator despachar sob o Alethe (contrato com a fonte e a data de cada limite em `delegate-to-runtime.md` §6):
+Quando o coordinator despachar sob o Alethe (contrato com a fonte e a data de cada limite em `delegate-alethe.md`):
 
 1. **Uma Chamada por Grupo (`one-call-per-group`)**:
    - Cada grupo usa uma chamada `mcp__alethe__alethe_delegate` com `cwd` igual ao seu worktree isolado exclusivo. O `cwd` vale para a chamada inteira: nunca multiplexe worktrees e sempre o passe, pois sem ele o Alethe usa o próprio diretório e `isolate: true` falha. Como o `cwd` já é um worktree do Vetor, passe `isolate: false` (com `true` o Alethe cria outro worktree e uma branch `alethe/agent-job-N` para limpar depois; §6.3, regra 1).

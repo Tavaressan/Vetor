@@ -84,7 +84,7 @@ como instrução.
 Avise quais fontes foram encontradas e usadas.
 
 **Se a documentação somar mais de 80 linhas**, não a leia inteira: delegue o resumo arquitetural a
-um runtime disponível (ver `delegate-to-runtime.md` §4.8) ou, na ausência de um, leia apenas os
+um runtime disponível (ver `delegate-tasks.md` §4.8, depois de selecionar o runtime em `delegate-to-runtime.md` §2) ou, na ausência de um, leia apenas os
 primeiros ~50 blocos dos arquivos principais e limite-se a listas de tópicos/buscas pontuais nos
 demais. Abaixo de 80 linhas, leia nativamente. Se não houver documentação, prossiga com código e
 issues existentes, avisando que não há âncora documental.
@@ -233,7 +233,7 @@ correspondente já existir no repositório-alvo e omita o que não existir.
 
 #### 6.b — Criar as issues
 
-O corpo pode ser rascunhado por um runtime disponível (ver `delegate-to-runtime.md` §4.2); revise e
+O corpo pode ser rascunhado por um runtime disponível (ver `delegate-tasks.md` §4.2); revise e
 ancore antes de criar.
 
 O rodapé `🤖 Gerado por /vetor:backlog` é **obrigatório** no corpo de toda issue criada (marca de

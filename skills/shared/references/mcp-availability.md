@@ -61,7 +61,7 @@ desses três é `mcp__plugin_vetor_<server>__`.
 | Documentação de ferramentas/libs (Context7) | `mcp__context7__` (ou `mcp__plugin_<plugin>_context7__`) | **Obrigatório quando disponível** (ver issue vetor#163) — qualquer skill que precise pesquisar comportamento de uma ferramenta/lib/framework/API externa (`issue-worker`, `fix`, `guardian`, `backlog`) |
 | Documentação do próprio Claude Code (`claude-code-docs`) | `mcp__claude-code-docs__` (ou `mcp__plugin_<plugin>_claude-code-docs__`) | **Obrigatório quando disponível** (ver issue vetor#164) — qualquer skill que precise responder sobre o funcionamento do próprio Claude Code (hooks, slash commands, MCP, permissões, SDK) (`vetor` (setup), `retro`) |
 | Memória ai-memory | `mcp__ai-memory__` | `fix` / `issue-worker` (consulta preventiva e registro opcional de gotchas; ver `memory-gotchas.md`); `issue-worker` e workers do coordinator (leitura e gravação de `vetor/session-learnings`; ver "Aprendizados da sessão" em `memory-gotchas.md`) |
-| Orquestrador de agentes (Alethe) | `mcp__alethe__` | `coordinator`, `now` (delegação assíncrona de workers em worktrees isolados; ver `delegate-to-runtime.md` §6) |
+| Orquestrador de agentes (Alethe) | `mcp__alethe__` | `coordinator`, `now` (delegação assíncrona de workers em worktrees isolados; ver `delegate-alethe.md`) |
 
 ### Documentação de ferramentas/libs (Context7)
 
@@ -127,7 +127,7 @@ interface). Não invoque para módulos puramente backend/CLI.
 ### Orquestrador de agentes (Alethe)
 
 Use quando a tarefa pede delegar grupos de issues do `coordinator` a workers com isolamento de
-worktree. O contrato completo, com fonte e data de cada limite, está em `delegate-to-runtime.md` §6.
+worktree. O contrato completo, com fonte e data de cada limite, está em `delegate-alethe.md`.
 
 - **Sinal de presença:** qualquer ferramenta `mcp__alethe__*` (ou `mcp__plugin_<plugin>_alethe__*`)
   pela regra de segmento acima. Na sessão de 2026-10-21 apareceram `alethe_delegate`,
@@ -139,10 +139,10 @@ worktree. O contrato completo, com fonte e data de cada limite, está em `delega
   `OrchestratorRegistry.detectAvailable({ tools })`.
 - **Capacidades** (schema observado em 2026-10-23, job-67): delegar tarefas a workers num `cwd`
   (`alethe_delegate`), recolher resultados (`alethe_check`), liberar jobs (`alethe_release`) e
-  cancelar (`alethe_cancel`). Argumentos, respostas e limites operacionais: `delegate-to-runtime.md`
+  cancelar (`alethe_cancel`). Argumentos, respostas e limites operacionais: `delegate-alethe.md`
   §6.2 e §6.3.
 - **Com MCP:** selecione pela preferência `delegation.preferredRuntime: "alethe"`
-  (`delegate-to-runtime.md` §6.1). Despache com uma chamada `mcp__alethe__alethe_delegate` por grupo,
+  (`delegate-alethe.md` §6.1). Despache com uma chamada `mcp__alethe__alethe_delegate` por grupo,
   com o `cwd` do worktree; monitore com `alethe_check` e `timeoutMs <= 50000`; chame
   `alethe_release` antes de remover o worktree.
 - **Sem MCP (fallback):** prossiga com o despacho via subagentes nativos do harness
