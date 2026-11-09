@@ -47,7 +47,8 @@ Rules ficam no subdiretório `vetor/` para não pisar nas suas, e não são sobr
 ## Gate de Spec/design (coordinator, Fase 2)
 
 Antes de despachar, a Fase 2 classifica cada issue candidata (`trivial`/`não-trivial`, heurística de
-nº de módulos tocados + presença de "Escopo do trabalho"/Critério de Aceite já detalhado no corpo) e,
+nº de módulos tocados + presença de descrição e Critério de Aceite em checklist no corpo; a label
+não decide sozinha, então uma `enhancement` bem escrita é `trivial`) e,
 para issues `não-trivial` sem Spec associada (`docs/specs/<slug>.md`, ver `skills/spec/SKILL.md` §6),
 pergunta via `AskUserQuestion` como prosseguir — despachar mesmo assim, gerar Spec antes (issue sai da
 leva), ou confirmar rapidamente 2-3 pontos e seguir sem Spec completa. Issues `trivial` (bugfix com
