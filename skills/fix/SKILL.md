@@ -1,6 +1,6 @@
 ---
 name: fix
-description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (orçamento sugerido de 5 iterações, não enforced — ver issue #156). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do ship.
+description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (orçamento sugerido de 5 iterações, não enforced). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do ship.
 license: MIT
 compatibility: "Núcleo: ler, editar e rodar shell. Opcional: hooks (fallback em shared/references/harness-capabilities.md)."
 metadata:
@@ -52,7 +52,7 @@ a ausência total do arquivo um sinal detectável de falha anômala.
   e o `module-test-map` antes de prosseguir. **A resolução do `module-test-map.md`/`config.json`
   sempre usa o root do repositório (`vetor-checks.sh repo-root`), nunca o `cwd`** — dentro de um
   worktree, arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: `.claude/`) não existem
-  localmente (issue #160).
+  localmente.
 - `../shared/references/agent-status.template.md` — path, estados e blocos
   obrigatórios do status file.
 - `../shared/references/touched-files-cache.md` — formato do cache gravado no §1.
@@ -107,8 +107,7 @@ Mapeie ao módulo usando a tabela do module-test-map, resolvido a partir do root
 `sem suíte de testes` não entram no loop: registre `skipped (no test suite)` e não os trate como
 falha.
 
-**Repo Map do módulo (diagnóstico preventivo, RF-04 de `docs/specs/repo-map-ast-context-packet.md`,
-issue #507).** Antes de abrir arquivos inteiros ou rodar `grep`/`find` para descobrir onde moram os
+**Repo Map do módulo (diagnóstico preventivo, RF-04 de `docs/specs/repo-map-ast-context-packet.md`).** Antes de abrir arquivos inteiros ou rodar `grep`/`find` para descobrir onde moram os
 tipos e as assinaturas, peça o mapa sintático do módulo onde a falha apareceu:
 
 ```bash
@@ -120,7 +119,7 @@ deno run -A "$SKILL_DIR/../../scripts/repo-map.ts" --module <módulo> \
 ```
 
 - O comando roda no worktree, então o mapa reflete o código da branch; o `module-test-map` e o cache
-  vêm do root (o worktree pode não ter o primeiro, issue #160, e o cache do root poupa o mapa a
+  vêm do root (o worktree pode não ter o primeiro, e o cache do root poupa o mapa a
   frio). Se a gravação do cache for recusada, o aviso não bloqueia o loop.
 - `--files` é opcional: liste os arquivos que o erro cita (stack trace, import quebrado) e os do
   `git diff` acima. Para o módulo catch-all (`root`) ele é o que dá foco ao mapa; sem ele o CLI
@@ -151,7 +150,7 @@ vocabulário de `evidence-state.md`: `OPEN_QUESTION` crítica, `ASSUMED` que pre
 `Evidence Conflict`. O mecanismo de escalação continua sendo `BLOCKED_WAITING`; o vocabulário só
 qualifica o motivo, sem criar um segundo caminho de escalação paralelo.
 
-⚠️ **O limite de 5 é um orçamento sugerido, não um hard cap enforced (issue #156):** nenhum hook
+⚠️ **O limite de 5 é um orçamento sugerido, não um hard cap enforced:** nenhum hook
 interrompe a sessão automaticamente ao ultrapassá-lo. A responsabilidade de parar é sua — nunca
 decida sozinho "mais uma tentativa" ao chegar na 5ª iteração sem verde. Vá direto para o §4 (Handover
 de Falha) ou, se identificar que falta uma decisão que só o coordinator/usuário pode tomar, registre
@@ -170,13 +169,13 @@ consumir uma iteração.
 `package.json` e `tsconfig.json` e não tem `deno.json`/`deno.jsonc` (o `runtime` do `config.json`
 vale só para a raiz, não para um submódulo), rode o typecheck do projeto **antes** de cada execução
 de testes — o hook `check-edit.ts` não o faz mais a cada `Edit`/`Write` em Node (opt-in via
-`hooks.typecheckOnEdit`, issue #514), então este é o ponto em que erro de tipo e import quebrado
+`hooks.typecheckOnEdit`), então este é o ponto em que erro de tipo e import quebrado
 aparecem sem queimar uma rodada de testes. Use o script `typecheck` do `package.json`
 (`<packageManager> run typecheck`) se existir; senão, `node_modules/.bin/tsc --noEmit` dentro do
 módulo. Falha de typecheck é vermelho da iteração: vá para o §3.b com a saída do typecheck como o
 erro lido, sem rodar os testes.
 
-**Test scoping (issue #515):** se há um teste de reprodução criado no passo 4 do §3.b, ou um
+**Test scoping:** se há um teste de reprodução criado no passo 4 do §3.b, ou um
 arquivo de teste apontado no diagnóstico ou no prompt, rode **só esse teste** nas iterações 1 a 4
 (ex.: `deno test -A <arquivo>`, `npx vitest run <arquivo>`) — o feedback leva segundos, em vez de
 subir a suíte fria do módulo a cada tentativa. A ordem é typecheck → teste escopado → suíte
@@ -217,7 +216,7 @@ ver "Test scoping" no §3.a):
 ```json
 {"status": "green", "iterations": <i>, "module": "<módulo>"}
 ```
-Atualize o status file com `Status: GREEN` e a linha `Tested: <sha> <comando> pass` (`<sha>` = `git rev-parse HEAD` depois do último commit, `<comando>` = a suíte completa que acabou de passar; formato em `agent-status.template.md`, issue #542) e **pare**.
+Atualize o status file com `Status: GREEN` e a linha `Tested: <sha> <comando> pass` (`<sha>` = `git rev-parse HEAD` depois do último commit, `<comando>` = a suíte completa que acabou de passar; formato em `agent-status.template.md`) e **pare**.
 No encerramento Green, siga o registro opcional de aprendizado em `memory-gotchas.md`; falha ou
 indisponibilidade da memória não altera o estado Green nem impede o encerramento.
 
@@ -265,7 +264,7 @@ Se **vermelho**:
 ### 4 — Após N=5 falhas (Handover de Falha)
 
 **Pare aqui — não inicie uma 6ª iteração.** Mesmo que o próximo fix pareça óbvio ou quase certo, o
-orçamento estourado deve virar handover, não mais uma tentativa por conta própria (issue #156).
+orçamento estourado deve virar handover, não mais uma tentativa por conta própria.
 
 1. Atualize o status file com `Status: FAILED_MAX_ITERATIONS`.
 2. Crie `FAIL_ANALYSIS.md` no root do worktree:

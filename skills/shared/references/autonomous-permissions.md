@@ -7,9 +7,9 @@
 ## Por que
 
 Workers em background, Pre-Ship e rotinas `--headless` param em prompts de permissão que ninguém vê
-(uma onda de 5 workers ficou 8h30 parada, #562). Regras `allow` para o que o Vetor faz sempre evitam
+(uma onda de 5 workers ficou 8h30 parada). Regras `allow` para o que o Vetor faz sempre evitam
 esses prompts; merge, push para a default e comandos destrutivos continuam exigindo autorização
-explícita (#560) e o hook de segurança.
+explícita e o hook de segurança.
 
 ## O que o Vetor oferece
 

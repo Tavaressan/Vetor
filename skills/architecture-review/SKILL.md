@@ -91,7 +91,7 @@ vocabulário (`codebase-design-vocabulary.md`) — julgamento qualitativo sobre 
 nunca só uma métrica textual (contagem de linhas/referências). Descarte suspeitas que não sobrevivem
 ao teste antes de gerar o relatório.
 
-**Conflito com ADR existente (issue #185, decisão 5):** se `.claude/vetor/docs/adr/` existir, cruze
+**Conflito com ADR existente (decisão 5):** se `.claude/vetor/docs/adr/` existir, cruze
 cada candidato remanescente contra as ADRs registradas. Só inclua um candidato que contradiga uma
 ADR quando a fricção observada for real o bastante para justificar reabrir a decisão — marque-o com
 um callout de aviso no relatório (Fase 2), nunca omita nem trate como erro, e nunca liste todo
@@ -144,7 +144,7 @@ implementação não).
 `.claude/vetor/docs/CONTEXT.md`, resolva e registre-o durante a rodada — mecanismo idêntico ao de
 `grilling-conventions.md` §5 (lazy, nunca criado preventivamente).
 
-**Oferta de ADR:** diferente do `backlog` (que não oferece ADR — #177 decisão 7), esta skill
+**Oferta de ADR:** diferente do `backlog` (que não oferece ADR), esta skill
 oferece porque decisão arquitetural é o próprio caso de uso central. Ofereça um ADR quando:
 1. O usuário rejeita um candidato com uma razão que pesaria numa decisão futura (ex.: "não, porque
    sempre vamos precisar trocar esse driver"), **ou**
@@ -180,7 +180,7 @@ uma única proposta). **Nunca crie a issue você mesmo** — apenas ofereça o e
   `backlog` proponha uma issue (§4).
 - O relatório HTML é sempre escrito em `$TMPDIR`, nunca no repositório do projeto-alvo.
 - ADR é sempre apresentada para aprovação antes de gravar — nunca um write silencioso.
-- Fora do escopo desta skill (issue #185): agendamento automático (`CronCreate`) para lembrar de
+- Fora do escopo desta skill: agendamento automático (`CronCreate`) para lembrar de
   rodar periodicamente — fica recomendação de uso, não mecanismo; integração com `coordinator`/
   dispatch paralelo; sub-agentes paralelos de "design-it-twice" (explorar duas interfaces
   alternativas simultaneamente) — pode ser mencionado ao usuário como próximo passo manual, não

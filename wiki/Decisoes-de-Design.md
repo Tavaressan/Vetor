@@ -189,4 +189,11 @@ cada check antigo:
 | 7 banco de dados | `skills/guardian/references/database.md`, opcional, porque exige julgamento |
 | Delegação da análise de migrations a um runtime externo | removida: o script calcula buracos, duplicatas e nomes inválidos |
 | "Uncommitted work" como linha própria do relatório | coberto pela auditoria de worktrees (`trabalho não commitado`) |
+**Histórico fora dos prompts (issue #574).** As skills e agents não citam mais a issue que motivou
+cada regra: isso custava tokens em toda execução sem mudar o comportamento, e o histórico já está no
+git, nos PRs e nesta wiki. Ficaram só as citações que são fonte de um fato empírico (ex.: a recusa de
+escrita no root observada em workers, `agent-status.template.md`; o schema do Alethe observado no
+spike #451) e as que citam uma seção do Handoff de Spec #203. Registro que não estava em outro lugar:
+o diretório de protótipos do `design` é `prototype/` (singular) porque a implementação fixou
+`PROTOTYPE_DIR` antes de a especificação de artefatos (#213) sugerir `prototypes/`.
 

@@ -66,7 +66,7 @@ Se o `validate-ship-args` falhar, mostre o erro e pare. Se o `in-worktree` sair 
 muda de diretório por conta própria; quem a invoca de outro contexto (ex.: o `coordinator`, cujo cwd
 é o root) faz `cd` para o worktree antes.
 
-**Exceção — `--finalize <PR>` sem worktree local (issue #527).** Com o `in-worktree` falhando no modo
+**Exceção — `--finalize <PR>` sem worktree local.** Com o `in-worktree` falhando no modo
 `finalize`, não pare: siga `references/recuperacao.md` §1, que recria o worktree a partir da branch
 remota do PR.
 
@@ -107,8 +107,7 @@ caminhos (ex.: `SKILL.md`, agentes) e configs que executam comandos (hooks, work
 entram na exceção.
 
 1. **Code review.** Pule só se o PR já tem um comentário `## Code Review (Vetor)` com uma linha
-   `Reviewed: <sha>` igual ao HEAD atual (o coordinator revisou o diff local antes do push, issue
-   #541). Caso contrário, despache o agent `code-review` com o número do PR, a branch e a base. Com
+   `Reviewed: <sha>` igual ao HEAD atual (o coordinator revisou o diff local antes do push). Caso contrário, despache o agent `code-review` com o número do PR, a branch e a base. Com
    subagentes, em background:
    ```javascript
    Agent({

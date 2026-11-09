@@ -75,7 +75,7 @@ diretório residual, container, Graphify, ai-memory, best-practices) nunca é co
 - `dependabot-rebase`: grave `@dependabot rebase` num arquivo com a ferramenta de escrita e rode
   `gh pr comment <N> --body-file <arquivo>`.
 - `design-review-issue`: grave o corpo abaixo com a ferramenta de escrita (nunca `echo`, `printf` nem
-  heredoc, issue #525) e crie com `gh issue create --title "refactor(<módulo>): revisão de design
+  heredoc) e crie com `gh issue create --title "refactor(<módulo>): revisão de design
   (deletion test)" --body-file <arquivo>`. Labels de tipo ou módulo só se já existirem no repositório;
   nunca crie labels. A issue segue o fluxo humano (`backlog`/`coordinator`), nunca é refatorada aqui.
 

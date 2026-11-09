@@ -152,7 +152,7 @@ argumento `--label`.
 O rodapé `🤖 Gerado por /vetor:retro` permanece **obrigatório** no final do corpo da issue.
 
 Escreva o corpo com a ferramenta **Write** em um arquivo temporário (nunca `echo`, `printf` nem
-heredoc: o shell corrompe crases e pode inserir BOM, issue #525) e use a CLI `gh` com `--body-file`.
+heredoc: o shell corrompe crases e pode inserir BOM) e use a CLI `gh` com `--body-file`.
 Conteúdo do arquivo:
 
 ```text

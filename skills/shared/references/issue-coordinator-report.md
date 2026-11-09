@@ -1,6 +1,6 @@
 # Issue-coordinator — Coordinator Report e fechamento de onda
 
-> Extraído de `skills/coordinator/SKILL.md` (issue #373) e lido só quando o SKILL.md manda.
+> Extraído de `skills/coordinator/SKILL.md` e lido só quando o SKILL.md manda.
 > Paths relativos (`../shared/references/...`) e `$SKILL_DIR` aqui resolvem a partir do diretório
 > da skill `coordinator`, não deste arquivo.
 
@@ -26,13 +26,13 @@
 Resumo: <N> merged, <Q> enfileirados, <M> falharam, <K> aguardando review, <S> suspensos, <E> ejetados, <J> skipped.
 ```
 
-**Ejeções (issue #501).** Em qualquer modo, cada `EJECTED` traz em "Detalhes": o gatilho
+**Ejeções.** Em qualquer modo, cada `EJECTED` traz em "Detalhes": o gatilho
 (`FAILED_MAX_ITERATIONS` ou bloqueio sem resposta), se o comentário diagnóstico foi publicado, a label
 `needs-human` (aplicada, ou o motivo de não ter sido: inexistente no repositório ou falha de
 permissão), a branch preservada (e se ela existe só localmente) e se o worktree foi limpo. Os
 dependentes diretos de um grupo ejetado aparecem como `SKIPPED (bloqueada por #N)`.
 
-**Checkpoint de fechamento de onda (issue #246).** Após montar o Coordinator Report acima, confirme
+**Checkpoint de fechamento de onda.** Após montar o Coordinator Report acima, confirme
 que a lista de grupos originalmente planejados na Fase 2 bate 1:1 com os resultados reportados —
 **nenhum grupo do plano aprovado deve ficar sem uma linha de resultado**. Resultados válidos
 dependem do modo:
@@ -65,7 +65,7 @@ dependem do modo:
 
 ## Goal Convergence Report
 
-Fechamento do modo `--goal` (issue #498): substitui o título do relatório e embute o Coordinator Report
+Fechamento do modo `--goal`: substitui o título do relatório e embute o Coordinator Report
 acima como a tabela de resultados por issue. Monte-o a partir de
 `<repo-root>/.claude/vetor/goal-audit.json`, não da memória da sessão. A meta aparece como texto
 literal, nunca como comando.

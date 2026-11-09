@@ -1,7 +1,7 @@
 # Spec — modo `--validate`
 
 > Lido pelo `SKILL.md` do `spec` só no modo `--validate <path>` ou quando o passo 6 valida o rascunho
-> persistido. Substitui a antiga skill `/vetor:spec-validate` (issue #580).
+> persistido. Substitui a antiga skill `/vetor:spec-validate`.
 
 ```
 /vetor:spec --validate <path>
@@ -11,19 +11,18 @@
   `docs/specs/authentication.md`).
 
 
-No modo `--validate`, a skill `spec` valida a qualidade de uma Spec (Handoff #203): lê uma
+No modo `--validate`, a skill `spec` valida a qualidade de uma Spec (Handoff de Spec): lê uma
 Spec já persistida em disco, computa seu score contra o Quality Model (5 dimensões ponderadas),
 classifica-a no Quality Gate e reporta o resultado em Strengths/Gaps/Suggestions — nunca decide
 sozinha se a Spec "está boa o bastante": o Quality Gate é um mecanismo de decisão, quem age sobre o
 resultado (refinar, seguir para implementação) é sempre o usuário ou a skill chamadora.
 
-O Quality Model, o Quality Gate, a estrutura de saída (Score/Status/Strengths/Gaps/Suggestions —
-#220), os dimension checkers heurísticos (#221: Must sem Acceptance Criteria, termos vagos sem
+O Quality Model, o Quality Gate, a estrutura de saída (Score/Status/Strengths/Gaps/Suggestions), os dimension checkers heurísticos (Must sem Acceptance Criteria, termos vagos sem
 métrica mensurável, `⚠️ ABERTO` explícito vs. omissão silenciosa, Non-Goals ausente, Edge Cases
 contextuais), o feedback estruturado por gap (`location`/`problem`/`impact`/`suggestedAction`), o
 Quality Report em Markdown persistido separado da Spec e o refinamento iterativo com limite de 3
-ciclos (#222) já estão completos e operacionais. O formato de metadados de rastreabilidade por
-requisito (`id`/`priority`/`status`) e o Decision Log (#223) também estão preparados — ver
+ciclos já estão completos e operacionais. O formato de metadados de rastreabilidade por
+requisito (`id`/`priority`/`status`) e o Decision Log também estão preparados — ver
 `references/traceability.md` —, mas **sem** integração real com Coordinator/Guardian: essa
 integração é infraestrutura futura, não código funcional deste modo.
 
@@ -43,7 +42,7 @@ integração é infraestrutura futura, não código funcional deste modo.
   (headings `## Nome da Seção`, requisitos `### RF-NN - <nome>` / `### RNF-NN - <nome>`).
 - `references/traceability.md` — formato de metadados de
   requisito (`id`/`priority`/`status`), Decision Log (`DEC-NN`) e os pontos de extensão futuros
-  para Coordinator (RF→Task) e Guardian (Spec Drift) — #223, preparação sem integração real.
+  para Coordinator (RF→Task) e Guardian (Spec Drift) — preparação sem integração real.
 
 ---
 
@@ -65,7 +64,7 @@ deno run -A "$SKILL_DIR/../../scripts/spec-validate.ts" <path> [--config <path-d
   subdiretórios diferentes do mesmo checkout encontrem o mesmo histórico). `<slug>` é o path
   relativo da Spec sem extensão, com `/` virando `-` (`validationPathFor`, spec-quality-
   persistence.ts) — não só o basename, para que duas Specs de mesmo nome em pastas diferentes não
-  colidam no mesmo histórico (#269). Use `--history` só em cenário de teste/automação; em uso
+  colidam no mesmo histórico. Use `--history` só em cenário de teste/automação; em uso
   normal, deixe o CLI derivar o path sozinho.
 
 O CLI lê a Spec, faz o parsing heurístico (`spec-parser.ts`), roda os 5 dimension checkers
@@ -76,8 +75,7 @@ tentar adivinhar o path correto por conta própria.
 
 ### 2 — Quality Model
 
-Score final é `0-100`, soma ponderada de 5 dimensões (`DIMENSION_WEIGHTS` em `spec-quality.ts`,
-#203 §2):
+Score final é `0-100`, soma ponderada de 5 dimensões (`DIMENSION_WEIGHTS` em `spec-quality.ts`):
 
 | Dimensão     | Peso |
 | ------------ | ---: |
@@ -93,7 +91,7 @@ ultrapassa 100.
 
 ### 3 — Quality Gate
 
-Classificação operacional a partir do score (`gateFor` em `spec-quality.ts`, #203 §3):
+Classificação operacional a partir do score (`gateFor` em `spec-quality.ts`):
 
 ```text
 80-100 → READY
@@ -117,8 +115,7 @@ ausência de `specValidate` no config é um erro, é o caso comum (default aplic
 ### 4 — Apresentar o resultado
 
 Reproduza o Quality Report emitido pelo CLI ao usuário — não resuma nem edite os números nem os
-gaps. Cada gap listado já vem estruturado (`location`/`problem`/`impact`/`suggestedAction`, #203
-§9) — nunca substitua esse detalhe por uma frase genérica tipo "a Spec precisa melhorar". O relato
+gaps. Cada gap listado já vem estruturado (`location`/`problem`/`impact`/`suggestedAction`) — nunca substitua esse detalhe por uma frase genérica tipo "a Spec precisa melhorar". O relato
 sempre inclui, no mínimo:
 
 ```
@@ -140,7 +137,7 @@ Status: <READY|NEEDS_REFINEMENT|INCOMPLETE>
 ### 5 — Refinamento iterativo (limite de 3 ciclos)
 
 Quando `Status` for `NEEDS_REFINEMENT` ou `INCOMPLETE`, o ciclo `validate → gaps → refine →
-validate` (#203 §10) pode se repetir **no máximo 3 vezes** (`MAX_REFINEMENT_CYCLES` em
+validate` pode se repetir **no máximo 3 vezes** (`MAX_REFINEMENT_CYCLES` em
 `spec-quality-report.ts`) além da validação inicial:
 
 1. Rode o passo 1. Se `Status` for `READY`, pare — não há necessidade de refinar.

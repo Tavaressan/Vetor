@@ -4,7 +4,7 @@ description: Executa o Pre-Ship (vetor-checks.sh prepare, com recuperação pelo
 # tools é allowlist explícita: Write só para gravar corpos de PR/comentário e status files (o ship-worker não
 # altera código do produto; o safety hook continua valendo), sem Edit, sem Agent (não despacha revisores)
 tools: [Bash, Read, Write, Grep, Glob]
-# `inherit` porque `haiku`/`sonnet` quebram o `agy plugin validate` (issues #337/#397). O modelo
+# `inherit` porque `haiku`/`sonnet` quebram o `agy plugin validate`. O modelo
 # econômico vem do dispatch: Agent({ subagent_type: "vetor:ship-worker", model: "haiku" }).
 model: inherit
 license: MIT

@@ -7,7 +7,7 @@
 Se houver ao menos um status file ativo na Fase 0:
 
 **pule as Fases 1–3** e pergunte tudo em
-     **uma única chamada de `AskUserQuestion`** (issue #499): o teto de workers (item 1 da entrevista consolidada
+     **uma única chamada de `AskUserQuestion`**: o teto de workers (item 1 da entrevista consolidada
      da Fase 2; omitido quando `N_rec = 1`, pois o estado em memória de `N` não sobrevive a um
      reinício da sessão) e, se houver grupos em `GREEN` sem PR aberta ou merge, uma segunda pergunta
      `multiSelect` — "Fazer ship dos grupos `GREEN`?" — listando cada grupo `<slug>` (Issue #<N>)

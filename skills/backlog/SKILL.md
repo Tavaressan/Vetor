@@ -174,7 +174,7 @@ descartada, mas confirma empiricamente uma hipótese já registrada em `#<N>` e 
 mantenha as duas e comente na existente ao criar a nova (§6):
 
 Escreva o texto com a ferramenta **Write** em um arquivo temporário e passe-o via `--body-file`
-(nunca `--body` inline, issue #525):
+(nunca `--body` inline):
 
 ```bash
 gh issue comment <N> --body-file "<path-do-arquivo-de-comentario>"
@@ -244,7 +244,7 @@ documenta a omissão quando não existem. Se algum label não existir, omita-o; 
 omita a flag `--label` por completo ao invocar o `gh issue create`.
 
 Escreva o corpo com a ferramenta **Write** em um arquivo temporário (nunca `echo`, `printf` nem
-heredoc: o shell corrompe crases e pode inserir BOM, issue #525) e passe-o via `--body-file`:
+heredoc: o shell corrompe crases e pode inserir BOM) e passe-o via `--body-file`:
 
 Conteúdo do arquivo de corpo (escrito via Write):
 

@@ -129,7 +129,7 @@ Se `carry-changes` falhar:
 - **exit 1** (nada a transportar ou erro antes da aplicação): o root está intacto; remova o worktree
   e a branch como no exit 3 e aborte.
 
-### 4.a — Modo `--from-branch` (PR sem worktree local, issue #527)
+### 4.a — Modo `--from-branch` (PR sem worktree local)
 
 Recria um worktree para uma branch que já existe no remoto (PR preparado em outra máquina). Pula os
 passos 1 a 4 (neste modo `<type>` e `<slug>` posicionais deixam de ser obrigatórios). Se a branch ou

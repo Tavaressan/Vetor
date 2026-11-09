@@ -67,7 +67,7 @@ Evite estes três padrões ao escrever o teste de reprodução:
 - **Refactor não é parte deste ciclo**: o ciclo vermelho-verde do `fix`/`issue-worker` não
   deve tentar refatorar código adjacente ou melhorar arquitetura durante o fix. Achados de
   refatoração/arquitetura ficam para o `code-review`, agente separado despachado depois pelo
-  `ship` (ver issue #178) — é o estágio dedicado a esse tipo de achado.
+  `ship` — é o estágio dedicado a esse tipo de achado.
 
 ## 5. Mocking
 

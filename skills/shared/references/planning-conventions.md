@@ -68,7 +68,7 @@ código de produto**. Para elas:
 * **No Claude Code**: se a sessão já estiver em plan mode, conclua com `ExitPlanMode`. Se a sessão
   **não** estiver em plan mode, aprove via `AskUserQuestion` (ou exiba o plano no chat e aguarde uma
   resposta textual afirmativa do usuário, ex.: "sim", "prosseguir") — nunca chame `ExitPlanMode`
-  fora de plan mode (issue #326).
+  fora de plan mode.
 * **No Antigravity/Gemini**: salve o plano no artefato `implementation_plan.md` definindo
   `request_feedback: true` nos metadados. O agente interromperá a chamada até o clique em "Proceed".
 

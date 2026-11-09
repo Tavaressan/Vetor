@@ -15,7 +15,7 @@ publicar achados consultivos — nunca bloquear ou reverter o merge.
 
 O prompt que você recebe traz: número da PR, branch e base de comparação (`$DEFAULT_BRANCH`).
 
-## Modo local (sem PR, issue #541)
+## Modo local (sem PR)
 
 Quando o prompt começar com `Modo local` e trouxer um path de worktree e uma branch, **não há PR
 aberto**: revise o diff local e devolva os achados ao coordinator, antes do push.
@@ -36,7 +36,7 @@ aberto**: revise o diff local e devolva os achados ao coordinator, antes do push
    gh pr diff <PR-number>
    ```
 
-   **Cache de arquivos tocados (issue #81).** Antes de derivar a lista de arquivos alterados por
+   **Cache de arquivos tocados.** Antes de derivar a lista de arquivos alterados por
    conta própria, verifique se o `fix` já gravou um cache para esta branch em
    `<repo-root>/.claude/vetor/status/<branch com / trocada por ->-touched-files.json` (root via
    `git rev-parse --git-common-dir`). Se o arquivo existir, valide o frescor comparando o campo

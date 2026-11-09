@@ -9,4 +9,4 @@ metadata:
   version: "1.2.0"
 ---
 
-Este comando foi renomeado para `/vetor:ship` (issue #365). Leia `../ship/SKILL.md` e siga-o integralmente com os mesmos argumentos.
+Este comando foi renomeado para `/vetor:ship`. Leia `../ship/SKILL.md` e siga-o integralmente com os mesmos argumentos.

@@ -1,6 +1,6 @@
 # Issue-coordinator — monitoramento de status
 
-> Extraído de `skills/coordinator/SKILL.md` (issue #373) e lido só quando o SKILL.md manda.
+> Extraído de `skills/coordinator/SKILL.md` e lido só quando o SKILL.md manda.
 > Paths relativos (`../shared/references/...`) e `$SKILL_DIR` aqui resolvem a partir do diretório
 > da skill `coordinator`, não deste arquivo.
 
@@ -11,9 +11,9 @@ bash "$SKILL_DIR/../../scripts/vetor-status.sh"
 ```
 
 O script lê `.claude/vetor/status/*.md`, cruza com `git worktree list` (worktree removido
-manualmente → `cancelled (worktree removed)`; recém-despachado → `aguardando worktree`, issue #347)
+manualmente → `cancelled (worktree removed)`; recém-despachado → `aguardando worktree`)
 e com `gh pr list --state all`, e imprime a tabela. O script resolve o root do repositório
-automaticamente, podendo rodar no root ou dentro de qualquer worktree sem falso alarme (issue #339).
+automaticamente, podendo rodar no root ou dentro de qualquer worktree sem falso alarme.
 Reproduza-a no chat acrescentando os grupos `QUEUED`, e adicione a coluna `Onda` (Fase 1)
 a cada linha — o script não conhece o DAG, então essa coluna vem do plano da Fase 2 mantido em
 memória pelo coordinator. Grupos `QUEUED` de uma onda posterior aparecem como
@@ -21,7 +21,7 @@ memória pelo coordinator. Grupos `QUEUED` de uma onda posterior aparecem como
 vaga no teto `N`.
 
 ⚠️ **Fallback de leitura.** O `vetor-status.sh` já lê `<path-do-worktree>/.claude/vetor-status.md`
-de cada worktree ativo quando o status file do root não existe ou é mais antigo (issue #540); a
+de cada worktree ativo quando o status file do root não existe ou é mais antigo; a
 linha aparece como `ativo (status via fallback do worktree)`. Não copie o fallback à mão.
 
 ⚠️ **Workers duplicados.** Extraia o número de issue de cada `Iteration: N/5 (Issue #<M>)` dos status
@@ -46,7 +46,7 @@ Quando um grupo foi despachado via `mcp__alethe__alethe_delegate` (contrato com 
 
 ---
 
-**5.e — CI agregado dos PRs preparados (issue #494)**
+**5.e — CI agregado dos PRs preparados**
 
 Depois do Pre-Ship paralelo (Fase 6.a), acompanhe o CI de **todos** os PRs preparados com **uma única
 consulta**, nunca com um `gh pr checks <PR> --watch` por PR (cada um bloqueia e o total vira N × T_ci):
@@ -77,7 +77,7 @@ classifique cada PR pelo `statusCheckRollup`:
 
 ---
 
-**5.g — Reconciliação de worker encerrado sem status terminal (issue #559)**
+**5.g — Reconciliação de worker encerrado sem status terminal**
 
 O status file é a fonte de verdade, mas um worker pode encerrar com `RUNNING` (ou sem arquivo)
 mesmo dizendo no chat que terminou. Ao receber o término de um worker, rode do worktree dele
@@ -98,7 +98,7 @@ mesmo dizendo no chat que terminou. Ao receber o término de um worker, rode do 
 
 ---
 
-**5.h — Watchdog de workers parados (issue #562)**
+**5.h — Watchdog de workers parados**
 
 Um worker pode ficar horas sem avançar, em geral esperando um prompt de permissão que ninguém viu,
 e nada acorda o coordinator até a primeira notificação de término. Depois do primeiro dispatch,

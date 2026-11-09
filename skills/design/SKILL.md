@@ -1,6 +1,6 @@
 ---
 name: design
-description: Skill de design do Vetor — (1) detecta o modo de operação (Prototype-first/System-first/Vetor-first #213), importa um Design System existente sem duplicá-lo e mantém a Design Direction persistente em .vetor/design/; (2) Handoff de protótipo para Design Contract, com estados de interface além do happy path (#229); (3) Frontend Self-Correction Loop (Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done) com Visual Critique em 10 dimensões e degradação graciosa sem MCP de browser. Consumida por issue-worker/fix ao implementar ou corrigir UI de frontend.
+description: Skill de design do Vetor — (1) detecta o modo de operação (Prototype-first/System-first/Vetor-first), importa um Design System existente sem duplicá-lo e mantém a Design Direction persistente em .vetor/design/; (2) Handoff de protótipo para Design Contract, com estados de interface além do happy path; (3) Frontend Self-Correction Loop (Design Contract → Build → Run → Inspect → Screenshot → Accessibility Snapshot → Critique → Fix → Verify → Done) com Visual Critique em 10 dimensões e degradação graciosa sem MCP de browser. Consumida por issue-worker/fix ao implementar ou corrigir UI de frontend.
 license: MIT
 compatibility: "Núcleo: ler, editar e rodar shell. Sem capacidade opcional."
 metadata:
@@ -9,20 +9,20 @@ metadata:
 ---
 
 Você é a skill de design do Vetor. Cobre três responsabilidades sequenciais do fluxo de frontend
-(#213):
+:
 
 1. **Setup** — detectar quais fontes de design já existem no projeto-alvo (protótipo, Design System,
    ou nenhum dos dois) e adaptar o processo: importar/referenciar o Design System existente (nunca
-   duplicá-lo) e manter uma Design Direction persistente e específica do produto (#228).
+   duplicá-lo) e manter uma Design Direction persistente e específica do produto.
 2. **Handoff** — quando o modo é Prototype-first, extrair do protótipo estrutura de telas,
    hierarquia, componentes, tokens observáveis, conteúdo, interações, estados e responsividade, e
-   transformar isso em um Design Contract (#227) que preserva
+   transformar isso em um Design Contract que preserva
    `prototype intent + dados reais +
    estados reais + restrições técnicas reais` — nunca uma cópia
-   de pixels (#229).
+   de pixels.
 3. **Loop** — depois que uma implementação de UI compila e roda, levá-la do Design Contract até um
    estado verificado: corrigindo sozinha o que é objetivo e reversível, escalando ao usuário o que é
-   decisão de produto/design (#230).
+   decisão de produto/design.
 
 ---
 
@@ -57,8 +57,8 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
   replique as definições aqui — cite os campos. §4.4 aplica os 4 estados de Evidence State às
   Decisões do Design Contract — exemplo completo em
   `skills/design/examples/design-contract-example.md`. §6 documenta a árvore completa de artefatos
-  em `.vetor/design/`; §7 o conflito Specification × Design Contract (#231); §8 os pontos de
-  extensão futuros — Design Drift, Visual Debt, integração com Guardian (#231, não implementados
+  em `.vetor/design/`; §7 o conflito Specification × Design Contract; §8 os pontos de
+  extensão futuros — Design Drift, Visual Debt, integração com Guardian (não implementados
   nesta issue).
 - `../shared/references/evidence-state.md` — `OPEN_QUESTION` usado em
   `patterns.md` (Setup, passo 2) quando um padrão de interação não é detectável por varredura de
@@ -68,7 +68,7 @@ uma tela/fluxo de UI compila e roda. Também pode ser invocado manualmente com
   O Loop é complementar e roda **depois**: verifica o que foi construído, não decide como desenhar.
 - `../shared/references/mcp-availability.md` — mecanismo de checagem de
   disponibilidade (procurar `mcp__<server>__` ou `mcp__plugin_<plugin>_<server>__` na lista de
-  ferramentas, conforme `scripts/lib/mcp.ts` — issue #336). Servidores relevantes aqui: browser
+  ferramentas, conforme `scripts/lib/mcp.ts`). Servidores relevantes aqui: browser
   (`chrome-devtools`, `playwright`) para os passos 4-6 e 9 do Loop, Context7 para qualquer
   comportamento de framework/lib consultado durante o Fix (Loop, passo 8).
 - `scripts/lib/design-mode.ts` — lógica de detecção/renderização do Setup (pura, testada em
@@ -118,7 +118,7 @@ deno run -A "$SKILL_DIR/../../scripts/detect-design-mode.ts" <diretório>
 
 Saída JSON: `mode`, `hasPrototype`, `evidence`, `written`, `skipped`.
 
-Modos, nesta ordem de prioridade (ver #213 "Modos de operação"):
+Modos, nesta ordem de prioridade (ver `design-vocabulary.md`, "Modos de operação"):
 
 1. **Prototype-first** — existe `.vetor/design/prototype/`. Prossiga para a seção Handoff, abaixo,
    para transformar o protótipo em Design Contract.
@@ -464,7 +464,7 @@ está na lista de ferramentas da sessão:
 - O Handoff nunca promove `INFERRED`/`ASSUMED` a `CONFIRMED` sem evidência qualificada nova
   (`evidence-state.md` §5).
 - O conflito Specification × Design Contract nunca é resolvido silenciosamente — sempre relatado
-  (`spec-design-conflict.ts`) e escalado via `BLOCKED_WAITING` (#231, design-vocabulary.md §7).
+  (`spec-design-conflict.ts`) e escalado via `BLOCKED_WAITING` (design-vocabulary.md §7).
 - Design Drift, Visual Debt e a integração com Guardian são pontos de extensão **documentados, não
-  implementados** nesta issue (#231, design-vocabulary.md §8) — sem mecanismo de detecção/tracking
+  implementados** nesta issue (design-vocabulary.md §8) — sem mecanismo de detecção/tracking
   automático nesta skill ainda.

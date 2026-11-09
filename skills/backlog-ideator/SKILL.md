@@ -9,4 +9,4 @@ metadata:
   version: "1.0.2"
 ---
 
-Este comando foi renomeado para `/vetor:backlog` (issue #365). Leia `../backlog/SKILL.md` e siga-o integralmente com os mesmos argumentos.
+Este comando foi renomeado para `/vetor:backlog`. Leia `../backlog/SKILL.md` e siga-o integralmente com os mesmos argumentos.

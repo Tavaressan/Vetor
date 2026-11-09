@@ -6,7 +6,7 @@
 
 ## Modo goal
 
-`--goal "<meta>"` (issue #498, RF-01 da Spec
+`--goal "<meta>"` (RF-01 da Spec
 `docs/specs/autonomia-continua-e-desacoplamento-interativo.md`) alinha o coordinator ao `/goal` de
 longa duração dos harnesses: o operador delega a meta e volta quando ela termina. O fluxo é o das
 Fases 0–7, mas o coordinator **converge sozinho**: despacha onda após onda até que toda issue do

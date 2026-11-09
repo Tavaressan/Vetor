@@ -13,14 +13,14 @@ projeto, decompor requisitos grandes em componentes, esclarecer o que faltar com
 focada e, a partir disso, redigir um rascunho de Spec estruturada — descrevendo comportamento, não
 implementação — usando `$SKILL_DIR/../../templates/spec.md` como esqueleto.
 
-Esta skill ainda não cobre todo o pipeline de #202: implementa a entrada, a descoberta de contexto
+Esta skill ainda não cobre todo o pipeline de Spec: implementa a entrada, a descoberta de contexto
 (via Knowledge Provider quando disponível, com fallback para filesystem direto), a decomposição em
 componentes, a entrevista focada, o motor de geração de RF/RNF/Acceptance Criteria/Edge Cases/
 Non-Goals, a montagem do rascunho a partir do template e a persistência (frontmatter válido,
 identidade estável, path previsível em `docs/specs/<slug>.md` por padrão, overwrite nunca silencioso
 — sempre `update`/`create-new`/`cancel`, ver passo 6) e a validação de qualidade (Quality Gate, no
 modo `--validate` e no passo 6.4); overwrite avançado (versionamento, merge de
-rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra (issue #225); consumo
+rascunhos) chega em outra; Obsidian como Knowledge Provider chega em outra; consumo
 automático da Spec pelo `coordinator` (geração de código) não é escopo desta skill — cada
 estágio abaixo sinaliza explicitamente o que ainda não está implementado.
 
@@ -108,7 +108,7 @@ A busca por Specs relacionadas (passo 1, item 5) e a persistência (passo 6) sã
 ```
 Knowledge Provider
 ├── filesystem   (implementado — via scripts/knowledge-doc.ts)
-├── obsidian     (issue #225, ainda não implementado neste código)
+├── obsidian     (ainda não implementado neste código)
 └── future providers
 ```
 
@@ -127,7 +127,7 @@ deno run -A "$SKILL_DIR/../../scripts/knowledge-doc.ts" status
   rascunho, como nesta skill antes desta integração).
 
 A skill nunca assume nem referencia Obsidian diretamente em nenhum ponto do fluxo — o CLI sempre usa
-`FilesystemKnowledgeProvider` hoje; quando `ObsidianKnowledgeProvider` existir (#225), a mudança fica
+`FilesystemKnowledgeProvider` hoje; quando `ObsidianKnowledgeProvider` existir, a mudança fica
 isolada em `scripts/knowledge-doc.ts`, sem alterar os passos abaixo.
 
 ### 1 — Context Discovery
@@ -308,7 +308,7 @@ parte de um requisito vai para `## Decisions` como candidata a ADR — nunca emb
   atualização via `create-spec`/edição manual), novos requisitos recebem o **próximo número
   disponível**; nunca renumere um `RF-`/`RNF-` já existente para "abrir espaço" ou reordenar. Um
   requisito removido deixa lacuna na numeração — isso é esperado e preferível a renumerar (mesmo
-  espírito de #202 §7: os IDs sustentarão futuramente `spec → requirement → task → code → test`).
+  os IDs sustentarão futuramente `spec → requirement → task → code → test`).
 
 #### 5.3 — Priority e Acceptance Criteria
 
@@ -368,7 +368,7 @@ concorrência · retry · autenticação expirada · estado inconsistente
 
 Se a descoberta não sustentar nenhum Non-Goal específico, registre a fronteira mais óbvia do tema
 (ex.: "Não cobre cenários fora do descrito em Goals") em vez de deixar a seção sem conteúdo. Isso
-existe para impedir expansão silenciosa de escopo durante a implementação (#202 §10) — nunca é
+existe para impedir expansão silenciosa de escopo durante a implementação — nunca é
 opcional.
 
 #### 5.6 — Demais seções
@@ -395,12 +395,12 @@ entrega:
 
 - overwrite avançado (versionamento, merge automático de rascunhos divergentes) — o que existe é o
   fluxo binário `update`/`create-new`/`cancel` abaixo, não um merge de conteúdo;
-- Knowledge Provider além de filesystem (ex.: Obsidian, issue #225);
+- Knowledge Provider além de filesystem (ex.: Obsidian);
 - geração de código a partir da Spec — esta skill só produz o documento; consumi-lo para gerar
   Issues/Tasks/Worktree/Implementation é responsabilidade de um estágio posterior do workflow (ex.:
   `coordinator`), fora do escopo desta skill.
 
-**Path previsível (issue #219):** com o Knowledge Provider `filesystem` (default, sem config
+**Path previsível:** com o Knowledge Provider `filesystem` (default, sem config
 adicional), toda Spec é persistida em `docs/specs/<slug>.md` — o mesmo `<slug>` usado na identidade
 `spec:<slug>`. Este path é a forma documentada de localizar a Spec fora da conversa (ex.: por um
 humano, ou por uma etapa futura do workflow que venha a consumi-la).

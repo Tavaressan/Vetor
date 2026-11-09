@@ -21,7 +21,7 @@ Use `$DEFAULT_BRANCH` em todos os comandos subsequentes (`git diff`, `git pull`,
 
 ## Comandos de teste por módulo (`module-test-map`)
 
-**Mecanismo canônico de resolução (issue #160): sempre resolva via ROOT do repositório, nunca via
+**Mecanismo canônico de resolução: sempre resolva via ROOT do repositório, nunca via
 `cwd`.** Quando `fix`/`ship` rodam dentro de um worktree linkado, o worktree é
 um checkout limpo — arquivos ignorados pelo `.gitignore` do projeto-alvo (ex.: uma entrada `.claude/`,
 comum em setups que tratam config de assistente como local) nunca são materializados nele. Se

@@ -8,7 +8,7 @@
 
 Issue pulada por "PR já aberto" cuja branch não tem worktree local nem status file ativo é um PR
 órfão: foi preparado em outra máquina, numa sessão interrompida ou o worktree já
-foi limpo (issue #527). Não termine só com "PR já aberto": liste cada um na tabela com estado de CI,
+foi limpo. Não termine só com "PR já aberto": liste cada um na tabela com estado de CI,
 `mergeable`, draft e idade.
 
 Detecção concreta: cruze os PRs abertos com os worktrees e status files existentes.
