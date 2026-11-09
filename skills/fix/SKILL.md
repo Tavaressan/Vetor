@@ -2,7 +2,7 @@
 name: fix
 description: Loop autônomo de reproduce → fix → rebuild → test até CI verde (orçamento sugerido de 5 iterações, não enforced — ver issue #156). Opera apenas dentro de worktree. Não cria PR — isso é responsabilidade do ship.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: hooks (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
   version: "1.0.1"

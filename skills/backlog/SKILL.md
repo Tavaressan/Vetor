@@ -2,7 +2,7 @@
 name: backlog
 description: Sessão de ideação guiada — analisa o domínio, arquitetura e dívidas técnicas do projeto, propõe issues GitHub em batch e cria após aprovação do usuário.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: perguntas (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
   version: "1.0.2"

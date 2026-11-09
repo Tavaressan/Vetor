@@ -2,7 +2,7 @@
 name: now
 description: Kickoff diário do Vetor — resume o estado do projeto, prepara ferramentas e encaminha a próxima etapa.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: perguntas (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
   version: "1.1.0"

@@ -2,7 +2,7 @@
 name: architecture-review
 description: Survey periódico de dívida arquitetural — explora hot spots via histórico de commits, aplica o deletion test, gera relatório HTML comparável e aprofunda o candidato escolhido num loop de grilling. Use /vetor:architecture-review [foco]. Sempre manual e síncrona, nunca --cron.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: subagentes, perguntas (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
   version: "1.0.0"

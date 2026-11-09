@@ -3,7 +3,7 @@ name: issue-coordinator
 description: "Alias de compatibilidade (deprecado) de /vetor:coordinator — use /vetor:coordinator."
 disable-model-invocation: true
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Sem capacidade opcional."
 metadata:
   author: vitortavares
   version: "1.6.0"

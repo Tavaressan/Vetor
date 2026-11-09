@@ -2,7 +2,7 @@
 name: ship
 description: Pipeline desacoplado de entrega — suporta --prepare (validação, push, PR draft, CI e revisões em background), --finalize (verificação, squash merge, sync root e cleanup) e modo monolítico sequencial legado. Deve ser executado de dentro de um worktree.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: subagentes, hooks, perguntas, background (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
   version: "1.3.0"

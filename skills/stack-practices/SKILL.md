@@ -2,7 +2,7 @@
 name: stack-practices
 description: Detecta as libs/frameworks estruturais do projeto e grava regras de melhores práticas via Context7 (conhecimento externo, path-scoped, separado das rules factuais do /vetor).
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Sem capacidade opcional."
 metadata:
   author: vitortavares
   version: "1.0.0"

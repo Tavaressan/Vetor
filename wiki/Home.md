@@ -25,6 +25,9 @@ não precisa estar no caminho de quem só quer começar.
 
 ## Compatibilidade com outros runtimes
 
+O que o núcleo pode assumir de qualquer harness, a matriz de capacidades opcionais e onde ficam os
+fallbacks: **[Contrato de capacidades](Contrato-de-Capacidades.md)**.
+
 - **[Antigravity](Compatibilidade-Antigravity.md)** — plugin global via `git clone + agy plugin install` ou workspace local via `.agents/` (`vetor install --engines antigravity --yes`); proteção de comandos via hook Deno (`safety-check-antigravity.ts`); não usar `/vetor:coordinator`.
 - **[OpenAI Codex](Compatibilidade-Codex.md)** — skills funcionam sem tradução (agnósticas de engine desde #251); hooks com paridade estrutural, mas payload não verificado contra sessão real.
 - **[OpenCode](Compatibilidade-OpenCode.md)** — isolamento de worktree resolvido, `/vetor:coordinator` portado como **agent** (`opencode/agent/issue-coordinator.md`, não skill — só agents em `.opencode/agent/` são invocáveis via `--agent`/CLI; issue #306) (as demais skills seguem sem porte — motivo original ($CLAUDE_PLUGIN_ROOT) ficou desatualizado por #251, precisa revalidação).

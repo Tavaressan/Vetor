@@ -2,7 +2,7 @@
 name: coordinator
 description: Despacho paralelo de issues GitHub para sub-agentes com worktrees isolados guiado por Planejamento. Agrega status e coordena merge serializado. Use /vetor:coordinator [label]. Aceita --headless para execução não-interativa (rotinas/CI) e --goal "<meta>" para convergência contínua sem perguntas.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: subagentes, hooks, isolamento de worktree, perguntas, background (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
   version: "1.7.0"

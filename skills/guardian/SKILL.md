@@ -2,7 +2,7 @@
 name: guardian
 description: Audit + auto-fix de gaps que o pre-commit não cobre guiado por Planejamento. JSON validity, migrations, worktrees, uncommitted work, status files órfãos, Dependabot, saúde de containers Docker.
 license: MIT
-compatibility: Claude Code
+compatibility: "Núcleo: ler, editar e rodar shell. Opcional: perguntas, agendamento (fallback em shared/references/harness-capabilities.md)."
 metadata:
   author: vitortavares
   version: "1.4.1"
