@@ -737,6 +737,9 @@ Consulte `../shared/references/issue-coordinator-dispatch.md` para o fluxo detal
 ### 5 — Monitoramento
 
 Leia `../shared/references/issue-coordinator-monitoring.md` ao montar/atualizar a tabela de status, incluindo fallback e duplicidade.
+Quando um worker terminar (notificação de término do subagente ou o worker devolveu a resposta) e
+o status dele ainda não for terminal, siga a **reconciliação 5.g** da mesma referência antes de
+qualquer Pre-Ship: nunca despache o Pre-Ship de um grupo sem `GREEN` no status file.
 
 Ao ver um ou mais grupos em `GREEN` na tabela, **não espere os demais workers**: acione o Pre-Ship
 de todos os verdes de uma vez (Fase 6.a). O CI desses PRs e o dos que ainda vão chegar correm em

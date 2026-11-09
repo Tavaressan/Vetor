@@ -121,6 +121,20 @@ Issues `spike` ("Investigação/exploração — resultado informa decisão futu
    A entrega do spike segue o caminho de PR só de docs (#427). A decisão derivada do relatório continua humana — o worker e o coordinator **não criam issues de follow-up automaticamente** a partir da recomendação.
 5. Atualize o status file a cada iteração (inaugural como `RUNNING`, e ao concluir como `GREEN`). Ao gravar `GREEN`, inclua `Tested: <sha> <comando> pass` (SHA de `git rev-parse HEAD` e a suíte completa que passou; ver `agent-status.template.md`, issue #542) para o `ship --prepare` não repetir a suíte.
 
+### Último passo obrigatório (os dois modos)
+
+Antes de encerrar, confira que o status ficou em estado terminal. Rode, de dentro do worktree:
+
+```bash
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vetor-checks.sh" verify-status
+```
+
+O comando lê o status file do root ou o fallback `.claude/vetor-status.md`, o que for mais novo.
+Exit 0 = terminal (`GREEN`, `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING`): encerre. Exit 1 = não
+terminal ou ausente: grave o estado real agora e rode de novo. Se ainda assim não conseguir gravar,
+termine a resposta com a linha `ERRO: status file não terminal (<Status observado>)`, para o
+coordinator reconciliar (Fase 5). Nunca diga que o status está `GREEN` sem esse comando confirmar.
+
 ### Memória cruzada entre workers (Modo Desenvolvimento Regular)
 
 Siga a seção "Aprendizados da sessão" de `memory-gotchas.md`, nos dois pontos:

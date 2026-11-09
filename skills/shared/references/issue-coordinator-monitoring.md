@@ -74,3 +74,25 @@ classifique cada PR pelo `statusCheckRollup`:
 - Se o `gh` falhar (rede, HTTP 5xx), repita a consulta com backoff de 2 s, 4 s e 8 s (até 3 vezes,
   edge case de dependência indisponível da Spec) antes de classificar como falha transitória de
   infraestrutura; nesse caso não consuma tentativas de fix.
+
+---
+
+**5.g — Reconciliação de worker encerrado sem status terminal (issue #559)**
+
+O status file é a fonte de verdade, mas um worker pode encerrar com `RUNNING` (ou sem arquivo)
+mesmo dizendo no chat que terminou. Ao receber o término de um worker, rode do worktree dele
+`bash "$SKILL_DIR/../../scripts/vetor-checks.sh" verify-status`. Exit 0: nada a fazer. Exit 1:
+
+1. **Commits e árvore.** No worktree, confira `git status --porcelain` (vazio) e
+   `git rev-list --count origin/<default>..HEAD` (≥ 1).
+2. **Sem commits ou com árvore suja:** grave `Status: FAILED_MAX_ITERATIONS` com `Last action:
+   Reconciliado pelo coordinator: worker encerrou sem status terminal` e o motivo (sem commits ou
+   alterações não commitadas). Não descarte nada do worktree; o grupo segue o tratamento de falha.
+3. **Com commits e árvore limpa:** rode a suíte do módulo (`module-test-map.md`, mesma regra do
+   worker). Verde: grave `Status: GREEN`, `Tested: <sha> <comando> pass` (sha de
+   `git rev-parse HEAD`) e `Last action: Reconciliado pelo coordinator (worker encerrou com
+   <status observado>)`. Vermelha: grave `FAILED_MAX_ITERATIONS` com a saída resumida no mesmo
+   formato de registro.
+4. Rode `verify-status` de novo para confirmar e só então siga para o Pre-Ship (Fase 6.a). Registre
+   a reconciliação no relatório final, com a issue e o status observado.
+

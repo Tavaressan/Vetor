@@ -9,13 +9,19 @@
 // de parar. Não existe campo de reentrância (como o stop_hook_active do Stop), então a
 // proteção contra loop é nossa: bloqueia UMA vez por agente, via arquivo sentinela. Na
 // segunda passagem deixa terminar — o coordinator já trata worker sem status como falha.
+//
+// Modo `--verify` (issue #559): verificação portátil, sem hook nem stdin, que o próprio worker
+// roda como último passo em qualquer harness. Considera o status file do root e o fallback do
+// worktree. Exit 0 = terminal; 1 = não terminal ou ausente; 2 = cwd fora de um worktree linkado.
 
 import {
+  effectiveStatus,
   isTerminal,
   prepareFailedMarkerPath,
   readStatus,
   resolveWorktree,
   statusFilePath,
+  TERMINAL_STATES,
 } from "./lib/status.ts";
 
 interface HookInput {
@@ -56,7 +62,28 @@ function readPrepareFailedWarning(worktreeToplevel: string): string | null {
   }
 }
 
+async function verify(cwd: string): Promise<never> {
+  const wt = await resolveWorktree(cwd);
+  if (!wt?.isLinked) {
+    console.error("[vetor] --verify precisa rodar dentro do worktree linkado do worker.");
+    Deno.exit(2);
+  }
+  const { path, status } = effectiveStatus(wt.root, wt.branch, wt.toplevel);
+  if (isTerminal(status)) {
+    console.log(`Status terminal: ${status} (${path})`);
+    Deno.exit(0);
+  }
+  const observed = status === null ? "arquivo ausente" : `Status: ${status || "vazio"}`;
+  console.error(
+    `[vetor] ERRO: o status do worker não está em estado terminal (${observed}, ${path}).\n` +
+      `Grave um Status entre ${TERMINAL_STATES.join(", ")} antes de encerrar.`,
+  );
+  Deno.exit(1);
+}
+
 async function main() {
+  if (Deno.args.includes("--verify")) await verify(Deno.cwd());
+
   const raw = new TextDecoder().decode(await new Response(Deno.stdin.readable).arrayBuffer());
 
   let input: HookInput;

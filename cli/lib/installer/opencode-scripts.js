@@ -14,6 +14,7 @@ const path = require('node:path');
 // `lib/safety-policy.ts`, #476) acompanha a geração sem alterar esta lista.
 const OPENCODE_SCRIPT_ENTRIES = [
   'check-edit.ts',
+  'check-status.ts',
   'safety-check.ts',
   'vetor-checks.sh',
   'vetor-status.sh',
