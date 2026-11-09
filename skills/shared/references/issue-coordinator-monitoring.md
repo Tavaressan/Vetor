@@ -34,7 +34,7 @@ avalie com o usuário qual worker continua.
 
 **5.d — Monitoramento sob o orquestrador MCP (Alethe)**
 
-Quando um grupo foi despachado via `mcp__alethe__alethe_delegate` (contrato com fonte e data em `delegate-to-runtime.md` §6):
+Quando um grupo foi despachado via `mcp__alethe__alethe_delegate` (contrato com fonte e data em `delegate-alethe.md`):
 
 1. **Loop de polling seguro**: chame `mcp__alethe__alethe_check` com `wait: true` e `timeoutMs <= 50000`, repetindo entre iterações; esperas de 90 s ou mais estouraram o timeout MCP (§6.3, regra 6). O `alethe_check` é global à sessão e entrega cada resultado uma única vez: guarde as entregas de outros jobs.
 2. Ao receber `worker_done` de um job:

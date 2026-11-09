@@ -223,7 +223,7 @@ indisponibilidade da memória não altera o estado Green nem impede o encerramen
 
 Se **vermelho**:
 1. Leia a saída de erro (opcionalmente condensada por um runtime de delegação disponível — ver
-   `delegate-to-runtime.md` §4.1).
+   `delegate-tasks.md` §4.1).
 2. **Hipóteses**: a partir do erro lido, liste 2-3 hipóteses candidatas (não 3-5 — o Vetor já opera
    sob orçamento agressivo de iterações) para a causa raiz e escolha a de maior probabilidade antes
    de escrever o teste de reprodução do passo 3. Registre a escolha no campo `Last action` do status
