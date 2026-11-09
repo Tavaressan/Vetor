@@ -156,7 +156,8 @@ ataca o modo de falha "worker parado sem ninguém saber", mas não a fila estrut
 
 1. **`N_rec`:** passar a `min(largura da maior onda, grupos com módulos disjuntos, maxConcurrentWorkers,
    senão 3)`. O fallback cai de 5 para **3**, porque com N = 5 a entrega já dominou o tempo. O termo
-   "grupos com módulos disjuntos" usa o `check-disjoint` que o coordinator já tem.
+   "grupos com módulos disjuntos" usa o `vetor-checks.sh check-disjoint`, que o Fast Merge Gate
+   (`shared/references/fast-merge-gate.md`) já usa na entrega.
 2. **Alerta:** trocar "acima de ~8 o custo cresce mais rápido que o ganho" por dois alertas medidos:
    - **fila de merge:** quando `N` passa do número de grupos com módulos disjuntos ("os PRs vão
      esperar em série e rodar o CI de novo a cada merge");
