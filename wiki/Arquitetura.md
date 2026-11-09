@@ -72,7 +72,7 @@ Quando o `coordinator` despacha sub-agentes:
 
 ## Skill aposentada: `worktree-session`
 
-A skill `worktree-session` foi aposentada (monolítica demais, perdia contexto). Use a composição `worktree-create` + `ship` (e `coordinator` para orquestração). O arquivo legado fica em `legacy/worktree-session/` só como referência histórica e **não é carregado** pelo plugin.
+A skill `worktree-session` foi aposentada (monolítica demais, perdia contexto). Use a composição `worktree-create` + `ship` (e `coordinator` para orquestração). O arquivo foi removido do repositório e continua disponível no histórico do git.
 
 ---
 

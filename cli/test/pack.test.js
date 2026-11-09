@@ -142,7 +142,7 @@ test(
     // premissa silenciosamente — falharia mais abaixo como "arquivo ausente do pacote
     // instalado", não como "pré-condição não satisfeita". Este assert torna o motivo óbvio.
     assert.ok(
-      fs.existsSync(path.join(cliRoot, 'templates', 'skills', 'vetor', 'SKILL.md')),
+      fs.existsSync(path.join(cliRoot, 'templates', 'skills', 'install', 'SKILL.md')),
       'cli/templates/ não está sincronizado — este teste depende do prepack real disparado ' +
         'pelos dois testes acima, no mesmo arquivo (ver --ignore-scripts abaixo)',
     );
@@ -201,7 +201,7 @@ test(
           path.join(installedRoot, 'templates'),
         );
         assert.ok(
-          fs.existsSync(path.join(installedRoot, 'templates', 'skills', 'vetor', 'SKILL.md')),
+          fs.existsSync(path.join(installedRoot, 'templates', 'skills', 'install', 'SKILL.md')),
         );
         assert.ok(
           fs.existsSync(
@@ -255,7 +255,7 @@ test(
 
           // Claude Code: cópia direta, formato agnóstico já usado nativamente por esta
           // própria sessão.
-          const claudeSkill = path.join(projectDir, '.claude', 'skills', 'vetor', 'SKILL.md');
+          const claudeSkill = path.join(projectDir, '.claude', 'skills', 'install', 'SKILL.md');
           assert.ok(fs.existsSync(claudeSkill));
           assert.match(fs.readFileSync(claudeSkill, 'utf8'), /^---[\s\S]*name:/);
           assert.ok(

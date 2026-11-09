@@ -1,7 +1,7 @@
 # Module Test Map — Auto-Gerado
 
 Gerado pela auto-detecção do Vetor (runtime: **deno**).
-Revise os comandos: eles são executados de forma headless pelo `fix-loop-agent` e pelo `worktree-ship`.
+Revise os comandos: eles são executados de forma headless pelo `fix` e pelo `ship`.
 
 ---
 
