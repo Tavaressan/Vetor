@@ -223,6 +223,107 @@ referencia fora dos próprios testes. Se houver interesse em reavaliar, o próxi
 skills se o modelo superar a baseline nos cenários `text-only-*` sem regredir os demais, e com
 latência p95 abaixo de ~2 s.
 
+## Dataset de falhas reais rotulado pelo desfecho (#557, 2026-11-09)
+
+**Pergunta:** os 18 cenários sintéticos foram rotulados pelo mesmo critério com que a baseline foi
+escrita. Um conjunto de falhas reais, rotulado pelo que de fato as resolveu, confirma a baseline?
+
+### Como foi montado
+
+`scripts/collect-real-failures.ts` lê o histórico do GitHub Actions (`gh run list`, `gh api …/attempts`,
+`gh run view --log-failed`) e rotula cada falha pelo desfecho, sem olhar as regras da baseline:
+
+- **`retry_operation`:** a tentativa seguinte do mesmo run (re-run) passou, ou um run posterior do
+  mesmo workflow e branch passou **com o mesmo commit**;
+- **`inspect_failure`:** o primeiro run posterior que passou, no mesmo workflow e branch, tinha
+  **outro commit**;
+- **sem desfecho:** nada passou depois na branch. Esses casos são contados, mas não entram nos
+  cenários.
+
+O contexto de cada caso usa só o que o CI informa de forma estruturada (`timedOut` pelos jobs, número
+da tentativa, `retryable: true` porque `gh run rerun` é repetível) e um resumo do log com as linhas de
+erro, sem cores ANSI, truncado e com segredos mascarados (`redactSecrets`). `errorCategory` fica vazio,
+como numa chamada real em que ninguém classificou o erro antes. Testes em
+`scripts/tests/collect-real-failures_test.ts`.
+
+**Repositório privado.** O script se recusa a gravar casos de um repositório privado dentro de um
+repositório git. Os casos do `Tavaressan/delphos` (privado) foram avaliados localmente, e aqui só
+entram contagens.
+
+```sh
+deno run -A scripts/collect-real-failures.ts --repo Tavaressan/Vetor --repo Tavaressan/cafey \
+  --repo Tavaressan/alethe-contribution --repo Tavaressan/arara-carioca-react-native \
+  --out scripts/tests/fixtures/decision-adapter/scenarios-real.json --limit 1000
+deno run --allow-read scripts/decision-bench.ts --fixture scripts/tests/fixtures/decision-adapter/scenarios-real.json
+```
+
+### Números
+
+| Repositório | Runs lidos | Falhas com desfecho | `inspect_failure` | `retry_operation` | Sem desfecho |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Vetor | 310 | 11 | 11 | 0 | 4 |
+| cafey | 638 | 24 | 22 | 2 | 5 |
+| alethe-contribution | 23 | 0 | 0 | 0 | 23 |
+| arara-carioca-react-native | 6 | 5 | 5 | 0 | 0 |
+| **Públicos (`scenarios-real.json`)** | 977 | **40** | 38 | 2 | 32 |
+| delphos (privado, só contagem; últimos 1000 runs) | 1000 | **72** | 68 | 4 | 87 |
+| **Total** | 1977 | **112** | 106 | 6 | 119 |
+
+| | Públicos | delphos | Total |
+| --- | ---: | ---: | ---: |
+| Baseline correta | 38/40 | 64/72 | **102/112 (91 %; IC 95 % de Wilson: 84–95 %)** |
+| `inspect_failure` → `inspect_failure` | 38 | 64 | 102 |
+| `inspect_failure` → `request_human_review` | 0 | 4 | 4 |
+| `retry_operation` → `inspect_failure` | 2 | 3 | 5 |
+| `retry_operation` → `request_human_review` | 0 | 1 | 1 |
+
+### Respostas
+
+1. **Dá para extrair e anonimizar?** Sim, para repositórios públicos, pelo GitHub Actions. Mascarar
+   segredos funcionou no conjunto público: nenhum token nem e-mail, e um falso positivo inofensivo
+   (`tokens: null` virou `tokens: [REDACTED]`). Para repositórios privados, a anonimização de texto livre
+   não é confiável o bastante para publicar. A saída adotada foi publicar só contagens. Os status
+   files `BLOCKED_*` e os handovers do fix não serviram como fonte: não existem arquivados neste
+   checkout.
+2. **O desfecho serve como rótulo independente?** Serve para separar "mudou o código" de "não mudou".
+   Mas é ruidoso para `retry_operation`. Dos 6 casos assim rotulados, 5 são **testes instáveis**
+   (testes que falharam e passaram de novo sem commit) e 1 é um segredo ausente (`--token` sem valor)
+   que passou com o mesmo commit, provavelmente depois de alguém configurá-lo, ou seja, uma ação
+   humana. Nenhum é falha de rede.
+3. **Quantos casos?** Com 112 casos, a acurácia global da baseline tem IC de ±5 pontos, mas a classe
+   `retry_operation` tem só 6 exemplos (prevalência de 5 %, IC 2,5–11 %). Para medir acerto por classe
+   com ±10 pontos seriam ~97 casos **por classe**; com a prevalência observada, ~1 900 falhas com
+   desfecho. Os repositórios disponíveis não chegam perto disso.
+4. **Que proporção tem o sinal só no texto?** Em falhas reais de CI, `errorCategory` nunca vem
+   preenchido, então todo sinal de causa está no texto, e `timedOut` não apareceu em nenhum dos 112.
+   Padrões transitórios de rede (`network`, `timeout`, `503`, `ECONNRESET`, …) apareceram no texto de 5
+   casos, **todos `inspect_failure`**, e em **0 dos 6** `retry_operation`.
+
+### O que isso diz sobre a baseline e o modelo
+
+- A baseline acerta 91 % das falhas reais, porque 95 % delas são `inspect_failure`, a ação padrão.
+  Isso confirma o resultado sintético por um caminho independente, mas mostra que **acurácia global
+  não discrimina**: uma regra que sempre responde `inspect_failure` faria 106/112.
+- Os erros da baseline são de dois tipos. Os 5 `request_human_review` vêm de runs na 3ª tentativa,
+  que o coletor mapeia para "3 de 3" (orçamento do ship esgotado). É um artefato do dataset: a
+  tentativa do CI não é o orçamento de fixes. Os 5 `retry_operation` perdidos são testes instáveis,
+  que nenhuma regra de texto transitório pegaria.
+- Para a #558: uma heurística de "texto transitório" teria **5 falsos positivos e 0 verdadeiros
+  positivos** neste conjunto. Os casos de `text-only-transient*` dos cenários sintéticos não
+  apareceram nas falhas reais destes repositórios.
+- Para a #556: um modelo só teria espaço para superar a baseline nos testes instáveis, que exigem
+  saber o histórico do teste, informação que não está no `FailureContext`.
+
+### Limitações
+
+- Rótulo por desfecho: "passou com o mesmo commit" inclui ação humana fora do código (segredo
+  configurado, billing pago) e instabilidade de teste, e não só falha transitória de infraestrutura.
+- Só o caminho de CI (`operation: "ci"`). Falhas locais do fix (testes e build no worktree) não deixam
+  histórico e ficaram de fora.
+- `attempt` limitado a 3 gera o artefato de orçamento esgotado descrito acima.
+- `delphos` foi limitado aos últimos 1000 runs. A primeira tentativa de coleta caiu por timeout de
+  rede do próprio `gh` e foi repetida uma vez.
+
 ## Spikes futuros
 
 - [#556](https://github.com/Tavaressan/Vetor/issues/556) — avaliar `nimble`/`clef` em hardware

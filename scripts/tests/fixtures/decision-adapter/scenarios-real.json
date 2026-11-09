@@ -1,0 +1,867 @@
+{
+  "criteria": "Rótulo pelo desfecho real no GitHub Actions: retry_operation quando um re-run ou um run posterior com o mesmo commit passou; inspect_failure quando o próximo run que passou na mesma branch tinha outro commit. Casos sem desfecho ficam de fora. Gerado por scripts/collect-real-failures.ts (#557).",
+  "collectedAt": "2026-11-09T22:13:02.976Z",
+  "counts": {
+    "Tavaressan/Vetor": {
+      "runs": 310,
+      "unresolved": 4,
+      "inspect_failure": 11
+    },
+    "Tavaressan/cafey": {
+      "runs": 638,
+      "retry_operation": 2,
+      "unresolved": 5,
+      "inspect_failure": 22
+    },
+    "Tavaressan/alethe-contribution": {
+      "runs": 23,
+      "unresolved": 23
+    },
+    "Tavaressan/arara-carioca-react-native": {
+      "runs": 6,
+      "inspect_failure": 5
+    }
+  },
+  "scenarios": [
+    {
+      "id": "Vetor-41553408130-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (41555041041) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "63 | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n64 | +`FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n55 | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n57 | +`FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n77 | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n79 | +`FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\nerror: Found 6 not formatted files in 164 files\n##[error]Process completed with exit code 1.",
+        "errorSignature": "N | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou."
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 41553408130,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/41553408130"
+      }
+    },
+    {
+      "id": "Vetor-41554501380-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (41555041041) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": " 94 | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n 98 | +`FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n68 | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n70 | +`FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n59 | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n63 | +`FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n 89 | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\n 93 | +`FAILED_MAX_ITERATIONS` dizendo qual issue falhou.\nerror: Found 7 not formatted files in 165 files\n##[error]Process completed with exit code 1.",
+        "errorSignature": "N | -Ao concluir todas as issues, marque `Status: GREEN`. Se uma falhar, pare e marque `FAILED_MAX_ITERATIONS` dizendo qual issue falhou."
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 41554501380,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/41554501380"
+      }
+    },
+    {
+      "id": "Vetor-40348646904-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (40349044047) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "  failureType: 'testCodeFailure'\n  error: 'EBUSY: resource busy or locked, rmdir'\n# fail 1\n##[error]Process completed with exit code 1.",
+        "errorSignature": "failureType: 'testCodeFailure'"
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 40348646904,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/40348646904"
+      }
+    },
+    {
+      "id": "Vetor-40053206408-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (40053528346) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "error: Found 2 not formatted files in 123 files\n##[error]Process completed with exit code 1.",
+        "errorSignature": "error: Found N not formatted files in N files"
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 40053206408,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/40053206408"
+      }
+    },
+    {
+      "id": "Vetor-40030270348-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (40030323186) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "/../../scripts/draft-scan.ts\" --base <ref>` (ou `<arquivo...>`, que não roda a regra de JSDoc removido por não ter base) antes de qualquer commit. Execute-a de dentro do worktree do grupo, pois a CLI localiza o repositório pelo diretório atual: use `--base HEAD` quando o worker não commita e `--base $(git merge-base HEAD \"$DEFAULT_BRANCH\")` quando há commits. Saída 0 = limpo; 1 = achados, cada um como `arquivo:linha`; 2 = falha da varredura, que nunca vale como limpo. Descarte ou corrija o que falhar. | Defeitos observados na revisão da sessão de 2026-10-21 (spike #451 §3.1 item 4). `grep -P` no Git Bash falhou com `supports only unibyte and UTF-8 locales` e, com stderr redirecionado, pareceu limpo (observado em 2026-10-23): por isso a varredura é uma CLI própria, issue #483. | | 9 | **Entrega vazia não é sucesso.** Quando o Codex atinge o limite de uso, o Alethe devolve `outcome: succeeded` com `text` vazio e `tokens: [REDACTED] Trate como falha e diagnostique com `codex exec` no host (§1). | Observado em 2026-10-23. | | 10 | **Sem retry automático:** falha de dispatch ou de check, ou entrega vazia, é reportada ao coordinator; descarte o rascunho e siga nativo/inline (§3). | Escolha do contrato (Spec de 2026-10-23), a mesma política do §3. | \" to contain: \"`deno run -A \"$SKILL_DIR/../../scripts/draft-scan.ts\" --base <ref>` (ou `<arquivo...>`)\".\n FAILURES\nFAILED | 526 passed (3 steps) | 1 failed | 7 ignored (15s)\nerror: Test failed\n##[error]Process completed with exit code 1.",
+        "errorSignature": "/../../scripts/draft-scan.ts\" --base <ref>` (ou `<arquivo...>`, que não roda a regra de JSDoc removido por não ter base) antes de qualquer commit. Execute-a de dentro do worktree do grupo, pois a CLI "
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 40030270348,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/40030270348"
+      }
+    },
+    {
+      "id": "Vetor-39875285617-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39975218855) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "error: Found 3 not formatted files in 119 files\n##[error]Process completed with exit code 1.",
+        "errorSignature": "error: Found N not formatted files in N files"
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 39875285617,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/39875285617"
+      }
+    },
+    {
+      "id": "Vetor-39827424499-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39827588855) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "error[no-unused-vars]: `assertFalse` is never used\n##[error] --> /home/runner/work/Vetor/Vetor/scripts/tests/coordinator-triage-labels-contract_test.ts:1:10\n##[error]Process completed with exit code 1.",
+        "errorSignature": "--> /home/runner/work/Vetor/Vetor/scripts/tests/coordinator-triage-labels-contract_test.ts:N:N"
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 39827424499,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/39827424499"
+      }
+    },
+    {
+      "id": "Vetor-39814981386-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39816365364) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "115 | -    console.error('[vetor-safety-hook] Falha ao verificar worktree:', err.message);\n115 | +    console.error(\"[vetor-safety-hook] Falha ao verificar worktree:\", err.message);\n125 | -    `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: \"${match[1].trim()}\"\\n` +\n125 | +    `ERROR: comando git destrutivo bloqueado incondicionalmente pelo Vetor Safety Hook: \"${\n134 | -      'ERROR: Push to protected branches (main, master, production) is prohibited by Vetor Safety Hook.',\n136 | +      \"ERROR: Push to protected branches (main, master, production) is prohibited by Vetor Safety Hook.\",\n146 | -    console.error('[vetor-safety-hook] Aviso ao ler stdin:', err.message);\n148 | +    console.error(\"[vetor-safety-hook] Aviso ao ler stdin:\", err.message);\n154 | -      console.error('[vetor-safety-hook] JSON inválido recebido no stdin:', err.message);\n156 | +      console.error(\"[vetor-safety-hook] JSON inválido recebido no stdin:\", err.message);\n198 | -  console.error('[vetor-safety-hook] Erro inesperado capturado:', err);\n199 | +  console.error(\"[vetor-safety-hook] Erro inesperado capturado:\", err);\nerror: Found 1 not formatted file in 102 files\n##[error]Process completed with exit code 1.",
+        "errorSignature": "N | -    console.error('[vetor-safety-hook] Falha ao verificar worktree:', err.message);"
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 39814981386,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/39814981386"
+      }
+    },
+    {
+      "id": "Vetor-39643952103-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39644305016) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "error: Found 1 not formatted file in 101 files\n##[error]Process completed with exit code 1.",
+        "errorSignature": "error: Found N not formatted file in N files"
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 39643952103,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/39643952103"
+      }
+    },
+    {
+      "id": "Vetor-39354733782-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39354898283) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "error: Found 3 not formatted files in 100 files\n##[error]Process completed with exit code 1.",
+        "errorSignature": "error: Found N not formatted files in N files"
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 39354733782,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/39354733782"
+      }
+    },
+    {
+      "id": "Vetor-38797469069-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (38797846907) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "error: Found 1 not formatted file in 90 files\n##[error]Process completed with exit code 1.",
+        "errorSignature": "error: Found N not formatted file in N files"
+      },
+      "source": {
+        "repo": "Tavaressan/Vetor",
+        "runId": 38797469069,
+        "attempt": 1,
+        "workflow": "CI",
+        "url": "https://github.com/Tavaressan/Vetor/actions/runs/38797469069"
+      }
+    },
+    {
+      "id": "cafey-42253823058-a1",
+      "expected": "retry_operation",
+      "rationale": "re-run (tentativa 1 de 2): a tentativa final do mesmo run passou",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": " - Task provenance in reports and failure messages\n120 tests completed, 2 failed\n> Task :shared:testReleaseUnitTest FAILED\nHomeViewModelBleFallbackTest > ligar_quandoRedeFalha_caiParaBleEAtualizaEstado FAILED\nHomeViewModelTest > selectDevice_switchesActiveDevice_andReloadsData FAILED\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:testReleaseUnitTest'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/apps/shared/build/reports/tests/testReleaseUnitTest/index.html\nBUILD FAILED in 6m 45s\n##[error]Process completed with exit code 1.",
+        "errorSignature": "- Task provenance in reports and failure messages"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 42253823058,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/42253823058"
+      }
+    },
+    {
+      "id": "cafey-42220696335-a2",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (42222413794) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 2,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "PostgresIntegrationTest > initializationError FAILED\n    java.lang.IllegalStateException at DockerClientProviderStrategy.java:274\n398 tests completed, 1 failed\n> Task :test FAILED\nFAILURE: Build failed with an exception.\nExecution failed for task ':test'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/backend/cafey-backend/build/reports/tests/test/index.html\nBUILD FAILED in 2m 20s\n##[error]Process completed with exit code 1.",
+        "errorSignature": "PostgresIntegrationTest > initializationError FAILED"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 42220696335,
+        "attempt": 2,
+        "workflow": "CI Backend",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/42220696335"
+      }
+    },
+    {
+      "id": "cafey-34641566149-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (34846115222) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "##[warning]Unexpected input(s) 'build-root-directory', valid inputs are ['gradle-version', 'cache-disabled', 'cache-read-only', 'cache-write-only', 'cache-overwrite-existing', 'cache-encryption-key', 'cache-cleanup', 'gradle-home-cache-cleanup', 'gradle-home-cache-includes', 'gradle-home-cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\nError: You defined \"--token\", but it's missing a value\n##[error]Process completed with exit code 1.",
+        "errorSignature": "##[warning]Unexpected input(s) 'build-root-directory', valid inputs are ['gradle-version', 'cache-disabled', 'cache-read-only', 'cache-write-only', 'cache-overwrite-existing', 'cache-encryption-key', "
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 34641566149,
+        "attempt": 1,
+        "workflow": "Deploy WebApp (Vercel)",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/34641566149"
+      }
+    },
+    {
+      "id": "cafey-35229589537-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (35779904910) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "10.1 Controlling Law. This Agreement shall be governed by California law excluding its choice of law rules. With the exception of MIPS’ rights to enforce its intellectual property rights and any confidentiality obligations under this Agreement or any licenses distributed with the Evaluation Materials, all disputes and any claims arising under or relating to this Agreement shall be subject to the exclusive jurisdiction and venue of the state and federal courts located in Santa Clara County, California. Each party hereby agrees to jurisdiction and venue in the courts set forth in the preceding sentence. The parties agree that the United Nations Convention on Contracts for the International Sale of Goods is specifically excluded from application to this Agreement. The parties consent to the personal jurisdiction of the above courts.\nWarning: Failed to find package 'tools'\n                error = new Error(`The process '${this.toolPath}' failed with exit code ${this.processExitCode}`);\nError: The process '/usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager' failed with exit code 1",
+        "errorSignature": "N.N Controlling Law. This Agreement shall be governed by California law excluding its choice of law rules. With the exception of MIPS’ rights to enforce its intellectual property rights and any confid"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 35229589537,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/35229589537"
+      }
+    },
+    {
+      "id": "cafey-38832884676-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (38925209290) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\n> Task :shared:testDebugUnitTest FAILED\n57 tests completed, 2 failed\nDemoModeIntegrationTest > normalContainer_flagFalse_defaultsToPlatformClient FAILED\n    java.lang.IllegalStateException at DemoModeIntegrationTest.kt:79\nDemoModeIntegrationTest > demoContainer_allEndpointsReturnValidResponses_withoutRealNetwork FAILED\n    java.lang.IllegalStateException at DemoModeIntegrationTest.kt:27\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:testDebugUnitTest'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/apps/shared/build/reports/tests/testDebugUnitTest/index.html\nBUILD FAILED in 3m 14s\n##[error]Process completed with exit code 1.\nNot performing cache-cleanup due to build failure",
+        "errorSignature": "dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'd"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 38832884676,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/38832884676"
+      }
+    },
+    {
+      "id": "cafey-38834279818-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (38925209290) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\n58 tests completed, 1 failed\n> Task :shared:testDebugUnitTest FAILED\nDemoModeIntegrationTest > normalContainer_flagFalse_defaultsToPlatformClient FAILED\n    java.lang.IllegalStateException at DemoModeIntegrationTest.kt:81\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:testDebugUnitTest'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/apps/shared/build/reports/tests/testDebugUnitTest/index.html\nBUILD FAILED in 3m 3s\n##[error]Process completed with exit code 1.\nNot performing cache-cleanup due to build failure",
+        "errorSignature": "', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-config"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 38834279818,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/38834279818"
+      }
+    },
+    {
+      "id": "cafey-39870778353-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39870785533) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\n> Task :shared:testReleaseUnitTest FAILED\n86 tests completed, 1 failed\nHomeViewModelThrottlingTest > estatisticasCall_isThrottled_duringRapidPolling FAILED\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:testReleaseUnitTest'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/apps/shared/build/reports/tests/testReleaseUnitTest/index.html\nBUILD FAILED in 3m 26s\n##[error]Process completed with exit code 1.\nNot performing cache-cleanup due to build failure",
+        "errorSignature": "-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'depende"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 39870778353,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/39870778353"
+      }
+    },
+    {
+      "id": "cafey-39872820562-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39876286907) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\nHomeViewModelBleFallbackTest > ligar_quandoRedeFalha_caiParaBleEAtualizaEstado FAILED\n86 tests completed, 1 failed\n> Task :shared:testDebugUnitTest FAILED\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:testDebugUnitTest'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/apps/shared/build/reports/tests/testDebugUnitTest/index.html\nBUILD FAILED in 3m 27s\n##[error]Process completed with exit code 1.\nNot performing cache-cleanup due to build failure",
+        "errorSignature": "cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'de"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 39872820562,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/39872820562"
+      }
+    },
+    {
+      "id": "cafey-34637466389-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (34855454812) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "error: Your local changes to the following files would be overwritten by checkout:\n##[error]Process completed with exit code 1.\n##[end-action id=__appleboy_ssh-action.entrypoint;outcome=failure;conclusion=failure;duration_ms=4006]",
+        "errorSignature": "error: Your local changes to the following files would be overwritten by checkout:"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 34637466389,
+        "attempt": 1,
+        "workflow": "Deploy Backend",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/34637466389"
+      }
+    },
+    {
+      "id": "cafey-34639758884-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (34855454812) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "error: Your local changes to the following files would be overwritten by checkout:\n##[error]Process completed with exit code 1.\n##[end-action id=__appleboy_ssh-action.entrypoint;outcome=failure;conclusion=failure;duration_ms=3462]",
+        "errorSignature": "error: Your local changes to the following files would be overwritten by checkout:"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 34639758884,
+        "attempt": 1,
+        "workflow": "Deploy Backend",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/34639758884"
+      }
+    },
+    {
+      "id": "cafey-39868406624-a2",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39870981491) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 2,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "', 'gradle-home-cache-includes', 'gradle-home-cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\n78 tests completed, 1 failed\n> Task :shared:testReleaseUnitTest FAILED\nHomeViewModelThrottlingTest > estatisticasCall_isThrottled_duringRapidPolling FAILED\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:testReleaseUnitTest'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/apps/shared/build/reports/tests/testReleaseUnitTest/index.html\nBUILD FAILED in 4m 5s\n##[error]Process completed with exit code 1.",
+        "errorSignature": "', 'gradle-home-cache-includes', 'gradle-home-cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-fail"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 39868406624,
+        "attempt": 2,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/39868406624"
+      }
+    },
+    {
+      "id": "cafey-39870128984-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (39870976156) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\n98 tests completed, 2 failed\nResetPasswordViewModelTest > submit_withValidData_successFlow FAILED\nResetPasswordViewModelTest > submit_withInvalidOrExpiredToken_displaysProblemDetailErrorMessage FAILED\n> Task :shared:testDebugUnitTest FAILED\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:testDebugUnitTest'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/apps/shared/build/reports/tests/testDebugUnitTest/index.html\nBUILD FAILED in 2m 19s\n##[error]Process completed with exit code 1.",
+        "errorSignature": "'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'd"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 39870128984,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/39870128984"
+      }
+    },
+    {
+      "id": "cafey-35403001041-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (35403215383) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "10.1 Controlling Law. This Agreement shall be governed by California law excluding its choice of law rules. With the exception of MIPS’ rights to enforce its intellectual property rights and any confidentiality obligations under this Agreement or any licenses distributed with the Evaluation Materials, all disputes and any claims arising under or relating to this Agreement shall be subject to the exclusive jurisdiction and venue of the state and federal courts located in Santa Clara County, California. Each party hereby agrees to jurisdiction and venue in the courts set forth in the preceding sentence. The parties agree that the United Nations Convention on Contracts for the International Sale of Goods is specifically excluded from application to this Agreement. The parties consent to the personal jurisdiction of the above courts.\nWarning: Failed to find package 'tools'\n                error = new Error(`The process '${this.toolPath}' failed with exit code ${this.processExitCode}`);\nError: The process '/usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager' failed with exit code 1",
+        "errorSignature": "N.N Controlling Law. This Agreement shall be governed by California law excluding its choice of law rules. With the exception of MIPS’ rights to enforce its intellectual property rights and any confid"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 35403001041,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/35403001041"
+      }
+    },
+    {
+      "id": "cafey-34885416702-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (34886275458) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "e-home-cache-includes', 'gradle-home-cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\n> Task :shared:compileCommonMainKotlinMetadata FAILED\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:compileCommonMainKotlinMetadata' (registered by plugin 'org.jetbrains.kotlin.multiplatform').\n> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction\n   > Compilation error. See log for more details\nBUILD FAILED in 3m 27s\n##[error]Process completed with exit code 1.",
+        "errorSignature": "e-home-cache-includes', 'gradle-home-cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'de"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 34885416702,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/34885416702"
+      }
+    },
+    {
+      "id": "cafey-34641925820-a1",
+      "expected": "retry_operation",
+      "rationale": "o run 34642757895 passou com o mesmo commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "##[warning]Unexpected input(s) 'build-root-directory', valid inputs are ['gradle-version', 'cache-disabled', 'cache-read-only', 'cache-write-only', 'cache-overwrite-existing', 'cache-encryption-key', 'cache-cleanup', 'gradle-home-cache-cleanup', 'gradle-home-cache-includes', 'gradle-home-cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\nError: You defined \"--token\", but it's missing a value\n##[error]Process completed with exit code 1.",
+        "errorSignature": "##[warning]Unexpected input(s) 'build-root-directory', valid inputs are ['gradle-version', 'cache-disabled', 'cache-read-only', 'cache-write-only', 'cache-overwrite-existing', 'cache-encryption-key', "
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 34641925820,
+        "attempt": 1,
+        "workflow": "Deploy WebApp (Vercel)",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/34641925820"
+      }
+    },
+    {
+      "id": "cafey-34600922060-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (34601454718) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": ", 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\n22 tests completed, 2 failed\n> Task :shared:testDebugUnitTest FAILED\nAppContainerTest > noArgument_fallsBackToPlatformDefault FAILED\n    java.lang.IllegalStateException at AppContainerTest.kt:23\nAppContainerTest > explicitBaseUrl_overridesPlatformDefault FAILED\n    java.lang.IllegalStateException at AppContainerTest.kt:16\nFAILURE: Build failed with an exception.\nExecution failed for task ':shared:testDebugUnitTest'.\n> There were failing tests. See the report at: file:///home/runner/work/cafey/cafey/apps/shared/build/reports/tests/testDebugUnitTest/index.html\nBUILD FAILED in 3m 4s\n##[error]Process completed with exit code 1.",
+        "errorSignature": ", 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations'"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 34600922060,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/34600922060"
+      }
+    },
+    {
+      "id": "cafey-34481919650-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (34495001854) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "e-includes', 'gradle-home-cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-graph-exclude-projects', 'dependency-graph-include-projects', 'dependency-graph-exclude-configurations', 'dependency-graph-include-configurations', 'artifact-retention-days', 'build-scan-publish', 'build-scan-terms-of-use-url', 'build-scan-terms-of-use-agree', 'develocity-access-key', 'develocity-token-expiry', 'develocity-injection-enabled', 'develocity-url', 'develocity-allow-untrusted-server', 'develocity-capture-file-fingerprints', 'develocity-enforce-url', 'develocity-plugin-version', 'develocity-ccud-plugin-version', 'gradle-plugin-repository-url', 'gradle-plugin-repository-username', 'gradle-plugin-repository-password', 'validate-wrappers', 'allow-snapshot-wrappers', 'arguments', 'gradle-home-cache-strict-match', 'workflow-job-context', 'github-token']\n  dependency-graph-continue-on-failure: true\n - Task provenance in reports and failure messages\n> Task :webApp:compileProductionExecutableKotlinWasmJs FAILED\nFAILURE: Build failed with an exception.\nExecution failed for task ':webApp:compileProductionExecutableKotlinWasmJs' (registered in build file 'webApp/build.gradle.kts').\n> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction\nBUILD FAILED in 9m 13s\n##[error]Process completed with exit code 1.",
+        "errorSignature": "e-includes', 'gradle-home-cache-excludes', 'add-job-summary', 'add-job-summary-as-pr-comment', 'dependency-graph', 'dependency-graph-report-dir', 'dependency-graph-continue-on-failure', 'dependency-gr"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 34481919650,
+        "attempt": 1,
+        "workflow": "CI Apps",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/34481919650"
+      }
+    },
+    {
+      "id": "cafey-34267032548-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (34268528098) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "sh/include -I/opt/esp/idf/components/spi_flash/include -I/opt/esp/idf/components/esp_partition/include -mlongcalls -Wno-frame-address  -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-builtin-stpcpy -fno-builtin-strncpy -fdiagnostics-color=always -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -Og -fno-shrink-wrap -fmacro-prefix-map=/__w/cafey/cafey/firmware=. -fmacro-prefix-map=/opt/esp/idf=/IDF -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -std=gnu++2b -fno-exceptions -fno-rtti -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/main.cpp.obj -MF esp-idf/main/CMakeFiles/__idf_main.dir/main.cpp.obj.d -o esp-idf/main/CMakeFiles/__idf_main.dir/main.cpp.obj -c /__w/cafey/cafey/firmware/main/main.cpp\n/__w/cafey/cafey/firmware/main/core/mini_json.hpp:64:14: error: exception handling disabled, use '-fexceptions' to enable\n/__w/cafey/cafey/firmware/main/core/esp_nimble_server.hpp:64:29: error: field 'svc_defs_' has incomplete type 'cafey::core::ble_gatt_svc_def [2]'\nninja: build stopped: subcommand failed.\nninja failed with exit code 1, output of the command is in the /__w/cafey/cafey/firmware/build/log/idf_py_stderr_output_868 and /__w/cafey/cafey/firmware/build/log/idf_py_stdout_output_868\n##[error]Process completed with exit code 2.",
+        "errorSignature": "sh/include -I/opt/esp/idf/components/spi_flash/include -I/opt/esp/idf/components/esp_partition/include -mlongcalls -Wno-frame-address  -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-b"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 34267032548,
+        "attempt": 1,
+        "workflow": "CI Firmware",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/34267032548"
+      }
+    },
+    {
+      "id": "cafey-33648010219-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (33662945906) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "CMake Error at /opt/esp/idf/tools/cmake/component.cmake:314 (message):\ncmake failed with exit code 1, output of the command is in the /__w/cafey/cafey/firmware/build/log/idf_py_stderr_output_590 and /__w/cafey/cafey/firmware/build/log/idf_py_stdout_output_590\n##[error]Process completed with exit code 2.",
+        "errorSignature": "CMake Error at /opt/esp/idf/tools/cmake/component.cmake:N (message):"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 33648010219,
+        "attempt": 1,
+        "workflow": "CI Firmware",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/33648010219"
+      }
+    },
+    {
+      "id": "cafey-33649178771-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (33662945906) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "FAILED: partition_table/partition-table.bin /__w/cafey/cafey/firmware/build/partition_table/partition-table.bin\nninja: build stopped: subcommand failed.\nninja failed with exit code 1, output of the command is in the /__w/cafey/cafey/firmware/build/log/idf_py_stderr_output_847 and /__w/cafey/cafey/firmware/build/log/idf_py_stdout_output_847\n##[error]Process completed with exit code 2.",
+        "errorSignature": "FAILED: partition_table/partition-table.bin /__w/cafey/cafey/firmware/build/partition_table/partition-table.bin"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 33649178771,
+        "attempt": 1,
+        "workflow": "CI Firmware",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/33649178771"
+      }
+    },
+    {
+      "id": "cafey-33662543344-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (33662945906) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "mponents/lwip/port/esp32xx/include -I/opt/esp/idf/components/lwip/port/esp32xx/include/arch -I/opt/esp/idf/components/lwip/port/esp32xx/include/sys -I/opt/esp/idf/components/pthread/include -mlongcalls -Wno-frame-address  -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-builtin-stpcpy -fno-builtin-strncpy -fdiagnostics-color=always -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -Og -fno-shrink-wrap -fmacro-prefix-map=/__w/cafey/cafey/firmware=. -fmacro-prefix-map=/opt/esp/idf=/IDF -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -std=gnu++2b -fno-exceptions -fno-rtti -std=c++17 -MD -MT esp-idf/cxx/CMakeFiles/__idf_cxx.dir/cxx_guards.cpp.obj -MF esp-idf/cxx/CMakeFiles/__idf_cxx.dir/cxx_guards.cpp.obj.d -o esp-idf/cxx/CMakeFiles/__idf_cxx.dir/cxx_guards.cpp.obj -c /opt/esp/idf/components/cxx/cxx_guards.cpp\n/opt/esp/idf/components/esp_common/include/esp_macros.h:91:25: error: static assertion failed: CHOOSE_MACRO_VA_ARG() result does not match for 0 arguments\nninja: build stopped: subcommand failed.\nninja failed with exit code 1, output of the command is in the /__w/cafey/cafey/firmware/build/log/idf_py_stderr_output_846 and /__w/cafey/cafey/firmware/build/log/idf_py_stdout_output_846\n##[error]Process completed with exit code 2.",
+        "errorSignature": "mponents/lwip/port/espNxx/include -I/opt/esp/idf/components/lwip/port/espNxx/include/arch -I/opt/esp/idf/components/lwip/port/espNxx/include/sys -I/opt/esp/idf/components/pthread/include -mlongcalls -"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 33662543344,
+        "attempt": 1,
+        "workflow": "CI Firmware",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/33662543344"
+      }
+    },
+    {
+      "id": "cafey-33641530751-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (33642101041) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "[42/966] Building C object esp-idf/mbedtls/mbedtls/library/CMakeFiles/mbedcrypto.dir/error.c.obj\n[406/966] Building CXX object esp-idf/cxx/CMakeFiles/__idf_cxx.dir/cxx_exception_stubs.cpp.obj\n[718/966] Building ASM object esp-idf/esp_gdbstub/CMakeFiles/__idf_esp_gdbstub.dir/src/port/xtensa/xt_debugexception.S.obj\n    echo \"❌ Error: Required artifact missing: $file\"\n/__w/_temp/ee12ffeb-74f7-4b76-9827-cbaed0637370.sh: 4: Syntax error: \"(\" unexpected\n##[error]Process completed with exit code 2.",
+        "errorSignature": "[N/N] Building C object esp-idf/mbedtls/mbedtls/library/CMakeFiles/mbedcrypto.dir/error.c.obj"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 33641530751,
+        "attempt": 1,
+        "workflow": "CI Firmware",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/33641530751"
+      }
+    },
+    {
+      "id": "cafey-33535395573-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (33535613380) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": ".github/workflows/ci-backend.yml:10:16: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-backend.yml:10:44: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-backend.yml:23:5: [error] wrong indentation: expected 6 but found 4 (indentation)\n.github/workflows/ci-apps.yml:5:16: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-apps.yml:5:44: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-apps.yml:10:16: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-apps.yml:10:44: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-apps.yml:19:5: [error] wrong indentation: expected 6 but found 4 (indentation)\n.github/workflows/ci-lint.yml:5:16: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-lint.yml:5:44: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-lint.yml:7:16: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-lint.yml:7:44: [error] too many spaces inside brackets (brackets)\n.github/workflows/ci-lint.yml:13:5: [error] wrong indentation: expected 6 but found 4 (indentation)\n##[error]Process completed with exit code 1.\n##[end-action id=__ibiqlik_action-yamllint.yamllint;outcome=failure;conclusion=failure;duration_ms=1498]",
+        "errorSignature": ".github/workflows/ci-backend.yml:N:N: [error] too many spaces inside brackets (brackets)"
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 33535395573,
+        "attempt": 1,
+        "workflow": "Lint",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/33535395573"
+      }
+    },
+    {
+      "id": "cafey-33535395567-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (33535613338) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "##[error]No file in /home/runner/work/cafey/cafey matched to [**/*.gradle*,**/gradle-wrapper.properties,buildSrc/**/Versions.kt,buildSrc/**/Dependencies.kt,gradle/*.versions.toml,**/versions.properties], make sure you have checked out the target repository",
+        "errorSignature": "No file in /home/runner/work/cafey/cafey matched to [**/*.gradle*,**/gradle-wrapper.properties,buildSrc/**/Versions.kt,buildSrc/**/Dependencies.kt,gradle/*.versions.toml,**/versions.properties], make "
+      },
+      "source": {
+        "repo": "Tavaressan/cafey",
+        "runId": 33535395567,
+        "attempt": 1,
+        "workflow": "CI Backend",
+        "url": "https://github.com/Tavaressan/cafey/actions/runs/33535395567"
+      }
+    },
+    {
+      "id": "arara-carioca-react-native-36577065396-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (36608818962) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "##[warning]Failed to restore: Cache service responded with 400\nerror @oclif/plugin-autocomplete@3.3.0: The engine \"node\" is incompatible with this module. Expected version \">=22.0.0\". Got \"20.20.2\"\nerror Found incompatible module.\n##[error]The process '/usr/local/bin/yarn' failed with exit code 1",
+        "errorSignature": "The process '/usr/local/bin/yarn' failed with exit code N"
+      },
+      "source": {
+        "repo": "Tavaressan/arara-carioca-react-native",
+        "runId": 36577065396,
+        "attempt": 1,
+        "workflow": "Deploy Web",
+        "url": "https://github.com/Tavaressan/arara-carioca-react-native/actions/runs/36577065396"
+      }
+    },
+    {
+      "id": "arara-carioca-react-native-36577314142-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (36608818962) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "##[warning]Failed to restore: Cache service responded with 400\nerror @oclif/plugin-autocomplete@3.3.0: The engine \"node\" is incompatible with this module. Expected version \">=22.0.0\". Got \"20.20.2\"\nerror Found incompatible module.\n##[error]The process '/usr/local/bin/yarn' failed with exit code 1",
+        "errorSignature": "The process '/usr/local/bin/yarn' failed with exit code N"
+      },
+      "source": {
+        "repo": "Tavaressan/arara-carioca-react-native",
+        "runId": 36577314142,
+        "attempt": 1,
+        "workflow": "Deploy Web",
+        "url": "https://github.com/Tavaressan/arara-carioca-react-native/actions/runs/36577314142"
+      }
+    },
+    {
+      "id": "arara-carioca-react-native-36580610319-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (36608818962) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "##[warning]Failed to restore: Cache service responded with 400\nerror @oclif/plugin-autocomplete@3.3.0: The engine \"node\" is incompatible with this module. Expected version \">=22.0.0\". Got \"20.20.2\"\nerror Found incompatible module.\n##[error]The process '/usr/local/bin/yarn' failed with exit code 1",
+        "errorSignature": "The process '/usr/local/bin/yarn' failed with exit code N"
+      },
+      "source": {
+        "repo": "Tavaressan/arara-carioca-react-native",
+        "runId": 36580610319,
+        "attempt": 1,
+        "workflow": "Deploy Web",
+        "url": "https://github.com/Tavaressan/arara-carioca-react-native/actions/runs/36580610319"
+      }
+    },
+    {
+      "id": "arara-carioca-react-native-36608227715-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (36608818962) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "##[warning]Failed to restore: Cache service responded with 400\nerror @oclif/plugin-autocomplete@3.3.0: The engine \"node\" is incompatible with this module. Expected version \">=22.0.0\". Got \"20.20.2\"\nerror Found incompatible module.\n##[error]The process '/usr/local/bin/yarn' failed with exit code 1",
+        "errorSignature": "The process '/usr/local/bin/yarn' failed with exit code N"
+      },
+      "source": {
+        "repo": "Tavaressan/arara-carioca-react-native",
+        "runId": 36608227715,
+        "attempt": 1,
+        "workflow": "Deploy Web",
+        "url": "https://github.com/Tavaressan/arara-carioca-react-native/actions/runs/36608227715"
+      }
+    },
+    {
+      "id": "arara-carioca-react-native-36608535178-a1",
+      "expected": "inspect_failure",
+      "rationale": "o próximo run que passou (36608818962) tinha outro commit",
+      "context": {
+        "operation": "ci",
+        "exitCode": 1,
+        "attempt": 1,
+        "maxAttempts": 3,
+        "retryable": true,
+        "errorSummary": "##[warning]Failed to restore: Cache service responded with 400\n├─ error-ex@1.3.4\n├─ make-error@1.3.6\n##[warning]Failed to save: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0BPy7agAAAACOdUH4ejzRSqxn3fKal7vgTEFYRURHRTE4MTQARWRnZQ==\n##[group]Patching system watchers for the 'ENOSPC' error\nPatched system watchers for the `ENOSPC` error.\nnpm warn deprecated domexception@4.0.0: Use your platform's native DOMException instead\nThis error probably means that you need update your eas-cli to a newer version.\n    Error: deploy command failed.\n##[error]Process completed with exit code 1.",
+        "errorSignature": "##[warning]Failed to restore: Cache service responded with N"
+      },
+      "source": {
+        "repo": "Tavaressan/arara-carioca-react-native",
+        "runId": 36608535178,
+        "attempt": 1,
+        "workflow": "Deploy Web",
+        "url": "https://github.com/Tavaressan/arara-carioca-react-native/actions/runs/36608535178"
+      }
+    }
+  ]
+}
