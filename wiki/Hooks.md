@@ -15,6 +15,8 @@ mecanismo que aplica uma política de fato — instrução em prompt o agente po
 
 As regras de Bash do `PreToolUse` (git destrutivo, push para branch protegida, push/PR de worker não-GREEN) vivem em `scripts/lib/safety-policy.ts` e são as mesmas nos dois hooks. O `safety-check.ts` (Claude Code) as traduz para exit 2 com a mensagem em `stderr`; o `safety-check-antigravity.ts` (matcher `run_command`, `hooks.json` da raiz, executado com `deno run -A`) as traduz para JSON `allow`/`deny` no `stdout` com exit 0, libera em caso de JSON inválido ou erro interno e não aplica o guard de escrita.
 
+Texto que só **cita** um git destrutivo não é bloqueado (issue #563): argumentos entre aspas de `echo`, `printf`, `cat`, `tee` e `grep`, a mensagem de `git commit -m`/`--message`, o `--body`/`--title` do `gh` e o corpo de heredoc enviado a esses comandos são mascarados antes da análise. A máscara não vale para o que o shell executa: aspas com `$(...)` ou crase (dentro de aspas duplas, a crase é substituição de comando), conteúdo começando com `!` (alias do git) e qualquer comando em que, depois da máscara, ainda haja `sh`/`bash`, `eval`, `source`, `.` ou `xargs`. Nesses casos a análise usa o texto original (fail-closed).
+
 O relaxamento da #374 (confinar escrita apenas quando `agent_type` identifica `issue-worker`) vale somente no Claude Code. Codex (`PreToolUse`) e Cursor não incluem `agent_type` nesse payload e usam `--strict-worktree-writes`; OpenCode `tool.execute.before` também não inclui `agent` e aplica o guard estrito por cwd.
 
 > ⚠️ O hook `Stop` (`stop-recovery.ts`) foi **aposentado** (issue #141) e o código foi para

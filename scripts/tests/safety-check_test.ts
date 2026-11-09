@@ -1140,8 +1140,6 @@ for (
     "git switch --discard-changes main",
     "git switch -f main",
     "git -C p checkout main .",
-    // Falso positivo conhecido (falha para o lado seguro): separador/comando dentro de aspas.
-    `git commit -m "fix; ${RH}"`,
   ]
 ) {
   Deno.test(`PR #549 review: ${JSON.stringify(command)} é bloqueado como git destrutivo`, async () => {
@@ -1193,5 +1191,68 @@ for (
   Deno.test(`PR #549 review: ${JSON.stringify(command)} continua permitido`, async () => {
     const result = await evaluateShellCommand(command, noWorktree);
     assertEquals(result.decision, "allow");
+  });
+}
+
+// Issue #563: texto que só cita um git destrutivo (mensagem, corpo de heredoc, --body, grep) não é
+// comando. O que o contexto executa continua bloqueado (fail-closed).
+const BODY = `Evidência: o hook bloqueou \`${RH}\`; use eval | sh com cuidado.`;
+for (
+  const command of [
+    `git commit -m "fix; ${RH}"`,
+    `git commit -m 'fix; ${RH}'`,
+    `git commit -am "doc: ${RH} && git clean -fd"`,
+    `git commit --message="nota; ${RH}"`,
+    `grep "reset --hard" arquivo`,
+    `grep -rn "; ${RH}" scripts/`,
+    `echo "a; ${RH}" > notas.md`,
+    `printf '%s\n' "x && ${RH}"`,
+    `cat > corpo.md <<'EOF'\n${BODY}\n${RH}\nEOF`,
+    `cat <<"EOF" > corpo.md\n${RH}\nEOF`,
+    `cat <<EOF > corpo.md\nsem substituição: ${RH}\nEOF`,
+    `gh issue create --title "x" --body "Evidência: o hook bloqueou ${RH}; use eval | sh."`,
+    `gh pr comment 1 -b "; ${RH}"`,
+    `gh pr create --title "t" --body "$(cat <<'EOF'\n## Resumo\n- ${BODY}\n${RH}\nEOF\n)"`,
+    `gh issue create --body-file - <<'EOF'\n${RH}\nEOF`,
+  ]
+) {
+  Deno.test(`issue #563: ${JSON.stringify(command)} deixa de ser bloqueado`, async () => {
+    const result = await evaluateShellCommand(command, noWorktree);
+    assertEquals(result.decision, "allow", result.decision === "deny" ? result.reason : "");
+  });
+}
+
+for (
+  const command of [
+    `sh -c '${RH}'`,
+    `bash -c "${RH}"`,
+    `eval "${RH}"`,
+    `echo "${RH}" | sh`,
+    `printf '${RH}' | bash`,
+    `sh <<'EOF'\n${RH}\nEOF`,
+    `bash <<EOF\n${RH}\nEOF`,
+    `cat <<'EOF' | sh\n${RH}\nEOF`,
+    `cat <<EOF > f\n$(${RH})\nEOF`,
+    `git commit -m "$(${RH})"`,
+    `git commit -m "\`${RH}\`"`,
+    `echo "$(${RH})"`,
+    `git commit -m "x"; ${RH}`,
+    `echo "x" && ${RH}`,
+    `git -c alias.z='!${RH}' z`,
+    `echo '<<EOF'\n${RH}\nEOF`,
+    `cat <<'EOF'\n${RH}`,
+    `gh issue create --body "x" && ${RH}`,
+    `cat > x.sh <<'EOF' && bash x.sh\n${RH}\nEOF`,
+    `cat > x.sh <<'EOF'; . x.sh\n${RH}\nEOF`,
+    `git checkout -m "."`,
+    `echo "a; ${RH}" | xargs -I{} sh -c '{}'`,
+    // Crase dentro de aspas duplas é substituição de comando: o shell executaria o git.
+    `gh issue create --body "${BODY}"`,
+    `env echo "x"; ${RH}`,
+  ]
+) {
+  Deno.test(`issue #563: ${JSON.stringify(command)} continua bloqueado`, async () => {
+    const result = await evaluateShellCommand(command, noWorktree);
+    assertEquals(result.decision, "deny");
   });
 }
