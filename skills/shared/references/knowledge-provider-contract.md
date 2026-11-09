@@ -7,8 +7,8 @@ interface. Isso mantém a semântica (quando/por que ler ou escrever conheciment
 integração com uma ferramenta específica isolada em uma implementação de `KnowledgeProvider`.
 
 Implementação padrão, sempre disponível sem nenhuma configuração: `FilesystemKnowledgeProvider`
-(módulo `docs/` do projeto-alvo por default). `ObsidianKnowledgeProvider` (issue #225) e
-`AiMemoryKnowledgeProvider` (issue #368) também seguem o mesmo contrato semântico, para que uma Skill
+(módulo `docs/` do projeto-alvo por default). `ObsidianKnowledgeProvider` e
+`AiMemoryKnowledgeProvider` também seguem o mesmo contrato semântico, para que uma Skill
 funcione de forma idêntica independentemente do provider configurado.
 
 ## Operações mínimas (obrigatórias)
@@ -85,11 +85,11 @@ com `knowledge` ausente, desabilitado ou habilitado. A leitura de `config.json` 
 `detectKnowledgeState()` nunca lança — ausência ou config malformada nunca interrompem o workflow do
 Vetor.
 
-## ObsidianKnowledgeProvider (issue #225)
+## ObsidianKnowledgeProvider
 
 `ObsidianKnowledgeProvider` (`scripts/lib/knowledge.ts`) implementa o mesmo contrato descrito acima
 — `search`/`read`/`create`/`update`/`list`/`link`, sem `delete`/`move`/`exists` nesta primeira
-versão (o contrato de #224 permite omitir as operações opcionais) — consumindo um MCP de Obsidian
+versão (o contrato permite omitir as operações opcionais) — consumindo um MCP de Obsidian
 através da interface `ObsidianMcpClient`, injetada por quem instancia o provider. O provider nunca
 importa um SDK de MCP específico: qualquer cliente que implemente `search`/`read`/`create`/`update`/
 `list` pode ser injetado, inclusive um cliente simulado/mockado em teste — por isso o contrato é
@@ -154,7 +154,7 @@ raiz do Vault no filesystem. O fallback:
   criar uma entrada duplicada no Obsidian termine criando silenciosamente uma cópia divergente no
   filesystem.
 
-## AiMemoryKnowledgeProvider (issue #368)
+## AiMemoryKnowledgeProvider
 
 `AiMemoryKnowledgeProvider` usa um `AiMemoryMcpClient` injetado (`callTool(name, args)`) e mapeia
 `search`/`read`/`create`/`update`/`list` para `memory_query`, `memory_read_page`,

@@ -1,7 +1,7 @@
 # Vocabulário de Design (Vetor)
 
 Define os termos que o workflow de design do Vetor usa para tratar design como **input de
-engenharia, não decoração** (#213). Três conceitos — Design System, Design Direction e Design
+engenharia, não decoração**. Três conceitos — Design System, Design Direction e Design
 Signature — alimentam um artefato intermediário, o **Design Contract**, que é o que de fato chega
 à implementação.
 
@@ -23,7 +23,7 @@ Consumido por `frontend-design-enforcement.md` e pela skill `frontend-design` (v
 UI/design de frontend) e pelo `fix` quando a descrição do fix envolve UI.
 
 As Decisões do Design Contract (§4.4) usam o modelo de estados epistêmicos definido em
-`$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` (#214) — este documento **consome**
+`$CLAUDE_PLUGIN_ROOT/skills/shared/references/evidence-state.md` — este documento **consome**
 esse modelo, não o redefine.
 
 ---
@@ -172,7 +172,7 @@ anotada, cópia de camadas de uma ferramenta de design). Ele registra **as decis
 sobreviver à transferência do design para código**: intenção, hierarquia, tokens usados, estados
 previstos, restrições técnicas reais. Copiar pixels otimiza para semelhança visual superficial;
 o Design Contract otimiza para preservar `prototype intent + real application data + real
-application states + real technical constraints` (#213).
+application states + real technical constraints`.
 
 Um Design Contract correto deve permitir implementar a tela corretamente mesmo que o protótipo
 original se torne indisponível.
@@ -231,7 +231,7 @@ Prototype + Specification
 
 ### 4.4 Evidence State nas decisões
 
-O campo "Decisões" usa os 4 estados de `evidence-state.md` (#214) — `CONFIRMED`, `INFERRED`,
+O campo "Decisões" usa os 4 estados de `evidence-state.md` — `CONFIRMED`, `INFERRED`,
 `ASSUMED`, `OPEN_QUESTION`. Esta seção não redefine os estados nem o formato de Evidence Record
 (§2 de `evidence-state.md`) — aplica o modelo já existente às decisões de design, preservando a
 mesma assimetria de campos por estado: `CONFIRMED`/`INFERRED` citam `Source`; `ASSUMED` cita
@@ -345,7 +345,7 @@ Design Contract    → a síntese de tudo isso + Specification + Prototype + Con
 
 ---
 
-## 6. Artefatos (#231)
+## 6. Artefatos
 
 Árvore de artefatos do workflow de design, gravada em `.vetor/design/`:
 
@@ -375,19 +375,15 @@ Design Contract    → a síntese de tudo isso + Specification + Prototype + Con
 - `handoff/` — Design Contract gerado a partir do protótipo (`renderPrototypeHandoffFile`,
   `scripts/lib/design-handoff.ts`), §4.5.
 
-Nota de nomenclatura: #213 ("Artefatos") ilustrou o diretório de origem do protótipo como
-`prototypes/` (plural); a implementação de #229 já havia fixado `prototype/` (singular) como
-constante (`PROTOTYPE_DIR`) e é o nome em uso em todo o código e nos exemplos desta skill desde
-então. Esta issue documenta a árvore com o nome já estabelecido em vez de renomear um diretório já
-em uso — #213 registrava a estrutura como "inicial, ajustável conforme necessidade do workflow
-existente", não uma nomenclatura definitiva.
+Nota de nomenclatura: o diretório de origem do protótipo é `prototype/` (singular), a constante
+`PROTOTYPE_DIR` usada em todo o código e nos exemplos desta skill.
 
 Cada arquivo de `system/`/`direction/`/`handoff/` é criado **uma única vez** (nunca sobrescrito por
 uma execução seguinte) — ver `writeDesignFiles`/Handoff passo 4 em `skills/design/SKILL.md`.
 
 ---
 
-## 7. Conflito Specification × Design Contract (#231)
+## 7. Conflito Specification × Design Contract
 
 A relação entre os dois artefatos nunca é de substituição:
 
@@ -409,7 +405,7 @@ o caso mais comum, ação primária) compara os dois valores já extraídos pelo
 si (ler o Design Contract e a Specification e identificar o valor relevante de cada um) é trabalho
 do agente, este módulo só compara e relata.
 
-Três resultados possíveis, dois deles com um discriminante estrutural `kind` (#259, #269 — nunca só
+Três resultados possíveis, dois deles com um discriminante estrutural `kind` (nunca só
 uma diferença de texto em `message`):
 
 - **`null`**: os dois valores são equivalentes (ignorando espaço/pontuação final/caixa) e **nenhum**
@@ -423,7 +419,7 @@ uma diferença de texto em `message`):
 Em ambos os casos não-`null`, o relato traz os dois valores e suas origens (`source`) — **nunca** um
 veredito de qual lado está correto (sem campo `resolved`/`winner`).
 
-**Exemplo do critério de aceite de #231:** Design Contract especifica ação primária "Criar
+**Exemplo:** Design Contract especifica ação primária "Criar
 worktree" (Hierarquia) e a Specification implica ação primária "Exportar relatório" (RF-03) → o
 agente reporta o conflito (`kind: "conflict"`) com as duas origens, nunca escolhe um dos dois.
 
@@ -435,7 +431,7 @@ a decisão de qual prevalece é do usuário.
 
 ---
 
-## 8. Extensões futuras: Design Drift, Visual Debt, Guardian (#231)
+## 8. Extensões futuras: Design Drift, Visual Debt, Guardian
 
 As três seções abaixo são **pontos de extensão documentados, não implementados** nesta issue —
 preparação conceitual para trabalho futuro, sem mecanismo de detecção/tracking automático.

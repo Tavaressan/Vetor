@@ -1,6 +1,6 @@
 # Entrega autônoma em `--headless` — os quatro gates (Fase 6.d)
 
-> Extraído do desenho da issue #497 (Spec `docs/specs/pipeline-ship-e-delegacao-eficiente.md`, RF-05)
+> Extraído do desenho da Spec ( `docs/specs/pipeline-ship-e-delegacao-eficiente.md`, RF-05)
 > e lido só quando a Fase 6.d de `skills/coordinator/SKILL.md` manda. Paths relativos
 > (`../shared/references/...`) e `$SKILL_DIR` aqui resolvem a partir do diretório da skill
 > `coordinator`, não deste arquivo.

@@ -1,10 +1,9 @@
 # Evidence State — modelo core
 
 Referência compartilhada de rastreabilidade epistemológica: o Vetor distingue explicitamente o que
-foi confirmado, o que foi inferido, o que foi assumido e o que permanece sem resposta. Origem:
-issue #205 (§1-6, §12-14, §17-18); §7-11 (Discovery, Specs, ADR, Knowledge Provider, Guardian) e
-§15-16 (Interaction Policy, Headless Mode) ficam para issues futuras que integrem este modelo a
-artefatos que ainda não existem no Vetor.
+foi confirmado, o que foi inferido, o que foi assumido e o que permanece sem resposta. Discovery,
+Specs, ADR, Knowledge Provider, Guardian, Interaction Policy e o modo headless ainda não usam este
+modelo.
 
 Princípio central: **o Vetor deve saber não apenas o que está escrito, mas qual é a base para
 acreditar que aquilo é verdade.**

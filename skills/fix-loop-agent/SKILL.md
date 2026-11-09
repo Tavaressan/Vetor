@@ -9,4 +9,4 @@ metadata:
   version: "1.0.1"
 ---
 
-Este comando foi renomeado para `/vetor:fix` (issue #365). Leia `../fix/SKILL.md` e siga-o integralmente com os mesmos argumentos.
+Este comando foi renomeado para `/vetor:fix`. Leia `../fix/SKILL.md` e siga-o integralmente com os mesmos argumentos.

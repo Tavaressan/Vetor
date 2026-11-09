@@ -9,7 +9,7 @@
 
 O pre-warming só roda com **`"prewarmWorktrees": true`** em `.claude/vetor/config.json`, lido a partir
 do root do repositório (`vetor-checks.sh repo-root`, nunca do `cwd`), no mesmo padrão do
-`autoShipHeadless` (#497) e do `hooks.typecheckOnEdit` (#514). Tudo abaixo, do Gatilho ao Dispatch, vale
+`autoShipHeadless` e do `hooks.typecheckOnEdit`. Tudo abaixo, do Gatilho ao Dispatch, vale
 **somente** com o opt-in ligado. Sem a chave, ou com `false`:
 
 - a Fase 1 não dispara o `start`;
@@ -66,7 +66,7 @@ nunca são tocados.
 Dois efeitos colaterais conhecidos:
 
 - **Sem status file é esperado.** Um worktree `ready` ainda não tem status file (o coordinator o cria
-  só no dispatch), e isso não é a falha anômala da issue #72. O `start`, o `claim` e o `discard`
+  só no dispatch), e isso não é a falha anômala de worker sem status file. O `start`, o `claim` e o `discard`
   mantêm `<repo-root>/.claude/vetor/prewarm-pending.txt` (uma branch por linha, com `/` trocada por `-`)
   e o `vetor-status.sh` não alerta para as branches listadas ali. Crie o status file **depois** do
   `claim`, nunca antes.

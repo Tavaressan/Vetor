@@ -31,7 +31,7 @@ Você é o coordenador de issues do Vetor. Sua missão é despachar issues de um
   worktrees/status files existentes (Fase 0).
 - `--headless`: execução **não-interativa**, para rotinas agendadas e CI. Combinável com qualquer
   um dos anteriores.
-- `--goal "<meta>"`: **meta contínua** (issue #498): roda sem nenhuma pergunta até resolver ou
+- `--goal "<meta>"`: **meta contínua**: roda sem nenhuma pergunta até resolver ou
   ejetar todo o escopo e fecha com o Goal Convergence Report. A meta é obrigatória (sem ela, responda
   com uma linha de erro) e só descritiva, não filtra issues. Detalhes: seção "Modo goal".
 - `--auto-ship`: só com `--headless` ou `--goal`; habilita a Fase 6 sem humano, sob os quatro gates
@@ -62,7 +62,7 @@ Regras de economia de tokens e delegação a um runtime externo disponível (Gem
 orquestrador MCP (Alethe): `../shared/references/planning-conventions.md` e
 `../shared/references/delegate-to-runtime.md`.
 Se uma issue referenciar uma Spec previamente gerada por `/vetor:spec` (ver `skills/spec/SKILL.md`
-§6), ela fica em `docs/specs/<slug>.md` por padrão (path previsível, issue #219) — útil como contexto
+§6), ela fica em `docs/specs/<slug>.md` por padrão (path previsível) — útil como contexto
 adicional ao ler a issue no passo 1; esta skill não consome nem gera código a partir dela.
 
 ---
@@ -166,7 +166,7 @@ entregá-los.
 #### Triagem de despachabilidade (issues não-despacháveis nesta leva)
 
 Saem da leva, com Onda `—`, modelo `—` e Ação `SKIPPED (<motivo>)` justificada no plano e no
-Coordinator Report (issues #413, #456):
+Coordinator Report:
 
 - `SKIPPED (bloqueada por #N)`: bloqueadora aberta fora da leva (endpoint nativo `blocked_by`).
 - `SKIPPED (aguardando insumo do usuário)`: depende de decisão, validação, credencial, asset ou
@@ -192,7 +192,7 @@ usa worktree `docs/<issue#>-<slug>` e é despachada em modo investigação, com 
 #### Agrupamento por afinidade
 
 Com mais de 3 candidatas, a proposta de agrupamento pode ser delegada a um runtime externo
-(`delegate-to-runtime.md` §1-2), **sem pergunta própria** (issue #499): com 2+ candidatos e nenhuma
+(`delegate-to-runtime.md` §1-2), **sem pergunta própria**: com 2+ candidatos e nenhuma
 `delegation.preferredRuntime`, siga inline e sugira salvar a preferência no relatório. A
 distribuição final é sua.
 
@@ -282,7 +282,7 @@ alerta acima de ~8 e retomada: `references/worker-cap.md`.
 
 Fora de `--headless`, as decisões da largada saem de **uma única apresentação**, com
 **exatamente 1 turno** de diálogo antes do primeiro dispatch de worker (RF-02 da Spec
-`docs/specs/autonomia-continua-e-desacoplamento-interativo.md`, issue #499). Nada é perguntado antes
+`docs/specs/autonomia-continua-e-desacoplamento-interativo.md`). Nada é perguntado antes
 dela: a classificação do gate de Spec, o DAG de ondas, o `N_rec` e o plano já foram calculados sem
 interação. Cada item traz uma opção pré-marcada `(Recommended)`; aceitar o pacote inteiro é uma única
 confirmação.
@@ -305,7 +305,7 @@ sessão**:
   no relatório como prontos para ship, com branch e path do worktree).
 
 A pergunta evita que a camada de permissões do harness negue o merge só no fim da entrega (no Claude
-Code, o classificador do auto mode, motivo "Merge Without Review"; issue #13 e `ship` §3).
+Code, o classificador do auto mode, motivo "Merge Without Review"; `ship` §3).
 
 Apresente o plano e a tabela de decisões numa só mensagem e pergunte com **uma única chamada** da
 ferramenta de perguntas: uma pergunta por item que se aplique, `(Recommended)` sempre primeiro (no
@@ -362,7 +362,7 @@ reconcilie-o com o plano aprovado (`discard --keep`) antes de qualquer `Agent()`
   verifique se ela possui alguma label de triagem (`needs-spec`, `spec-needed`,
   `triage/needs-information`, `blocked`, `status/blocked`, `needs-human`). Se possuir, remova-a com
   `gh issue edit <N> --remove-label "<label-de-triagem>"`.
-- **Micro-spec JIT (issue #501):** para cada issue sinalizada no gate de Spec/design com a opção de
+- **Micro-spec JIT:** para cada issue sinalizada no gate de Spec/design com a opção de
   micro-spec (a `(Recommended)`, e sempre em `--headless`), gere a micro-spec antes de montar o prompt
   do worker, sem perguntar e sem interromper o dispatch: contrato, formato, prazo de 10 s e fallback
   em `../shared/references/issue-coordinator-dispatch.md` ("Micro-spec JIT"). O resultado entra no
@@ -372,7 +372,7 @@ reconcilie-o com o plano aprovado (`discard --keep`) antes de qualquer `Agent()`
 
   Antes de cada dispatch, leia `../shared/references/issue-coordinator-dispatch.md` para duplicidade, status file e retomada em worktree existente.
 
-  **Gere o prompt de cada subagente com `scripts/dispatch-prompt.ts` (issue #545); não o monte à
+  **Gere o prompt de cada subagente com `scripts/dispatch-prompt.ts`; não o monte à
   mão.** `--role worker|ship|review|fix` emite o prompt completo e padronizado (ContextPacket com
   Repo Map na tag `<repo_map>` via `--repo-root "$REPO_ROOT"`, branch, status file e fallback,
   sincronização de onda, modo spike, falhas de ambiente, trailer de commit e proibições), e a saída vai direto ao `prompt` do `Agent()`. Flags, papéis e
@@ -457,12 +457,12 @@ Após todos os agentes terminarem (ou atingido o timeout de 90 minutos / `maxSes
 Use `../shared/references/issue-coordinator-report.md` ao montar o Coordinator Report e validar o fechamento da onda.
 ## Orçamentos e hard caps
 
-- **fix:** 5 iterações é orçamento sugerido, não hard cap (issue #156): na 5ª sem verde, o worker
+- **fix:** 5 iterações é orçamento sugerido, não hard cap: na 5ª sem verde, o worker
   registra `BLOCKED_WAITING` com `Blocked on`/`Options`/`Recommendation` em vez de seguir para a 6ª.
 - **ship:** máximo 3 tentativas de fix de CI.
 - **Coordinator:** `maxSessionMinutes` em `.claude/vetor/config.json` (default 90; em `--goal`, no
   máximo 120) é hard cap para **novos dispatches e novas ondas**; grupos ativos concluem a iteração e
-  ships de grupos `GREEN` ou já autorizados prosseguem (issue #343). Conta o tempo ativo de
+  ships de grupos `GREEN` ou já autorizados prosseguem. Conta o tempo ativo de
   coordenação, **inclusive a espera por workers ativos**; não contam a espera por decisões humanas
   (perguntas, aprovação do plano) nem o período em que todos os workers ativos estão parados com
   escalação aberta pelo watchdog (5.h).
@@ -491,7 +491,7 @@ O teto de workers simultâneos **não é um hard cap**: é o valor `N` decidido 
   relatório e pare — não improvise
 - O gate de Spec/design (Fase 2) nunca bloqueia o dispatch em `--headless` — vira sinalização
   registrada no plano/relatório, nunca um `AskUserQuestion` síncrono (mesmo motivo do item acima:
-  deadlock por falta de interlocutor, issue #121)
+  deadlock por falta de interlocutor)
 - O coordinator nunca cria labels no GitHub (nunca executa `gh label create`). Aplica labels de
   triagem existentes no repositório ao pular/bloquear issues e remove-as ao despachar; sem equivalente
   no repo, não aplica

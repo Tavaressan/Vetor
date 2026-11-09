@@ -1,6 +1,6 @@
 # Issue-coordinator — criação, dispatch e transição de ondas
 
-> Extraído de `skills/coordinator/SKILL.md` (issue #373) e lido só quando o SKILL.md manda.
+> Extraído de `skills/coordinator/SKILL.md` e lido só quando o SKILL.md manda.
 > Paths relativos (`../shared/references/...`) e `$SKILL_DIR` aqui resolvem a partir do diretório
 > da skill `coordinator`, não deste arquivo.
 
@@ -29,7 +29,7 @@ path vem do JSON do `claim`, que lê o manifest do pre-warming.
 - **Checagem de timeout da sessão.** Antes de despachar um novo grupo `QUEUED` ou iniciar uma nova
   onda (`O_{i+1}`), verifique se o timeout global (default 90 minutos, ou `maxSessionMinutes` em
   `.claude/vetor/config.json`) foi atingido considerando apenas tempo ativo de coordenação (excluindo
-  esperas por decisão humana via `AskUserQuestion` — issue #343). Ao atingir o teto: não despache novos
+  esperas por decisão humana via `AskUserQuestion`). Ao atingir o teto: não despache novos
   grupos nem novas ondas; permita que workers ativos terminem suas iterações e que grupos `GREEN` já
   autorizados realizem ship normalmente.
 - **Transição de onda.** Só inicie o dispatch de `O_{i+1}` depois que:
@@ -57,7 +57,7 @@ path vem do JSON do `claim`, que lê o manifest do pre-warming.
      Se divergirem (root atrasado), rode `bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root`
      e **repita a comparação acima** — `sync-root` sai com código 0 mesmo quando recusa avançar (ex.:
      mudanças locais pré-existentes não commitadas no root, alheias a este trabalho de coordenação —
-     causa raiz confirmada na issue #244); não trate o exit 0 como prova de que o HEAD avançou. Se,
+     causa raiz confirmada); não trate o exit 0 como prova de que o HEAD avançou. Se,
      mesmo após o `sync-root`, o root continuar atrasado (dirty state não resolvido ou branch não
      mesclável), **não bloqueie o dispatch por conta disso**: essa condição é exatamente o motivo do
      passo obrigatório abaixo em "Prompt de execução sequencial para o worker" — cada worker de
@@ -78,7 +78,7 @@ pulando dispatch duplicado`) e **pule** o dispatch desse grupo.
 `Status: RUNNING` — o sandbox de isolamento pode impedir o worker de criar arquivo fora do worktree.
 Exemplo: `echo -e "# Agent Status - <branch>\nStatus: RUNNING\nIteration: 1/5 (Issue #<M>)" > <path>`.
 Enquanto o harness inicializa o worktree, `vetor-status.sh` classifica o grupo como `aguardando worktree`
-(e não como `cancelled`, issue #347).
+(e não como `cancelled`).
 
 ```javascript
 Agent({
@@ -121,7 +121,7 @@ sincronismo do branch default com `O_1`.
 
 **Nota (Antigravity):** o `issue-worker` é descoberto em Markdown nativo via `agents/issue-worker.md`
 (plugin) ou `.agents/agents/issue-worker.md` (workspace, instalado por `vetor install`), com
-`model: inherit` (issue #397). Como define `tools:` explicitamente, verifique `mcpServers` se um
+`model: inherit`. Como define `tools:` explicitamente, verifique `mcpServers` se um
 worker precisar de MCP adicional.
 
 **Prompt de execução sequencial para o worker:**
@@ -135,10 +135,10 @@ worker precisar de MCP adicional.
    > grave o status no worktree, em `.claude/vetor-status.md`. O `vetor-status.sh` lê esse fallback
    > sozinho: não é preciso sinalizar no chat nem o coordinator copiar o arquivo. Nunca espere confirmação de permissão para gravar o
    > status file: se a escrita no root ficar pendente ou for recusada, grave o fallback e siga
-   > (issue #540).
+   >.
 5. **Sincronização com origin (obrigatória a partir de `O_2`).** Se este dispatch pertence a uma
    onda `O_{i+1}` posterior à primeira, inclua no prompt, como **primeiro passo padrão logo após o
-   `git checkout -b`** — não como recuperação ad-hoc descoberta pelo próprio worker (issue #244):
+   `git checkout -b`** — não como recuperação ad-hoc descoberta pelo próprio worker:
    > Antes de investigar o escopo da issue, rode `git fetch origin $DEFAULT_BRANCH` e compare com o
    > seu HEAD (`git log origin/$DEFAULT_BRANCH -1` vs `git log HEAD -1`). Se o seu worktree nasceu
    > de um commit anterior aos merges das ondas anteriores, sincronize agora (`git merge
@@ -151,20 +151,20 @@ worker precisar de MCP adicional.
    segurança que não depende do root ter avançado a tempo.
 6. **Comandos de teste pré-resolvidos (se module-test-map untracked/ignorado):** Se `git check-ignore -q .claude`
    indicar que `.claude/` está ignorado ou se `! git ls-files --error-unmatch .claude/vetor/module-test-map.md >/dev/null 2>&1`
-   indicar que o mapa de testes não está commitado (issue #327), injete explicitamente os comandos de
+   indicar que o mapa de testes não está commitado, injete explicitamente os comandos de
    teste resolvidos para os módulos da issue no prompt do worker, evitando que ele fique sem referências
    de teste no worktree.
 7. **Modo investigação para issues spike:** Se a issue for um `spike` (investigação/exploração para decisão futura), instrua o worker explicitamente:
    - Modo investigação: sem TDD e sem loop de testes de produto/código.
    - Entregável obrigatório: produzir `docs/investigations/<slug>.md` estruturado com Pergunta, Evidências (comandos/fontes reproduzíveis), Opções avaliadas e Recomendação.
    - Critério de `GREEN`: o arquivo de relatório existe e `git diff --check` passa sem erros.
-   - O ship segue o caminho de PR só de docs (#427); a decisão continua humana e issues de follow-up não são criadas automaticamente.
-8. **ContextPacket (issue #496) e Repo Map (issue #507):** abra o prompt com o JSON gerado conforme
+   - O ship segue o caminho de PR só de docs; a decisão continua humana e issues de follow-up não são criadas automaticamente.
+8. **ContextPacket e Repo Map:** abra o prompt com o JSON gerado conforme
    a seção "ContextPacket" abaixo, para o worker começar pelo teste em vez de explorar o
    repositório. Com `--repo-root` e `--format prompt` o mesmo comando acrescenta o Repo Map
    escopado do módulo na tag `<repo_map>`, logo depois do JSON (seção "Repo Map escopado").
 
-### Prompt gerado por `dispatch-prompt.ts` (issue #545)
+### Prompt gerado por `dispatch-prompt.ts`
 
 O coordinator não monta o prompt dos subagentes à mão: `scripts/dispatch-prompt.ts` emite o texto
 padronizado (montagem em `scripts/lib/orchestrator/dispatch-prompt.ts`, ContextPacket e Repo Map
@@ -258,7 +258,7 @@ de teste), uma vez sem o pacote (baseline) e outra com ele; a meta da Spec é re
 contagem em pelo menos 50%. Nenhum baseline foi coletado ainda, então a meta permanece não
 verificada.
 
-### Micro-spec JIT — issue não-trivial sem Spec (issue #501)
+### Micro-spec JIT — issue não-trivial sem Spec
 
 Para cada issue sinalizada pelo gate de Spec/design (Fase 2) com a opção de micro-spec — a
 `(Recommended)` do item 2 da entrevista consolidada, e sempre em `--headless` e `--goal` —, o
@@ -314,7 +314,7 @@ timeout, o coordinator mede o tempo da chamada e descarta a micro-spec de uma ch
 
 O pacote diz ao worker o que mudar; o Repo Map diz onde estão as assinaturas e os tipos do módulo
 que ele vai editar (`scripts/repo-map.ts`, RF-03/RF-04 de
-`docs/specs/repo-map-ast-context-packet.md`, issue #507). É um esqueleto Markdown de até 1.500
+`docs/specs/repo-map-ast-context-packet.md`). É um esqueleto Markdown de até 1.500
 tokens, sem corpos de função, que poupa os `grep`/`find`/`Read` com que o worker abriria a sessão.
 Peça-o ao mesmo CLI do pacote, passando o root do repositório principal (`$REPO_ROOT`, de
 `vetor-checks.sh repo-root`, nunca o `cwd`):
@@ -358,7 +358,7 @@ O `vetor:ship-worker` (`agents/ship-worker.md`) roda o `vetor-checks.sh prepare`
 `GREEN` (e, se ele falhar, o procedimento manual do `/vetor:ship --prepare`, lido sob demanda), grava
 `PR_STAGED` e encerra. Ele não pré-carrega a skill `ship`. Ele opera no worktree que já existe, então o dispatch **não**
 usa `isolation: "worktree"` (o mesmo cuidado do redispatch acima). O modelo barato é escolhido
-aqui, no `Agent()`, porque o frontmatter do agente é `model: inherit` (issues #337/#397):
+aqui, no `Agent()`, porque o frontmatter do agente é `model: inherit`:
 
 ```javascript
 Agent({
@@ -376,7 +376,7 @@ disparadas — ele não tem a tool `Agent` — e cabe ao coordinator despachá-l
 `BLOCKED_WAITING`, trate como qualquer bloqueio de worker (Fase 5.b). O subagente só existe em
 Claude Code, Cursor e Antigravity (`agents/*.md`); em Codex e OpenCode rode o `--prepare` em uma
 instância isolada do próprio runtime. Quando disparar o `ship-worker` dentro das Fases 5 e 6 é
-decisão da issue #495; esta seção define apenas o contrato do despacho.
+decisão da Fase 6; esta seção define apenas o contrato do despacho.
 
 ### Dispatch para runtime externo (contrato mínimo de delegação)
 

@@ -13,7 +13,7 @@ Issues do tipo `spike` ("Investigação/exploração — resultado informa decis
    - O título iniciar por convenções como `spike:`, `spike(...)`, `investigação:`, `research:`; OU
    - O corpo declarar explicitamente objetivo de spike ou investigação exploratória.
 2. **Isenção do Gate de Spec (Fase 2)**: issues `spike` são **isentas do gate de Spec** (dispensam Spec) — como seu propósito é explorar perguntas abertas antes de haver uma capacidade concreta a especificar (conforme `spec/SKILL.md` §0.1), não são bloqueadas pela ausência de Spec. Na tabela do plano da Fase 2, marque na coluna "Ação": `Despachar (Spike — modo investigação)`.
-3. **Provisionamento do worktree (Fase 3)**: utilize o tipo `docs` para a branch e worktree (`docs/<issue#>-<slug>`), formato nativo suportado por `worktree-create` (aceito desde #429).
+3. **Provisionamento do worktree (Fase 3)**: utilize o tipo `docs` para a branch e worktree (`docs/<issue#>-<slug>`), formato nativo suportado por `worktree-create`.
 4. **Despacho em modo investigação (Fase 4)**: despache o worker com prompt específico de investigação:
    - Sinalize que a issue deve ser executada em **modo investigação** (não em modo de desenvolvimento regular de código).
    - **Dispensa de TDD e testes de produto**: o worker não roda TDD nem loop de testes de produto (não há código de produto a testar).
@@ -24,4 +24,4 @@ Issues do tipo `spike` ("Investigação/exploração — resultado informa decis
      3. Opções avaliadas (alternativas consideradas e seus trade-offs)
      4. Recomendação (opção sugerida com justificativa para decisão futura)
    - **Critério de `GREEN`**: status `GREEN` é atingido quando o arquivo `docs/investigations/<slug>.md` existir cobrindo as seções mínimas e `git diff --check` passar sem erros.
-5. **Entrega e follow-up (Fase 6)**: o PR gerado pelo `ship` segue o caminho de PR só de docs (#427). A decisão derivada do spike **continua humana** — o coordinator e o worker nunca criam issues de follow-up automaticamente a partir das recomendações.
+5. **Entrega e follow-up (Fase 6)**: o PR gerado pelo `ship` segue o caminho de PR só de docs. A decisão derivada do spike **continua humana** — o coordinator e o worker nunca criam issues de follow-up automaticamente a partir das recomendações.

@@ -6,7 +6,7 @@ Paths relativos e `$SKILL_DIR` aqui resolvem a partir do diretório da skill que
 
 ## 4. Exemplos (ilustrativos, não exaustivos)
 
-A lista a seguir é **ilustrativa e aberta** (issue #415): com a aposentadoria da proibição categórica
+A lista a seguir é **ilustrativa e aberta**: com a aposentadoria da proibição categórica
 de delegar mudanças de código, qualquer tarefa — de condensação de texto e logs a alterações de código
 e conciliação de conflitos — pode ser delegada, desde que o escopo tenha anuência prévia do desenvolvedor
 (§2.1), o resultado seja tratado como rascunho e validado pelo agente antes da escrita.

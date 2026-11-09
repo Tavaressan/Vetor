@@ -9,4 +9,4 @@ metadata:
   version: "1.6.0"
 ---
 
-Este comando foi renomeado para `/vetor:coordinator` (issue #365). Leia `../coordinator/SKILL.md` e siga-o integralmente com os mesmos argumentos.
+Este comando foi renomeado para `/vetor:coordinator`. Leia `../coordinator/SKILL.md` e siga-o integralmente com os mesmos argumentos.

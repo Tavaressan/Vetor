@@ -1,4 +1,4 @@
-# Rastreabilidade Spec → Task → Code → Test (#223, preparação)
+# Rastreabilidade Spec → Task → Code → Test (preparação)
 
 Este documento descreve o formato e os pontos de extensão preparados por #223 (Handoff #203
 §13-§18). **Nenhuma integração real está implementada aqui** — nem transformação de requirement em
@@ -84,7 +84,7 @@ referenciar o `id` do requisito que a originou — por exemplo, um campo `source
 na issue do GitHub ou no corpo da task.
 
 **Não implementado nesta issue** — geraria uma mudança grande no `coordinator` (que hoje só
-conhece issues do GitHub, não requisitos de Spec) fora do escopo de #223. O que fica pronto é a
+conhece issues do GitHub, não requisitos de Spec) fora do escopo desta preparação. O que fica pronto é a
 garantia de que `RF-01` é um identificador estável o bastante para ser citado por uma task futura
 sem risco de a referência quebrar quando a Spec evoluir (ver item 1).
 
@@ -133,7 +133,7 @@ requisito:
   ```
 
 **Não implementado nesta issue** — exigiria análise semântica de código (comparar comportamento
-declarado vs. implementado), explicitamente fora do escopo de #223 (Handoff #203 §16-§17: "não
+declarado vs. implementado), explicitamente fora do escopo desta preparação (Handoff #203 §16-§17: "não
 implementar ainda análise semântica completa do código"). O que fica pronto é o formato de
 metadados (`status`) sobre o qual essa análise futura poderia se apoiar.
 

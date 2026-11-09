@@ -8,16 +8,16 @@ Escrito pelo worker/fix-loop a cada iteração. Lido pelo `coordinator` (via
 enquanto `Status` ≠ `GREEN`). Fica **fora do worktree**, no root do repo — não há risco de commit
 acidental; o `/vetor:install` init garante a entrada no `.gitignore`.
 
-**Fallback (issue #94):** se a plataforma bloquear a escrita fora do worktree, o worker deve salvar
+**Fallback:** se a plataforma bloquear a escrita fora do worktree, o worker deve salvar
 uma cópia em `<worktree>/.claude/vetor-status.md`. O `scripts/vetor-status.sh` lê esse fallback
-sozinho (issue #540): para cada worktree ativo, o fallback vale quando o status file do root não
+sozinho: para cada worktree ativo, o fallback vale quando o status file do root não
 existe ou é mais antigo. Nenhuma cópia manual é necessária.
 
-**Causa da recusa (issue #540):** vem do isolamento de worktree da plataforma (subagente com
+**Causa da recusa:** vem do isolamento de worktree da plataforma (subagente com
 `isolation: "worktree"` pede para editar a "cópia do worktree"), não do guard do Vetor
 (`scripts/lib/guard.ts`, `isWriteAllowed`, que já libera o status dir). Fonte: evidência da rodada
 descrita na issue #540 (3 de 4 workers recusados); não foi confirmada em documentação oficial. Em
-verificação posterior, um worker isolado (#540) gravou no root sem confirmação, então a recusa é
+verificação posterior, um worker isolado gravou no root sem confirmação, então a recusa é
 intermitente. Regra do worker: se o root for recusado ou ficar pendente de confirmação, grave o
 fallback e siga, sem esperar resposta.
 
@@ -34,7 +34,7 @@ Next: <próximo passo planejado>
 
 ## Blocos adicionais por estado
 
-**`GREEN`** (issue #542) — além da base, o worker grava a linha `Tested:` com o SHA de `HEAD` em que a
+**`GREEN`** — além da base, o worker grava a linha `Tested:` com o SHA de `HEAD` em que a
 suíte completa do módulo passou, o comando e o resultado:
 
 ```markdown
@@ -67,7 +67,7 @@ confirmação — <premissa>` ou `Blocked on: Evidence Conflict — <fontes em c
 um novo estado ou caminho de escalação: `BLOCKED_WAITING` continua sendo o único mecanismo; o
 vocabulário apenas qualifica o motivo já registrado em `Blocked on`.
 
-**`SUSPENDED`** (issue #500) — gravado **apenas pelo coordinator**, nunca pelo worker: o coordinator
+**`SUSPENDED`** — gravado **apenas pelo coordinator**, nunca pelo worker: o coordinator
 move para cá um `BLOCKED_WAITING` ao registrá-lo na Decision Inbox
 (`<repo-root>/.claude/vetor/decision-inbox.json`, via `scripts/decision-inbox.ts suspend`), o que libera
 a vaga no teto de concorrência `N` sem tocar no worktree. Mantém os blocos do `BLOCKED_WAITING`
@@ -84,7 +84,7 @@ Ao receber a decisão, `scripts/decision-inbox.ts resolve` devolve o status a `R
 `Decisão humana:` ou, no avanço otimista, `Decisão otimista:` e a tag `[OPTIMISTIC_DECISION]` em
 `Last action`) e o grupo é redespachado no mesmo worktree. Não conta iteração do fix-loop.
 
-**`EJECTED`** (issue #501) — gravado **apenas pelo coordinator**, nunca pelo worker, ao concluir a
+**`EJECTED`** — gravado **apenas pelo coordinator**, nunca pelo worker, ao concluir a
 ejeção graciosa de uma issue (Fase 5.f do coordinator): o impasse foi documentado na issue
 (comentário diagnóstico e, se existir, a label `needs-human`), o trabalho ficou na branch e o worktree
 foi limpo. O `Last action` aponta o motivo e o resultado de cada passo; o status file permanece para
@@ -104,7 +104,7 @@ Next: /vetor:ship --finalize <PR-number>
 worktree com o handover de falha (ver `fix` §4).
 
 Iterações em `BLOCKED_WAITING` não contam contra o orçamento de 5 do fix-loop (sugerido, não
-enforced pelo hook — issue #156: ao atingi-lo, registre `BLOCKED_WAITING` ou
+enforced pelo hook: ao atingi-lo, registre `BLOCKED_WAITING` ou
 `FAILED_MAX_ITERATIONS`, nunca decida sozinho continuar).
 
 ## Efeitos colaterais externos (fora do controle de versão)

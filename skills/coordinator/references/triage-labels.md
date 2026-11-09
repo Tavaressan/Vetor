@@ -33,7 +33,7 @@ Mapeie o motivo aos labels existentes no repo alvo, usando o **primeiro da linha
    ```
 4. **Comportamento em `--headless`:** aplica igualmente a label de triagem se ela existir no repositório; nunca cria labels (`gh label create`). Sem equivalente no repo, não aplica e documenta a omissão no relatório final.
 5. **Não-escopo:** nunca aplique labels indicando execução em andamento (ex.: `in-progress` ou qualquer estado de execução). O estado de execução vive exclusivamente no worktree e no status file (`.claude/vetor/status/`), e o padrão do GitHub para status de fluxo é o campo Status do Projects.
-6. **Ejeção (`needs-human`, issue #501):** vale a mesma regra de ouro. A label só é aplicada se já
+6. **Ejeção (`needs-human`):** vale a mesma regra de ouro. A label só é aplicada se já
    existir (`gh label list`); sem ela, o motivo fica no comentário diagnóstico da issue e no relatório,
    e a ejeção segue normalmente. Falha ao aplicá-la (ex.: token sem permissão) também não interrompe a
    ejeção: o motivo vai ao relatório.

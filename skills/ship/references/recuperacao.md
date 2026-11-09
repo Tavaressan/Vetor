@@ -14,7 +14,7 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" in-worktree
 Se sair não-zero, **aborte**: `/vetor:ship` deve rodar de dentro de um worktree (use
 `/vetor:worktree-create` primeiro). Se passar, guarde a branch atual (`git branch --show-current`).
 
-**Exceção — `--finalize <PR>` sem worktree local (issue #527).** Se a guarda falhar e o modo for
+**Exceção — `--finalize <PR>` sem worktree local.** Se a guarda falhar e o modo for
 `finalize`, não aborte: resolva a branch do PR (`gh pr view <PR> --json headRefName -q .headRefName`),
 confirme que nenhum worktree local a usa e recrie-o a partir da branch remota com o primitivo
 `/vetor:worktree-create --from-branch <headRefName>`. A validação de `headRefName` (check-ref-format,
@@ -143,7 +143,7 @@ Closes #<issue#>
 🤖 Desenvolvido com [Claude Code](https://claude.ai/code)
 ```
 
-Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente, issue #338). Grave o corpo num arquivo temporário com a ferramenta Write (caminho padrão; se a ferramenta Write for recusada, o fallback é um heredoc com delimitador entre aspas (`<<'EOF'`) gravando o arquivo, ainda seguido de `--body-file`) e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell (issue #334):
+Anexe `Closes #<issue#>` (ou uma linha `Closes #N` por issue do grupo; use `Refs #N` se a issue não deve ser fechada automaticamente). Grave o corpo num arquivo temporário com a ferramenta Write (caminho padrão; se a ferramenta Write for recusada, o fallback é um heredoc com delimitador entre aspas (`<<'EOF'`) gravando o arquivo, ainda seguido de `--body-file`) e passe via `--body-file`, evitando corrupção de backticks e caracteres especiais pelo shell:
 ```bash
 gh pr create \
   --title "<type>(<slug>): <resumo dos commits>" \
@@ -204,7 +204,7 @@ Para cada falha detectada:
 
 Verifique se a falha possui `run-id` do GitHub Actions (`gh pr checks <PR-number> --json name,link,state`).
 
-**8.a — Falha em check externo sem run-id (Vercel, Netlify etc. — issue #340)**
+**8.a — Falha em check externo sem run-id (Vercel, Netlify etc.)**
 
 Para provedores de deploy e checks externos sem execução do GitHub Actions:
 1. Identifique o check externo: extraia link e descrição de erro no `gh pr checks`.
@@ -261,7 +261,7 @@ Além disso, a skill monta o próprio contexto sozinha (git status, arquivos mod
 diff da branch atual) a partir de `origin/HEAD` — **não** passe `gh pr diff <PR-number>` como
 argumento; ela ignora diffs passados por fora e lê a branch diretamente.
 
-**Pré-condição de `origin/HEAD` (issue #410):** a montagem do contexto da skill falha (`fatal: ambiguous argument 'origin/HEAD...'`)
+**Pré-condição de `origin/HEAD`:** a montagem do contexto da skill falha (`fatal: ambiguous argument 'origin/HEAD...'`)
 se a referência remota simbólica `refs/remotes/origin/HEAD` não estiver configurada no clone (comum em clones antigos
 ou criados por ferramentas sem detecção automática do HEAD remoto). Antes de invocá-la:
 
@@ -281,8 +281,8 @@ Invoque a skill nativa `security-review` sem argumento de diff — ela lê a bra
 
 Ao receber a resposta final (o relatório em markdown), publique-o, com a primeira linha
 `## Security Review (Vetor)` (é o cabeçalho que o gate `reviews` da entrega autônoma em `--headless`
-procura, issue #497). Grave o comentário num arquivo temporário com a ferramenta Write (caminho padrão;
-se a ferramenta Write for recusada, o fallback é um heredoc com delimitador entre aspas (`<<'EOF'`) gravando o arquivo, ainda seguido de `--body-file`; nunca `--body` inline: o shell corrompe crases, issues #525/#532) e passe-o via `--body-file`:
+procura). Grave o comentário num arquivo temporário com a ferramenta Write (caminho padrão;
+se a ferramenta Write for recusada, o fallback é um heredoc com delimitador entre aspas (`<<'EOF'`) gravando o arquivo, ainda seguido de `--body-file`; nunca `--body` inline: o shell corrompe crases) e passe-o via `--body-file`:
 ```bash
 gh pr comment <PR-number> --body-file "<path-do-arquivo-de-comentario>"
 ```
@@ -363,12 +363,12 @@ bash "$SKILL_DIR/../../scripts/vetor-merge.sh" <PR-number>
 
 O script faz `gh pr ready` + `gh pr merge --squash --delete-branch`, passando `--subject` e
 `--body` do PR (garantindo que o corpo do PR seja a única fonte autoritativa de fechamento de issues
-no squash, issue #338). Se a branch base do PR tem **merge queue** ativa (detectada pela API do
-GitHub, issue #495), usa `--auto` em vez de `--delete-branch` (o `gh` recusa essa combinação);
+no squash). Se a branch base do PR tem **merge queue** ativa (detectada pela API do
+GitHub), usa `--auto` em vez de `--delete-branch` (o `gh` recusa essa combinação);
 `vetor-merge.sh --auto <PR>` força o auto-merge. Em todos os casos confirma o **estado real do PR**
 depois do `gh` (o exit do `gh` sozinho não prova merge: `--auto` e a merge queue saem com 0 ao
 *enfileirar*) e, em caso de merge no remoto com falha apenas no cleanup local, apaga a branch remota
-explicitamente (issue #325):
+explicitamente:
 - **exit 0** — PR **mergeado** e branch remota verificada/removida. Siga para o passo 11.
 - **exit 4** — PR **enfileirado** (auto-merge/merge queue): o PR continua OPEN e o GitHub conclui o
   squash merge quando os requisitos liberarem. **Não é merge concluído**: não rode o passo 11 nem o
@@ -395,10 +395,10 @@ bash "$SKILL_DIR/../../scripts/vetor-checks.sh" sync-root
 
 Volta ao root e sincroniza com a branch default. Se o root já estiver na branch default, faz
 `git fetch` e `git merge --ff-only` com `origin/<default>` para evitar defasagem entre ondas de dispatch
-(issue #322). (Só numa sessão manual em que você entrou no worktree com `EnterWorktree` é preciso sair
+. (Só numa sessão manual em que você entrou no worktree com `EnterWorktree` é preciso sair
 com `ExitWorktree` antes.) Confirme pela mensagem de sucesso.
 
-**Divergência da branch default (issue #409):** se o `sync-root` reportar `AVISO: root em <default> divergiu de origin/<default>.`, a causa típica é a configuração inicial do Vetor (`config.json`, `module-test-map.md`) ter sido commitada na branch default local sem push prévio antes do dispatch. Quando o GitHub squash-mergeou a PR, gerou um commit remoto com outro hash, fazendo a default local divergir. Para reconciliar de forma segura quando as mudanças já foram integradas no remoto, guarde a ponta
+**Divergência da branch default:** se o `sync-root` reportar `AVISO: root em <default> divergiu de origin/<default>.`, a causa típica é a configuração inicial do Vetor (`config.json`, `module-test-map.md`) ter sido commitada na branch default local sem push prévio antes do dispatch. Quando o GitHub squash-mergeou a PR, gerou um commit remoto com outro hash, fazendo a default local divergir. Para reconciliar de forma segura quando as mudanças já foram integradas no remoto, guarde a ponta
 local numa branch de backup e mova a default com `--keep`, que aborta em vez de descartar mudanças
 não commitadas:
 ```bash
@@ -413,7 +413,7 @@ git reset --keep "origin/$DEFAULT_BRANCH"
 
 Descubra o path real do worktree via `git worktree list` (não assuma convenção de path — a
 localização é do harness). No Windows, manter o cwd da sessão dentro do worktree bloqueia a exclusão
-do diretório com `Permission denied` (issue #411). Mude para o repositório principal antes de
+do diretório com `Permission denied`. Mude para o repositório principal antes de
 disparar a remoção. Se invocado pelo `coordinator` (modo headless), execute automaticamente:
 ```bash
 cd "$(bash "$SKILL_DIR/../../scripts/vetor-checks.sh" repo-root)"
@@ -427,20 +427,20 @@ status/cache — há dois motivos distintos de falha:
 
 - **Worktree filho ativo dentro do path alvo**: mostre os paths e preserve worktree pai, branch e
   arquivos de status/cache até os filhos serem realocados.
-- **Diretório residual em disco após `git worktree remove`** (issues #157, #324, #411): o `git worktree remove`
+- **Diretório residual em disco após `git worktree remove`**: o `git worktree remove`
   desregistrou o worktree do git (não aparece mais em `git worktree list`) mas falhou ao apagar o
   diretório — no Windows, por `Filename too long`, por `Permission denied` transitório ou porque o processo
-  ainda está com o cwd dentro dele (issue #411). `safe-remove-worktree` reconsulta o git: como o worktree
+  ainda está com o cwd dentro dele. `safe-remove-worktree` reconsulta o git: como o worktree
   já foi desregistrado, tenta a remoção segura do resíduo (inclusive com prefixo de path longo `\\?\`);
   se mesmo assim restar, ela diagnostica a causa (incluindo se o cwd da sessão impediu a exclusão) e sai
-  não-zero citando o path residual para remoção manual, sem alegar falsamente uncommitted work (issue #324).
+  não-zero citando o path residual para remoção manual, sem alegar falsamente uncommitted work.
 
 - **Remoção segura de branch e status**:
   - `delete-merged-branch <branch>` apaga a branch local apenas se confirmada como `MERGED` no GitHub
     ou se sua árvore for idêntica à branch default, contornando a recusa de `git branch -d` para squash
-    e sem acionar o bloqueio incondicional de `-D` (issue #341).
+    e sem acionar o bloqueio incondicional de `-D`.
   - `clean-status <branch>` normaliza o nome da branch (`/` substituída por `-`) e apaga o status `.md`,
-    a sentinela `.md.stopguard` e o cache `-touched-files.json` (issue #344).
+    a sentinela `.md.stopguard` e o cache `-touched-files.json`.
 
 Se invocado manualmente pelo usuário: pergunte antes de remover (a confirmação cobre worktree,
 branch, status file e cache de arquivos tocados). Lembre-se de mudar para o root (`cd "$(bash "$SKILL_DIR/../../scripts/vetor-checks.sh" repo-root)"`) antes de executar `safe-remove-worktree`.

@@ -1,15 +1,15 @@
 ---
 name: issue-worker
 description: Implementa uma issue GitHub isolada dentro de um worktree já criado, aplicando fixes até testes verdes ou conduzindo investigações spike com relatório em docs/investigations/. Nunca faz push, cria PR ou merge — isso é responsabilidade do ship. Despachado pelo coordinator, um por issue, em paralelo.
-# tools é allowlist explícita — EnterPlanMode/ExitPlanMode ficam deliberadamente de fora (issue #121):
+# tools é allowlist explícita — EnterPlanMode/ExitPlanMode ficam deliberadamente de fora:
 # o worker roda headless, sem interlocutor disponível para aprovar a saída do plan mode.
-# As três ferramentas mcp__ai-memory__ são o mínimo da memória cruzada (issue #502): uma allowlist sem
+# As três ferramentas mcp__ai-memory__ são o mínimo da memória cruzada: uma allowlist sem
 # elas exclui todo MCP (https://code.claude.com/docs/en/sub-agents.md, "Restrict which tools a
 # subagent can use"). Delete, restore e handoff ficam de fora de propósito. Sem o servidor configurado
 # as entradas não resolvem, o que só impede o lançamento se nenhuma entrada da lista resolver.
 tools: [Bash, Read, Write, Edit, Grep, Glob, Skill, mcp__ai-memory__memory_query, mcp__ai-memory__memory_read_page, mcp__ai-memory__memory_write_page]
 model: inherit
-# maxTurns (issue #576): teto real do orçamento do `fix` (5 iterações, #156), que antes era só sugerido.
+# maxTurns: teto real do orçamento do `fix` (5 iterações), que antes era só sugerido.
 # Conta turnos do agente, não iterações. Calibração: ~15 turnos de largada (status inaugural, issue,
 # exploração, teste de reprodução) + ~10 por iteração (teste, leitura do erro, edição, commit, status)
 # x 5 + ~6 de fechamento (suíte, GREEN com Tested:, verify-status, memória) ≈ 71; 120 dá folga de ~1,7x.
@@ -104,7 +104,7 @@ Next: Reading issue scope
    `coordinator` acompanhar seu progresso. Ele fica no root do repo, fora do worktree — sem risco de
    commit acidental.
    Exceção: se a escrita no root for recusada ou ficar pendente de confirmação, não espere; grave
-   `.claude/vetor-status.md` no worktree e siga (o `vetor-status.sh` lê o fallback; issue #540).
+   `.claude/vetor-status.md` no worktree e siga (o `vetor-status.sh` lê o fallback).
 
 ### Modo Investigação (`spike`)
 
@@ -125,8 +125,8 @@ Issues `spike` ("Investigação/exploração — resultado informa decisão futu
    - `git diff --check` passa sem erros (sem conflitos ou problemas de whitespace);
    - O commit com o relatório é registrado (ex.: `docs(investigation): <descrição do spike> (#<N>)`).
 4. **Decisão Humana e Follow-up (Não-escopo)**:
-   A entrega do spike segue o caminho de PR só de docs (#427). A decisão derivada do relatório continua humana — o worker e o coordinator **não criam issues de follow-up automaticamente** a partir da recomendação.
-5. Atualize o status file a cada iteração (inaugural como `RUNNING`, e ao concluir como `GREEN`). Ao gravar `GREEN`, inclua `Tested: <sha> <comando> pass` (SHA de `git rev-parse HEAD` e a suíte completa que passou; ver `agent-status.template.md`, issue #542) para o `ship --prepare` não repetir a suíte.
+   A entrega do spike segue o caminho de PR só de docs. A decisão derivada do relatório continua humana — o worker e o coordinator **não criam issues de follow-up automaticamente** a partir da recomendação.
+5. Atualize o status file a cada iteração (inaugural como `RUNNING`, e ao concluir como `GREEN`). Ao gravar `GREEN`, inclua `Tested: <sha> <comando> pass` (SHA de `git rev-parse HEAD` e a suíte completa que passou; ver `agent-status.template.md`) para o `ship --prepare` não repetir a suíte.
 
 ### Último passo obrigatório (os dois modos)
 
@@ -184,7 +184,7 @@ O instalador correto vem do `runtime`/`packageManager` gravados em `.claude/veto
 - Não crie nem remova o worktree — ele já existe quando você é despachado.
 - Não use `EnterWorktree`/`ExitWorktree` — seu contexto já está no worktree correto.
 - **Nunca** chame `EnterPlanMode` — sem interlocutor disponível para o `ExitPlanMode` correspondente,
-  isso trava a sessão sem saída (issue #121). Vá direto para reproduce → fix.
+  isso trava a sessão sem saída. Vá direto para reproduce → fix.
 - Se bloqueado por permissão ou decisão técnica, **primeiro** escreva o status file com
   `Status: BLOCKED_WAITING` e os blocos do template (`Blocked on` / `Options` / `Recommendation`) —
   chat é opcional e complementar; a escalação ao usuário e a reconstrução de estado pós-reinício

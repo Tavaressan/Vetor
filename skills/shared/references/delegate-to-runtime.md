@@ -3,7 +3,7 @@
 Delegar tarefas (texto, logs, rascunhos de código ou de resolução de conflito) a um CLI externo de
 IA para economizar tokens. Padrão: **o runtime delegado rascunha, o agente valida.** Runtimes
 conhecidos: Gemini/`agy`, OpenCode/`opencode`, Codex/`codex` e o orquestrador MCP Alethe. Nenhum é
-assumido como padrão sem configuração ou anuência (issue #247).
+assumido como padrão sem configuração ou anuência.
 
 Este arquivo traz só detecção, seleção, anuência, fallback e guardrail. O resto é lido sob demanda:
 
@@ -63,7 +63,7 @@ Com `available` (detectada) e `preferred` (config, pode ser `null`):
 4. **Sem `preferred`, 2+ candidatos:**
    - **Sessão interativa:** pergunte qual usar e ofereça salvar em `delegation.preferredRuntime`.
      **Exceção:** no `coordinator`, a escolha de runtime não gera pergunta própria (a entrevista
-     consolidada da Fase 2, issue #499, é o único turno antes do dispatch); siga inline e sugira
+     consolidada da Fase 2 é o único turno antes do dispatch); siga inline e sugira
      salvar a preferência no relatório.
    - **Sessão headless:** sempre inline. Nunca escolha entre candidatos não consentidos.
 

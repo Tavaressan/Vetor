@@ -1,7 +1,6 @@
 # Investigação estruturada em rodadas (grilling) — Vetor
 
-Fonte única do mecanismo de entrevista em rodadas ("grilling") extraído de `backlog` (#177,
-PR #193) — consumida por referência (sem replicar texto) por `backlog/SKILL.md` §2.b e
+Fonte única do mecanismo de entrevista em rodadas ("grilling") extraído de `backlog` — consumida por referência (sem replicar texto) por `backlog/SKILL.md` §2.b e
 `architecture-review/SKILL.md`. Adapta os skills públicos `productivity/grilling` e
 `engineering/domain-modeling` de Matt Pocock (github.com/mattpocock/skills) ao modo **síncrono, com
 humano no loop** do Vetor — diferente do dispatch headless de `fix`/`issue-worker`, que

@@ -58,8 +58,8 @@ desses três é `mcp__plugin_vetor_<server>__`.
 | Docker | `mcp__docker__` (ou `mcp__plugin_<plugin>_docker__`; **não** `mcp__MCP_DOCKER__`) | `guardian` (auditoria de saúde de containers) |
 | Browser (chrome-devtools) | `mcp__chrome-devtools__` (ou `mcp__plugin_<plugin>_chrome-devtools__`) | `fix` (reproduzir bug de UI antes do fix), `ship` (checagem e2e leve antes do PR) |
 | Pesquisa web (Exa) | `mcp__exa__` (ou `mcp__plugin_<plugin>_exa__`) | `backlog` (pesquisar padrões/arquitetura antes de propor issue), `fix` (pesquisar mensagem de erro/documentação de uma lib externa), `issue-worker` (checar docs de API externa durante a implementação) |
-| Documentação de ferramentas/libs (Context7) | `mcp__context7__` (ou `mcp__plugin_<plugin>_context7__`) | **Obrigatório quando disponível** (ver issue vetor#163) — qualquer skill que precise pesquisar comportamento de uma ferramenta/lib/framework/API externa (`issue-worker`, `fix`, `guardian`, `backlog`) |
-| Documentação do próprio Claude Code (`claude-code-docs`) | `mcp__claude-code-docs__` (ou `mcp__plugin_<plugin>_claude-code-docs__`) | **Obrigatório quando disponível** (ver issue vetor#164) — qualquer skill que precise responder sobre o funcionamento do próprio Claude Code (hooks, slash commands, MCP, permissões, SDK) (`vetor` (setup), `retro`) |
+| Documentação de ferramentas/libs (Context7) | `mcp__context7__` (ou `mcp__plugin_<plugin>_context7__`) | **Obrigatório quando disponível** — qualquer skill que precise pesquisar comportamento de uma ferramenta/lib/framework/API externa (`issue-worker`, `fix`, `guardian`, `backlog`) |
+| Documentação do próprio Claude Code (`claude-code-docs`) | `mcp__claude-code-docs__` (ou `mcp__plugin_<plugin>_claude-code-docs__`) | **Obrigatório quando disponível** — qualquer skill que precise responder sobre o funcionamento do próprio Claude Code (hooks, slash commands, MCP, permissões, SDK) (`vetor` (setup), `retro`) |
 | Memória ai-memory | `mcp__ai-memory__` | `fix` / `issue-worker` (consulta preventiva e registro opcional de gotchas; ver `memory-gotchas.md`); `issue-worker` e workers do coordinator (leitura e gravação de `vetor/session-learnings`; ver "Aprendizados da sessão" em `memory-gotchas.md`) |
 | Orquestrador de agentes (Alethe) | `mcp__alethe__` | `coordinator`, `now` (delegação assíncrona de workers em worktrees isolados; ver `delegate-alethe.md`) |
 
@@ -96,7 +96,7 @@ produto que muda rápido.
 
 Use quando a tarefa precisa de busca na web ou fetch de uma página específica — pesquisar
 documentação externa, mensagens de erro pouco usuais, padrões de arquitetura, ou conteúdo de uma
-URL já conhecida. Não é um substituto do Context7 (ver issue vetor#163 — Context7 é o caminho
+URL já conhecida. Não é um substituto do Context7 (Context7 é o caminho
 preferido para documentação de ferramentas/bibliotecas quando disponível); use Exa para busca web
 geral e fetch de páginas que o Context7 não cobre.
 

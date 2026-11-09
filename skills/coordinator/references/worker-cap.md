@@ -17,7 +17,7 @@ driver de custo agregado do coordinator.
    largura da maior onda for 1 (apenas um único grupo despachável por onda), adote `N = 1`
    automaticamente sem perguntar ao usuário e registre no plano e no relatório (comportamento idêntico
    ao modo `--headless`). Não há escolha real de concorrência quando a largura da onda é 1, evitando
-   uma interação vazia (issue #414).
+   uma interação vazia.
 3. **Em `--headless`:** adote `N = N_rec` sem perguntar e registre no relatório qual valor foi usado
    e como foi calculado.
 4. **Fora de `--headless` (com `N_rec > 1`):** o teto é o **item 1 da entrevista consolidada**

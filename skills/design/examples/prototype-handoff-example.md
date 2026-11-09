@@ -1,10 +1,10 @@
-> Exemplo de handoff completo (#229): Design Contract gerado por
+> Exemplo de handoff completo: Design Contract gerado por
 > `renderDesignContract`/`handoff-prototype.ts` (`scripts/lib/design-handoff.ts`) a partir de uma
 > extração estruturada do protótipo do Painel de Worktrees. Cobre os 9 estados canônicos de
 > `design-vocabulary.md` §4.3 — 4 especificados (`empty`, `error`, `loading`, `populated`) e 5
 > marcados explicitamente como não aplicáveis a esta tela, cada um com a razão registrada; nenhum é
 > omitido em silêncio. Continuação do exemplo mínimo de Evidence State em
-> `design-contract-example.md` (#214), agora com a extração completa do handoff.
+> `design-contract-example.md`, agora com a extração completa do handoff.
 
 # Design Contract — Painel de Worktrees
 

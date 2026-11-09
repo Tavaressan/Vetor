@@ -4,7 +4,7 @@
 > (`../shared/references/...`) e `$SKILL_DIR` aqui resolvem a partir do diretório da skill
 > `coordinator`, não deste arquivo.
 
-**Fora de `--headless`:** não pergunte nada neste ponto (issue #499). As issues sinalizadas viram o
+**Fora de `--headless`:** não pergunte nada neste ponto. As issues sinalizadas viram o
 **item 2 da entrevista consolidada** (abaixo): uma única pergunta para todas elas, e não uma por
 issue (`planning-conventions.md` §3 "Regra das 3 perguntas"). O gate classifica e o plano reflete a
 opção `(Recommended)`; a resposta do usuário, no turno único da largada, ajusta o que for preciso.
@@ -20,7 +20,7 @@ associada. Como prosseguir?
 3. Gerar Spec antes (/vetor:spec) — a(s) issue(s) sai(em) desta leva de dispatch
 ```
 
-- **Opção 1 (micro-spec JIT, issue #501)**: a issue segue no plano normalmente; marque na coluna
+- **Opção 1 (micro-spec JIT)**: a issue segue no plano normalmente; marque na coluna
   "Ação" da tabela (abaixo) `Despachar (⚠️ sem Spec — micro-spec JIT)`. A micro-spec é sintetizada no
   dispatch da Fase 4, sem interromper o dispatch nem atrasar a aprovação do plano e sem perguntar ao
   usuário se quer tirar a issue da leva para escrever uma Spec completa: contrato, formato e
@@ -46,7 +46,7 @@ associada. Como prosseguir?
   `SKIPPED` de `O_i`.
 
 **Em `--headless`: nunca pergunte, nunca bloqueie.** Um gate síncrono aqui recriaria o mesmo deadlock
-por falta de interlocutor do worker preso em plan mode (issue #121 — ver `wiki/Decisoes-de-Design.md`).
+por falta de interlocutor do worker preso em plan mode (ver `wiki/Decisoes-de-Design.md`).
 Marque a issue na coluna "Ação" como
 `Despachar (⚠️ sem Spec associada — sinalização não-bloqueante; micro-spec JIT)` e prossiga o dispatch
 normalmente: a micro-spec JIT (opção 1 acima) é gerada no dispatch, sem perguntar; a ausência de Spec

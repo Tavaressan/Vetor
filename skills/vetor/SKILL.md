@@ -9,4 +9,4 @@ metadata:
   version: "1.0.0"
 ---
 
-Este comando foi renomeado para `/vetor:install` (issue #365). Leia `../install/SKILL.md` e siga-o integralmente com os mesmos argumentos.
+Este comando foi renomeado para `/vetor:install`. Leia `../install/SKILL.md` e siga-o integralmente com os mesmos argumentos.

@@ -1,6 +1,6 @@
 # Capacidades do harness: contrato mínimo e fallbacks
 
-> Fonte única dos fallbacks de capacidade (issue #568). As skills citam a seção daqui em vez de
+> Fonte única dos fallbacks de capacidade. As skills citam a seção daqui em vez de
 > repetir o fallback. A matriz por harness, com fontes, fica em `wiki/Contrato-de-Capacidades.md`.
 
 ## 1. Núcleo obrigatório

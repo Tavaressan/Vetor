@@ -4,7 +4,7 @@
 > (`../shared/references/...`) e `$SKILL_DIR` aqui resolvem a partir do diretório da skill
 > `coordinator`, não deste arquivo.
 
-**5.b — Escalação de bloqueios (Async Decision Inbox, issue #500)**
+**5.b — Escalação de bloqueios (Async Decision Inbox)**
 
 **A fonte de verdade da escalação é o status file.** Se um worker sinalizar bloqueio apenas por
 chat, **não escale ainda**: instrua-o via `SendMessage` a gravar o `BLOCKED_WAITING` estruturado
@@ -96,7 +96,7 @@ pause os subagentes ativos e pergunte:
 **Em `--headless`: não pergunte — sempre pause.** Pare de despachar `QUEUED`, deixe os ativos
 terminarem e vá para o relatório destacando a assinatura de erro comum.
 
-**5.f — Ejeção graciosa de impasses (issue #501)**
+**5.f — Ejeção graciosa de impasses**
 
 Uma issue que não vai convergir sozinha não pode segurar a leva inteira. O coordinator a **ejeta**:
 documenta o impasse na própria issue, etiqueta se for possível, limpa o worktree e segue para a
