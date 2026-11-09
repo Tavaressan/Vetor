@@ -1,5 +1,7 @@
 /** Sondagem local e somente-leitura para a skill /vetor:now. */
 
+import { checkPermissions } from "./permissions-setup.ts";
+
 export type CommandExecutor = (command: string, args: string[], cwd: string) => Promise<string>;
 
 const execute: CommandExecutor = async (command, args, cwd) => {
@@ -287,6 +289,8 @@ export async function probeNow(cwd: string, executor: CommandExecutor = execute)
     mcps,
     runtimes,
     pluginVersion: await probeVersion(executor, cwd),
+    // Issue #566: regras mínimas do Vetor e auto mode (só leitura de arquivos de settings).
+    permissions: checkPermissions(cwd, Deno.env.get("HOME") ?? null),
     nextStep: recommendNextStep({ initialized, dispatchableIssues, worktrees }),
   };
 }

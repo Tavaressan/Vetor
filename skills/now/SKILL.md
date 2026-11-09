@@ -23,7 +23,8 @@ partir do diretório desta skill (`SKILL_DIR`, informado no carregamento).
    O JSON traz git (branch, limpeza, worktrees), `initialized`, `openIssuesTotal`,
    `dispatchableIssues` (o que o `coordinator` despacharia sem argumento), MCPs declarados em
    `.mcp.json`, runtimes de delegação no PATH, `aiMemory` (estado do container e a orientação),
-   `pluginVersion` e `nextStep` (recomendação e as quatro opções, já ordenadas).
+   `pluginVersion`, `permissions` (regras mínimas do Vetor e auto mode, no Claude Code) e `nextStep`
+   (recomendação e as quatro opções, já ordenadas).
 
 2. **Ferramentas ativas na sessão.** Complete os MCPs declarados com os ativos pela sua lista de
    ferramentas (prefixos `mcp__context7__`, `mcp__ai-memory__`, `mcp__docker__`, `mcp__alethe__`),
@@ -36,7 +37,9 @@ partir do diretório desta skill (`SKILL_DIR`, informado no carregamento).
    `mcp__alethe__*` ativo). Com `pluginVersion.updateAvailable: true`, avise que há versão nova e
    como atualizar pelo harness: no Claude Code, `/plugin update vetor`; instalado por CLI,
    `npx @tavaressan/vetor update`; no Antigravity global, `git pull` no clone e
-   `agy plugin install .`.
+   `agy plugin install .`. No Claude Code, se `permissions.minimalRules.missing` não estiver vazio,
+   sugira o passo 2.d do `/vetor:install`; se o auto mode estiver em uso e
+   `permissions.autoMode.environmentConfigured` for `false`, sugira `/auto-mode-setup`.
 
 4. **Priming**, só para o que estiver disponível, e com a referência lida só quando for usar:
    - Context7: use-o para documentação de bibliotecas (`../shared/references/mcp-availability.md`

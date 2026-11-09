@@ -2,7 +2,8 @@
 
 Registrado em 2026-11-09 sobre o commit `ad1ad95`, antes das refatorações de enxugamento (#571 a
 #581). Gerado com `deno run --allow-read scripts/skill-budget.ts` (issue #570) e regenerado na #571
-com a regra de classificação refinada abaixo, sobre o mesmo commit, para a comparação continuar justa.
+com a regra de classificação refinada abaixo, sobre o mesmo commit, para a comparação continuar justa,
+e de novo na #566, com a correção das fronteiras Unicode do gatilho ("só" não casava).
 
 Tokens estimados por caracteres / 4. **Obrigatória** é o `SKILL.md` mais as referências listadas
 na seção `## Referências` sem gatilho condicional, em fecho transitivo; **sob demanda** são as
@@ -22,7 +23,7 @@ depende de harness.
 | guardian | 4450 | 13018 | 9817 |
 | install | 3616 | 5134 | 17753 |
 | issue-coordinator | 113 | 113 | 0 |
-| now | 1994 | 11686 | 6992 |
+| now | 1994 | 8861 | 9817 |
 | retro | 2066 | 2066 | 16684 |
 | ship | 7623 | 9374 | 16684 |
 | spec | 7881 | 17335 | 9817 |

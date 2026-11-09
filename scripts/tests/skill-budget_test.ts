@@ -106,3 +106,17 @@ Deno.test("skill-budget: nenhuma skill do repositório passa do limite configura
       "\nReduza a skill ou registre a decisão de subir o limite em scripts/skill-budget.json.",
   );
 });
+
+Deno.test('skill-budget: gatilho com acento ("só") também torna a referência sob demanda', async () => {
+  const root = await fixture({
+    "skills/a/SKILL.md": "## Referências\n\n- `../shared/references/x.md` — só no passo 2.\n",
+    "skills/shared/references/x.md": "x".repeat(400),
+  });
+  try {
+    const budget = measureSkill(root, "a");
+    assertEquals(budget.mandatory, []);
+    assertEquals(budget.onDemand.map((c) => c.path.split("/").pop()), ["x.md"]);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
