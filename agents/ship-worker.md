@@ -54,9 +54,9 @@ aguardar notificação externa. Parar antes de um estado terminal (`PR_STAGED` o
    | 3 | testes vermelhos ou conflito de sync (merge já abortado) | passo 6 |
    | 5 | push ou criação do PR falhou | passo 4 (o comando é idempotente: reaproveita PR aberto) |
 
-4. **Recuperação de falha (só com exit 1 ou 5).** Leia, com a ferramenta de leitura, o procedimento
-   manual do `--prepare` em `$CLAUDE_PLUGIN_ROOT/skills/ship/SKILL.md` (§0.b e os passos citados
-   na tabela de lá) e siga só o necessário para corrigir a causa: diagnóstico de `gh` ou rede,
+4. **Recuperação de falha (só com exit 1 ou 5).** Leia, com a ferramenta de leitura, só a seção
+   indicada pela tabela de saídas do `ship` em
+   `$CLAUDE_PLUGIN_ROOT/skills/ship/references/recuperacao.md` e siga só o necessário para corrigir a causa: diagnóstico de `gh` ou rede,
    migrations, debug-scan. Depois rode o passo 3 de novo. Se a causa não for sua de resolver
    (permissão, credencial, decisão), vá para o passo 6.
 5. **Encerramento.** Faça um único snapshot do CI (`gh pr checks <PR>`) e pare. **Nunca** use

@@ -136,9 +136,10 @@ tag/release:
 obrigatória de leitura sob demanda, e soma aos agents as skills pré-carregadas via `skills:`
 (issue #570). A medição é estática: não depende de harness nem de sessão.
 
-- Uma referência é **sob demanda** quando todo item de lista ou parágrafo que a cita tem um gatilho
-  condicional ("quando", "se", "ao", "caso", "só", "somente", "apenas"). Para tirar uma referência da
-  leitura obrigatória, cite-a com o gatilho que diz quando lê-la.
+- **Obrigatória** é a referência listada na seção `## Referências` da skill sem gatilho condicional
+  ("quando", "se", "ao", "caso", "só", "somente", "apenas"). Citada com gatilho, ou só no corpo (num
+  passo, numa tabela, numa restrição), ela é **sob demanda**. Para tirar uma referência da leitura
+  obrigatória, liste-a com o gatilho que diz quando lê-la, ou cite-a só no passo que a usa.
 - Os limites ficam em `scripts/skill-budget.json` e o teste `scripts/tests/skill-budget_test.ts`
   falha no CI quando uma skill passa do seu. Ao reduzir uma skill, baixe o limite no mesmo PR; subir
   um limite pede a decisão registrada no PR.

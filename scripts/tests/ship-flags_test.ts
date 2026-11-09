@@ -34,16 +34,16 @@ async function runShipArgs(
   };
 }
 
-Deno.test("validate-ship-args aceita invocação sem argumentos (modo full legado)", async () => {
+Deno.test("validate-ship-args recusa invocação sem flag: o modo sequencial legado saiu (#571)", async () => {
   const res = await runShipArgs();
-  assertEquals(res.code, 0);
-  assertEquals(res.stdout, "full");
+  assertEquals(res.code, 2);
+  assertStringIncludes(res.stderr, "--prepare");
 });
 
-Deno.test("validate-ship-args aceita número de issue isolado (modo full legado com issue)", async () => {
+Deno.test("validate-ship-args recusa número de issue sem flag (#571)", async () => {
   const res = await runShipArgs("42");
-  assertEquals(res.code, 0);
-  assertEquals(res.stdout, "full 42");
+  assertEquals(res.code, 2);
+  assertEquals(res.stdout, "");
 });
 
 Deno.test("validate-ship-args aceita --prepare sem issue", async () => {

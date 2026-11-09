@@ -6,8 +6,8 @@
 > `coordinator`, não deste arquivo.
 
 Aplica-se a cada grupo `GREEN` cujo PR já foi preparado (`PR_STAGED`, via `/vetor:ship --prepare`),
-na ordem serializada da Fase 6. Grupo sem PR (fluxo legado) usa `/vetor:ship <issue#>` completo, que
-já re-sincroniza e re-testa: o fast-path não se aplica a ele.
+na ordem serializada da Fase 6. Grupo sem PR passa antes pelo `/vetor:ship --prepare <issue#>`, que
+re-sincroniza e re-testa; só depois entra neste gate.
 
 ## 1 — Mapear as sobreposições antes do primeiro merge
 

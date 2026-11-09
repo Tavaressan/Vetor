@@ -2,17 +2,14 @@
   "$comment": "Limites de leitura obrigatória por skill, em tokens estimados (caracteres/4). Skill sem entrada usa default. Baixe o limite quando uma refatoração reduzir a skill; nunca o suba sem decisão registrada no PR (issue #570).",
   "limits": {
     "default": 6000,
-    "architecture-review": 16000,
-    "backlog": 15500,
-    "coordinator": 47500,
-    "design": 28500,
-    "fix": 20500,
-    "guardian": 18000,
-    "install": 7500,
-    "now": 16500,
-    "ship": 21500,
-    "spec": 22500,
-    "stack-practices": 17500,
-    "worktree-create": 13500
+    "architecture-review": 12000,
+    "backlog": 13000,
+    "coordinator": 21500,
+    "design": 14500,
+    "fix": 10500,
+    "guardian": 14000,
+    "now": 12500,
+    "ship": 3000,
+    "spec": 18500
   }
 }

@@ -24,18 +24,24 @@ async function fixture(files: Record<string, string>): Promise<string> {
   return root;
 }
 
-Deno.test("skill-budget: separa referência obrigatória da citada só com gatilho", async () => {
+Deno.test("skill-budget: obrigatória é a listada em Referências sem gatilho; o corpo é sob demanda", async () => {
   const root = await fixture({
     "skills/a/SKILL.md": [
       "---",
       'compatibility: "ver shared/references/fm.md"',
       "---",
-      "Leia `../shared/references/core.md` antes de tudo.",
+      "## Referências",
       "",
+      "- `../shared/references/core.md` — leia antes de tudo.",
       "- `../shared/references/extra.md` — só quando o",
       "  usuário pedir.",
+      "",
+      "## Passos",
+      "",
+      "Na falha, siga `../shared/references/body.md`.",
     ].join("\n"),
-    "skills/shared/references/core.md": "x".repeat(400) + "\nVer `nested.md`.\n",
+    "skills/shared/references/body.md": "v".repeat(40),
+    "skills/shared/references/core.md": "x".repeat(400) + "\n## Referências\n\n- `nested.md`\n",
     "skills/shared/references/nested.md": "y".repeat(40),
     "skills/shared/references/extra.md": "z".repeat(80),
     "skills/shared/references/fm.md": "w".repeat(4000),
@@ -43,7 +49,7 @@ Deno.test("skill-budget: separa referência obrigatória da citada só com gatil
   try {
     const budget = measureSkill(root, "a");
     assertEquals(budget.mandatory.map((c) => c.path.split("/").pop()), ["core.md", "nested.md"]);
-    assertEquals(budget.onDemand.map((c) => c.path.split("/").pop()), ["extra.md"]);
+    assertEquals(budget.onDemand.map((c) => c.path.split("/").pop()), ["body.md", "extra.md"]);
     assertEquals(
       budget.mandatoryTokens,
       budget.skill.tokens + budget.mandatory.reduce((t, c) => t + c.tokens, 0),
