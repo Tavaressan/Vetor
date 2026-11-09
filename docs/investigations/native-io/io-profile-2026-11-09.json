@@ -1,0 +1,86 @@
+{
+  "deno": "2.9.8",
+  "runs": 3,
+  "rows": [
+    {
+      "flow": "git worktree add",
+      "exits": "0,0,0",
+      "wallMs": 57.4,
+      "cpuMs": 24.7,
+      "sysMs": 15.8,
+      "ioStallMs": 0,
+      "ioStallPctOfWall": 0,
+      "peakMiB": 8.8
+    },
+    {
+      "flow": "prepare-worktree --path (deno)",
+      "exits": "0,0,0",
+      "wallMs": 55.3,
+      "cpuMs": 24.2,
+      "sysMs": 12.6,
+      "ioStallMs": 0,
+      "ioStallPctOfWall": 0,
+      "peakMiB": 14.2
+    },
+    {
+      "flow": "repo-map sem cache",
+      "exits": "0,0,0",
+      "wallMs": 418,
+      "cpuMs": 711.2,
+      "sysMs": 103.6,
+      "ioStallMs": 0.3,
+      "ioStallPctOfWall": 0.07,
+      "peakMiB": 126.8
+    },
+    {
+      "flow": "repo-map com cache",
+      "exits": "0,0,0",
+      "wallMs": 76.9,
+      "cpuMs": 63.4,
+      "sysMs": 37.5,
+      "ioStallMs": 0,
+      "ioStallPctOfWall": 0,
+      "peakMiB": 35
+    },
+    {
+      "flow": "vetor-status.sh",
+      "exits": "0,0,0",
+      "wallMs": 55.6,
+      "cpuMs": 40.5,
+      "sysMs": 30.6,
+      "ioStallMs": 0,
+      "ioStallPctOfWall": 0,
+      "peakMiB": 6
+    },
+    {
+      "flow": "guardian-audit",
+      "exits": "1,1,1",
+      "wallMs": 2288.6,
+      "cpuMs": 368,
+      "sysMs": 164.2,
+      "ioStallMs": 0,
+      "ioStallPctOfWall": 0,
+      "peakMiB": 44.9
+    },
+    {
+      "flow": "now-probe",
+      "exits": "0,0,0",
+      "wallMs": 820.1,
+      "cpuMs": 202.7,
+      "sysMs": 56.1,
+      "ioStallMs": 0,
+      "ioStallPctOfWall": 0,
+      "peakMiB": 44.6
+    },
+    {
+      "flow": "deno task test",
+      "exits": "0,0,0",
+      "wallMs": 25117.3,
+      "cpuMs": 28594.7,
+      "sysMs": 13203.7,
+      "ioStallMs": 11.3,
+      "ioStallPctOfWall": 0.04,
+      "peakMiB": 329.6
+    }
+  ]
+}
