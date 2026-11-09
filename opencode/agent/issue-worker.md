@@ -57,6 +57,11 @@ registre `BLOCKED_WAITING`** no status file — não prossiga adivinhando o dire
 6. Atualize o status file a cada iteração — path absoluto recebido no prompt (fica na raiz do
    repositório principal, fora do worktree, para o `issue-coordinator` conseguir agregar progresso
    mesmo entre processos separados).
+7. Último passo, obrigatório: de dentro do worktree, rode
+   `bash "$(git rev-parse --path-format=absolute --git-common-dir)/../.opencode/scripts/vetor-checks.sh" verify-status`.
+   Exit 0 = status terminal (`GREEN`, `FAILED_MAX_ITERATIONS` ou `BLOCKED_WAITING`), pode encerrar.
+   Exit 1 = grave o estado real e rode de novo; se não conseguir, termine com a linha
+   `ERRO: status file não terminal (<Status observado>)` para o coordinator reconciliar.
 
 ## Restrições
 

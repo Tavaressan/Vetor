@@ -192,3 +192,106 @@ Deno.test("check-status permite worker com Status: PR_STAGED (terminal) — issu
     await Deno.remove(root, { recursive: true });
   }
 });
+
+// Issue #559: verificação portátil do estado terminal, rodada pelo próprio worker como último
+// passo. Não depende de hook nem de stdin: funciona em qualquer harness que rode shell.
+async function runVerify(cwd: string): Promise<{ code: number; stdout: string }> {
+  const out = await new Deno.Command("deno", {
+    args: ["run", "-A", SCRIPT, "--verify"],
+    cwd,
+    stdin: "null",
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return {
+    code: out.code,
+    stdout: new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr),
+  };
+}
+
+const writeRootStatus = async (root: string, branch: string, status: string) => {
+  await Deno.mkdir(`${root}/.claude/vetor/status`, { recursive: true });
+  await Deno.writeTextFile(
+    `${root}/.claude/vetor/status/${branch.replaceAll("/", "-")}.md`,
+    `# Agent Status — ${branch}\nStatus: ${status}\n`,
+  );
+};
+
+const writeFallback = async (worktreePath: string, status: string) => {
+  await Deno.mkdir(`${worktreePath}/.claude`, { recursive: true });
+  await Deno.writeTextFile(`${worktreePath}/.claude/vetor-status.md`, `Status: ${status}\n`);
+};
+
+Deno.test("check-status --verify sai 0 com status terminal no root", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat/1-a");
+  try {
+    await writeRootStatus(root, "feat/1-a", "GREEN");
+    const { code, stdout } = await runVerify(worktreePath);
+    assertEquals(code, 0);
+    assertStringIncludes(stdout, "GREEN");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("check-status --verify sai 1 com status RUNNING e diz o que gravar", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat/2-b");
+  try {
+    await writeRootStatus(root, "feat/2-b", "RUNNING");
+    const { code, stdout } = await runVerify(worktreePath);
+    assertEquals(code, 1);
+    assertStringIncludes(stdout, "RUNNING");
+    assertStringIncludes(stdout, "GREEN");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("check-status --verify sai 1 sem status file nem fallback", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat/3-c");
+  try {
+    const { code, stdout } = await runVerify(worktreePath);
+    assertEquals(code, 1);
+    assertStringIncludes(stdout, "ausente");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("check-status --verify aceita o fallback do worktree mais novo que o root", async () => {
+  const { root, worktreePath } = await makeLinkedWorktree("feat/4-d");
+  try {
+    await writeRootStatus(root, "feat/4-d", "RUNNING");
+    const old = new Date(Date.now() - 60_000);
+    await Deno.utime(`${root}/.claude/vetor/status/feat-4-d.md`, old, old);
+    await writeFallback(worktreePath, "GREEN");
+    const { code } = await runVerify(worktreePath);
+    assertEquals(code, 0);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("check-status --verify sai 2 fora de um worktree linkado", async () => {
+  const root = await makeRepo("main");
+  try {
+    const { code } = await runVerify(root);
+    assertEquals(code, 2);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("vetor-checks.sh verify-status repassa o exit do --verify", async () => {
+  const checks = fileURLToPath(new URL("../vetor-checks.sh", import.meta.url));
+  const { root, worktreePath } = await makeLinkedWorktree("feat/5-e");
+  try {
+    const run = () =>
+      new Deno.Command("bash", { args: [checks, "verify-status"], cwd: worktreePath }).output();
+    assertEquals((await run()).code, 1);
+    await writeRootStatus(root, "feat/5-e", "FAILED_MAX_ITERATIONS");
+    assertEquals((await run()).code, 0);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});

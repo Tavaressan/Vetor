@@ -82,3 +82,35 @@ export function readStatus(path: string): string | null {
 export function isTerminal(status: string | null): boolean {
   return status !== null && TERMINAL_STATES.includes(status);
 }
+
+/** Fallback que o worker grava no próprio worktree quando a escrita no root falha (issue #540). */
+export function fallbackStatusPath(worktreePath: string): string {
+  return `${worktreePath}/.claude/vetor-status.md`;
+}
+
+function mtimeOf(path: string): number | null {
+  try {
+    return Deno.statSync(path).mtime?.getTime() ?? 0;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Status que vale para o worker, com a mesma regra do `vetor-status.sh`: o arquivo do root, a
+ * menos que ele não exista ou seja mais antigo que o fallback do worktree (empate: o root vence).
+ */
+export function effectiveStatus(
+  root: string,
+  branch: string,
+  worktreePath: string,
+): { path: string; status: string | null } {
+  const rootPath = statusFilePath(root, branch);
+  const fallbackPath = fallbackStatusPath(worktreePath);
+  const rootTime = mtimeOf(rootPath);
+  const fallbackTime = mtimeOf(fallbackPath);
+  const path = fallbackTime !== null && (rootTime === null || fallbackTime > rootTime)
+    ? fallbackPath
+    : rootPath;
+  return { path, status: readStatus(path) };
+}
