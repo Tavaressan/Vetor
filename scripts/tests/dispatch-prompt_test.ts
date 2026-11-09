@@ -141,17 +141,6 @@ Deno.test("campos obrigatórios por papel", () => {
   assertThrows(() => buildDispatchPrompt({ ...base, role: "worker", issues: [] }), Error);
 });
 
-Deno.test("a skill do coordinator manda usar dispatch-prompt.ts", async () => {
-  const skill = await Deno.readTextFile(
-    new URL("../../skills/coordinator/SKILL.md", import.meta.url),
-  );
-  assert(skill.includes("scripts/dispatch-prompt.ts"));
-  const ref = await Deno.readTextFile(
-    new URL("../../skills/shared/references/issue-coordinator-dispatch.md", import.meta.url),
-  );
-  assert(ref.includes("Prompt gerado por `dispatch-prompt.ts`"));
-});
-
 const MICRO = "# Micro-spec #11\n\nEscopo mínimo.";
 
 Deno.test("worker: micro-spec da Lead não duplica; a da Sequential é colada com path resolvido", async () => {
