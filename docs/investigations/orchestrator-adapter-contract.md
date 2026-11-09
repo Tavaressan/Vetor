@@ -102,7 +102,7 @@ relevantes):
 }
 ```
 
-**[Fato]** `worker-list --json` devolveu 11 Dispatches de 2026-11-06, todos `failed` ou `stopped`,
+**[Fato]** `worker-list --json` devolveu 10 Dispatches de 2026-11-06, todos `failed` ou `stopped`,
 com `terminalState: "retained"` e `workspace` em `/home/tavaressan/Projects/orca/workspaces/Vetor/…`.
 Esse diretório está **vazio** hoje (`ls -la` em 2026-11-09). Os worktrees foram removidos, mas o Orca
 ainda lista os terminais como retidos e sugere `worker-release`.
@@ -165,7 +165,7 @@ refletir um caminho escolhido pelo orquestrador.
 (terminal ou lock) e depois remover o worktree. A ordem importa no Alethe (sem o release, `git worktree
 remove` falhou com `Permission denied` no Windows; regra 7).
 
-**[Fato]** O estado do Orca não acompanha a remoção externa do worktree (§3.2: 11 registros apontam para
+**[Fato]** O estado do Orca não acompanha a remoção externa do worktree (§3.2: 10 registros apontam para
 um diretório vazio). Quem remove o worktree precisa liberar o recurso do Orca antes, ou o registro
 fica órfão.
 
