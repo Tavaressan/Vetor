@@ -76,18 +76,22 @@ const WORKER_GATE_COMMAND_RE = /(?:^|&&|\|\||;|\|)\s*(git push|gh pr (?:create|r
  * Fail-closed: com `eval`, `source`, `| sh`/`| bash` o texto executado pode não ser analisável;
  * nesses casos qualquer `git` destrutivo em QUALQUER posição do comando bloqueia.
  *
- * Limitação conhecida (falha para o lado seguro): sem parser de shell completo, um separador ou
- * um git destrutivo dentro de string entre aspas bloqueia, ex.: uma mensagem de commit
- * `"fix; git <subcomando destrutivo>"`.
+ * Texto inerte (issue #563): antes das duas etapas, `maskInertText` apaga o conteúdo que só cita
+ * um comando — argumentos entre aspas de comandos que nunca executam texto, mensagens de
+ * `git -m`/`--message`, `--body`/`--title` do `gh` e corpos de heredoc enviados a esses comandos.
+ * Se o texto mascarado ainda tiver contexto executor (`eval`, `| sh`...), a análise volta ao texto
+ * original, sem máscara.
  */
 const GIT_BOUNDARY = "(?:^|[\\n;&|(){}`!]|\\b(?:then|do|else|elif|if|while|until)\\s)";
 const GIT_PREFIXES = "(?:[A-Za-z_]\\w*=(?:\"[^\"]*\"|'[^']*'|\\S*)\\s+|" +
   "(?:env|sudo|doas|command|builtin|xargs|nice|nohup|time|exec|eval|(?:\\S*/)?(?:ba|z|da|k)?sh)" +
   "\\s+(?:[^\\s;&|()`]+\\s+)*?)*";
 const GIT_WORD = "[\\\\$\"']*(?:[^\\s\"';&|()`]*/)?git[\"']?(?=\\s)";
-const GIT_CMD_RE = new RegExp(`${GIT_BOUNDARY}\\s*${GIT_PREFIXES}${GIT_WORD}([^;&|\\n)\`]*)`, "g");
+// A captura para em `(`: sem isso, `git commit -m "$(git <destrutivo>)"` consumia a substituição
+// no primeiro casamento e o git interno nunca era avaliado (issue #563).
+const GIT_CMD_RE = new RegExp(`${GIT_BOUNDARY}\\s*${GIT_PREFIXES}${GIT_WORD}([^;&|\\n()\`]*)`, "g");
 /** Modo fail-closed: `git` em qualquer posição (só usado quando o texto executado é opaco). */
-const GIT_ANYWHERE_RE = new RegExp(`(?<![\\w.-])${GIT_WORD}([^;&|\\n)\`]*)`, "g");
+const GIT_ANYWHERE_RE = new RegExp(`(?<![\\w.-])${GIT_WORD}([^;&|\\n()\`]*)`, "g");
 /** `eval`, `source`/`. /dev/stdin` e `| sh`/`| bash`: o que roda não é analisável. */
 const OPAQUE_SHELL_RE =
   /\beval\b|\bsource\b|\|\s*(?:\S*\/)?(?:env\s+|sudo\s+)?(?:ba|z|da|k)?sh\b|(?:^|\s)\.\s+\/dev\/stdin/;
@@ -222,10 +226,228 @@ export function isDestructiveGitArgs(tokens: string[]): boolean {
   return false;
 }
 
+/** Comandos que nunca executam o texto dos seus argumentos nem do stdin (issue #563). */
+const INERT_COMMANDS = new Set(["echo", "printf", "cat", "tee", "grep", "egrep", "fgrep"]);
+/** Por comando, as flags cujo valor é só texto: mensagem de commit/tag, corpo e título de PR. */
+const TEXT_FLAGS: Record<string, RegExp> = {
+  git: /^(?:-[a-zA-Z]*m|--message=?)$/,
+  gh: /^(?:-[bt]|--body=?|--title=?)$/,
+};
+/** Consumidores de heredoc cujo stdin é só dado (`git commit -F -`, `gh ... --body-file -`). */
+const HEREDOC_TEXT_CONSUMERS = new Set([...INERT_COMMANDS, "git", "gh"]);
+const ASSIGNMENT_RE = /^[A-Za-z_]\w*=/;
+/**
+ * Depois da máscara, um shell, `eval`, `source`, `.` ou `xargs` ainda em posição de comando pode
+ * executar o texto mascarado (ex.: heredoc gravado num arquivo e rodado com `bash` em seguida).
+ * Nesse caso a análise usa o texto original.
+ */
+const EXECUTOR_AFTER_MASK_RE =
+  /(?:^|[\s;&|(`])(?:\S*\/)?(?:(?:ba|z|da|k|fi)?sh|source|eval|xargs)(?=\s|$)|(?:^|[;&|(`\n])\s*\.\s/;
+const HEREDOC_RE = /^<<(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\?([A-Za-z_][\w.-]*))/;
+
+interface Segment {
+  words: string[];
+  current: string;
+}
+interface PendingHeredoc {
+  delimiter: string;
+  stripTabs: boolean;
+  quoted: boolean;
+  consumer: string | undefined;
+}
+
+const commandOf = (seg: Segment): string | undefined => {
+  const word = [...seg.words, seg.current].find((w) => w && !ASSIGNMENT_RE.test(w));
+  return word?.split("/").pop();
+};
+
+/**
+ * Devolve `text` com o mesmo comprimento e o conteúdo inerte trocado por `_` (issue #563). Mantém
+ * as posições, então o restante da análise roda sobre o resultado sem outra mudança.
+ *
+ * Inerte é só o que nenhum contexto executa: aspas simples ou duplas sem `$(`/crase, sem `!` no
+ * início (alias do git) e terminadas, quando são argumento de um comando de `INERT_COMMANDS` ou o
+ * valor de uma flag de `TEXT_FLAGS`; e corpo de heredoc terminado, enviado a um consumidor de
+ * `HEREDOC_TEXT_CONSUMERS`, com delimitador entre aspas ou sem substituição. Na dúvida, não mascara.
+ */
+export function maskInertText(text: string): string {
+  const out = text.split("");
+  const mask = (from: number, to: number) => {
+    for (let k = from; k < to; k++) if (out[k] !== "\n") out[k] = "_";
+  };
+  const pending: PendingHeredoc[] = [];
+  let i = 0;
+
+  const maskableQuote = (seg: Segment, content: string, hasSubst: boolean): boolean => {
+    // Só texto com espaço ou metacaractere: um token único entre aspas (`"."`, `"--hard"`) pode ser
+    // argumento real de um comando, e não é a origem do falso positivo.
+    if (hasSubst || content.trimStart().startsWith("!") || !/[\s;&|<>()]/.test(content)) {
+      return false;
+    }
+    const command = commandOf(seg);
+    if (!command || seg.words.length === 0 && !seg.current) return false;
+    if (INERT_COMMANDS.has(command)) return true;
+    const flags = TEXT_FLAGS[command];
+    const flag = seg.current || seg.words[seg.words.length - 1];
+    return flags !== undefined && flags.test(flag);
+  };
+
+  /** Lê corpos de heredoc pendentes a partir de `start` (início da linha seguinte). */
+  const readHeredocBodies = (start: number): number => {
+    let pos = start;
+    while (pending.length > 0) {
+      const doc = pending.shift()!;
+      let lineStart = pos;
+      let terminated = false;
+      let hasSubst = false;
+      while (lineStart <= text.length) {
+        const nl = text.indexOf("\n", lineStart);
+        const lineEnd = nl === -1 ? text.length : nl;
+        const line = text.slice(lineStart, lineEnd);
+        if ((doc.stripTabs ? line.replace(/^\t+/, "") : line) === doc.delimiter) {
+          const maskable = doc.consumer !== undefined && HEREDOC_TEXT_CONSUMERS.has(doc.consumer) &&
+            (doc.quoted || !hasSubst);
+          if (maskable) mask(pos, lineStart);
+          pos = nl === -1 ? text.length : nl + 1;
+          terminated = true;
+          break;
+        }
+        if (/\$\(|`/.test(line)) hasSubst = true;
+        if (nl === -1) break;
+        lineStart = nl + 1;
+      }
+      // Sem terminador o resto do texto é corpo: nada é mascarado e a análise vê tudo.
+      if (!terminated) return text.length;
+    }
+    return pos;
+  };
+
+  /** Fecha uma aspa a partir de `i` (logo após a abertura). Devolve o índice do fechamento. */
+  const closeSingle = (from: number, ansi: boolean): number => {
+    for (let k = from; k < text.length; k++) {
+      if (ansi && text[k] === "\\") k++;
+      else if (text[k] === "'") return k;
+    }
+    return -1;
+  };
+
+  /**
+   * Varre um contexto sem aspas (topo, `$(...)` ou crase) até `stop` (`)` ou crase). Devolve o
+   * índice logo após o fechamento, ou o fim do texto.
+   */
+  const scanUnquoted = (stop: string | null): number => {
+    let seg: Segment = { words: [], current: "" };
+    const endWord = () => {
+      if (seg.current) seg.words.push(seg.current);
+      seg.current = "";
+    };
+    const newSegment = () => {
+      endWord();
+      seg = { words: [], current: "" };
+    };
+    while (i < text.length) {
+      const c = text[i];
+      if (stop !== null && c === stop) {
+        i++;
+        return i;
+      }
+      if (c === "\\") {
+        seg.current += text[i + 1] ?? "";
+        i += 2;
+      } else if (c === "'" || (c === "$" && text[i + 1] === "'")) {
+        const ansi = c === "$";
+        const open = ansi ? i + 2 : i + 1;
+        const close = closeSingle(open, ansi);
+        if (close === -1) return text.length;
+        const content = text.slice(open, close);
+        if (maskableQuote(seg, content, false)) mask(open, close);
+        seg.current += content || "_";
+        i = close + 1;
+      } else if (c === '"') {
+        const open = i + 1;
+        i = open;
+        const hasSubst = scanDouble();
+        if (i > text.length) return text.length;
+        const content = text.slice(open, i - 1);
+        if (maskableQuote(seg, content, hasSubst)) mask(open, i - 1);
+        seg.current += content || "_";
+      } else if (c === "$" && text[i + 1] === "(") {
+        i += 2;
+        scanUnquoted(")");
+        seg.current += "_";
+      } else if (c === "`") {
+        i++;
+        scanUnquoted("`");
+        seg.current += "_";
+      } else if (c === "<" && text[i + 1] === "<" && text[i + 2] !== "<") {
+        const m = text.slice(i).match(HEREDOC_RE);
+        if (m) {
+          pending.push({
+            delimiter: m[2] ?? m[3] ?? m[4],
+            stripTabs: m[1] === "-",
+            quoted: m[2] !== undefined || m[3] !== undefined || m[0].includes("\\"),
+            consumer: commandOf(seg),
+          });
+          endWord();
+          i += m[0].length;
+        } else {
+          i += 2;
+        }
+      } else if (c === "\n") {
+        newSegment();
+        i = pending.length > 0 ? readHeredocBodies(i + 1) : i + 1;
+      } else if (";&|()".includes(c)) {
+        newSegment();
+        i++;
+      } else if (c === " " || c === "\t") {
+        endWord();
+        i++;
+      } else {
+        seg.current += c;
+        i++;
+      }
+    }
+    return text.length;
+  };
+
+  /** Varre o interior de aspas duplas a partir de `i`. Devolve se houve substituição. */
+  const scanDouble = (): boolean => {
+    let hasSubst = false;
+    while (i < text.length) {
+      const c = text[i];
+      if (c === "\\") {
+        i += 2;
+      } else if (c === '"') {
+        i++;
+        return hasSubst;
+      } else if (c === "$" && text[i + 1] === "(") {
+        hasSubst = true;
+        i += 2;
+        scanUnquoted(")");
+      } else if (c === "`") {
+        hasSubst = true;
+        i++;
+        scanUnquoted("`");
+      } else {
+        i++;
+      }
+    }
+    // Aspas sem fechamento: sinaliza ao chamador para não mascarar.
+    i = text.length + 1;
+    return true;
+  };
+
+  scanUnquoted(null);
+  return out.join("");
+}
+
 /** Devolve o motivo do bloqueio, ou null se o comando não é git destrutivo. */
 function checkDestructiveGit(command: string): string | null {
   // Continuações de linha (`\` + newline) fazem parte do mesmo comando shell (issue #200).
-  const joined = command.replace(/\\\r?\n/g, " ").replace(/\\ /g, " ");
+  const raw = command.replace(/\\\r?\n/g, " ").replace(/\\ /g, " ");
+  const masked = maskInertText(raw);
+  // Contexto executor no que sobrou: o texto mascarado pode ser executado, então volta ao original.
+  const joined = EXECUTOR_AFTER_MASK_RE.test(masked) ? raw : masked;
   const re = OPAQUE_SHELL_RE.test(joined) ? GIT_ANYWHERE_RE : GIT_CMD_RE;
   const matches = [...joined.matchAll(re)];
   const tooLong = matches.find((m) => naiveTokens(m[1]).length > MAX_GIT_TOKENS);
