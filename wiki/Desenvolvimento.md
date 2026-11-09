@@ -144,3 +144,18 @@ obrigatória de leitura sob demanda, e soma aos agents as skills pré-carregadas
   um limite pede a decisão registrada no PR.
 - O baseline anterior às refatorações está em `docs/skill-budget-baseline.md`.
 
+---
+
+## Testes de skills: comportamento, não redação
+
+Desde a issue #569, nenhum teste confere a frase escolhida num `SKILL.md`, num agent ou numa
+referência. Ao mexer em uma skill:
+
+- **Comportamento** que um script executa é testado no teste do script (`scripts/tests/<script>_test.ts`).
+- **Invariante** de segurança ou ligação entre arquivos (rodapé de origem, worker sem push, nunca
+  criar labels, nenhum bloco de shell bloqueado pelo hook, subcomandos citados que existem) vai para
+  `scripts/tests/skill-invariants_test.ts`, buscando no pacote da skill (o `SKILL.md` e as
+  referências que ele alcança), para sobreviver a mover texto entre arquivos.
+- **Redação** não é testada. A classificação dos testes antigos está em
+  `docs/contract-tests-classification.md`.
+
