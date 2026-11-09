@@ -354,8 +354,9 @@ permanece não verificada.
 
 ### Dispatch do ship-worker (Pre-Ship) — contrato
 
-O `vetor:ship-worker` (`agents/ship-worker.md`) roda o `/vetor:ship --prepare` de um worktree
-`GREEN`, grava `PR_STAGED` e encerra. Ele opera no worktree que já existe, então o dispatch **não**
+O `vetor:ship-worker` (`agents/ship-worker.md`) roda o `vetor-checks.sh prepare` de um worktree
+`GREEN` (e, se ele falhar, o procedimento manual do `/vetor:ship --prepare`, lido sob demanda), grava
+`PR_STAGED` e encerra. Ele não pré-carrega a skill `ship`. Ele opera no worktree que já existe, então o dispatch **não**
 usa `isolation: "worktree"` (o mesmo cuidado do redispatch acima). O modelo barato é escolhido
 aqui, no `Agent()`, porque o frontmatter do agente é `model: inherit` (issues #337/#397):
 
