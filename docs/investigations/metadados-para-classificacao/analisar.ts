@@ -1,12 +1,15 @@
-// Script descartável da issue #620: classifica issues por heurística determinística
-// a partir de metadados existentes e compara com o que o PR que fechou cada uma precisou.
+// Script descartável da issue #620 (revisado): classifica issues por heurística
+// determinística a partir de metadados existentes e compara com evidência do PR
+// que fechou cada uma. O gabarito de operação/requisitos vem só do PR (título
+// do PR mergeado e tipos de arquivos alterados), nunca do título/labels da issue.
 //
 // Uso (a partir da raiz do repo):
 //   deno run -A docs/investigations/metadados-para-classificacao/analisar.ts \
-//     --issues /tmp/vetor-issues-620.json --out docs/investigations/metadados-para-classificacao/resultado.json
+//     --issues /tmp/vetor-issues-620.json \
+//     --out docs/investigations/metadados-para-classificacao/resultado.json \
+//     --fetch-prs --repo Tavaressan/Vetor --limit 50
 //
-// Sem --fetch-prs usa só os dados já embutidos no resultado (se existir cache em
-// docs/investigations/metadados-para-classificacao/pr-cache.json).
+// Cache local opcional de PRs: --pr-cache <path> (não deve ser commitado).
 
 type IssueLabel = { name: string; description?: string; color?: string };
 type PRRef = {
@@ -28,20 +31,22 @@ type Issue = {
 type PRFile = { path: string; additions: number; deletions: number };
 type PRInfo = { number: number; files: PRFile[]; title: string; state: string };
 
+type Requirements = {
+  filesystem?: boolean;
+  terminal?: boolean;
+  browser?: boolean;
+  git?: boolean;
+  parallelism?: boolean;
+  longContext?: boolean;
+};
+
 type TaskProfile = {
   domains: string[];
   operations: string[];
   complexity: "low" | "medium" | "high";
   risk: "low" | "medium" | "high";
-  requirements: {
-    filesystem?: boolean;
-    terminal?: boolean;
-    browser?: boolean;
-    git?: boolean;
-    parallelism?: boolean;
-    longContext?: boolean;
-  };
-  confidence: number; // 0..1
+  requirements: Requirements;
+  confidence: number;
   confidenceSignals: Record<string, number>;
   rationale: string[];
 };
@@ -49,30 +54,64 @@ type TaskProfile = {
 type Actual = {
   domains: string[];
   operations: string[];
-  requirements: TaskProfile["requirements"];
+  operationsEvidence: string[];
+  requirements: Requirements; // só longContext/browser são observáveis; demais marcados como não observáveis
+  requirementsEvidence: string[];
   complexity: "low" | "medium" | "high";
   risk: "low" | "medium" | "high";
   prNumbers: number[];
+  prTitles: string[];
   filesChanged: number;
   pathsSample: string[];
 };
 
-type Row = {
+type Compare = {
+  domainOk: boolean;
+  operationOk: boolean;
+  complexityOk: boolean;
+  riskOk: boolean;
+  requirementsObservable: {
+    browser: { predicted: boolean; actual: boolean; ok: boolean; actualPositive: boolean };
+    longContext: { predicted: boolean; actual: boolean; ok: boolean; actualPositive: boolean };
+  };
+  overallStrict: "acerto" | "parcial" | "erro" | "sem-pr";
+  notes: string[];
+};
+
+type CompactRow = {
   number: number;
-  title: string;
   state: string;
   labels: string[];
-  predicted: TaskProfile;
-  actual?: Actual;
-  comparison?: {
-    domainOk: boolean;
-    operationOk: boolean;
-    complexityOk: boolean;
-    riskOk: boolean;
-    requirementsOk: boolean;
-    overall: "acerto" | "parcial" | "erro" | "sem-pr";
-    notes: string[];
+  title: string;
+  predicted: {
+    domains: string[];
+    operations: string[];
+    complexity: string;
+    risk: string;
+    requirements: Requirements;
+    confidence: number;
   };
+  actual?: {
+    domains: string[];
+    operations: string[];
+    operationsEvidence: string[];
+    complexity: string;
+    risk: string;
+    requirements: Requirements;
+    requirementsEvidence: string[];
+    filesChanged: number;
+    prNumbers: number[];
+  };
+  ok?: {
+    domain: boolean;
+    operation: boolean;
+    complexity: boolean;
+    risk: boolean;
+    browser: boolean;
+    longContext: boolean;
+    overallStrict: string;
+  };
+  notes: string[];
 };
 
 const CHECKLIST_ITEM_RE = /^[ \t]*[-*][ \t]+\[[ xX]\][ \t]+(.+?)[ \t]*$/gm;
@@ -88,6 +127,7 @@ const ROOT_FILE_EXT = new Set([
   "mjs",
   "toml",
   "ts",
+  "tsx",
   "yaml",
   "yml",
   "sh",
@@ -123,11 +163,10 @@ function extractTargetFiles(text: string): string[] {
 }
 
 function parseTitleOp(title: string): { op?: string; domainHint?: string } {
-  const t = title.trim();
+  const t = (title ?? "").trim();
   const m = t.match(/^([a-z]+)(?:\(([^)]+)\))?!?:/i);
   if (m) return { op: m[1].toLowerCase(), domainHint: m[2]?.toLowerCase() };
-  const spike = t.match(/^spike\b/i);
-  if (spike) return { op: "spike" };
+  if (/^spike\b/i.test(t)) return { op: "spike" };
   return {};
 }
 
@@ -146,17 +185,12 @@ const MODULE_PREFIXES: { prefix: string; module: string }[] = [
 
 function moduleForPath(p: string): string {
   const path = p.replace(/^\.?\//, "");
-  for (const e of MODULE_PREFIXES) {
-    if (path.startsWith(e.prefix)) return e.module;
-  }
-  // catch-all root
+  for (const e of MODULE_PREFIXES) if (path.startsWith(e.prefix)) return e.module;
   return "root";
 }
 function modulesForPaths(paths: string[]): string[] {
-  const set = new Set(paths.map(moduleForPath));
-  return [...set];
+  return [...new Set(paths.map(moduleForPath))];
 }
-
 function domainFromModule(mod: string): string {
   const map: Record<string, string> = {
     cli: "cli/instalador",
@@ -185,7 +219,6 @@ function classify(issue: Issue): TaskProfile {
   const rationale: string[] = [];
   const signals: Record<string, number> = {};
 
-  // operations
   const ops = new Set<string>();
   if (op) {
     ops.add(op);
@@ -194,17 +227,15 @@ function classify(issue: Issue): TaskProfile {
   }
   if (labels.includes("spike") || /spike/i.test(title)) ops.add("spike");
   if (labels.includes("bug") || op === "fix") ops.add("fix");
-  if (labels.includes("enhancement") || op === "feat" || op === "enhancement") ops.add("implement");
+  if (labels.includes("enhancement") || op === "feat" || op === "enhancement") {
+    ops.add("implement");
+  }
   if (op === "docs" || labels.includes("documentation")) ops.add("docs");
   if (op === "refactor") ops.add("refactor");
   if (op === "test") ops.add("test");
   if (op === "perf") ops.add("optimize");
-  if (ops.size === 0) {
-    ops.add("change");
-    rationale.push("operação inferida como mudança genérica");
-  }
+  if (ops.size === 0) ops.add("change");
 
-  // domains from labels and targets
   const domains = new Set<string>();
   const labelModuleMap: Record<string, string> = {
     scripts: "scripts/automação",
@@ -215,7 +246,6 @@ function classify(issue: Issue): TaskProfile {
     docs: "documentação",
     compat: "compatibilidade",
     spec: "spec/design",
-    "ai-generated": "backlog",
   };
   for (const l of labels) {
     if (labelModuleMap[l]) {
@@ -224,20 +254,14 @@ function classify(issue: Issue): TaskProfile {
     }
   }
   if (domainHint) {
-    const dh = domainHint.split(/[,\s/]+/).filter(Boolean);
-    for (const d of dh) domains.add(d);
+    for (const d of domainHint.split(/[,\s/]+/).filter(Boolean)) domains.add(d);
     signals.titleScope = 0.2;
-    rationale.push(`escopo no título: ${domainHint}`);
   }
   for (const m of targetModules) domains.add(domainFromModule(m));
-  if (targets.length) {
-    signals.targetFiles = 0.3;
-    rationale.push(`arquivos-alvo inferidos: ${targets.slice(0, 5).join(", ")}`);
-  }
+  if (targets.length) signals.targetFiles = 0.3;
   if (domains.size === 0) domains.add("indefinido");
 
-  // requirements
-  const req: TaskProfile["requirements"] = {
+  const req: Requirements = {
     filesystem: true,
     git: true,
     terminal: false,
@@ -263,23 +287,16 @@ function classify(issue: Issue): TaskProfile {
     req.terminal = true;
     req.longContext = true;
   }
-  rationale.push(
-    `requisitos: ${Object.entries(req).filter(([, v]) => v).map(([k]) => k).join(", ")}`,
-  );
 
-  // complexity
   let complexity: TaskProfile["complexity"] = "low";
-  const moduleCount =
-    new Set(targetModules.length ? targetModules : labels.filter((l) => labelModuleMap[l])).size;
+  const moduleCount = new Set(
+    targetModules.length ? targetModules : labels.filter((l) => labelModuleMap[l]),
+  ).size;
   if (ac.length >= 5 || body.length > 3000 || moduleCount >= 3) complexity = "high";
   else if (ac.length >= 3 || body.length > 1200 || moduleCount >= 2 || ops.has("spike")) {
     complexity = "medium";
   }
-  rationale.push(
-    `complexidade ${complexity} (AC=${ac.length}, body=${body.length}, módulos=${moduleCount})`,
-  );
 
-  // risk
   let risk: TaskProfile["risk"] = "low";
   if (
     labels.includes("bug") &&
@@ -291,23 +308,17 @@ function classify(issue: Issue): TaskProfile {
   ) risk = "medium";
   if (ops.has("docs") && !/safety|hook|security/i.test(text)) risk = "low";
   if (ops.has("spike")) risk = "low";
-  rationale.push(`risco ${risk}`);
 
-  // confidence: based on available structured signals
-  let conf = 0.2; // base
+  let conf = 0.2;
   if (signals.titlePrefix) conf += 0.2;
   if (signals.label) conf += Math.min(0.2, signals.label);
   if (signals.targetFiles) conf += 0.2;
   if (ac.length > 0) {
     conf += 0.1;
     signals.acceptanceCriteria = 0.1;
-    rationale.push(`${ac.length} critérios de aceite`);
   }
   if (domainHint) conf += 0.1;
   conf = Math.min(1, Number(conf.toFixed(2)));
-  if (conf < 0.45) rationale.push("confiança baixa: poucos sinais estruturais");
-  else if (conf < 0.7) rationale.push("confiança média");
-  else rationale.push("confiança alta");
 
   return {
     domains: [...domains],
@@ -321,8 +332,12 @@ function classify(issue: Issue): TaskProfile {
   };
 }
 
-async function run(cmd: string[], cwd?: string) {
-  const p = new Deno.Command(cmd[0], { args: cmd.slice(1), cwd, stdout: "piped", stderr: "piped" });
+async function runCmd(cmd: string[]) {
+  const p = new Deno.Command(cmd[0], {
+    args: cmd.slice(1),
+    stdout: "piped",
+    stderr: "piped",
+  });
   const o = await p.output();
   return {
     code: o.code,
@@ -337,7 +352,7 @@ async function fetchPR(
   cache: Record<string, PRInfo>,
 ): Promise<PRInfo | undefined> {
   if (cache[String(pr)]) return cache[String(pr)];
-  const r = await run([
+  const r = await runCmd([
     "gh",
     "pr",
     "view",
@@ -367,35 +382,71 @@ async function fetchPR(
   }
 }
 
+function isDocPath(p: string): boolean {
+  return /^(docs|wiki)\//.test(p) || /\.md$/i.test(p) && /^(docs|wiki)\//.test(p);
+}
+function isTestPath(p: string): boolean {
+  return /(^|\/)(tests?|__tests__)\//.test(p) || /(_test|\.test|\.spec)\.[^/]+$/.test(p);
+}
+
 function classifyActual(issue: Issue, prInfos: PRInfo[]): Actual | undefined {
   if (prInfos.length === 0) return undefined;
   const paths = prInfos.flatMap((p) => p.files.map((f) => f.path));
   const uniqPaths = [...new Set(paths)];
   const mods = modulesForPaths(uniqPaths);
   const domains = [...new Set(mods.map(domainFromModule))];
-  const ops = new Set<string>();
-  const title = issue.title.toLowerCase();
-  const { op } = parseTitleOp(issue.title);
-  if (op) ops.add(op);
-  if (/fix/i.test(issue.title) || issue.labels.some((l) => l.name === "bug")) ops.add("fix");
-  if (/feat|enhancement/i.test(issue.title) || issue.labels.some((l) => l.name === "enhancement")) {
-    ops.add("implement");
-  }
-  if (mods.every((m) => m === "docs" || m === "wiki")) ops.add("docs");
-  if (/spike/i.test(issue.title) || issue.labels.some((l) => l.name === "spike")) ops.add("spike");
-  if (/refactor/i.test(issue.title)) ops.add("refactor");
-  if (uniqPaths.some((p) => /_test\.|\.test\.|tests\//.test(p))) ops.add("test");
 
-  const req: TaskProfile["requirements"] = {
-    filesystem: true,
-    git: true,
-    terminal: true, // PR implica git/terminal
+  // Operação: SOMENTE evidência do PR (prefixo do título do PR e tipos de arquivo). Nunca issue.
+  const ops = new Set<string>();
+  const opEvidence: string[] = [];
+  for (const pr of prInfos) {
+    const pop = parseTitleOp(pr.title).op;
+    if (pop) {
+      ops.add(pop);
+      opEvidence.push(`PR #${pr.number} título: ${pop}`);
+    }
+  }
+  const allDocs = uniqPaths.length > 0 && uniqPaths.every((p) => /^(docs|wiki)\//.test(p));
+  const allTests = uniqPaths.length > 0 && uniqPaths.every((p) => isTestPath(p));
+  if (allDocs) {
+    ops.add("docs");
+    opEvidence.push("arquivos: somente docs/wiki");
+  }
+  if (allTests) {
+    ops.add("test");
+    opEvidence.push("arquivos: somente testes");
+  }
+  if (ops.has("spike")) opEvidence.push("prefixo spike no PR");
+  if (ops.has("fix")) opEvidence.push("prefixo fix no PR");
+  if (ops.has("feat") || ops.has("enhancement")) ops.add("implement");
+  if (ops.size === 0) ops.add("change");
+
+  // Requisitos: somente longContext e browser são observáveis por evidência do diff.
+  // terminal/git/filesystem são quase constantes em PRs de código/docs neste fluxo e não medem necessidade.
+  const req: Requirements = {
+    filesystem: undefined,
+    terminal: undefined,
+    git: undefined,
+    parallelism: undefined,
     browser: false,
-    parallelism: false,
     longContext: uniqPaths.length > 8 || ops.has("spike"),
   };
-  const text = uniqPaths.join(" ").toLowerCase();
-  if (/browser|playwright|puppeteer|e2e/.test(text)) req.browser = true;
+  const reqEvidence: string[] = [];
+  const joined = uniqPaths.join(" ").toLowerCase();
+  if (/browser|playwright|puppeteer|e2e/.test(joined)) {
+    req.browser = true;
+    reqEvidence.push("caminho sugere browser/e2e");
+  }
+  if (req.longContext) {
+    reqEvidence.push(
+      ops.has("spike")
+        ? "spike/investigação (evidência de contexto longo pelo tipo de tarefa no PR)"
+        : `${uniqPaths.length} arquivos alterados`,
+    );
+  }
+  reqEvidence.push(
+    "terminal/git/filesystem/parallelism não observáveis de forma confiável pelo diff; excluídos da acurácia de requisitos",
+  );
 
   let complexity: TaskProfile["complexity"] = "low";
   const total = uniqPaths.length;
@@ -407,19 +458,19 @@ function classifyActual(issue: Issue, prInfos: PRInfo[]): Actual | undefined {
     mods.some((m) => m === "hooks") ||
     uniqPaths.some((p) => /safety|guard|permission|auth|secret/.test(p))
   ) risk = "high";
-  else if (
-    mods.some((m) => ["scripts", "cli", "agents"].includes(m)) ||
-    issue.labels.some((l) => l.name === "bug")
-  ) risk = "medium";
+  else if (mods.some((m) => ["scripts", "cli", "agents"].includes(m))) risk = "medium";
   if (mods.every((m) => m === "docs" || m === "wiki")) risk = "low";
 
   return {
     domains,
     operations: [...ops],
+    operationsEvidence: opEvidence,
     requirements: req,
+    requirementsEvidence: reqEvidence,
     complexity,
     risk,
     prNumbers: prInfos.map((p) => p.number),
+    prTitles: prInfos.map((p) => p.title),
     filesChanged: total,
     pathsSample: uniqPaths.slice(0, 12),
   };
@@ -429,37 +480,49 @@ function intersectNonEmpty(a: string[], b: string[]): boolean {
   const B = new Set(b);
   return a.some((x) => B.has(x));
 }
-function reqMatch(pred: TaskProfile["requirements"], act: TaskProfile["requirements"]): boolean {
-  // browser false-positive is bad; others lenient
-  const keys = ["filesystem", "terminal", "browser", "git", "parallelism", "longContext"] as const;
-  let ok = 0, total = 0;
-  for (const k of keys) {
-    total++;
-    if (Boolean(pred[k]) === Boolean(act[k])) ok++;
-  }
-  return ok >= 5; // allow 1 miss
-}
 
-function compare(pred: TaskProfile, actual?: Actual): Row["comparison"] {
+function compare(pred: TaskProfile, actual?: Actual): Compare {
   if (!actual) {
     return {
       domainOk: false,
       operationOk: false,
       complexityOk: false,
       riskOk: false,
-      requirementsOk: false,
-      overall: "sem-pr",
+      requirementsObservable: {
+        browser: { predicted: false, actual: false, ok: false, actualPositive: false },
+        longContext: { predicted: false, actual: false, ok: false, actualPositive: false },
+      },
+      overallStrict: "sem-pr",
       notes: ["sem PR associado para comparação"],
     };
   }
   const notes: string[] = [];
-  const domainOk = intersectNonEmpty(pred.domains, actual.domains) ||
-    (pred.domains.includes("indefinido") && false);
+  const domainOk = intersectNonEmpty(pred.domains, actual.domains);
   const operationOk = intersectNonEmpty(pred.operations, actual.operations);
   const complexityOk = pred.complexity === actual.complexity;
-  const riskOk = pred.risk === actual.risk || (pred.risk === "medium" && actual.risk === "low") ||
+  const riskOk = pred.risk === actual.risk ||
+    (pred.risk === "medium" && actual.risk === "low") ||
     (pred.risk === "low" && actual.risk === "medium");
-  const requirementsOk = reqMatch(pred.requirements, actual.requirements);
+
+  const browserPred = Boolean(pred.requirements.browser);
+  const browserAct = Boolean(actual.requirements.browser);
+  const lcPred = Boolean(pred.requirements.longContext);
+  const lcAct = Boolean(actual.requirements.longContext);
+  const reqObs = {
+    browser: {
+      predicted: browserPred,
+      actual: browserAct,
+      ok: browserPred === browserAct,
+      actualPositive: browserAct,
+    },
+    longContext: {
+      predicted: lcPred,
+      actual: lcAct,
+      ok: lcPred === lcAct,
+      actualPositive: lcAct,
+    },
+  };
+
   if (!domainOk) {
     notes.push(`domínio previsto=${pred.domains.join("|")} real=${actual.domains.join("|")}`);
   }
@@ -470,54 +533,58 @@ function compare(pred: TaskProfile, actual?: Actual): Row["comparison"] {
     notes.push(`complexidade prevista=${pred.complexity} real=${actual.complexity}`);
   }
   if (!riskOk) notes.push(`risco previsto=${pred.risk} real=${actual.risk}`);
-  if (!requirementsOk) notes.push(`requisitos divergiram`);
-  const score =
-    [domainOk, operationOk, complexityOk, riskOk, requirementsOk].filter(Boolean).length;
-  let overall: "acerto" | "parcial" | "erro" = "erro";
-  if (score >= 4) overall = "acerto";
-  else if (score >= 2) overall = "parcial";
-  return { domainOk, operationOk, complexityOk, riskOk, requirementsOk, overall, notes };
+
+  // Overall estrito considera 4 dimensões principais; requisitos observáveis reportados à parte.
+  const score = [domainOk, operationOk, complexityOk, riskOk].filter(Boolean).length;
+  let overallStrict: Compare["overallStrict"] = "erro";
+  if (score === 4) overallStrict = "acerto";
+  else if (score >= 2) overallStrict = "parcial";
+  return {
+    domainOk,
+    operationOk,
+    complexityOk,
+    riskOk,
+    requirementsObservable: reqObs,
+    overallStrict,
+    notes,
+  };
 }
 
-function summarize(rows: Row[]) {
-  const withPr = rows.filter((r) => r.comparison && r.comparison.overall !== "sem-pr");
+function summarize(rows: { predicted: TaskProfile; actual?: Actual; compare: Compare }[]) {
+  const withPr = rows.filter((r) => r.compare.overallStrict !== "sem-pr");
   const counts = { acerto: 0, parcial: 0, erro: 0, "sem-pr": 0 } as Record<string, number>;
-  for (const r of rows) counts[r.comparison?.overall ?? "sem-pr"]++;
-  const dim = (k: keyof NonNullable<Row["comparison"]>) =>
-    withPr.filter((r) => (r.comparison as any)[k]).length;
-  const byConfidence = {
-    high: rows.filter((r) => r.predicted.confidence >= 0.7),
-    mid: rows.filter((r) => r.predicted.confidence >= 0.45 && r.predicted.confidence < 0.7),
-    low: rows.filter((r) => r.predicted.confidence < 0.45),
-  };
-  const acc = (arr: Row[]) => {
-    const w = arr.filter((r) => r.comparison && r.comparison.overall !== "sem-pr");
-    if (!w.length) return null;
-    return Number(
-      (w.filter((r) => r.comparison?.overall === "acerto").length / w.length).toFixed(3),
-    );
-  };
+  for (const r of rows) counts[r.compare.overallStrict]++;
+  const dim = (k: "domainOk" | "operationOk" | "complexityOk" | "riskOk") =>
+    withPr.filter((r) => r.compare[k]).length;
+  const browser = withPr.map((r) => r.compare.requirementsObservable.browser);
+  const lc = withPr.map((r) => r.compare.requirementsObservable.longContext);
+  const reqStat = (arr: typeof browser) => ({
+    comparable: arr.length,
+    actualPositives: arr.filter((x) => x.actualPositive).length,
+    correct: arr.filter((x) => x.ok).length,
+    accuracy: arr.length ? Number((arr.filter((x) => x.ok).length / arr.length).toFixed(3)) : null,
+  });
   return {
     total: rows.length,
     withPr: withPr.length,
-    counts,
-    accuracyOverall: withPr.length ? Number((counts.acerto / withPr.length).toFixed(3)) : null,
-    accuracyPartialOrBetter: withPr.length
-      ? Number(((counts.acerto + counts.parcial) / withPr.length).toFixed(3))
-      : null,
+    countsStrict: counts,
+    partialCriterion:
+      "parcial = 2 ou 3 das 4 dimensões principais corretas (domínio, operação, complexidade, risco); acerto = 4/4; erro = 0 ou 1/4. Requisitos observáveis (browser, longContext) reportados separadamente.",
+    note:
+      "A contagem 'parcial ou melhor' não é apresentada como resultado principal por ser leniente.",
     byDimension: {
       domain: withPr.length ? Number((dim("domainOk") / withPr.length).toFixed(3)) : null,
-      operation: withPr.length ? Number((dim("operationOk") / withPr.length).toFixed(3)) : null,
+      operation_from_pr_evidence_only: withPr.length
+        ? Number((dim("operationOk") / withPr.length).toFixed(3))
+        : null,
       complexity: withPr.length ? Number((dim("complexityOk") / withPr.length).toFixed(3)) : null,
       risk: withPr.length ? Number((dim("riskOk") / withPr.length).toFixed(3)) : null,
-      requirements: withPr.length
-        ? Number((dim("requirementsOk") / withPr.length).toFixed(3))
-        : null,
     },
-    byConfidenceBucket: {
-      high_ge_0_7: { n: byConfidence.high.length, accuracy: acc(byConfidence.high) },
-      mid_0_45_0_7: { n: byConfidence.mid.length, accuracy: acc(byConfidence.mid) },
-      low_lt_0_45: { n: byConfidence.low.length, accuracy: acc(byConfidence.low) },
+    requirementsObservableOnly: {
+      browser: reqStat(browser),
+      longContext: reqStat(lc),
+      excluded:
+        "terminal, git, filesystem e parallelism foram excluídos da acurácia: no gabarito por diff/PR eles são quase constantes ou não observáveis, então não medem capacidade real.",
     },
   };
 }
@@ -540,8 +607,7 @@ async function main() {
 
   if (doFetch) {
     for (const iss of issues) {
-      const refs = iss.closedByPullRequestsReferences ?? [];
-      for (const ref of refs) {
+      for (const ref of iss.closedByPullRequestsReferences ?? []) {
         if (!prCache[String(ref.number)]) {
           const info = await fetchPR(ref.number, repo, prCache);
           if (info) console.error(`fetched PR #${ref.number}`);
@@ -551,26 +617,85 @@ async function main() {
     await Deno.writeTextFile(cachePath, JSON.stringify(prCache, null, 2));
   }
 
-  const rows: Row[] = [];
+  const full = [];
   for (const iss of issues) {
     const predicted = classify(iss);
-    const refs = iss.closedByPullRequestsReferences ?? [];
-    const prInfos = refs.map((r) => prCache[String(r.number)]).filter(Boolean) as PRInfo[];
+    const prInfos = (iss.closedByPullRequestsReferences ?? [])
+      .map((r) => prCache[String(r.number)]).filter(Boolean) as PRInfo[];
     const actual = classifyActual(iss, prInfos);
-    const comparison = compare(predicted, actual);
-    rows.push({
-      number: iss.number,
-      title: iss.title,
-      state: iss.state,
-      labels: iss.labels.map((l) => l.name),
-      predicted,
-      actual,
-      comparison,
-    });
+    const compareRes = compare(predicted, actual);
+    full.push({ iss, predicted, actual, compare: compareRes });
   }
 
-  const summary = summarize(rows);
-  const out = { generatedAt: new Date().toISOString(), repo, source: issuesPath, summary, rows };
+  const summary = summarize(full);
+  const compact: CompactRow[] = full.map(({ iss, predicted, actual, compare: c }) => ({
+    number: iss.number,
+    state: iss.state,
+    labels: iss.labels.map((l) => l.name),
+    title: iss.title,
+    predicted: {
+      domains: predicted.domains,
+      operations: predicted.operations,
+      complexity: predicted.complexity,
+      risk: predicted.risk,
+      requirements: predicted.requirements,
+      confidence: predicted.confidence,
+    },
+    ...(actual
+      ? {
+        actual: {
+          domains: actual.domains,
+          operations: actual.operations,
+          operationsEvidence: actual.operationsEvidence,
+          complexity: actual.complexity,
+          risk: actual.risk,
+          requirements: actual.requirements,
+          requirementsEvidence: actual.requirementsEvidence,
+          filesChanged: actual.filesChanged,
+          prNumbers: actual.prNumbers,
+        },
+      }
+      : {}),
+    ...(actual
+      ? {
+        ok: {
+          domain: c.domainOk,
+          operation: c.operationOk,
+          complexity: c.complexityOk,
+          risk: c.riskOk,
+          browser: c.requirementsObservable.browser.ok,
+          longContext: c.requirementsObservable.longContext.ok,
+          overallStrict: c.overallStrict,
+        },
+      }
+      : {
+        ok: {
+          domain: false,
+          operation: false,
+          complexity: false,
+          risk: false,
+          browser: false,
+          longContext: false,
+          overallStrict: c.overallStrict,
+        },
+      }),
+    notes: c.notes,
+  }));
+
+  const out = {
+    generatedAt: new Date().toISOString(),
+    repo,
+    source: issuesPath,
+    methodology: {
+      operationGroundTruth:
+        "Somente prefixo convencional do título do PR mergeado e/ou tipo de arquivo alterado (somente docs/wiki -> docs; somente testes -> test). Nunca título ou labels da issue.",
+      requirementsGroundTruth:
+        "Apenas browser e longContext por evidência do diff; terminal/git/filesystem/parallelism excluídos por serem quase constantes ou não observáveis.",
+      strictScore: summary.partialCriterion,
+    },
+    summary,
+    issues: compact,
+  };
   await Deno.writeTextFile(outPath, JSON.stringify(out, null, 2));
   console.log(JSON.stringify(summary, null, 2));
 }
