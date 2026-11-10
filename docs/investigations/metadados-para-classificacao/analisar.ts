@@ -682,7 +682,7 @@ async function main() {
     notes: c.notes,
   }));
 
-  const out = {
+  const header = {
     generatedAt: new Date().toISOString(),
     repo,
     source: issuesPath,
@@ -694,9 +694,11 @@ async function main() {
       strictScore: summary.partialCriterion,
     },
     summary,
-    issues: compact,
   };
-  await Deno.writeTextFile(outPath, JSON.stringify(out, null, 2));
+  const headerJson = JSON.stringify(header, null, 2);
+  const issuesJson = compact.map((r) => "    " + JSON.stringify(r)).join(",\n");
+  const outText = headerJson.slice(0, -2) + ',\n  "issues": [\n' + issuesJson + "\n  ]\n}\n";
+  await Deno.writeTextFile(outPath, outText);
   console.log(JSON.stringify(summary, null, 2));
 }
 

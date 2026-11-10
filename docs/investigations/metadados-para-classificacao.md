@@ -54,10 +54,13 @@ existentes, evitando chamadas extras a modelo (ADR-002 §4.3). O spike responde:
   ou 1/4. A contagem “parcial ou melhor” é leniente e **não** é apresentada como resultado
   principal.
 - **[Fato]** Requisitos observáveis no gabarito: `browser` teve 0 positivos reais em 41 comparáveis
-  (41/41 corretos por predição negativa, mas não validável como capacidade de detecção);
-  `longContext` teve 14 positivos reais e 13 acertos em 41 comparáveis (31,7%). `terminal`, `git`,
-  `filesystem` e `parallelism` foram excluídos da acurácia por serem quase constantes ou não
-  observáveis de forma confiável pelo diff/PR.
+  (matriz: VP=0, FP=0, VN=41, FN=0; precisão/recall indefinidos por ausência de positivos; acurácia
+  100% apenas por predição negativa), portanto **não dá para validar** a detecção de necessidade de
+  browser nesta amostra. `longContext` teve 14 positivos reais e 30 predições positivas em 41
+  comparáveis (matriz: VP=8, FP=22, VN=5, FN=6; precisão 8/30=26,7%, recall 8/14=57,1%, acurácia
+  13/41=31,7%), indicando viés da regra atual para falso positivo (marca `longContext` na maior
+  parte das issues). `terminal`, `git`, `filesystem` e `parallelism` foram excluídos da acurácia por
+  serem quase constantes ou não observáveis de forma confiável pelo diff/PR.
 - **[Inferência]** A classificação determinística é viável para operação e domínio grosseiro e para
   parte do risco, mas fraca para complexidade e para requisitos finos observáveis nesta amostra.
   Spikes rotuladas por área de código mas entregues como `docs/investigations/*` e mudanças
@@ -97,10 +100,11 @@ existentes, evitando chamadas extras a modelo (ADR-002 §4.3). O spike responde:
 **[Fato]** Resumo (`resultado.json.summary`): `total=50`, `withPr=41`,
 `countsStrict={acerto:11, parcial:23, erro:7, sem-pr:9}`. Dimensões principais: domínio 0.805,
 operação (só evidência do PR) 0.732, complexidade 0.488, risco 0.732. Requisitos observáveis:
-`browser` `{comparable:41, actualPositives:0, correct:41, accuracy:1.0}`; `longContext`
-`{comparable:41, actualPositives:14, correct:13, accuracy:0.317}`. `resultado.json` é um resumo
-compacto (metodologia, totais e uma linha por issue com previsto/real/ok); o cache de PRs não é
-commitado e pode ser regenerado com `gh`.
+`browser` `comparable=41`, positivos reais 0, matriz VP=0/FP=0/VN=41/FN=0 (precisão/recall
+indefinidos; acurácia 100% não validável como detecção); `longContext` `comparable=41`, positivos
+reais 14, preditos positivos 30, matriz VP=8/FP=22/VN=5/FN=6 (precisão 26,7%, recall 57,1%, acurácia
+31,7%, viés para FP). `resultado.json` é um resumo compacto (metodologia, totais e uma linha por
+issue, um item JSON por linha); o cache de PRs não é commitado e pode ser regenerado com `gh`.
 
 ## 4. Resposta às perguntas do spike
 
@@ -128,16 +132,18 @@ profiler se construído como derivação pura de metadados, sem exigir worktree/
 título do PR mergeado e/ou do tipo de arquivos alterados (somente `docs/wiki` → `docs`, somente
 testes → `test`), sem usar título ou labels da issue; (b) **requisitos** avaliados apenas em
 `browser` e `longContext` por evidência observável do diff, pois `terminal`, `git`, `filesystem` e
-`parallelism` são quase constantes ou não observáveis no gabarito por PR; (c) **overall estrito**
-calculado sobre 4 dimensões (domínio, operação, complexidade, risco), com critério `acerto=4/4`,
-`parcial=2 ou 3/4`, `erro=0 ou 1/4`. Esse critério é leniente e a métrica “parcial ou melhor” não é
-resultado principal.
+`parallelism` são quase constantes ou não observáveis no gabarito por PR; reportados com matriz de
+confusão, precisão e recall (e nota de não validabilidade quando não há positivos reais); (c)
+**overall estrito** calculado sobre 4 dimensões (domínio, operação, complexidade, risco), com
+critério `acerto=4/4`, `parcial=2 ou 3/4`, `erro=0 ou 1/4`. Esse critério é leniente e a métrica
+“parcial ou melhor” não é resultado principal.
 
 **[Fato]** Taxas (41 comparáveis): domínio 33/41 (80,5%), operação 30/41 (73,2%), complexidade 20/41
 (48,8%), risco 30/41 (73,2%); overall estrito 11 acertos, 23 parciais, 7 erros. `browser`: 0
-positivos reais, 41/41 corretos por negativa — **não dá para validar** a capacidade de detecção de
-necessidade de browser nesta amostra. `longContext`: 14 positivos reais, 13 acertos em 41 (31,7%) —
-sinal fraco.
+positivos reais em 41 (VP=0, FP=0, VN=41, FN=0; precisão/recall indefinidos) — **não dá para
+validar** a detecção de necessidade de browser nesta amostra. `longContext`: 14 positivos reais e 30
+predições positivas em 41 (VP=8, FP=22, VN=5, FN=6; precisão 26,7%, recall 57,1%, acurácia 31,7%); a
+regra atual marca `longContext` na maior parte das issues (viés para FP), então o sinal é fraco.
 
 **[Fato]** Casos ambíguos representativos (`resultado.json.issues`):
 
@@ -155,8 +161,9 @@ sinal fraco.
 
 **[Inferência]** Complexidade é a dimensão menos confiável porque depende de dispersão real do diff;
 operação melhora quando há convenção no PR, mas spikes de investigação ainda confundem domínio
-previsto vs. artefato entregue. Sem positivos reais de `browser`, não há evidência de recall para
-esse requisito.
+previsto vs. artefato entregue. Sem positivos reais de `browser` (VP=0, FN=0), não há evidência de
+recall/precisão para esse requisito; para `longContext`, o viés para FP (VP=8, FP=22) limita a
+utilidade da regra atual.
 
 ### 4.3 Pergunta 3 — Confiança insuficiente e limiar para fallback semântico opcional
 
@@ -273,8 +280,10 @@ de domínio/complexidade.
 ## 7. Limitações e não verificado
 
 - **[Fato]** O gabarito usou PRs de fechamento como proxy do que foi necessário; não houve rotulagem
-  manual independente por dimensão. `browser` não teve positivos reais (0/41), logo sua detecção não
-  é validável nesta amostra; `longContext` teve 14 positivos reais e baixo acerto (31,7%).
+  manual independente por dimensão. `browser`: 0 positivos reais (VP=0, FP=0, VN=41, FN=0), detecção
+  não validável. `longContext`: 14 positivos reais e 30 predições positivas (VP=8, FP=22, VN=5,
+  FN=6; precisão 26,7%, recall 57,1%, acurácia 31,7%), com viés para falso positivo (a regra marca
+  `longContext` na maior parte das issues).
 - **[Fato]** `terminal`, `git`, `filesystem` e `parallelism` não foram medidos por serem quase
   constantes ou não observáveis no diff.
 - **[Não verificado]** Cruzamento automático issue↔Spec formal na amostra; calibração empírica dos
