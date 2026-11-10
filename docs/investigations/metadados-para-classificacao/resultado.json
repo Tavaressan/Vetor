@@ -1,0 +1,4306 @@
+{
+  "generatedAt": "2026-11-10T13:21:36.262Z",
+  "repo": "Tavaressan/Vetor",
+  "source": "/tmp/vetor-issues-620.json",
+  "summary": {
+    "total": 50,
+    "withPr": 41,
+    "counts": {
+      "acerto": 24,
+      "parcial": 17,
+      "erro": 0,
+      "sem-pr": 9
+    },
+    "accuracyOverall": 0.585,
+    "accuracyPartialOrBetter": 1,
+    "byDimension": {
+      "domain": 0.805,
+      "operation": 1,
+      "complexity": 0.488,
+      "risk": 0.732,
+      "requirements": 0.732
+    },
+    "byConfidenceBucket": {
+      "high_ge_0_7": {
+        "n": 50,
+        "accuracy": 0.585
+      },
+      "mid_0_45_0_7": {
+        "n": 0,
+        "accuracy": null
+      },
+      "low_lt_0_45": {
+        "n": 0,
+        "accuracy": null
+      }
+    }
+  },
+  "rows": [
+    {
+      "number": 623,
+      "title": "spike(execution): descritor mínimo viável e contratos refinados do roteamento por capacidade",
+      "state": "OPEN",
+      "labels": [
+        "scripts",
+        "compat",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "compatibilidade",
+          "execution"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: execution",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade medium (AC=4, body=1508, módulos=2)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 622,
+      "title": "spike(execution): modelo de autorização, sensibilidade de dados e fallback no roteamento",
+      "state": "OPEN",
+      "labels": [
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "execution",
+          "núcleo/config"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: execution",
+          "arquivos-alvo inferidos: safety-policy.ts",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade medium (AC=4, body=1610, módulos=1)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 621,
+      "title": "spike(execution): interação entre seleção de modelo e seleção de harness",
+      "state": "OPEN",
+      "labels": [
+        "scripts",
+        "compat",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "compatibilidade",
+          "execution"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: execution",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade medium (AC=4, body=1327, módulos=2)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 620,
+      "title": "spike(execution): metadados existentes para classificação determinística de tarefas",
+      "state": "OPEN",
+      "labels": [
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "execution"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": true,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: execution",
+          "requisitos: filesystem, git, terminal, browser, parallelism, longContext",
+          "complexidade medium (AC=4, body=1401, módulos=1)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 619,
+      "title": "spike(execution): execução via CLI, orquestrador e subagente nativo no roteamento por capacidade",
+      "state": "OPEN",
+      "labels": [
+        "scripts",
+        "compat",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "compatibilidade",
+          "execution",
+          "núcleo/config"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: execution",
+          "arquivos-alvo inferidos: delegation-runtime.ts",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=3, body=1439, módulos=1)",
+          "risco low",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 618,
+      "title": "spike(capabilities): mecanismos de descoberta e capacidades detectáveis por harness",
+      "state": "OPEN",
+      "labels": [
+        "scripts",
+        "compat",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "compatibilidade",
+          "capabilities"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": true,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: capabilities",
+          "requisitos: filesystem, git, terminal, browser, parallelism, longContext",
+          "complexidade medium (AC=4, body=1730, módulos=2)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 588,
+      "title": "spike(orchestrator): viabilidade de um adapter do Orca via CLI",
+      "state": "CLOSED",
+      "labels": [
+        "scripts",
+        "compat",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "compatibilidade",
+          "orchestrator",
+          "documentação"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: orchestrator",
+          "arquivos-alvo inferidos: docs/specs/delegacao-orquestrador-contrato.md",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=4, body=1902, módulos=1)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          613
+        ],
+        "filesChanged": 1,
+        "pathsSample": [
+          "docs/investigations/orca-adapter.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "complexidade prevista=medium real=low"
+        ]
+      }
+    },
+    {
+      "number": 587,
+      "title": "spike(orchestrator): revisão do contrato do OrchestratorAdapter (wake vs polling, dono do worktree, falhas)",
+      "state": "CLOSED",
+      "labels": [
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "orchestrator"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: orchestrator",
+          "arquivos-alvo inferidos: scripts/lib/orchestrator/types.ts, scripts/lib/orchestrator/registry.ts",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=4, body=1790, módulos=1)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          610
+        ],
+        "filesChanged": 1,
+        "pathsSample": [
+          "docs/investigations/orchestrator-adapter-contract.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "parcial",
+        "notes": [
+          "domínio previsto=scripts/automação|orchestrator real=documentação",
+          "complexidade prevista=medium real=low"
+        ]
+      }
+    },
+    {
+      "number": 586,
+      "title": "spike(architecture): fronteira entre núcleo, adapters, delegação a CLI e harness",
+      "state": "CLOSED",
+      "labels": [
+        "scripts",
+        "compat",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "compatibilidade",
+          "architecture",
+          "documentação",
+          "núcleo/config"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: architecture",
+          "arquivos-alvo inferidos: docs/adr/ADR-001-runtime-independence.md, delegation-runtime.ts",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=4, body=1595, módulos=2)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          609
+        ],
+        "filesChanged": 1,
+        "pathsSample": [
+          "docs/investigations/runtime-boundary.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "complexidade prevista=medium real=low"
+        ]
+      }
+    },
+    {
+      "number": 585,
+      "title": "spike(native): viabilidade de um backend nativo opcional em Rust",
+      "state": "CLOSED",
+      "labels": [
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "native"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: native",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade medium (AC=3, body=1331, módulos=1)",
+          "risco low",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          617
+        ],
+        "filesChanged": 2,
+        "pathsSample": [
+          "docs/investigations/native-backend.md",
+          "docs/investigations/native-backend/ffi-probe.ts"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "parcial",
+        "notes": [
+          "domínio previsto=scripts/automação|native real=documentação",
+          "complexidade prevista=medium real=low"
+        ]
+      }
+    },
+    {
+      "number": 584,
+      "title": "spike(system): io_uring e I/O nativo para cargas do Vetor",
+      "state": "CLOSED",
+      "labels": [
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "system"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: system",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=2, body=918, módulos=1)",
+          "risco low",
+          "2 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "medium",
+        "risk": "low",
+        "prNumbers": [
+          616
+        ],
+        "filesChanged": 5,
+        "pathsSample": [
+          "docs/investigations/native-io.md",
+          "docs/investigations/native-io/fs-bench.ts",
+          "docs/investigations/native-io/io-profile-2026-11-09.json",
+          "docs/investigations/native-io/io-profile.ts",
+          "docs/investigations/native-io/ipc-bench.ts"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "domínio previsto=scripts/automação|system real=documentação"
+        ]
+      }
+    },
+    {
+      "number": 583,
+      "title": "spike(system): observabilidade no Linux com cgroups v2 e eBPF para workers",
+      "state": "CLOSED",
+      "labels": [
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "system"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: system",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=4, body=1473, módulos=1)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          614
+        ],
+        "filesChanged": 2,
+        "pathsSample": [
+          "docs/investigations/linux-observability.md",
+          "docs/investigations/linux-observability/scope-collector.ts"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "parcial",
+        "notes": [
+          "domínio previsto=scripts/automação|system real=documentação",
+          "complexidade prevista=medium real=low"
+        ]
+      }
+    },
+    {
+      "number": 582,
+      "title": "spike(system): capacidades de sistema disponíveis nas APIs do Deno, por plataforma",
+      "state": "CLOSED",
+      "labels": [
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "system"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: system",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=4, body=1606, módulos=1)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          611
+        ],
+        "filesChanged": 3,
+        "pathsSample": [
+          "docs/investigations/deno-system-apis.md",
+          "docs/investigations/deno-system-apis/probe-native-tools.ts",
+          "docs/investigations/deno-system-apis/probe-tree.ts"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "parcial",
+        "notes": [
+          "domínio previsto=scripts/automação|system real=documentação",
+          "complexidade prevista=medium real=low"
+        ]
+      }
+    },
+    {
+      "number": 581,
+      "title": "refactor(retro): move para o plugin vetor-maintainer",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "retro",
+          "núcleo/config"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: retro",
+          "arquivos-alvo inferidos: .claude-plugin/marketplace.json, mcp-availability.md, planning-conventions.md, inject-capabilities-doc.ts",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=6, body=1695, módulos=1)",
+          "risco medium",
+          "6 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "núcleo/config",
+          "scripts/automação",
+          "documentação"
+        ],
+        "operations": [
+          "refactor",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          608
+        ],
+        "filesChanged": 9,
+        "pathsSample": [
+          ".claude-plugin/marketplace.json",
+          "README.md",
+          "maintainer/.claude-plugin/plugin.json",
+          "maintainer/plugin.json",
+          "maintainer/skills/retro/SKILL.md",
+          "scripts/inject-capabilities-doc.ts",
+          "scripts/tests/inject-capabilities-doc_test.ts",
+          "scripts/tests/skill-invariants_test.ts",
+          "wiki/Desenvolvimento.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 580,
+      "title": "refactor(spec): absorve spec-validate como spec --validate",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "spec",
+        "spec-validate"
+      ],
+      "predicted": {
+        "domains": [
+          "spec/design",
+          "spec",
+          "scripts/automação",
+          "skills/fluxos",
+          "núcleo/config"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: spec",
+          "arquivos-alvo inferidos: scripts/spec-validate.ts, skills/spec/references/validate.md, references/traceability.md, inject-capabilities-doc.ts",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=5, body=1034, módulos=3)",
+          "risco medium",
+          "5 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "núcleo/config",
+          "scripts/automação",
+          "skills/fluxos",
+          "documentação"
+        ],
+        "operations": [
+          "refactor",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          600
+        ],
+        "filesChanged": 15,
+        "pathsSample": [
+          "README.md",
+          "scripts/inject-capabilities-doc.ts",
+          "scripts/lib/spec-quality-checkers.ts",
+          "scripts/lib/spec-quality-persistence.ts",
+          "scripts/lib/spec-quality-report.ts",
+          "scripts/lib/spec-quality.ts",
+          "scripts/lib/spec-traceability.ts",
+          "scripts/spec-validate.ts",
+          "scripts/tests/inject-capabilities-doc_test.ts",
+          "scripts/tests/spec-traceability_test.ts",
+          "scripts/tests/spec-validate-cli_test.ts",
+          "skills/spec/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 579,
+      "title": "refactor(now): decisões no now-probe e referências sob demanda",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "scripts",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos",
+          "now",
+          "núcleo/config"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": false
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: now",
+          "arquivos-alvo inferidos: delegate-to-runtime.md, mcp-availability.md, memory-gotchas.md, now-probe.ts",
+          "requisitos: filesystem, git, terminal, parallelism",
+          "complexidade high (AC=6, body=988, módulos=1)",
+          "risco medium",
+          "6 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "refactor",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "medium",
+        "risk": "medium",
+        "prNumbers": [
+          602
+        ],
+        "filesChanged": 4,
+        "pathsSample": [
+          "scripts/now-probe.ts",
+          "scripts/skill-budget.json",
+          "scripts/tests/now-probe_test.ts",
+          "skills/now/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "complexidade prevista=high real=medium"
+        ]
+      }
+    },
+    {
+      "number": 578,
+      "title": "refactor(guardian): auditoria determinística em guardian-audit.ts",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "scripts",
+        "guardian"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "guardian",
+          "skills/fluxos",
+          "núcleo/config"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: guardian",
+          "arquivos-alvo inferidos: skills/guardian/SKILL.md, scripts/guardian-audit.ts, guardian-audit.ts, SKILL.md",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=6, body=1361, módulos=3)",
+          "risco medium",
+          "6 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos",
+          "documentação"
+        ],
+        "operations": [
+          "refactor",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "high",
+        "prNumbers": [
+          606
+        ],
+        "filesChanged": 6,
+        "pathsSample": [
+          "scripts/guardian-audit.ts",
+          "scripts/skill-budget.json",
+          "scripts/tests/guardian-audit_test.ts",
+          "skills/guardian/SKILL.md",
+          "skills/guardian/references/database.md",
+          "wiki/Decisoes-de-Design.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": false,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "risco previsto=medium real=high"
+        ]
+      }
+    },
+    {
+      "number": 577,
+      "title": "spike(worktree): hook WorktreeCreate versus worktree nativo no Claude Code",
+      "state": "CLOSED",
+      "labels": [
+        "compat",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "compatibilidade",
+          "worktree",
+          "núcleo/config"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: worktree",
+          "arquivos-alvo inferidos: prepare-worktree.ts",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade medium (AC=3, body=859, módulos=1)",
+          "risco low",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          612
+        ],
+        "filesChanged": 1,
+        "pathsSample": [
+          "docs/investigations/worktree-create-hook.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "parcial",
+        "notes": [
+          "domínio previsto=compatibilidade|worktree|núcleo/config real=documentação",
+          "complexidade prevista=medium real=low"
+        ]
+      }
+    },
+    {
+      "number": 576,
+      "title": "enhancement(compat): campos opcionais de frontmatter por engine",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "compat"
+      ],
+      "predicted": {
+        "domains": [
+          "compatibilidade",
+          "compat"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: compat",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=5, body=1092, módulos=1)",
+          "risco low",
+          "5 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "cli/instalador",
+          "documentação"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          605
+        ],
+        "filesChanged": 4,
+        "pathsSample": [
+          "agents/issue-worker.md",
+          "cli/lib/installer/writer.js",
+          "cli/test/installer-writer.test.js",
+          "wiki/Contrato-de-Capacidades.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "domínio previsto=compatibilidade|compat real=agents|cli/instalador|documentação",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 575,
+      "title": "refactor(delegate): divide delegate-to-runtime por runtime",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "delegate",
+          "scripts/automação"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: delegate",
+          "arquivos-alvo inferidos: skills/shared/references/delegate-to-runtime.md, scripts/tests/delegate-to-runtime-contract_test.ts",
+          "requisitos: filesystem, git, terminal",
+          "complexidade high (AC=5, body=840, módulos=2)",
+          "risco medium",
+          "5 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos",
+          "documentação"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "high",
+        "prNumbers": [
+          601
+        ],
+        "filesChanged": 18,
+        "pathsSample": [
+          "scripts/skill-budget.json",
+          "skills/backlog/SKILL.md",
+          "skills/coordinator/SKILL.md",
+          "skills/fix/SKILL.md",
+          "skills/guardian/SKILL.md",
+          "skills/now/SKILL.md",
+          "skills/shared/references/delegate-alethe.md",
+          "skills/shared/references/delegate-runtime-codex.md",
+          "skills/shared/references/delegate-runtime-gemini.md",
+          "skills/shared/references/delegate-runtime-opencode.md",
+          "skills/shared/references/delegate-tasks.md",
+          "skills/shared/references/delegate-to-runtime.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": false,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "risco previsto=medium real=high"
+        ]
+      }
+    },
+    {
+      "number": 574,
+      "title": "refactor(skills): tira histórico de issues dos prompts",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "skills"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "medium",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: skills",
+          "requisitos: filesystem, git, terminal",
+          "complexidade medium (AC=3, body=617, módulos=1)",
+          "risco medium",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "skills/fluxos",
+          "documentação"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "high",
+        "prNumbers": [
+          607
+        ],
+        "filesChanged": 54,
+        "pathsSample": [
+          "agents/code-review.md",
+          "agents/issue-worker.md",
+          "agents/ship-worker.md",
+          "skills/architecture-review/SKILL.md",
+          "skills/backlog-ideator/SKILL.md",
+          "skills/backlog/SKILL.md",
+          "skills/coordinator/SKILL.md",
+          "skills/coordinator/references/delivery.md",
+          "skills/coordinator/references/goal.md",
+          "skills/coordinator/references/monitoring-escalation.md",
+          "skills/coordinator/references/orphan-prs.md",
+          "skills/coordinator/references/resume.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": true,
+        "overall": "parcial",
+        "notes": [
+          "complexidade prevista=medium real=high",
+          "risco previsto=medium real=high"
+        ]
+      }
+    },
+    {
+      "number": 573,
+      "title": "refactor(coordinator): separa núcleo e referências sob demanda",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "coordinator",
+          "núcleo/config",
+          "compat-opencode"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: coordinator",
+          "arquivos-alvo inferidos: skills/coordinator/SKILL.md, SKILL.md, opencode/agent/issue-coordinator.md",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=5, body=985, módulos=3)",
+          "risco medium",
+          "5 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          604
+        ],
+        "filesChanged": 15,
+        "pathsSample": [
+          "scripts/skill-budget.json",
+          "skills/coordinator/SKILL.md",
+          "skills/coordinator/references/delivery.md",
+          "skills/coordinator/references/external-dispatch.md",
+          "skills/coordinator/references/goal.md",
+          "skills/coordinator/references/monitoring-escalation.md",
+          "skills/coordinator/references/orphan-prs.md",
+          "skills/coordinator/references/resume.md",
+          "skills/coordinator/references/spec-gate.md",
+          "skills/coordinator/references/spike.md",
+          "skills/coordinator/references/test-commands.md",
+          "skills/coordinator/references/triage-labels.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 572,
+      "title": "perf(ship-worker): remove o preload da skill ship",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "ship-worker",
+          "agents"
+        ],
+        "operations": [
+          "perf",
+          "implement",
+          "optimize"
+        ],
+        "complexity": "high",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": false
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: perf",
+          "escopo no título: ship-worker",
+          "arquivos-alvo inferidos: agents/ship-worker.md",
+          "requisitos: filesystem, git, terminal, parallelism",
+          "complexidade high (AC=5, body=697, módulos=1)",
+          "risco low",
+          "5 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "perf",
+          "implement"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "medium",
+        "risk": "medium",
+        "prNumbers": [
+          598
+        ],
+        "filesChanged": 2,
+        "pathsSample": [
+          "agents/ship-worker.md",
+          "skills/shared/references/issue-coordinator-dispatch.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "complexidade prevista=high real=medium"
+        ]
+      }
+    },
+    {
+      "number": 571,
+      "title": "refactor(ship): remove modo legado e isola recuperação manual",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "ship",
+          "núcleo/config"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: ship",
+          "arquivos-alvo inferidos: skills/ship/SKILL.md, vetor-checks.sh, SKILL.md",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=5, body=1027, módulos=2)",
+          "risco medium",
+          "5 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "núcleo/config",
+          "agents",
+          "documentação",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "refactor",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          599
+        ],
+        "filesChanged": 13,
+        "pathsSample": [
+          "README.md",
+          "agents/ship-worker.md",
+          "docs/skill-budget-baseline.md",
+          "scripts/skill-budget.json",
+          "scripts/skill-budget.ts",
+          "scripts/tests/ship-flags_test.ts",
+          "scripts/tests/skill-budget_test.ts",
+          "scripts/vetor-checks.sh",
+          "skills/coordinator/SKILL.md",
+          "skills/shared/references/fast-merge-gate.md",
+          "skills/ship/SKILL.md",
+          "skills/ship/references/recuperacao.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 570,
+      "title": "enhancement(scripts): orçamento de tokens por skill no CI",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "scripts"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "scripts",
+          "núcleo/config"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: scripts",
+          "arquivos-alvo inferidos: SKILL.md",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=5, body=905, módulos=1)",
+          "risco low",
+          "5 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "núcleo/config",
+          "documentação",
+          "scripts/automação"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          596
+        ],
+        "filesChanged": 6,
+        "pathsSample": [
+          "deno.json",
+          "docs/skill-budget-baseline.md",
+          "scripts/skill-budget.json",
+          "scripts/skill-budget.ts",
+          "scripts/tests/skill-budget_test.ts",
+          "wiki/Desenvolvimento.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 569,
+      "title": "refactor(tests): testes de contrato validam comportamento, não texto",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "scripts"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "tests"
+        ],
+        "operations": [
+          "refactor",
+          "implement"
+        ],
+        "complexity": "medium",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": false
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: refactor",
+          "escopo no título: tests",
+          "requisitos: filesystem, git, terminal, parallelism",
+          "complexidade medium (AC=4, body=781, módulos=1)",
+          "risco medium",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação",
+          "compat-opencode",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "refactor",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "high",
+        "prNumbers": [
+          597
+        ],
+        "filesChanged": 36,
+        "pathsSample": [
+          "docs/contract-tests-classification.md",
+          "opencode/scripts/issue-coordinator_test.ts",
+          "scripts/tests/auto-ship-contract_test.ts",
+          "scripts/tests/backlog-labels-contract_test.ts",
+          "scripts/tests/code-review-smells_test.ts",
+          "scripts/tests/concurrent-preship-contract_test.ts",
+          "scripts/tests/coordinator-consolidated-interview-contract_test.ts",
+          "scripts/tests/coordinator-decision-inbox-contract_test.ts",
+          "scripts/tests/coordinator-footer-origin-contract_test.ts",
+          "scripts/tests/coordinator-goal-mode-contract_test.ts",
+          "scripts/tests/coordinator-graceful-ejection-contract_test.ts",
+          "scripts/tests/coordinator-native-dependencies-contract_test.ts"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "complexidade prevista=medium real=high",
+          "risco previsto=medium real=high",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 568,
+      "title": "docs(compat): contrato mínimo de capacidades dos harnesses",
+      "state": "CLOSED",
+      "labels": [
+        "documentation",
+        "compat"
+      ],
+      "predicted": {
+        "domains": [
+          "compatibilidade",
+          "compat",
+          "núcleo/config"
+        ],
+        "operations": [
+          "docs"
+        ],
+        "complexity": "medium",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: docs",
+          "escopo no título: compat",
+          "arquivos-alvo inferidos: implementation_plan.md",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=4, body=964, módulos=1)",
+          "risco medium",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos",
+          "documentação"
+        ],
+        "operations": [
+          "docs",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "high",
+        "prNumbers": [
+          595
+        ],
+        "filesChanged": 24,
+        "pathsSample": [
+          "scripts/tests/harness-capabilities-contract_test.ts",
+          "skills/architecture-review/SKILL.md",
+          "skills/backlog-ideator/SKILL.md",
+          "skills/backlog/SKILL.md",
+          "skills/coordinator/SKILL.md",
+          "skills/design/SKILL.md",
+          "skills/fix-loop-agent/SKILL.md",
+          "skills/fix/SKILL.md",
+          "skills/guardian/SKILL.md",
+          "skills/install/SKILL.md",
+          "skills/issue-coordinator/SKILL.md",
+          "skills/now/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": true,
+        "overall": "parcial",
+        "notes": [
+          "domínio previsto=compatibilidade|compat|núcleo/config real=scripts/automação|skills/fluxos|documentação",
+          "complexidade prevista=medium real=high",
+          "risco previsto=medium real=high"
+        ]
+      }
+    },
+    {
+      "number": 566,
+      "title": "enhancement(install,now): preparar permissões para fluxos autônomos (/auto-mode-setup, /fewer-permission-prompts, allowlist mínima)",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement"
+      ],
+      "predicted": {
+        "domains": [
+          "install",
+          "now",
+          "skills/fluxos",
+          "scripts/automação",
+          "núcleo/config"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: install,now",
+          "arquivos-alvo inferidos: skills/install/SKILL.md, skills/now/SKILL.md, scripts/now-probe.ts, .claude/settings.json",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=4, body=3252, módulos=3)",
+          "risco medium",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "high",
+        "prNumbers": [
+          603
+        ],
+        "filesChanged": 10,
+        "pathsSample": [
+          "docs/skill-budget-baseline.md",
+          "scripts/now-probe.ts",
+          "scripts/permissions-setup.ts",
+          "scripts/skill-budget.ts",
+          "scripts/tests/permissions-setup_test.ts",
+          "scripts/tests/skill-budget_test.ts",
+          "skills/install/SKILL.md",
+          "skills/now/SKILL.md",
+          "skills/shared/references/autonomous-permissions.md",
+          "wiki/Configuracao.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": false,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "risco previsto=medium real=high"
+        ]
+      }
+    },
+    {
+      "number": 565,
+      "title": "spike(coordinator): dispatch de workers em sessões na nuvem quando houver vantagem de crédito ou desempenho",
+      "state": "CLOSED",
+      "labels": [
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "coordinator",
+          "skills/fluxos",
+          "núcleo/config",
+          "documentação"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "high",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: coordinator",
+          "arquivos-alvo inferidos: skills/coordinator/SKILL.md, skills/shared/references/issue-coordinator-dispatch.md, skills/shared/references/delegate-to-runtime.md, .claude/vetor/config.json, docs/investigations/dispatch-na-nuvem.md",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=5, body=4315, módulos=3)",
+          "risco low",
+          "5 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          627
+        ],
+        "filesChanged": 1,
+        "pathsSample": [
+          "docs/investigations/dispatch-na-nuvem.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "complexidade prevista=high real=low"
+        ]
+      }
+    },
+    {
+      "number": 564,
+      "title": "spike(coordinator): repensar o teto de subagentes simultâneos",
+      "state": "CLOSED",
+      "labels": [
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "coordinator",
+          "skills/fluxos",
+          "documentação",
+          "núcleo/config",
+          "scripts/automação"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "high",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: coordinator",
+          "arquivos-alvo inferidos: skills/coordinator/SKILL.md, wiki/Decisoes-de-Design.md, .claude/vetor/config.json, scripts/detect-project.ts, skills/install/SKILL.md",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=4, body=4285, módulos=5)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "documentação"
+        ],
+        "operations": [
+          "spike",
+          "docs"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "low",
+        "risk": "low",
+        "prNumbers": [
+          626
+        ],
+        "filesChanged": 1,
+        "pathsSample": [
+          "docs/investigations/teto-de-workers.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "complexidade prevista=high real=low"
+        ]
+      }
+    },
+    {
+      "number": 563,
+      "title": "enhancement(safety): hook bloqueia git destrutivo citado como texto (aspas, heredoc, --body)",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement"
+      ],
+      "predicted": {
+        "domains": [
+          "safety",
+          "scripts/automação"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "medium",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: safety",
+          "arquivos-alvo inferidos: scripts/lib/safety-policy.ts, scripts/tests/safety-check_test.ts",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=3, body=2272, módulos=1)",
+          "risco medium",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "documentação"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "medium",
+        "risk": "high",
+        "prNumbers": [
+          594
+        ],
+        "filesChanged": 3,
+        "pathsSample": [
+          "scripts/lib/safety-policy.ts",
+          "scripts/tests/safety-check_test.ts",
+          "wiki/Hooks.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "risco previsto=medium real=high",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 562,
+      "title": "enhancement(coordinator): watchdog de workers parados e timeout ambíguo com espera por workers",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement"
+      ],
+      "predicted": {
+        "domains": [
+          "coordinator",
+          "skills/fluxos",
+          "núcleo/config"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": false
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: coordinator",
+          "arquivos-alvo inferidos: skills/coordinator/SKILL.md, skills/shared/references/issue-coordinator-monitoring.md, .claude/vetor/config.json",
+          "requisitos: filesystem, git, terminal, parallelism",
+          "complexidade medium (AC=3, body=1840, módulos=2)",
+          "risco low",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "cli/instalador",
+          "scripts/automação",
+          "skills/fluxos",
+          "documentação"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          593
+        ],
+        "filesChanged": 11,
+        "pathsSample": [
+          "cli/lib/installer/opencode-scripts.js",
+          "cli/test/installer-writer.test.js",
+          "cli/test/opencode-scripts.test.js",
+          "cli/test/sync-templates.test.js",
+          "scripts/stalled-workers.ts",
+          "scripts/tests/coordinator-watchdog-contract_test.ts",
+          "scripts/tests/stalled-workers_test.ts",
+          "scripts/vetor-checks.sh",
+          "skills/coordinator/SKILL.md",
+          "skills/shared/references/issue-coordinator-monitoring.md",
+          "wiki/Configuracao.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "complexidade prevista=medium real=high",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 561,
+      "title": "docs(coordinator): gate de Spec contraditório para enhancement com critério de aceite",
+      "state": "CLOSED",
+      "labels": [
+        "documentation"
+      ],
+      "predicted": {
+        "domains": [
+          "coordinator",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "docs"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: docs",
+          "escopo no título: coordinator",
+          "arquivos-alvo inferidos: skills/coordinator/SKILL.md",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade medium (AC=3, body=1245, módulos=1)",
+          "risco low",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos",
+          "documentação"
+        ],
+        "operations": [
+          "docs",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          590
+        ],
+        "filesChanged": 3,
+        "pathsSample": [
+          "scripts/tests/coordinator-spec-gate-contract_test.ts",
+          "skills/coordinator/SKILL.md",
+          "wiki/Arquitetura.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "complexidade prevista=medium real=high"
+        ]
+      }
+    },
+    {
+      "number": 560,
+      "title": "enhancement(coordinator): pedir autorização de merge na aprovação do plano (classificador do auto mode)",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement"
+      ],
+      "predicted": {
+        "domains": [
+          "coordinator",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "medium",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: coordinator",
+          "arquivos-alvo inferidos: skills/coordinator/SKILL.md",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade medium (AC=3, body=1537, módulos=1)",
+          "risco medium",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "medium",
+        "risk": "medium",
+        "prNumbers": [
+          591
+        ],
+        "filesChanged": 2,
+        "pathsSample": [
+          "scripts/tests/coordinator-consolidated-interview-contract_test.ts",
+          "skills/coordinator/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 559,
+      "title": "fix(worker,coordinator): worker termina sem status terminal e o coordinator não reconcilia",
+      "state": "CLOSED",
+      "labels": [
+        "bug"
+      ],
+      "predicted": {
+        "domains": [
+          "worker",
+          "coordinator",
+          "agents",
+          "skills/fluxos",
+          "núcleo/config"
+        ],
+        "operations": [
+          "fix"
+        ],
+        "complexity": "high",
+        "risk": "high",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: fix",
+          "escopo no título: worker,coordinator",
+          "arquivos-alvo inferidos: agents/issue-worker.md, skills/coordinator/SKILL.md, skills/shared/references/issue-coordinator-monitoring.md, .claude/vetor/status/feat-543-ship-deterministico.md",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=3, body=1929, módulos=3)",
+          "risco high",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "cli/instalador",
+          "compat-opencode",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "fix",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          592
+        ],
+        "filesChanged": 13,
+        "pathsSample": [
+          "agents/issue-worker.md",
+          "cli/lib/installer/opencode-scripts.js",
+          "cli/test/installer-writer.test.js",
+          "cli/test/opencode-scripts.test.js",
+          "cli/test/sync-templates.test.js",
+          "opencode/agent/issue-worker.md",
+          "scripts/check-status.ts",
+          "scripts/lib/status.ts",
+          "scripts/tests/check-status_test.ts",
+          "scripts/tests/worker-terminal-status-contract_test.ts",
+          "scripts/vetor-checks.sh",
+          "skills/coordinator/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": false,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "risco previsto=high real=medium"
+        ]
+      }
+    },
+    {
+      "number": 558,
+      "title": "spike(ship): heurística determinística de falha transitória a partir do texto do erro",
+      "state": "CLOSED",
+      "labels": [
+        "ai-generated",
+        "backlog",
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "backlog",
+          "scripts/automação",
+          "ship",
+          "skills/fluxos",
+          "núcleo/config"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "high",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.9,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "targetFiles": 0.3
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: ship",
+          "arquivos-alvo inferidos: scripts/lib/decision-adapter/baseline.ts, scripts/detect-infra-failure.ts, skills/ship/SKILL.md, detect-infra-failure.ts, detect-transient-failure.ts",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=0, body=1445, módulos=3)",
+          "risco low",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 557,
+      "title": "spike(decision-adapter): dataset de falhas reais rotulado pelo desfecho, para o benchmark",
+      "state": "CLOSED",
+      "labels": [
+        "ai-generated",
+        "backlog",
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "backlog",
+          "scripts/automação",
+          "decision-adapter",
+          "skills/fluxos",
+          "núcleo/config",
+          "documentação"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "high",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.9,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "targetFiles": 0.3
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: decision-adapter",
+          "arquivos-alvo inferidos: scripts/tests/fixtures/decision-adapter/scenarios.json, scripts/decision-bench.ts, skills/fix/SKILL.md, skills/ship/SKILL.md, scenarios-real.json",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=0, body=1370, módulos=4)",
+          "risco low",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 556,
+      "title": "spike(decision-adapter): avaliar nimble/clef em hardware adequado contra a baseline determinística",
+      "state": "OPEN",
+      "labels": [
+        "ai-generated",
+        "backlog",
+        "scripts",
+        "spike"
+      ],
+      "predicted": {
+        "domains": [
+          "backlog",
+          "scripts/automação",
+          "decision-adapter",
+          "documentação"
+        ],
+        "operations": [
+          "spike"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.9,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.5,
+          "titleScope": 0.2,
+          "targetFiles": 0.3
+        },
+        "rationale": [
+          "prefixo de título: spike",
+          "escopo no título: decision-adapter",
+          "arquivos-alvo inferidos: scripts/decision-bench.ts, docs/investigations/decision-adapter.md",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade medium (AC=0, body=2026, módulos=2)",
+          "risco low",
+          "confiança alta"
+        ]
+      },
+      "comparison": {
+        "domainOk": false,
+        "operationOk": false,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "sem-pr",
+        "notes": [
+          "sem PR associado para comparação"
+        ]
+      }
+    },
+    {
+      "number": 547,
+      "title": "fix(safety): git -C/-c, sh -c e nova linha contornam o bloqueio de git destrutivo",
+      "state": "CLOSED",
+      "labels": [
+        "bug",
+        "hooks"
+      ],
+      "predicted": {
+        "domains": [
+          "hooks/segurança",
+          "safety",
+          "scripts/automação"
+        ],
+        "operations": [
+          "fix"
+        ],
+        "complexity": "medium",
+        "risk": "high",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: fix",
+          "escopo no título: safety",
+          "arquivos-alvo inferidos: scripts/lib/safety-policy.ts, scripts/safety-check.ts, scripts/tests/safety-check_test.ts",
+          "requisitos: filesystem, git, terminal",
+          "complexidade medium (AC=4, body=2004, módulos=1)",
+          "risco high",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação"
+        ],
+        "operations": [
+          "fix",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "medium",
+        "risk": "high",
+        "prNumbers": [
+          549
+        ],
+        "filesChanged": 4,
+        "pathsSample": [
+          "scripts/lib/safety-policy.ts",
+          "scripts/safety-check.ts",
+          "scripts/tests/safety-check_test.ts",
+          "scripts/tests/safety-policy_test.ts"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 546,
+      "title": "fix(release): version do plugin.json não muda entre releases e /vetor:now não avisa atualização",
+      "state": "CLOSED",
+      "labels": [
+        "bug",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "release",
+          "núcleo/config",
+          "scripts/automação",
+          "agents"
+        ],
+        "operations": [
+          "fix"
+        ],
+        "complexity": "high",
+        "risk": "high",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: fix",
+          "escopo no título: release",
+          "arquivos-alvo inferidos: .claude-plugin/plugin.json, skills/now/SKILL.md, scripts/now-probe.ts, agents/ship-worker.md, scripts/repo-map.ts",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=3, body=1869, módulos=4)",
+          "risco high",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "núcleo/config",
+          "scripts/automação",
+          "skills/fluxos",
+          "documentação"
+        ],
+        "operations": [
+          "fix",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          548
+        ],
+        "filesChanged": 8,
+        "pathsSample": [
+          ".claude-plugin/plugin.json",
+          ".codex-plugin/plugin.json",
+          ".cursor-plugin/plugin.json",
+          "plugin.json",
+          "scripts/now-probe.ts",
+          "scripts/tests/now-probe_test.ts",
+          "skills/now/SKILL.md",
+          "wiki/Desenvolvimento.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "risco previsto=high real=medium",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 545,
+      "title": "enhancement(coordinator): gerar o prompt dos subagentes com dispatch-prompt.ts",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "scripts"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "coordinator",
+          "skills/fluxos",
+          "núcleo/config"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: coordinator",
+          "arquivos-alvo inferidos: skills/coordinator/SKILL.md, skills/shared/references/issue-coordinator-dispatch.md, scripts/dispatch-prompt.ts, issue-coordinator-dispatch.md, context-packet.ts",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=3, body=1818, módulos=3)",
+          "risco medium",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "núcleo/config",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          551
+        ],
+        "filesChanged": 14,
+        "pathsSample": [
+          "deno.json",
+          "scripts/context-packet.ts",
+          "scripts/dispatch-prompt.ts",
+          "scripts/lib/orchestrator/dispatch-prompt.ts",
+          "scripts/tests/dispatch-prompt_test.ts",
+          "scripts/tests/fixtures/dispatch-prompt/fix.md",
+          "scripts/tests/fixtures/dispatch-prompt/review.md",
+          "scripts/tests/fixtures/dispatch-prompt/ship.md",
+          "scripts/tests/fixtures/dispatch-prompt/worker-micro-spec.md",
+          "scripts/tests/fixtures/dispatch-prompt/worker-sequencial.md",
+          "scripts/tests/fixtures/dispatch-prompt/worker-simples.md",
+          "scripts/tests/fixtures/dispatch-prompt/worker-spike.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 544,
+      "title": "fix(tests): suíte nunca verde localmente (testes dependentes de ambiente) e deno fmt --check quebrado",
+      "state": "CLOSED",
+      "labels": [
+        "bug",
+        "scripts"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "tests",
+          "compat-opencode",
+          "núcleo/config"
+        ],
+        "operations": [
+          "fix"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": false
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: fix",
+          "escopo no título: tests",
+          "arquivos-alvo inferidos: opencode/scripts/agent-registration_test.ts, scripts/tests/opencode-install_test.ts, scripts/tests/session-check-sh_test.ts, session-check.sh, deno.json",
+          "requisitos: filesystem, git, terminal, parallelism",
+          "complexidade high (AC=4, body=2220, módulos=3)",
+          "risco medium",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "ci/infra",
+          "núcleo/config",
+          "compat-opencode",
+          "scripts/automação"
+        ],
+        "operations": [
+          "fix",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          554
+        ],
+        "filesChanged": 6,
+        "pathsSample": [
+          ".github/workflows/ci.yml",
+          "deno.json",
+          "opencode/scripts/agent-registration_test.ts",
+          "scripts/tests/helpers/opencode-probe.ts",
+          "scripts/tests/opencode-install_test.ts",
+          "scripts/tests/session-check-sh_test.ts"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    },
+    {
+      "number": 543,
+      "title": "enhancement(ship): prepare e finalize determinísticos em vetor-checks.sh, sem subagente",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "scripts"
+      ],
+      "predicted": {
+        "domains": [
+          "scripts/automação",
+          "ship",
+          "skills/fluxos",
+          "agents",
+          "núcleo/config"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": false
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: ship",
+          "arquivos-alvo inferidos: scripts/vetor-checks.sh, skills/ship/SKILL.md, skills/coordinator/SKILL.md, agents/ship-worker.md, vetor-merge.sh",
+          "requisitos: filesystem, git, terminal, parallelism",
+          "complexidade high (AC=4, body=2165, módulos=4)",
+          "risco medium",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          552
+        ],
+        "filesChanged": 9,
+        "pathsSample": [
+          "agents/issue-worker.md",
+          "agents/ship-worker.md",
+          "scripts/tests/ship-deterministic-contract_test.ts",
+          "scripts/tests/ship-prepare-finalize_test.ts",
+          "scripts/vetor-checks.sh",
+          "skills/coordinator/SKILL.md",
+          "skills/fix/SKILL.md",
+          "skills/shared/references/agent-status.template.md",
+          "skills/ship/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": false,
+        "overall": "acerto",
+        "notes": [
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 542,
+      "title": "enhancement(ship): pular a suíte no --prepare quando o SHA já foi testado no GREEN",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "ship",
+          "agents"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "medium",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": false
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: ship",
+          "arquivos-alvo inferidos: skills/fix/SKILL.md, agents/issue-worker.md, skills/ship/SKILL.md, skills/shared/references/agent-status.template.md",
+          "requisitos: filesystem, git, terminal, parallelism",
+          "complexidade medium (AC=4, body=1644, módulos=2)",
+          "risco low",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          552
+        ],
+        "filesChanged": 9,
+        "pathsSample": [
+          "agents/issue-worker.md",
+          "agents/ship-worker.md",
+          "scripts/tests/ship-deterministic-contract_test.ts",
+          "scripts/tests/ship-prepare-finalize_test.ts",
+          "scripts/vetor-checks.sh",
+          "skills/coordinator/SKILL.md",
+          "skills/fix/SKILL.md",
+          "skills/shared/references/agent-status.template.md",
+          "skills/ship/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "complexidade prevista=medium real=high",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 541,
+      "title": "enhancement(coordinator): revisar o diff local antes do push, não depois do PR",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement",
+        "skills"
+      ],
+      "predicted": {
+        "domains": [
+          "skills/fluxos",
+          "coordinator",
+          "agents"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "medium",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: coordinator",
+          "arquivos-alvo inferidos: skills/coordinator/SKILL.md, skills/ship/SKILL.md, agents/code-review.md",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=4, body=1929, módulos=2)",
+          "risco medium",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          553
+        ],
+        "filesChanged": 6,
+        "pathsSample": [
+          "agents/code-review.md",
+          "scripts/tests/ship-deterministic-contract_test.ts",
+          "scripts/tests/vetor-checks_test.ts",
+          "scripts/vetor-checks.sh",
+          "skills/coordinator/SKILL.md",
+          "skills/ship/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "complexidade prevista=medium real=high",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 540,
+      "title": "fix(worker): status file no root recusado em worktree isolado deixa workers parados",
+      "state": "CLOSED",
+      "labels": [
+        "bug",
+        "hooks"
+      ],
+      "predicted": {
+        "domains": [
+          "hooks/segurança",
+          "worker",
+          "agents",
+          "skills/fluxos",
+          "scripts/automação",
+          "núcleo/config"
+        ],
+        "operations": [
+          "fix"
+        ],
+        "complexity": "high",
+        "risk": "high",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 1,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "label": 0.25,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: fix",
+          "escopo no título: worker",
+          "arquivos-alvo inferidos: agents/issue-worker.md, skills/shared/references/issue-coordinator-dispatch.md, scripts/vetor-status.sh, skills/install/SKILL.md, .claude/vetor-status.md",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=4, body=2805, módulos=4)",
+          "risco high",
+          "4 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "fix",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "medium",
+        "prNumbers": [
+          550
+        ],
+        "filesChanged": 6,
+        "pathsSample": [
+          "agents/issue-worker.md",
+          "scripts/tests/vetor-status_test.ts",
+          "scripts/vetor-status.sh",
+          "skills/shared/references/agent-status.template.md",
+          "skills/shared/references/issue-coordinator-dispatch.md",
+          "skills/shared/references/issue-coordinator-monitoring.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "risco previsto=high real=medium",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 535,
+      "title": "fix(safety): hook deixa passar git checkout -- . e git restore .",
+      "state": "CLOSED",
+      "labels": [
+        "bug"
+      ],
+      "predicted": {
+        "domains": [
+          "safety",
+          "scripts/automação"
+        ],
+        "operations": [
+          "fix"
+        ],
+        "complexity": "medium",
+        "risk": "high",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": false
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: fix",
+          "escopo no título: safety",
+          "arquivos-alvo inferidos: scripts/safety-check.ts",
+          "requisitos: filesystem, git, terminal, parallelism",
+          "complexidade medium (AC=3, body=1460, módulos=1)",
+          "risco high",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação"
+        ],
+        "operations": [
+          "fix",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "low",
+        "risk": "high",
+        "prNumbers": [
+          536
+        ],
+        "filesChanged": 2,
+        "pathsSample": [
+          "scripts/lib/safety-policy.ts",
+          "scripts/tests/safety-check_test.ts"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": [
+          "complexidade prevista=medium real=low"
+        ]
+      }
+    },
+    {
+      "number": 534,
+      "title": "enhancement(context-packet): omitir Repo Map quando os arquivos-alvo não são código",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement"
+      ],
+      "predicted": {
+        "domains": [
+          "context-packet",
+          "scripts/automação",
+          "skills/fluxos",
+          "núcleo/config"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "high",
+        "risk": "low",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: context-packet",
+          "arquivos-alvo inferidos: scripts/context-packet.ts, skills/shared/references/issue-coordinator-dispatch.md, knowledge.ts, spec-quality.ts, design-mode.ts",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade high (AC=3, body=1662, módulos=3)",
+          "risco low",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "medium",
+        "risk": "medium",
+        "prNumbers": [
+          538
+        ],
+        "filesChanged": 4,
+        "pathsSample": [
+          "scripts/context-packet.ts",
+          "scripts/repo-map.ts",
+          "scripts/tests/context-packet_test.ts",
+          "skills/shared/references/issue-coordinator-dispatch.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": true,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "complexidade prevista=high real=medium",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 533,
+      "title": "enhancement(agents): ship-worker sem Write para gravar o corpo do PR",
+      "state": "CLOSED",
+      "labels": [
+        "enhancement"
+      ],
+      "predicted": {
+        "domains": [
+          "agents",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement"
+        ],
+        "complexity": "medium",
+        "risk": "medium",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": true,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: enhancement",
+          "escopo no título: agents",
+          "arquivos-alvo inferidos: agents/ship-worker.md, skills/ship/SKILL.md",
+          "requisitos: filesystem, git, terminal, parallelism, longContext",
+          "complexidade medium (AC=2, body=1529, módulos=2)",
+          "risco medium",
+          "2 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "enhancement",
+          "implement",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "high",
+        "prNumbers": [
+          539
+        ],
+        "filesChanged": 8,
+        "pathsSample": [
+          "agents/code-review.md",
+          "agents/ship-worker.md",
+          "scripts/tests/gh-body-file-contract_test.ts",
+          "scripts/tests/ship-worker-allowlist_test.ts",
+          "scripts/tests/ship-worker-contract_test.ts",
+          "skills/guardian/SKILL.md",
+          "skills/shared/references/delegate-to-runtime.md",
+          "skills/ship/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": false,
+        "riskOk": false,
+        "requirementsOk": false,
+        "overall": "parcial",
+        "notes": [
+          "complexidade prevista=medium real=high",
+          "risco previsto=medium real=high",
+          "requisitos divergiram"
+        ]
+      }
+    },
+    {
+      "number": 532,
+      "title": "fix(skills): gh pr comment --body inline continua no ship e no guardian",
+      "state": "CLOSED",
+      "labels": [
+        "bug"
+      ],
+      "predicted": {
+        "domains": [
+          "skills",
+          "skills/fluxos",
+          "scripts/automação",
+          "núcleo/config"
+        ],
+        "operations": [
+          "fix"
+        ],
+        "complexity": "high",
+        "risk": "high",
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": true
+        },
+        "confidence": 0.8,
+        "confidenceSignals": {
+          "titlePrefix": 1,
+          "titleScope": 0.2,
+          "targetFiles": 0.3,
+          "acceptanceCriteria": 0.1
+        },
+        "rationale": [
+          "prefixo de título: fix",
+          "escopo no título: skills",
+          "arquivos-alvo inferidos: skills/ship/SKILL.md, skills/guardian/SKILL.md, scripts/tests/gh-body-file-contract_test.ts, gh-body-file-contract_test.ts",
+          "requisitos: filesystem, git, terminal, longContext",
+          "complexidade high (AC=3, body=1630, módulos=3)",
+          "risco high",
+          "3 critérios de aceite",
+          "confiança alta"
+        ]
+      },
+      "actual": {
+        "domains": [
+          "agents",
+          "scripts/automação",
+          "skills/fluxos"
+        ],
+        "operations": [
+          "fix",
+          "test"
+        ],
+        "requirements": {
+          "filesystem": true,
+          "git": true,
+          "terminal": true,
+          "browser": false,
+          "parallelism": false,
+          "longContext": false
+        },
+        "complexity": "high",
+        "risk": "high",
+        "prNumbers": [
+          539
+        ],
+        "filesChanged": 8,
+        "pathsSample": [
+          "agents/code-review.md",
+          "agents/ship-worker.md",
+          "scripts/tests/gh-body-file-contract_test.ts",
+          "scripts/tests/ship-worker-allowlist_test.ts",
+          "scripts/tests/ship-worker-contract_test.ts",
+          "skills/guardian/SKILL.md",
+          "skills/shared/references/delegate-to-runtime.md",
+          "skills/ship/SKILL.md"
+        ]
+      },
+      "comparison": {
+        "domainOk": true,
+        "operationOk": true,
+        "complexityOk": true,
+        "riskOk": true,
+        "requirementsOk": true,
+        "overall": "acerto",
+        "notes": []
+      }
+    }
+  ]
+}
