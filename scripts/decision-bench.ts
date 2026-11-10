@@ -3,6 +3,7 @@
 //
 // Uso: deno run --allow-read --allow-net=localhost:11434 scripts/decision-bench.ts \
 //        [--model <nome>] [--endpoint <url>] [--runs <N>] [--timeout <ms>] [--json]
+//        [--fixture <path>]   (padrão: os cenários sintéticos; ex.: scenarios-real.json, #557)
 //
 // Sem `--model` só a baseline roda (nenhuma conexão). A baseline aplica as mesmas regras que as
 // skills fix/ship descrevem em prosa, então também representa o comportamento original do Vetor.
@@ -53,8 +54,8 @@ export interface BenchReport {
   outcomes: ScenarioOutcome[];
 }
 
-export function loadScenarios(): Scenario[] {
-  const raw = JSON.parse(Deno.readTextFileSync(FIXTURE)) as { scenarios: unknown[] };
+export function loadScenarios(fixture: string | URL = FIXTURE): Scenario[] {
+  const raw = JSON.parse(Deno.readTextFileSync(fixture)) as { scenarios: unknown[] };
   return raw.scenarios.map((s) => {
     const entry = s as Scenario;
     const parsed = parseFailureContext(entry.context);
@@ -176,7 +177,7 @@ async function main() {
     };
     provider = new OllamaDecisionProvider(endpoint, model);
   }
-  const report = await runBench(loadScenarios(), {
+  const report = await runBench(loadScenarios(flag(args, "--fixture") ?? FIXTURE), {
     config,
     provider,
     runs: Number(flag(args, "--runs") ?? 1),
