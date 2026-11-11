@@ -3,10 +3,9 @@
 **Issue:** #622 — spike(execution): modelo de autorização, sensibilidade de dados e fallback no
 roteamento\
 **Data:** 2026-11-10\
-**Base:** `master` em `5f96ed9`\
-**Contexto:** ADR-002 (`docs/adr/ADR-002-capability-based-execution-routing.md`, ainda não
-commitada; lida para referência, sem copiar nem commitar), ADR-001
-(`docs/adr/ADR-001-runtime-independence.md`), relatórios já mergeados:
+**Base:** `master` em `0e2b39a`\
+**Contexto:** ADR-002 (`docs/adr/ADR-002-capability-based-execution-routing.md` no `master`, PR
+#633), ADR-001 (`docs/adr/ADR-001-runtime-independence.md`), relatórios já mergeados:
 `docs/investigations/runtime-boundary.md` (#586),
 `docs/investigations/orchestrator-adapter-contract.md` (#587), `docs/investigations/orca-adapter.md`
 (#588), `docs/investigations/teto-de-workers.md` (#564), `docs/investigations/dispatch-na-nuvem.md`
@@ -41,7 +40,7 @@ spike:
 - **[Fato]** O repositório já possui dois mecanismos de controle de seleção que formam a base da
   autorização: a preferência explícita via MCP (`scripts/lib/delegation-runtime.ts:43-49`) e o
   princípio "nenhuma escolha silenciosa", implementado em três pontos do código
-  (`delegation-runtime.ts:52-57`, `70-71` e `90-92`). Nunca se escolhe um executor sem consentimento
+  (`delegation-runtime.ts:51-60`, `62-76` e `85-96`). Nunca se escolhe um executor sem consentimento
   do usuário.
 - **[Fato]** O `TaskProfile` proposto em #620 (`docs/investigations/metadados-para-classificacao.md`
   §5) já carrega `constraints.dataSensitivity` como campo opcional. O `safety-policy.ts` trata hoje
@@ -82,8 +81,9 @@ de autorização de runtime de delegação. O arquivo `config.json` lido em 2026
 sessão).
 
 **[Fato]** O `OrchestratorRegistry` (`scripts/lib/orchestrator/registry.ts`) usa o campo
-`OrchestratorConfig.preferred` (tipo `types.ts:169`) e aplica o mesmo princípio: seleção só por
-preferência configurada (`runtime-boundary.md` §3.3; `orchestrator-adapter-contract.md` §3.1).
+`OrchestratorConfig.preferred` (tipo `scripts/lib/orchestrator/types.ts:169`) e aplica o mesmo
+princípio: seleção só por preferência configurada (`runtime-boundary.md` §3.3;
+`orchestrator-adapter-contract.md` §3.1).
 
 ### 3.2 `dataSensitivity` e sua ligação a provedores
 
@@ -121,7 +121,7 @@ Orca reusa a Task (`--task <id> --retry-of <dispatchId>`), com disjuntor após 3
 (`orca-adapter.md` §4.1).
 
 **[Fato]** O `permissions-setup.ts` define regras mínimas de allowlist que nunca incluem merge, push
-nem comandos destrutivos (`permissions-setup.ts:17-25`).
+nem comandos destrutivos (`scripts/permissions-setup.ts:15-25`).
 
 **[Inferência]** O loop de retry pode ocorrer se: (a) o executor falha, (b) o Execution Planner
 retenta num executor diferente sem verificar se ele satisfaz as restrições, e (c) o novo executor
@@ -138,7 +138,7 @@ sessão").
 
 **[Fato]** A issue #603 trouxe `permissions-setup.ts` com allowlist mínima para fluxos autônomos
 (`teto-de-workers.md` §3.5). O modo `auto` é detectado por `autoMode.environment` em
-`~/.claude/settings.json` (`permissions-setup.ts:95-107`).
+`~/.claude/settings.json` (`scripts/permissions-setup.ts:85-94`, `96-112`).
 
 **[Fato]** A issue #565 define o modo `--headless` como contexto sem humano para aprovar permissões,
 em que workers que pedem permissão são suspensos (Fase 5.b do coordinator). A issue #564 recomenda
@@ -176,7 +176,7 @@ chave `execution.authorizedProviders`, por três razões:
 2. É versionado por repositório: a política de autorização acompanha o código e pode ser revisada no
    mesmo PR.
 3. Pode ser sobrescrito por `settings.local.json` para uso local sem commit, seguindo o mesmo padrão
-   do Claude Code (`permissions-setup.ts:93-96`).
+   do Claude Code (`scripts/permissions-setup.ts:97-100`).
 
 **Nota de terminologia:** a ADR-002 §8 usa "authorized harnesses". O campo proposto é
 `authorizedProviders` em vez de `authorizedHarnesses` porque o Vetor delega para dois tipos de
@@ -215,7 +215,8 @@ executor não listado recebe contexto.
 **[Fato/Inferência]** Quem configura: o mantenedor do repositório, em `config.json` versionado. O
 usuário pode adicionar entradas via `.claude/settings.local.json` (não commitado). Uma política de
 organização (nível de usuário em `~/.claude/settings.json`) pode ser consultada como camada
-adicional, seguindo a precedência já documentada para o Claude Code (`permissions-setup.ts:88-96`).
+adicional, seguindo a precedência já documentada para o Claude Code
+(`scripts/permissions-setup.ts:97-102`).
 
 ### 4.2 Pergunta 2 — `dataSensitivity` e ligação a provedores
 
