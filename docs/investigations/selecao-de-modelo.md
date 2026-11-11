@@ -3,14 +3,13 @@
 **Issue:** #621 — spike(execution): interação entre seleção de modelo e seleção de harness\
 **Data:** 2026-11-10\
 **Base:** `master` em `5f96ed9`\
-**Contexto:** ADR-002 (`docs/adr/ADR-002-capability-based-execution-routing.md`, ainda não
-commitada), Fase 0, objetivo 5; questão aberta 5; ADR-001
-(`docs/adr/ADR-001-runtime-independence.md`); matriz de capacidades da #568
-(`skills/shared/references/harness-capabilities.md`, `wiki/Contrato-de-Capacidades.md`); relatórios
-anteriores `docs/investigations/runtime-boundary.md` (#586),
-`docs/investigations/orchestrator-adapter-contract.md` (#587), `docs/investigations/orca-adapter.md`
-(#588), `docs/investigations/descoberta-de-capacidades.md` (#618),
-`docs/investigations/metadados-para-classificacao.md` (#620); proposta
+**Contexto:** ADR-002 (`docs/adr/ADR-002-capability-based-execution-routing.md`, no `master`), Fase
+0, objetivo 5; questão aberta 5; ADR-001 (`docs/adr/ADR-001-runtime-independence.md`); matriz de
+capacidades da #568 (`skills/shared/references/harness-capabilities.md`,
+`wiki/Contrato-de-Capacidades.md`); relatórios anteriores `docs/investigations/runtime-boundary.md`
+(#586), `docs/investigations/orchestrator-adapter-contract.md` (#587),
+`docs/investigations/orca-adapter.md` (#588), `docs/investigations/descoberta-de-capacidades.md`
+(#618), `docs/investigations/metadados-para-classificacao.md` (#620); proposta
 `docs/proposals/model-tier-strategy.md` (#337).
 
 **Rótulos:** **[Fato]** verificado na fonte citada ou em comando registrado · **[Inferência]**
@@ -20,7 +19,10 @@ conclusão derivada dos fatos · **[Opinião]** juízo técnico.
 
 ## 1. Pergunta
 
-A issue #621 traz quatro perguntas:
+A issue #621 traz quatro perguntas. A ADR-002 §13 questão 5 enuncia a primeira com precisão: "Should
+model routing be exposed as a separate planner or remain entirely within harness integrations?"
+(ADR-002 §13 Q5). A Fase 0 objetivo 5 enuncia o escopo do spike: "Evaluate how model selection
+interacts with harness selection" (ADR-002 §10 Fase 0 objetivo 5).
 
 1. A seleção de modelo deve ser um planner separado ou ficar dentro das integrações de cada harness?
 2. Como a escalação de tier por harness (#337) e a saúde de modelo existentes se conectam ao planner
@@ -47,24 +49,104 @@ A issue #621 traz quatro perguntas:
   `scripts/lib/orchestrator/registry.ts:68-98`) e o de delegação a CLI (`selectDelegationRuntime`,
   `scripts/lib/delegation-runtime.ts:38-60`) só operam por **preferência explícita** do usuário;
   nunca escolhem automaticamente. Nenhum dos dois conhece modelos ou saúde de modelo.
-- **[Fato]** O `TaskProfile` proposto em #620
-  (`docs/investigations/metadados-para-classificacao.md`, §5) inclui os campos `complexity` e `risk`
-  mas não inclui `modelTier` nem nenhuma referência a modelo: a seleção de modelo não está prevista
-  no perfil de tarefa.
+- **[Fato]** O `TaskProfile` conceitual da ADR-002 §4.3 não inclui `modelTier` nem
+  `modelConstraints`. O `TaskProfile` refinado proposto em #620
+  (`docs/investigations/metadados-para-classificacao.md`, §5) também não inclui campo de modelo. A
+  seleção de modelo não está no perfil de tarefa por design.
+- **[Fato]** A ADR-002 §4.2 estabelece explicitamente: "Model information must remain distinct from
+  harness capabilities. A harness may support multiple models, and model availability must not be
+  confused with execution capabilities." O `HarnessDescriptor` proposto em ADR-002 §4.2 inclui
+  `models?: ModelDescriptor[]` como campo **opcional**, separado de `capabilities`.
+- **[Fato]** A ADR-002 §12 descartou "Routing Based Exclusively on Model Selection" como alternativa
+  rejeitada: "model quality does not determine harness execution capabilities. A model may be
+  excellent at a task but unavailable in a harness with the required tools or execution behavior."
 - **[Inferência]** Os mecanismos de saúde e de tier de modelo são internos ao harness (OpenCode)
   porque o modelo é uma escolha de execução daquele harness — o Vetor não controla o modelo dos
   outros harnesses, apenas declara a intenção (`simple`/`complex`) e cabe ao harness mapeá-la para o
   seu formato nativo.
-- **[Opinião]** A seleção de modelo deve ser tratada como um **componente separado** chamado por
-  cada adapter de harness — não embutida no planner de harness nem no `TaskProfile`. Isso preserva o
-  princípio da ADR-001 §6.4 (independência de runtime vs. de harness) e da ADR-002 (informação de
-  modelo separada das capacidades do harness).
+- **[Opinião]** A seleção de modelo deve permanecer **dentro das integrações de cada harness** (não
+  num planner central), com cada adapter implementando seu próprio `ModelSelector`. Isso é
+  consistente com a ADR-002 §4.2 (separação de `models` do descritor de capacidades), §13 Q5 e §12
+  Alternativa B rejeitada. O mecanismo existente no OpenCode já segue esse padrão.
 
 ---
 
 ## 3. Evidências
 
-### 3.1 Mecanismos existentes de seleção e saúde de modelo
+### 3.1 ADR-002: separação de modelo e capacidade de harness
+
+**[Fato]** A ADR-002 §4.2 define o `HarnessDescriptor` com campo `models?: ModelDescriptor[]`
+separado de `capabilities`:
+
+```ts
+// ADR-002 §4.2 (trecho ilustrativo)
+interface HarnessDescriptor {
+  id: string;
+  version?: string;
+  capabilities: {
+    domains: string[];
+    operations: string[];
+    tools: { terminal: boolean; filesystem: boolean; browser: boolean; git: boolean; mcp: boolean };
+    execution: {
+      parallel: boolean;
+      background: boolean;
+      resumable: boolean;
+      isolatedWorktree: boolean;
+    };
+  };
+  models?: ModelDescriptor[]; // campo opcional, fora de capabilities
+  constraints: { maxContext?: number; requiresApproval: boolean; networkAccess?: boolean };
+}
+```
+
+**[Fato]** A ADR-002 §4.2 anota: "Model information must remain distinct from harness capabilities.
+A harness may support multiple models, and model availability must not be confused with execution
+capabilities."
+
+**[Fato]** A ADR-002 §4.3 define o `TaskProfile` conceitual sem campo de modelo:
+
+```ts
+// ADR-002 §4.3 (trecho ilustrativo)
+interface TaskProfile {
+  domains: string[];
+  operations: string[];
+  complexity: "low" | "medium" | "high";
+  risk: "low" | "medium" | "high";
+  requirements: {
+    filesystem?: boolean;
+    terminal?: boolean;
+    browser?: boolean;
+    git?: boolean;
+    parallelism?: boolean;
+    longContext?: boolean;
+  };
+  constraints: {
+    budget?: number;
+    maxDurationMs?: number;
+    dataSensitivity?: "public" | "private" | "sensitive";
+  };
+}
+```
+
+**[Fato]** A ADR-002 §4.4 define o papel do `Execution Planner`: "Receive a TaskProfile. Retrieve
+available harness descriptors. Eliminate executors that do not satisfy mandatory requirements. …
+Produce an execution plan with a primary executor and optional fallback candidates." Nenhuma dessas
+etapas menciona modelos — o planner opera sobre `HarnessDescriptor`, não sobre `ModelDescriptor`.
+
+**[Fato]** A ADR-002 §13 questão 5 deixa a decisão em aberto: "Should model routing be exposed as a
+separate planner or remain entirely within harness integrations?" Este relatório responde essa
+questão.
+
+**[Fato]** A ADR-002 §12 descartou a Alternativa B ("Routing Based Exclusively on Model Selection"):
+"Rejected because model quality does not determine harness execution capabilities. A model may be
+excellent at a task but unavailable in a harness with the required tools or execution behavior."
+
+**[Inferência]** A arquitetura da ADR-002 já implica que informação de modelo pertence ao
+`HarnessDescriptor` (campo `models`), não ao planner nem ao `TaskProfile`. O planner usa
+`HarnessDescriptor.capabilities` para eliminar harnesses incompatíveis; o `ModelSelector` de cada
+adapter usa `HarnessDescriptor.models` para selecionar o modelo dentro do harness escolhido.
+
+### 3.2 Mecanismos existentes de seleção e saúde de modelo
 
 #### `opencode/scripts/resolve-model.ts`
 
@@ -86,15 +168,15 @@ acionável (`resolve-model.ts:63-73`).
 
 | Função                     | Linha      | Responsabilidade                                                |
 | -------------------------- | ---------- | --------------------------------------------------------------- |
-| `isRateLimitOrQuotaStatus` | `:23-25`   | Detecta HTTP 429/529 como degradação                            |
-| `computeUntil`             | `:29-43`   | Calcula prazo de degradação (header `retry-after` ou 60 s)      |
-| `recordModelHealth`        | `:67-97`   | Grava/atualiza `model-health.json` com lock em disco            |
-| `isHealthy`                | `:100-102` | Verifica se entrada está saudável (ausente ou `until` expirado) |
-| `pickHealthyModel`         | `:108-112` | Percorre lista de fallback e retorna o primeiro saudável        |
+| `isRateLimitOrQuotaStatus` | `:22-24`   | Detecta HTTP 429/529 como degradação                            |
+| `computeUntil`             | `:33-49`   | Calcula prazo de degradação (header `retry-after` ou 60 s)      |
+| `recordModelHealth`        | `:86-115`  | Grava/atualiza `model-health.json` com lock em disco            |
+| `isHealthy`                | `:118-120` | Verifica se entrada está saudável (ausente ou `until` expirado) |
+| `pickHealthyModel`         | `:127-133` | Percorre lista de fallback e retorna o primeiro saudável        |
 
 **[Fato]** O arquivo `opencode/scripts/model-health.ts` (CLI do hook `event`) recebe o payload do
 erro OpenCode no stdin, chama `isRateLimitOrQuotaStatus` e grava com `recordModelHealth`
-(`model-health.ts:35-51`). Ele só é invocado pelo plugin OpenCode
+(`model-health.ts:25-50`, `main`). Ele só é invocado pelo plugin OpenCode
 (`docs/proposals/hooks-cost-benefit-review.md:19`: "OpenCode tem hooks adicionais de saúde de
 modelo, fora do escopo").
 
@@ -111,7 +193,7 @@ Claude Code, a escolha é embutida no `Agent()` como parâmetro literal
 (`issue-coordinator-dispatch.md:88,111`). Em nenhum caso o coordinator consulta um planner de modelo
 externo: a lógica está inline na skill.
 
-### 3.2 Isolamento do mecanismo ao OpenCode
+### 3.3 Isolamento do mecanismo ao harness
 
 **[Fato]** O `issue-coordinator-dispatch.md` trata a escalação de tier de forma diferente por
 harness (`docs/proposals/model-tier-strategy.md`, tabela de mapeamento):
@@ -126,30 +208,26 @@ harness (`docs/proposals/model-tier-strategy.md`, tabela de mapeamento):
 | Kilo                    | Não mapeado                                   | **[Fato]** ausente em `docs/proposals/model-tier-strategy.md` |
 | Kiro (`kiro-cli 3.1.0`) | Não mapeado                                   | **[Fato]** ausente em `docs/proposals/model-tier-strategy.md` |
 
-**[Fato]** `kiro-cli --version` retorna `kiro-cli 3.1.0` (2026-11-10). `kiro-cli --help` lista
-subcomandos `chat`, `agent`, `mcp`, `powers`, entre outros. Nenhuma flag `--model` foi observada no
-help de nível superior. O parâmetro de modelo, se existir, seria passado por configuração de agente
-(não verificado sem `kiro-cli agent --help` aprofundado; marcado como **[Não verificado]**).
+**[Fato]** `kiro-cli --version` retorna `kiro-cli 3.1.0` (2026-11-10). `kiro-cli chat --help` expõe
+as flags `--model <MODEL>` ("Current model to use") e `--effort <EFFORT>` ("Initial effort level
+(e.g. low, medium, high, xhigh, max)"), verificadas na saída completa do comando (2026-11-10; saída
+registrada em §3.3). Kiro suporta seleção de modelo por dispatch, similar ao OpenCode via `--model`.
 
-**[Inferência]** Kiro e Kilo estão na mesma categoria dos harnesses com herança (`inherit`): o Vetor
-não tem como forçar um modelo específico sem apoio documentado do harness, portanto o tratamento
-correto é `inherit` ou configuração explícita do usuário, como feito para Cursor e Codex.
+**[Inferência]** Kiro pertence à categoria dos harnesses com seleção de modelo controlável pelo
+chamador (`selectionMode: "vetor-controlled"`), não à categoria `inherit`. O Vetor pode passar
+`--model` ao lançar `kiro-cli chat`, com a mesma semântica do `--model` do OpenCode. A lista de
+modelos disponíveis pode ser consultada com `kiro-cli chat --list-models` (**[Não verificado]**: não
+executado neste spike para evitar chamadas ao provedor). O Kilo continua não mapeado (`inherit`).
 
-### 3.3 ADR-002 e separação de modelo vs. capacidade de harness
+**[Fato]** Saída de `kiro-cli chat --help` (2026-11-10, trecho relevante):
 
-**[Fato]** A issue #618 (`docs/investigations/descoberta-de-capacidades.md`, §3.1) registra que a
-ADR-002 distingue capacidades declaradas, verificadas e operacionais no descritor/registry e exige
-que anúncio não seja tratado como prova operacional. A mesma fonte anota que "informação de modelo"
-é separada das "capacidades do harness" — um harness pode suportar vários modelos, e disponibilidade
-de modelo não é capacidade de execução.
+```text
+      --model <MODEL>
+          Current model to use
 
-**[Fato]** O `TaskProfile` proposto em #620 (`docs/investigations/metadados-para-classificacao.md`,
-§5) não inclui campo de modelo: inclui `complexity`, `risk` e `requirements`, mas não `modelTier`
-nem `modelConstraints`.
-
-**[Inferência]** Isso é consistente com a separação da ADR-002: o planner de harness recebe um
-`TaskProfile` e decide qual harness usar; a seleção de modelo é um passo posterior, executado pelo
-adapter daquele harness.
+      --effort <EFFORT>
+          Initial effort level (e.g. low, medium, high, xhigh, max)
+```
 
 ### 3.4 Restrições de modelo: elegibilidade de harness vs. ranking
 
@@ -160,23 +238,22 @@ taxa preventivo. O único critério de elegibilidade verificado é: "está degra
 **[Inferência]** As restrições de modelo podem ser classificadas em dois grupos funcionalmente
 distintos:
 
-| Restrição                                            | Papel                                                                                               |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Disponibilidade** (HTTP 429/529, quota esgotada)   | **Elegibilidade**: torna o modelo temporariamente inelegível; implementado em `lib/model-health.ts` |
-| **Contexto máximo insuficiente** para a tarefa       | **Elegibilidade**: se a tarefa requer contexto > limite do modelo, o modelo não pode ser escolhido  |
-| **Custo unitário** do modelo                         | **Ranking**: não impede a escolha, mas pode ordenar a lista de fallback                             |
-| **Limite de taxa preventivo** (quota semanal/mensal) | **Elegibilidade ou ranking** dependendo da política do usuário                                      |
+| Restrição                                            | Papel                                                                                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Disponibilidade** (HTTP 429/529, quota esgotada)   | **Elegibilidade**: torna o modelo temporariamente inelegível; implementado em `lib/model-health.ts`                                                                |
+| **Contexto máximo insuficiente** para a tarefa       | **Elegibilidade**: se a tarefa requer contexto > limite do modelo, o modelo não pode ser escolhido (ADR-002 §4.2: `constraints.maxContext` no `HarnessDescriptor`) |
+| **Custo unitário** do modelo                         | **Ranking**: não impede a escolha, mas pode ordenar a lista de fallback (ADR-002 §4.5: `costSuitability` no scoring)                                               |
+| **Limite de taxa preventivo** (quota semanal/mensal) | **Elegibilidade ou ranking** dependendo da política do usuário                                                                                                     |
 
 **[Fato]** O contrato atual de `pickHealthyModel` (`lib/model-health.ts:108-112`) só verifica
 disponibilidade. Contexto máximo e custo unitário não estão no arquivo `model-health.json` nem na
 interface `ModelHealthEntry` (`lib/model-health.ts:64-68`). Adicionar essas restrições exigiria
 ampliar a estrutura do arquivo ou criar um `ModelDescriptor` separado.
 
-**[Fato]** A elegibilidade de harness já é tratada pela ADR-002 §4.2 (citada indiretamente em #618
-§3.1): capacidades do harness determinam se ele pode executar a tarefa. Restrições de modelo que
-tornam um **modelo** inelegível são diferentes de restrições que tornam o **harness** inelegível: um
-harness com vários modelos disponíveis pode ter um modelo degradado sem perder a elegibilidade como
-harness.
+**[Fato]** A elegibilidade de harness já é tratada pela ADR-002 §4.4: "Eliminate executors that do
+not satisfy mandatory requirements." Restrições de modelo que tornam um **modelo** inelegível são
+diferentes de restrições que tornam o **harness** inelegível: um harness com vários modelos
+disponíveis pode ter um modelo degradado sem perder a elegibilidade como harness.
 
 ### 3.5 Harnesses com modelo fixo ou escolhido pelo usuário
 
@@ -193,10 +270,15 @@ harness.
 **[Fato]** O `wiki/Contrato-de-Capacidades.md:9-17` estabelece: "recurso exclusivo de um harness
 entra como otimização aditiva com fallback portátil, e nunca como requisito".
 
-**[Inferência]** Harnesses com modelo fixo ou herdado não são problemáticos para o planner: o
-`ModelDescriptor` para esses harnesses simplesmente não inclui lista de fallback. O adapter deles
-mapeia qualquer tier para `inherit` ou para o ID configurado pelo usuário. O planner não precisa
-saber disso — só o adapter sabe.
+**[Fato]** A ADR-002 §5 define que "Existing explicit user preferences must take precedence over
+automatic routing unless the user explicitly enables a different policy." Harnesses com modelo fixo
+ou herdado são o caso extremo dessa regra: a preferência do harness (ou do usuário) sempre vence.
+
+**[Inferência]** Harnesses com modelo fixo ou herdado não são problemáticos para o planner: o campo
+`models` do `HarnessDescriptor` para esses harnesses simplesmente declara `selectionMode:
+"inherit"`
+ou `"user-controlled"`. O adapter não invoca nenhum `ModelSelector`. O planner não precisa saber
+disso — só o adapter sabe.
 
 ---
 
@@ -204,50 +286,58 @@ saber disso — só o adapter sabe.
 
 ### 4.1 Pergunta 1 — Planner separado ou dentro de cada harness?
 
-**[Opinião]** A seleção de modelo deve ser tratada como um **`ModelSelector` separado**, invocado
-pelo adapter de cada harness, não embutida no planner de harness nem no núcleo do Vetor.
+**[Opinião]** A seleção de modelo deve permanecer **dentro das integrações de cada harness** (não
+num planner central separado), com cada adapter implementando seu próprio `ModelSelector`. A razão
+fundamental é a ADR-002 §4.2: `models` é campo do `HarnessDescriptor`, não do `TaskProfile` nem do
+`Execution Planner`. O planner escolhe o harness; o adapter desse harness escolhe o modelo.
 
-**Justificativa:**
+**Justificativa detalhada:**
 
-1. **ADR-002 §objetivo 5** exige que informação de modelo fique separada das capacidades do harness.
-   Um planner que mistura "qual harness" com "qual modelo" viola esse princípio.
-2. **ADR-001 §6.4** distingue independência de runtime de independência de harness. O modelo é uma
-   escolha de execução do harness, não do core.
-3. **Evidência do repositório:** o mecanismo existente (`resolve-model.ts`) já é externo ao
+1. **ADR-002 §4.2** — O `HarnessDescriptor` inclui `models?: ModelDescriptor[]` como campo
+   **opcional**, separado de `capabilities`. A ADR afirma: "Model information must remain distinct
+   from harness capabilities." Um planner que mistura "qual harness" com "qual modelo" viola esse
+   princípio.
+2. **ADR-002 §4.3 e §4.4** — O `TaskProfile` não contém modelo; o `Execution Planner` recebe
+   `TaskProfile`, avalia `HarnessDescriptor.capabilities` e produz um plano de execução — sem
+   envolver modelos.
+3. **ADR-002 §12 Alternativa B** — A ADR descartou explicitamente "Routing Based Exclusively on
+   Model Selection": "model quality does not determine harness execution capabilities."
+4. **Evidência do repositório:** o mecanismo existente (`resolve-model.ts`) já é externo ao
    coordinator e ao harness — é um CLI chamado pelo adapter OpenCode. Essa arquitetura já está
    implicitamente correta; o spike apenas a torna explícita.
-4. **Portabilidade:** o planner de harness pode ser portável (recebe `TaskProfile`, devolve harness
-   elegível); o `ModelSelector` não precisa ser portável entre harnesses — cada adapter chama o seu.
+5. **Portabilidade (ADR-002 §3.1 princípio 2):** "decisions must be based on declared and verified
+   capabilities, not hardcoded vendor preferences." O planner deve ser portável; o `ModelSelector`
+   não precisa ser portável entre harnesses — cada adapter chama o seu.
 
-O diagrama de responsabilidades (Mermaid):
+O diagrama de responsabilidades (Mermaid), conforme a arquitetura da ADR-002 §4:
 
 ```mermaid
 flowchart TD
-    TP["TaskProfile\n(#620)"]
+    TP["TaskProfile\n(ADR-002 §4.3; refinado em #620)"]
 
-    subgraph PLANNER["Planner de Harness (portável)"]
-        HP["HarnessPlanner\n· recebe TaskProfile\n· avalia capacidades do harness\n· retorna HarnessCandidate[]"]
+    subgraph PLANNER["Execution Planner (ADR-002 §4.4)\n— portável, não conhece modelos"]
+        HP["· recebe TaskProfile\n· avalia HarnessDescriptor.capabilities\n· retorna ExecutionPlan (harness + fallbacks)"]
     end
 
-    subgraph ADAPTER_A["Adapter: Claude Code"]
+    subgraph ADAPTER_A["Adapter: Claude Code\n(HarnessDescriptor.models declarados)"]
         AA["HarnessAdapter\n(Claude Code)"]
         MA["ModelSelector\n(Claude Code)\n· haiku|sonnet por tier\n· inline na skill"]
     end
 
-    subgraph ADAPTER_B["Adapter: OpenCode"]
+    subgraph ADAPTER_B["Adapter: OpenCode\n(HarnessDescriptor.models com health)"]
         AB["HarnessAdapter\n(OpenCode)"]
         MB["ModelSelector\n(OpenCode)\n· resolve-model.ts\n· modelFallback + model-health.json"]
     end
 
-    subgraph ADAPTER_C["Adapter: inherit (Codex/Cursor/Antigravity/Kilo/Kiro)"]
+    subgraph ADAPTER_C["Adapter: inherit\n(Codex/Cursor/Antigravity/Kilo/Kiro)"]
         AC["HarnessAdapter\n(inherit)"]
-        MC["ModelSelector\n(inherit)\n· model: inherit\n· sem seleção dinâmica"]
+        MC["ModelSelector ausente\n· model: inherit\n· sem seleção dinâmica"]
     end
 
-    TP --> HP
-    HP -->|"HarnessCandidate: Claude Code"| AA
-    HP -->|"HarnessCandidate: OpenCode"| AB
-    HP -->|"HarnessCandidate: other"| AC
+    TP --> PLANNER
+    PLANNER -->|"ExecutionPlan: Claude Code"| AA
+    PLANNER -->|"ExecutionPlan: OpenCode"| AB
+    PLANNER -->|"ExecutionPlan: other"| AC
     AA --> MA
     AB --> MB
     AC --> MC
@@ -256,8 +346,8 @@ flowchart TD
     MC -->|"DispatchInput (sem model)"| EXEC
 ```
 
-O `HarnessPlanner` não conhece modelos. Cada `ModelSelector` não conhece outros harnesses. O núcleo
-portável do Vetor não precisa de nenhum dos dois — eles vivem nos adapters.
+O `Execution Planner` não conhece modelos. Cada `ModelSelector` não conhece outros harnesses. O
+núcleo portável do Vetor não precisa de nenhum dos dois — eles vivem nos adapters.
 
 ### 4.2 Pergunta 2 — Conexão com escalação de tier e saúde de modelo sem duplicação
 
@@ -266,28 +356,31 @@ tem a regra de tier embutida inline para Claude Code (`issue-coordinator-dispatc
 enquanto o OpenCode usa um script externo (`resolve-model.ts`). São dois pontos de manutenção com a
 mesma semântica (`simple`/`complex`).
 
-**[Opinião]** Para evitar duplicação sem quebrar a portabilidade:
+**[Opinião]** Para evitar duplicação sem quebrar a portabilidade, e alinhando com a ADR-002 §4.2
+(campo `models` no `HarnessDescriptor`):
 
-1. **O contrato semântico de tier** (`simple`/`complex`) fica no `TaskProfile` como campo
-   `modelTier?: "simple" | "complex"` derivado de `complexity` e `risk`. Não é novo conceito — é a
-   mesma semântica da proposta #337 — mas agora flui do perfil em vez de ser regra inline.
-2. **Cada adapter implementa o mapeamento** `modelTier → modelo nativo`. Para Claude Code:
+1. **O contrato semântico de tier** (`simple`/`complex`) não fica no `TaskProfile` — a ADR-002 §4.3
+   não prevê campo de modelo no perfil. O tier continua sendo inferido de `complexity` e `risk` pelo
+   adapter no momento do dispatch.
+2. **Cada adapter implementa o mapeamento** `complexity/risk → modelo nativo`. Para Claude Code:
    `simple → haiku, complex → sonnet` (como hoje). Para OpenCode: `resolve-model.ts` com a lista
-   `modelFallback.<tier>`. Para harnesses com `inherit`: ignora `modelTier`.
+   `modelFallback.<tier>`. Para harnesses com `inherit`: ignora o tier.
 3. **O mecanismo de saúde** (`model-health.json`, `pickHealthyModel`) não muda de lugar: continua no
    adapter OpenCode, que é o único que tem visibilidade dos erros HTTP do provedor. Os outros
-   harnesses não expõem esse sinal de forma portável.
+   harnesses não expõem esse sinal de forma portável (ADR-002 §3.1 princípio 1: independência de
+   runtime).
 
-**[Fato]** O ponto do código que o planner consumiria (consulta real, 2026-11-10):
+**[Fato]** O ponto do código que o `ModelSelector` de cada adapter consumiria (consulta real,
+2026-11-10):
 
 | Arquivo                                                  | Linha                | Função/Dado                                                                              |
 | -------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------- |
-| `opencode/scripts/lib/model-health.ts`                   | `:108-112`           | `pickHealthyModel(fallback, health, now)` — seleção do primeiro modelo saudável da lista |
-| `opencode/scripts/lib/model-health.ts`                   | `:100-102`           | `isHealthy(entry, now)` — predicado de saúde por modelo                                  |
-| `opencode/scripts/lib/model-health.ts`                   | `:67-97`             | `recordModelHealth(path, key, entry)` — gravação com lock em disco                       |
-| `opencode/scripts/lib/model-health.ts`                   | `:23-25`             | `isRateLimitOrQuotaStatus(statusCode)` — classifica HTTP 429/529                         |
-| `opencode/scripts/resolve-model.ts`                      | `:53-93`             | `main()` — CLI completo: lê config + health, devolve modelo                              |
-| `opencode/scripts/model-health.ts`                       | `:35-51`             | `main()` — CLI de registro: invocado pelo hook `event` do OpenCode                       |
+| `opencode/scripts/lib/model-health.ts`                   | `:127-133`           | `pickHealthyModel(fallback, health, now)` — seleção do primeiro modelo saudável da lista |
+| `opencode/scripts/lib/model-health.ts`                   | `:118-120`           | `isHealthy(entry, now)` — predicado de saúde por modelo                                  |
+| `opencode/scripts/lib/model-health.ts`                   | `:86-115`            | `recordModelHealth(path, key, entry)` — gravação com lock em disco                       |
+| `opencode/scripts/lib/model-health.ts`                   | `:22-24`             | `isRateLimitOrQuotaStatus(statusCode)` — classifica HTTP 429/529                         |
+| `opencode/scripts/resolve-model.ts`                      | `:55-111`            | `resolveFallbackList` + `main()` — CLI completo: lê config + health, devolve modelo      |
+| `opencode/scripts/model-health.ts`                       | `:25-50`             | `main()` — CLI de registro: invocado pelo hook `event` do OpenCode                       |
 | `.claude/vetor/status/model-health.json`                 | (arquivo gerado)     | Estado de saúde persistido por modelo/provedor                                           |
 | `skills/shared/references/issue-coordinator-dispatch.md` | `:88,94,111`         | Regras inline de tier para Claude Code (`haiku`/`sonnet`)                                |
 | `docs/proposals/model-tier-strategy.md`                  | tabela de mapeamento | Contrato `simple`/`complex` por harness (decidido 2026-10-15)                            |
@@ -298,49 +391,60 @@ mesma semântica (`simple`/`complex`).
 por disponibilidade (HTTP 429/529). As demais restrições não estão implementadas no repositório
 (verificado em 2026-11-10).
 
-**[Opinião]** Classificação das restrições:
+**[Opinião]** Classificação das restrições, referenciando a ADR-002:
 
-| Restrição                                        | Papel                                                       | Implementação atual                                                               | Onde vai no ModelDescriptor                   |
-| ------------------------------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------- |
-| Disponibilidade (rate limit / quota)             | **Elegibilidade** — torna modelo temporariamente inelegível | ✅ `model-health.json` + `isRateLimitOrQuotaStatus`                               | Campo `health.status` / `health.until`        |
-| Contexto máximo insuficiente para a tarefa       | **Elegibilidade** — modelo não consegue processar a tarefa  | ❌ não implementado                                                               | Campo `maxContextTokens` no `ModelDescriptor` |
-| Custo unitário                                   | **Ranking** — ordena a lista de fallback, não bloqueia      | ❌ não implementado (a ordenação da lista em `modelFallback` já serve como proxy) | Campo `costTierHint` ou ordem da lista        |
-| Limite de taxa preventivo (quota semanal/mensal) | **Elegibilidade ou ranking** dependendo da política         | ❌ não implementado                                                               | Campo `quotaPolicy` no `ModelDescriptor`      |
+| Restrição                                        | Papel                                                       | Implementação atual                                                               | Referência ADR-002                                    |
+| ------------------------------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Disponibilidade (rate limit / quota)             | **Elegibilidade** — torna modelo temporariamente inelegível | ✅ `model-health.json` + `isRateLimitOrQuotaStatus`                               | §5.1: fallback por "Provider rate limits"             |
+| Contexto máximo insuficiente para a tarefa       | **Elegibilidade** — modelo não consegue processar a tarefa  | ❌ não implementado                                                               | §4.2: `constraints.maxContext` no `HarnessDescriptor` |
+| Custo unitário                                   | **Ranking** — ordena a lista de fallback, não bloqueia      | ❌ não implementado (a ordenação da lista em `modelFallback` já serve como proxy) | §4.5: `costSuitability * weight` no scoring           |
+| Limite de taxa preventivo (quota semanal/mensal) | **Elegibilidade ou ranking** dependendo da política         | ❌ não implementado                                                               | §5.1: "Recoverable execution errors"                  |
 
-**[Inferência]** Para a ADR-002, apenas disponibilidade (já implementada) afeta a elegibilidade de
-harness de forma relevante: se todos os modelos do único harness disponível estão degradados, o
-Vetor não pode executar a tarefa por esse harness. Contexto máximo é elegibilidade de modelo, não de
-harness — a menos que o harness só tenha um modelo. Custo e quota são critérios de ranking, não
-bloqueadores.
+**[Inferência]** A ADR-002 §4.4 estabelece: "An executor that does not satisfy a mandatory
+requirement must be rejected regardless of its score." Para modelos, o equivalente é: um modelo que
+não satisfaz um requisito obrigatório (disponibilidade, contexto) deve ser rejeitado antes do
+scoring. Custo e quota são critérios de scoring (ADR-002 §4.5), não de rejeição.
+
+**[Inferência]** Se todos os modelos de um harness estão degradados, o harness perde a elegibilidade
+para aquela tarefa (via o campo `models` do `HarnessDescriptor`). Isso é diferente de o harness ser
+inelegível por capacidade — um harness pode ser incapaz de executar uma tarefa por falta de
+ferramenta, independentemente do estado dos modelos.
 
 ### 4.4 Pergunta 4 — Harnesses com modelo fixo ou escolhido pelo usuário
 
 **[Fato]** A proposta #337 já estabelece o tratamento: Codex, Cursor e Antigravity ficam com
 `inherit` ou estático. O Vetor não força um modelo nesses harnesses.
 
-**[Opinião]** O `ModelDescriptor` para esses harnesses deve declarar
-`selectionMode:
-"user-controlled"` ou `selectionMode: "harness-controlled"`. O adapter não invoca
-nenhum `ModelSelector` — o dispatch segue sem parâmetro de modelo, e o harness escolhe por conta
-própria.
+**[Fato]** A ADR-002 §5 estabelece: "Existing explicit user preferences must take precedence over
+automatic routing unless the user explicitly enables a different policy." Para harnesses com modelo
+fixo ou herdado, a "preferência do usuário" é a ausência de configuração de modelo — o harness
+herda.
 
-Isso preserva o princípio da ADR-001 §6.3: "Nenhum orquestrador deve ser embutido no Core". Da mesma
-forma, nenhum modelo deve ser forçado em um harness que não oferece controle de modelo ao chamador.
+**[Fato]** A ADR-002 §3.1 princípio 4: "Backward compatibility: existing explicit executor
+preferences and delegation workflows must continue working." O tratamento de harnesses com `inherit`
+não pode ser quebrado pela introdução do `Execution Planner`.
+
+**[Opinião]** O `ModelDescriptor` para esses harnesses deve declarar `selectionMode: "inherit"` ou
+`"user-controlled"`. O adapter não invoca nenhum `ModelSelector` — o dispatch segue sem parâmetro de
+modelo, e o harness escolhe por conta própria. Isso satisfaz ADR-002 §5 (preferências explícitas têm
+precedência) e §3.1 princípio 4 (compatibilidade retroativa).
 
 ---
 
 ## 5. Proposta de `ModelDescriptor`
 
 **[Opinião]** O `ModelDescriptor` deve ser separado do descritor de harness (que descreve
-capacidades de execução). Ele descreve as propriedades e restrições de um modelo dentro de um
-harness específico.
+capacidades de execução), como previsto em ADR-002 §4.2. Ele descreve as propriedades e restrições
+de um modelo dentro de um harness específico e é incluído como campo `models?: ModelDescriptor[]` no
+`HarnessDescriptor`.
 
 ```ts
 // Proposta — não é código de produção; tipo ilustrativo para a issue #621.
+// Alinhado com ADR-002 §4.2 (HarnessDescriptor.models) e §4.5 (scoring de custo).
 
 /** Modo de seleção de modelo para este harness. */
 type ModelSelectionMode =
-  /** O Vetor escolhe o modelo via ModelSelector (ex.: OpenCode). */
+  /** O Vetor escolhe o modelo via ModelSelector (ex.: OpenCode com resolve-model.ts). */
   | "vetor-controlled"
   /** O modelo é fixo no frontmatter do agente (ex.: Antigravity estático). */
   | "harness-controlled"
@@ -359,20 +463,28 @@ interface ModelHealthSnapshot {
 }
 
 interface ModelDescriptor {
-  /** Identificador portável no formato "<provider>/<model>" ou alias do harness (ex.: "haiku"). */
+  /**
+   * Identificador portável no formato "<provider>/<model>" ou alias do harness (ex.: "haiku").
+   * String opaca — o ModelSelector não interpreta o prefixo de provedor (ADR-002 §3.1 princípio 2).
+   */
   id: string;
-  /** Tier semântico a que este modelo corresponde neste harness. */
+  /**
+   * Tier semântico a que este modelo corresponde neste harness.
+   * Alinhado com o contrato simple/complex da proposta #337.
+   */
   tier: "simple" | "complex" | "unknown";
-  /** Modo de seleção — define se o ModelSelector pode substituir este modelo. */
+  /** Modo de seleção — define se o ModelSelector pode substituir este modelo (ADR-002 §5). */
   selectionMode: ModelSelectionMode;
   /**
    * Contexto máximo em tokens, se conhecido.
    * Ausente = desconhecido; o ModelSelector não filtra por contexto.
+   * Mapeia para HarnessDescriptor.constraints.maxContext da ADR-002 §4.2.
    */
   maxContextTokens?: number;
   /**
    * Dica de custo relativo (escala livre, menor = mais barato).
    * Usado para ordenar a lista de fallback; não é critério de bloqueio.
+   * Mapeia para costSuitability no scoring da ADR-002 §4.5.
    */
   costTierHint?: number;
   /** Saúde atual do modelo. Preenchida em runtime pelo adapter; ausente = saudável. */
@@ -380,18 +492,19 @@ interface ModelDescriptor {
 }
 ```
 
-**Separação de responsabilidades:**
+**Separação de responsabilidades (ADR-002 §4.2):**
 
 - `ModelDescriptor` descreve **um modelo dentro de um harness**. Não descreve o harness.
-- O descritor de harness (ADR-002 §4.1, ainda não commitado) descreve capacidades de execução. Não
-  inclui modelos.
-- `HarnessPlanner` recebe `TaskProfile` + lista de harnesses candidatos. Não conhece modelos.
-- `ModelSelector` recebe lista de `ModelDescriptor` para o harness escolhido. Não conhece outros
-  harnesses.
+- `HarnessDescriptor.capabilities` descreve capacidades de execução. Não inclui modelos.
+- `HarnessDescriptor.models?: ModelDescriptor[]` lista os modelos disponíveis (ADR-002 §4.2).
+- `Execution Planner` (ADR-002 §4.4) recebe `TaskProfile` + `HarnessDescriptor`. Não conhece
+  `ModelDescriptor` diretamente — passa o `HarnessDescriptor` inteiro para o adapter.
+- `ModelSelector` de cada adapter recebe a lista `HarnessDescriptor.models` e escolhe o modelo. Não
+  conhece outros harnesses.
 
 **Harnesses com `selectionMode: "inherit"` ou `"user-controlled"`:** o adapter não chama
-`ModelSelector`. O `ModelDescriptor` ainda existe (para auditoria e logging), mas `pickHealthyModel`
-não é invocado.
+`ModelSelector`. O `ModelDescriptor` ainda existe no `HarnessDescriptor` (para auditoria e
+observabilidade — ADR-002 §9), mas `pickHealthyModel` não é invocado.
 
 ---
 
@@ -411,10 +524,10 @@ não interpreta o prefixo de provedor. A chave no `model-health.json` é a strin
 acoplamento está na **configuração padrão** (exemplos com `anthropic/...`), não no código
 (`resolve-model.ts:21-27`).
 
-**[Opinião]** O `ModelDescriptor` proposto preserva essa independência: `id` é uma string opaca, e
-`ModelSelector` não interpreta o provedor. O adapter de cada harness conhece o formato nativo do seu
-CLI (`--model anthropic/claude-haiku-4-5` para OpenCode, `model: "haiku"` para Claude Code), mas o
-`ModelDescriptor` não acopla o núcleo a nenhum formato.
+**[Fato]** A ADR-002 §3.1 princípio 2 exige: "decisions must be based on declared and verified
+capabilities, not hardcoded vendor preferences." O `ModelDescriptor.id` proposto é uma string opaca;
+o `ModelSelector` não interpreta o provedor. O adapter de cada harness conhece o formato nativo do
+seu CLI, mas o `ModelDescriptor` não acopla o núcleo a nenhum formato.
 
 ---
 
@@ -433,6 +546,10 @@ CLI (`--model anthropic/claude-haiku-4-5` para OpenCode, `model: "haiku"` para C
   harnesses: depende do evento `session.error` do SDK `@opencode-ai/plugin` e da correlação
   `sessionID → model` via `chat.params`. Outros harnesses precisariam de um mecanismo equivalente
   específico ao seu SDK, se expuserem esse sinal.
+- **[Inferência]** A ADR-002 §4.2 inclui `constraints.maxContext` no `HarnessDescriptor` (nível de
+  harness), não no `ModelDescriptor`. Esta proposta desce esse campo para o `ModelDescriptor`, pois
+  o contexto máximo varia por modelo dentro do mesmo harness. Essa diferença em relação ao contrato
+  ilustrativo da ADR precisa de validação na implementação.
 
 ---
 
@@ -440,20 +557,20 @@ CLI (`--model anthropic/claude-haiku-4-5` para OpenCode, `model: "haiku"` para C
 
 - [x] **Relatório em `docs/investigations/` com recomendação para a pergunta 1 e diagrama de
       responsabilidades entre planner de harness e seleção de modelo.**\
-      Atendido em §4.1: recomendação de `ModelSelector` separado, diagrama Mermaid com
-      `HarnessPlanner`, adapters e `ModelSelector` por harness.
+      Atendido em §4.1: recomendação de `ModelSelector` por adapter (dentro da integração de cada
+      harness), justificada pela ADR-002 §4.2, §4.3, §4.4 e §12 Alternativa B; diagrama Mermaid
+      alinhado com a arquitetura da ADR-002 §4.
 
 - [x] **Lista de pontos do código atual (model health, tiers) que o planner consumiria, com
       fonte.**\
-      Atendido em §4.2: tabela com 7 pontos de código, cada um com `arquivo:linha` verificado em
+      Atendido em §4.2: tabela com 9 pontos de código, cada um com `arquivo:linha` verificado em
       2026-11-10.
 
 - [x] **Proposta de formato de `ModelDescriptor` separado do descritor de harness.**\
       Atendido em §5: tipo TypeScript com campos `id`, `tier`, `selectionMode`, `maxContextTokens`,
-      `costTierHint` e `health`; justificativa de separação; tratamento de `inherit` e
-      `user-controlled`.
+      `costTierHint` e `health`; justificativa de separação referenciando ADR-002 §4.2; tratamento
+      de `inherit` e `user-controlled`; nota sobre divergência em `maxContextTokens` (§7).
 
 - [x] **Nenhuma recomendação acopla o roteamento a um provedor.**\
       Atendido em §6: o mecanismo existente já é independente de provedor; o `ModelDescriptor`
-      proposto usa `id` opaco; o acoplamento atual está apenas na configuração do usuário
-      (documentado como risco em §6, **[Inferência]**).
+      proposto usa `id` opaco; a ADR-002 §3.1 princípio 2 é citada como requisito.
