@@ -39,23 +39,25 @@ spike:
 ## 2. Resumo
 
 - **[Fato]** O repositório já possui dois mecanismos de controle de seleção que formam a base da
-  autorização: a preferência explícita de `delegation.preferredRuntime`
-  (`scripts/lib/delegation-runtime.ts:42-62`) e o princípio "nenhuma escolha silenciosa"
-  (`delegation-runtime.ts:30-44`). Nunca se escolhe um executor sem consentimento do usuário.
+  autorização: a preferência explícita via MCP (`scripts/lib/delegation-runtime.ts:43-49`) e o
+  princípio "nenhuma escolha silenciosa", implementado em três pontos do código
+  (`delegation-runtime.ts:52-57`, `70-71` e `90-92`). Nunca se escolhe um executor sem consentimento
+  do usuário.
 - **[Fato]** O `TaskProfile` proposto em #620 (`docs/investigations/metadados-para-classificacao.md`
   §5) já carrega `constraints.dataSensitivity` como campo opcional. O `safety-policy.ts` trata hoje
   a política de saída (bloqueio de push/PR), mas não há avaliação de `dataSensitivity` ligada ao
   provedor do executor.
 - **[Fato]** O `selectDelegationRuntime` já garante que a preferência indisponível **não** é
-  substituída silenciosamente por outro candidato (`delegation-runtime.ts:50-56`). Isso cobre parte
+  substituída silenciosamente por outro candidato (`delegation-runtime.ts:62-76`). Isso cobre parte
   do requisito de herança de restrições no fallback.
-- **[Inferência]** A lista de executores autorizados, o `dataSensitivity` e os modos
-  manual/assistido/autônomo são três dimensões ortogonais da autorização. Hoje só a primeira está
-  implícita no código (via preferência e princípio de não-escolha). As outras duas estão em
-  documentação (ADR-002) mas sem implementação.
+- **[Inferência]** A lista de executores autorizados, o `dataSensitivity` e os modos Manual,
+  Assistido e Autônomo são três dimensões ortogonais da autorização (ADR-002 §5, §8). Hoje só a
+  primeira está implícita no código (via preferência e princípio de não-escolha). As outras duas
+  estão na ADR-002 mas sem implementação.
 - **[Opinião]** O modelo proposto neste relatório é aditivo: adiciona campos opcionais a
-  `.claude/vetor/config.json` e ao `TaskProfile`, e define regras que o planner aplica antes de
-  despachar. Nenhuma recomendação exige recurso exclusivo de harness; todas têm fallback portátil.
+  `.claude/vetor/config.json` e ao `TaskProfile`, e define regras que o Execution Planner (ADR-002
+  §4.4) aplica antes de despachar. Nenhuma recomendação exige recurso exclusivo de harness; todas
+  têm fallback portátil.
 
 ---
 
@@ -68,10 +70,10 @@ observadas no código-fonte:
 
 | Garantia                                    | Trecho                        | Comportamento                                                                          |
 | ------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------- |
-| Nenhuma escolha silenciosa entre candidatos | `delegation-runtime.ts:68-72` | Com múltiplos candidatos e sem preferência, sessão headless: `action: "inline"`        |
-| Preferência indisponível não é substituída  | `delegation-runtime.ts:50-56` | Preferência configurada mas ausente no PATH: `action: "inline"`, nunca outro candidato |
-| Runtime MCP só com preferência explícita    | `delegation-runtime.ts:34-40` | `mcpAvailable` só é selecionado quando `preferred === mcpAvailable[i]`                 |
-| Um único candidato sem preferência é aceito | `delegation-runtime.ts:60-65` | "único candidato disponível", sem perguntar                                            |
+| Nenhuma escolha silenciosa entre candidatos | `delegation-runtime.ts:85-96` | Com múltiplos candidatos e sem preferência, sessão headless: `action: "inline"`        |
+| Preferência indisponível não é substituída  | `delegation-runtime.ts:62-76` | Preferência configurada mas ausente no PATH: `action: "inline"`, nunca outro candidato |
+| Runtime MCP só com preferência explícita    | `delegation-runtime.ts:43-49` | `mcpAvailable` só é selecionado quando `preferred === mcpAvailable[i]`                 |
+| Um único candidato sem preferência é aceito | `delegation-runtime.ts:78-83` | "único candidato disponível", sem perguntar                                            |
 
 **[Fato]** O campo `delegation.preferredRuntime` em `.claude/vetor/config.json` é hoje a única chave
 de autorização de runtime de delegação. O arquivo `config.json` lido em 2026-11-10 contém
@@ -121,10 +123,10 @@ Orca reusa a Task (`--task <id> --retry-of <dispatchId>`), com disjuntor após 3
 **[Fato]** O `permissions-setup.ts` define regras mínimas de allowlist que nunca incluem merge, push
 nem comandos destrutivos (`permissions-setup.ts:17-25`).
 
-**[Inferência]** O loop de retry pode ocorrer se: (a) o executor falha, (b) o planner retenta num
-executor diferente sem verificar se ele satisfaz as restrições, e (c) o novo executor também falha.
-O disjuntor do Orca (3 falhas) não resolve o caso em que o planner troca de executor entre
-tentativas.
+**[Inferência]** O loop de retry pode ocorrer se: (a) o executor falha, (b) o Execution Planner
+retenta num executor diferente sem verificar se ele satisfaz as restrições, e (c) o novo executor
+também falha. O disjuntor do Orca (3 falhas) não resolve o caso em que o Execution Planner troca de
+executor entre tentativas.
 
 ### 3.4 Modos manual, assistido e autônomo
 
@@ -176,14 +178,22 @@ chave `execution.authorizedProviders`, por três razões:
 3. Pode ser sobrescrito por `settings.local.json` para uso local sem commit, seguindo o mesmo padrão
    do Claude Code (`permissions-setup.ts:93-96`).
 
+**Nota de terminologia:** a ADR-002 §8 usa "authorized harnesses". O campo proposto é
+`authorizedProviders` em vez de `authorizedHarnesses` porque o Vetor delega para dois tipos de
+executores — harnesses (Claude Code, Antigravity, OpenCode, Codex, Kiro) e orquestradores
+assíncronos (Orca, Alethe) —, ambos identificados pelo `id` do adapter. "Providers" cobre os dois
+sem criar dois campos separados. A semântica de segurança da ADR-002 §8 é preservada: nenhum
+executor não listado recebe contexto.
+
 **[Opinião]** Estrutura proposta:
 
 ```jsonc
 // .claude/vetor/config.json
 {
   "execution": {
-    // Lista explícita de provedores/executores que este repositório autoriza a receber contexto.
-    // Ausente ou vazio = apenas execução inline (modo padrão, sem roteamento externo).
+    // Lista explícita de executores (harnesses ou orquestradores) que este repositório autoriza
+    // a receber contexto. Ausente ou vazio = apenas execução inline (modo padrão, sem roteamento
+    // externo). Corresponde a "authorized harnesses" da ADR-002 §8.
     "authorizedProviders": ["opencode", "codex", "orca"],
     // Preferência de runtime de delegação (já existente; mantida por compatibilidade).
     "preferredRuntime": null
@@ -196,8 +206,9 @@ chave `execution.authorizedProviders`, por três razões:
 - `preferredRuntime` continua como campo de compatibilidade (§3.1).
 - `authorizedProviders` é uma lista explícita (opt-in): um executor não listado nunca recebe
   contexto, mesmo que esteja no PATH ou seja preferido.
-- Se `preferredRuntime` aponta para um executor **não** em `authorizedProviders`, o planner devolve
-  `action: "inline"` com motivo `"preferredRuntime não está em authorizedProviders"`.
+- Se `preferredRuntime` aponta para um executor **não** em `authorizedProviders`, o Execution
+  Planner devolve `action: "inline"` com motivo
+  `"preferredRuntime não está em authorizedProviders"`.
 - Se `authorizedProviders` está ausente ou vazio, o comportamento atual é preservado (sem roteamento
   externo).
 
@@ -220,6 +231,8 @@ ser uma tabela de política em `config.json`:
       // Mapeamento: nível de sensibilidade → lista de provedores que podem receber esse contexto.
       // Provedores ausentes aqui nunca recebem tarefas do nível correspondente, mesmo que
       // autorizados em authorizedProviders.
+      // Os três primeiros níveis seguem ADR-002 §4.3; "unknown" é extensão do #620 para o caso
+      // de classificação com baixa confiança — tratado como o nível mais restritivo.
       "public": ["opencode", "codex", "orca"],
       "private": ["codex"],
       "sensitive": [],
@@ -229,7 +242,14 @@ ser uma tabela de política em `config.json`:
 }
 ```
 
-**[Opinião]** Regra de avaliação: o planner intersecta `authorizedProviders` com
+**Nota de terminologia:** a ADR-002 §4.3 define `dataSensitivity` com três valores:
+`"public" | "private" | "sensitive"`. O valor `"unknown"` é uma extensão proposta em #620
+(`metadados-para-classificacao.md` §5) para o caso em que a classificação determinística tem baixa
+confiança. Essa extensão é aditiva e conservadora: o Execution Planner trata `"unknown"` como o
+nível mais restritivo, o que está alinhado com ADR-002 §8 ("Sensitive task context must not be
+forwarded to unauthorized providers").
+
+**[Opinião]** Regra de avaliação: o Execution Planner intersecta `authorizedProviders` com
 `dataSensitivityPolicy[taskProfile.constraints.dataSensitivity ?? "unknown"]` para obter a lista de
 candidatos elegíveis. Se a intersecção for vazia, `action: "inline"` com motivo
 `"nenhum executor autorizado para dataSensitivity=<nível>"`.
@@ -243,21 +263,26 @@ separadas para rastreabilidade.
 **[Fato]** O campo `dataSensitivity` no `TaskProfile` é derivado deterministicamente de metadados da
 issue (labels, título, critérios de aceite) com confiança anotada (`metadados-para-classificacao.md`
 §4.3). Quando `needsSemanticFallback: true` ou `confidence.byField["dataSensitivity"] < 0,60`, o
-planner usa o valor `"unknown"` (mais restritivo) em vez do valor inferido. **Isso é uma regra de
-segurança: na dúvida, o contexto não é enviado.**
+Execution Planner usa o valor `"unknown"` (mais restritivo) em vez do valor inferido. **Isso é uma
+regra de segurança alinhada à ADR-002 §8: na dúvida, o contexto não é enviado.**
 
 ### 4.3 Pergunta 3 — Fallback e retry: herança de restrições e prevenção de loop
+
+**[Fato]** A ADR-002 §5.1 lista os gatilhos de fallback: (a) indisponibilidade do executor, (b) rate
+limits do provedor, (c) falhas de startup, (d) erros de execução recuperáveis, (e) políticas de
+timeout. O relatório cobre todos eles na tabela de cenários (§5) e nas Regras F1–F4.
 
 **[Opinião]** Quatro regras para herança de restrições:
 
 **Regra F1 — Fallback preserva o conjunto de restrições original.** Quando o executor preferido está
-indisponível, o planner só pode fazer fallback para executores que satisfazem **todas** as mesmas
-restrições da tarefa original (`dataSensitivity`, `authorizedProviders`, política de rede). Nunca
-relaxa uma restrição para encontrar um executor disponível.
+indisponível, o Execution Planner só pode fazer fallback para executores que satisfazem **todas** as
+mesmas restrições da tarefa original (`dataSensitivity`, `authorizedProviders`, política de rede).
+Nunca relaxa uma restrição para encontrar um executor disponível.
 
 **Regra F2 — O fallback para `inline` é sempre permitido como último recurso.** `inline` não envia
 contexto para fora: satisfaz qualquer `dataSensitivity`. Quando nenhum executor externo satisfaz as
-restrições, `action: "inline"` é o resultado correto, não uma falha. O planner registra o motivo.
+restrições, `action: "inline"` é o resultado correto, não uma falha. O Execution Planner registra o
+motivo.
 
 **Regra F3 — Limite de tentativas configurável, com teto padrão.** Proposta de campo em
 `config.json`:
@@ -271,17 +296,18 @@ restrições, `action: "inline"` é o resultado correto, não uma falha. O plann
 ```
 
 O padrão é 2 (compatível com o disjuntor do Orca de 3 falhas na cadeia `--retry-of`,
-`orca-adapter.md` §4.1). O planner conta tentativas por `taskId` (ou equivalente por orquestrador),
-não por executor. Ao atingir o limite, `action: "inline"` com motivo `"maxRetryAttempts atingido"`.
+`orca-adapter.md` §4.1). O Execution Planner conta tentativas por `taskId` (ou equivalente por
+orquestrador), não por executor. Ao atingir o limite, `action: "inline"` com motivo
+`"maxRetryAttempts atingido"`.
 
-**Regra F4 — Nenhuma tentativa num executor que já falhou na mesma execução.** O planner mantém um
-conjunto de executores tentados para a tarefa corrente. Se o único executor disponível que satisfaz
-as restrições já foi tentado e falhou, o resultado é `action: "inline"` (ou `action: "escalate"` no
-modo manual/assistido), sem tentar novamente. Isso quebra o loop mesmo quando `maxRetryAttempts` não
-foi atingido.
+**Regra F4 — Nenhuma tentativa num executor que já falhou na mesma execução.** O Execution Planner
+mantém um conjunto de executores tentados para a tarefa corrente. Se o único executor disponível que
+satisfaz as restrições já foi tentado e falhou, o resultado é `action: "inline"` (ou
+`action: "escalate"` no modo Manual/Assistido), sem tentar novamente. Isso quebra o loop mesmo
+quando `maxRetryAttempts` não foi atingido.
 
 **[Fato]** Compatibilidade com o `selectDelegationRuntime` existente: a Regra F1 é compatível com o
-princípio atual de "preferência indisponível não é substituída" (`delegation-runtime.ts:50-56`). As
+princípio atual de "preferência indisponível não é substituída" (`delegation-runtime.ts:62-76`). As
 Regras F2–F4 adicionam o critério de sensibilidade e o teto de tentativas, que hoje não existem.
 
 ### 4.4 Pergunta 4 — Modos manual, assistido e autônomo em configuração
@@ -312,23 +338,25 @@ Regras F2–F4 adicionam o critério de sensibilidade e o teto de tentativas, qu
 | `autonomous` | ativo              | não                         | sim, não-vazio                    | sim                                 |
 
 **[Opinião]** Regra de precedência: a preferência explícita do usuário (`preferredRuntime`) tem
-precedência sobre o `mode`. Se `preferredRuntime` está configurado e o executor está em
-`authorizedProviders`, o planner despacha sem perguntar, independente do `mode` (compatibilidade com
-o comportamento atual).
+precedência sobre o `mode` (ADR-002 §3.1 princípio 4: "existing explicit user preferences must take
+precedence over automatic routing"). Se `preferredRuntime` está configurado e o executor está em
+`authorizedProviders`, o Execution Planner despacha sem perguntar, independente do `mode`
+(compatibilidade com o comportamento atual).
 
 **[Fato]** O modo `autonomous` é **opt-in**: o valor padrão de `mode` é `"manual"`, preservando o
 comportamento atual quando o campo está ausente. Isso satisfaz o critério de aceite "autônomo
 permanece opt-in".
 
-**[Opinião]** Integração com o `permissions-setup.ts`: no modo `autonomous`, o planner deve
-verificar que `autoMode.environmentConfigured === true` (do `checkPermissions`) antes de despachar o
-primeiro worker. Se não estiver configurado, devolve `action: "ask"` com sugestão de rodar
-`deno run -A scripts/permissions-setup.ts --apply`.
+**[Opinião]** Integração com o `permissions-setup.ts`: no modo `autonomous`, o Execution Planner
+deve verificar que `autoMode.environmentConfigured === true` (do `checkPermissions`) antes de
+despachar o primeiro worker. Se não estiver configurado, devolve `action: "ask"` com sugestão de
+rodar `deno run -A scripts/permissions-setup.ts --apply`.
 
 ### 4.5 Pergunta 5 — Evidência auditável
 
-**[Opinião]** O planner deve registrar um objeto `RoutingDecision` em cada dispatch, compatível com
-o padrão de `evidence`/`rationale` do `TaskProfile` (#620 §5):
+**[Opinião]** O Execution Planner deve registrar um objeto `RoutingDecision` em cada dispatch,
+compatível com o padrão de `evidence`/`rationale` do `TaskProfile` (#620 §5) e alinhado à
+rastreabilidade exigida pela ADR-002 §9:
 
 ```ts
 interface RoutingDecision {
@@ -357,7 +385,7 @@ relatório final da onda, `teto-de-workers.md` §6 item 6) e, quando o executor 
 (`orchestrator-adapter-contract.md` §6.1). Isso vincula a decisão ao job no orquestrador.
 
 **[Opinião]** O `RoutingDecision` não vai para o status file do worker: o status file é de
-propriedade do worker; a decisão de roteamento é de propriedade do planner/coordinator.
+propriedade do worker; a decisão de roteamento é de propriedade do Execution Planner/coordinator.
 
 ---
 
@@ -393,9 +421,9 @@ conteúdo lido em 2026-11-10). Portanto:
   externo (porque a intersecção com `authorizedProviders` está vazia).
 
 **[Fato]** O `selectDelegationRuntime` existente e o `OrchestratorRegistry` não são modificados: o
-planner chama esses módulos como antes, mas adiciona a verificação de `authorizedProviders` e
-`dataSensitivityPolicy` antes de usar o resultado. A camada de autorização é pré-seleção, não dentro
-da seleção.
+Execution Planner chama esses módulos como antes, mas adiciona a verificação de
+`authorizedProviders` e `dataSensitivityPolicy` antes de usar o resultado. A camada de autorização é
+pré-seleção, não dentro da seleção.
 
 **[Opinião]** Migrações de instalações existentes: quem hoje tem `delegation.preferredRuntime`
 configurado em `config.json` continua funcionando como antes (modo `manual` implícito, preferência
@@ -449,6 +477,15 @@ equivale a verificação explícita antes de despachar, como descrito em `harnes
 - **[Não verificado]** A interação entre `dataSensitivityPolicy` e os níveis de rede do executor
   (ex.: `Trusted`/`Full` do Claude Code remoto, `dispatch-na-nuvem.md` §3.3) não foi mapeada.
   Recomenda-se uma issue de follow-up após a implementação do `TaskProfile`.
+- **Questões abertas da ADR-002 §13 parcialmente respondidas por este relatório:**
+  - §13 Q7 ("What is the appropriate minimum confidence threshold for autonomous task
+    classification?"): abordada em §4.2 (limite 0,60 por campo para `dataSensitivity`) e §3.4 de
+    #620 — ainda marcada como `[Opinião] não calibrada`.
+  - §13 Q9 ("Which existing Coordinator metadata can be reused without introducing coupling?"):
+    abordada em §4.5 (`RoutingDecision` separado do status file do worker).
+  - §13 Q1 ("Should harness discovery use native CLI inspection, integration adapters, or both?"),
+    Q3 ("Should capability profiles be bundled with Vetor, provided by integrations, or both?"), Q4,
+    Q5, Q6 e Q8: não abordadas neste spike; permanecem abertas para fases subsequentes da ADR-002.
 
 ---
 
