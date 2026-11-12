@@ -542,3 +542,67 @@ without modifying the Coordinator or replacing existing delegation mechanisms.
 The long-term objective is to allow Vetor to automatically identify the most appropriate authorized
 execution environment for each task, independently of specific harnesses, models, providers, or
 orchestration platforms.
+
+## 16. Amendment A1: Contract Refined by Phase 0 Spikes
+
+- **Status:** Proposed
+- **Date:** 2026-11-11
+- **Source:** `docs/investigations/contrato-minimo-fase-1.md` (#623), consolidating #618–#622.
+
+Sections 4.2 and 4.3 remain as the historical illustrative contract. The Phase 1 implementation
+follows the contract below; the full TypeScript interfaces are in the investigation report.
+
+### 16.1 Harness Descriptor
+
+- `HarnessDescriptor` holds only the static, declared profile: `id`, `kind` (`cli` or
+  `orchestrator`), `command?`, `versionRange?`, and a `declared` map of capability claims, each with
+  a mandatory `source`. A missing capability means `unknown`.
+- Verified and operational states are never stored in the descriptor. They are runtime
+  `HarnessObservation`s merged by a pure function (`resolveEffective`); higher evidence levels
+  override lower ones, and on a same-level conflict `unsupported` wins.
+- Capability names are a closed list: `terminal`, `filesystem`, `git`, `mcp`, `browser`,
+  `subagents`, `background`, `resumable`, `isolatedWorktree`. Only the first three (the core) are
+  required of any harness; all others are optional with a portable fallback.
+- Removed from §4.2: `domains`, `operations` (deferred to Phase 5), `execution.parallel` (replaced
+  by `subagents`), `constraints.requiresApproval` and `networkAccess` (session or policy
+  properties), and `models` (kept in each harness adapter; its health is reported to the planner as
+  executor `availability`).
+- Minimum evidence: `assisted` accepts `declared`; `autonomous` requires `verified`. `operational`
+  is opt-in per requirement and has no probe before Phase 5.
+
+### 16.2 Task Profile
+
+- Only `operations` and `domains` are derived; `complexity` and `risk` are informative. `browser`,
+  `mcp` and `dataSensitivity` are explicit or configuration-provided, never inferred.
+- Removed or deferred: `filesystem`/`terminal`/`git` requirements (core), `parallelism`,
+  `longContext`, `budget`, `maxDurationMs`, semantic fallback fields.
+- Gate rule: only fields with `explicit`, `config` or `default` provenance may eliminate an
+  executor. Derived fields never gate routing, so no numeric confidence threshold is required for
+  autonomous mode.
+
+### 16.3 Plan and Telemetry
+
+- The planner emits an `ExecutionPlan` (`action`, `primary`, ordered `fallbacks`,
+  `maxRetryAttempts`, `reasons`) that carries no prompt or working directory. It is consumed by
+  setting `preferred` on the existing selectors, so `delegation-runtime.ts` and the orchestrator
+  registry keep their contracts.
+- `RoutingDecision` (written before dispatch) and `ExecutionOutcome` (appended afterwards) are
+  linked by `decisionId` and never contain task content.
+- Phase 2 ranking is lexicographic (preference, evidence level, optional capabilities, availability,
+  `id`) instead of the weighted sum in §4.5, which returns when Phase 5 provides history.
+- Phase 1 test files live in `scripts/tests/`, following the repository convention, instead of
+  `capabilities/tests/` in §7.
+
+### 16.4 Status of Open Questions (§13)
+
+| # | Status                           | Decision                                                                                        |
+| - | -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 1 | Decided                          | Both: bundled profiles plus passive discovery; executing probes are opt-in.                     |
+| 2 | Decided                          | Passive: executable resolved and core. Opt-in: version and help surface. Operational: none yet. |
+| 3 | Decided                          | Both; bundled TypeScript profiles first, integrations register through the same validator.      |
+| 4 | Decided                          | A `subagents` capability, not a separate executor.                                              |
+| 5 | Decided                          | Model routing stays in each adapter; the planner only sees executor `availability`.             |
+| 6 | Decided, implementation deferred | Local append-only JSONL; written from Phase 2, read in Phase 5.                                 |
+| 7 | Decided by construction          | No numeric threshold; derived fields never gate. Recalibrate only if that changes (Phase 5).    |
+| 8 | Decided, implementation deferred | Outside ranking in Phases 1–4; optional load snapshot as a hard filter from Phase 3.            |
+| 9 | Decided                          | Reuse pure functions and `module-test-map.md` only; no Coordinator state.                       |
