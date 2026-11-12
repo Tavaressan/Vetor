@@ -13,7 +13,7 @@ Deno.test("capabilities profiles - todo perfil embutido passa validateDescriptor
 
 Deno.test("capabilities profiles - ids esperados sem Kilo/Kiro", () => {
   const ids = embeddedProfiles.map((p) => p.id).sort();
-  assertEquals(ids, ["antigravity", "claude-code", "codex", "opencode"]);
+  assertEquals(ids, ["alethe", "antigravity", "claude-code", "codex", "opencode"]);
   assert(!ids.includes("kilo"));
   assert(!ids.includes("kiro"));
 });
