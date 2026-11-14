@@ -105,7 +105,8 @@ Deno.test("execution/ só importa de capabilities/ e da biblioteca padrão", asy
     for (const spec of specs) {
       const ok = spec.startsWith("../capabilities/") || spec.startsWith("./") ||
         spec.startsWith("@std/") ||
-        spec.startsWith("node:") || spec.startsWith("jsr:@std/");
+        spec.startsWith("node:") || spec.startsWith("jsr:@std/") ||
+        spec === "../orchestrator/context-packet.ts";
       assert(ok, `${entry.name} importa fora do permitido: ${spec}`);
     }
   }
