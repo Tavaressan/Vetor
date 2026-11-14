@@ -7,6 +7,8 @@ não precisa estar no caminho de quem só quer começar.
 
 - **[Configuração](Configuracao.md)** — mapeamento de testes por projeto, permissões do
   `.claude/settings.json` (Modo Seguro vs. Alta Eficiência) e delegação opcional ao Gemini.
+- **[Planejamento de execução](Planejamento-de-Execucao.md)** — CLI dry-run do planner, modos
+  `manual`/`assisted`/`autonomous` e motivos de rejeição.
 - **[MCPs](MCPs.md)** — os três servidores MCP embarcados (`context7`, `chrome-devtools`, `docker`)
   e a superfície de risco de cada um.
 - **[Referência](Referencia.md)** — hard caps, alavancas de custo de tokens e estrutura do
