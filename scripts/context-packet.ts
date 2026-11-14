@@ -29,9 +29,14 @@ import {
   buildContextPacket,
   catchAllModule,
   type ContextPacket,
+  extractAcceptanceCriteria,
+  extractTargetFiles,
   parseModuleTestMap,
   renderContextPacketPrompt,
+  resolveModule,
 } from "./lib/orchestrator/context-packet.ts";
+
+export { extractAcceptanceCriteria, extractTargetFiles, parseModuleTestMap, resolveModule };
 import { validateMicroSpec } from "./lib/orchestrator/micro-spec.ts";
 import { run } from "./lib/project.ts";
 import { buildRepoMap, isMappedSourcePath } from "./repo-map.ts";
